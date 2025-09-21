@@ -1,0 +1,105 @@
+{
+  "lixeiras": [
+    {
+      "id": 1,
+      "localizacao": "Asa Norte - Bloco A",
+      "nivel_preenchimento": 45,
+      "status": "ativo",
+      "ultima_coleta": "2024-01-15T10:30:00",
+      "tipo": "reciclavel",
+      "coordenadas": {
+        "latitude": -15.7801,
+        "longitude": -47.9292
+      }
+    },
+    {
+      "id": 2,
+      "localizacao": "Asa Sul - Bloco B",
+      "nivel_preenchimento": 78,
+      "status": "ativo",
+      "ultima_coleta": "2024-01-14T14:20:00",
+      "tipo": "organico",
+      "coordenadas": {
+        "latitude": -15.7942,
+        "longitude": -47.8822
+      }
+    },
+    {
+      "id": 3,
+      "localizacao": "Águas Claras - Shopping",
+      "nivel_preenchimento": 12,
+      "status": "manutencao",
+      "ultima_coleta": "2024-01-16T08:15:00",
+      "tipo": "geral",
+      "coordenadas": {
+        "latitude": -15.8401,
+        "longitude": -47.9258
+      }
+    },
+    {
+      "id": 4,
+      "localizacao": "Taguatinga - Centro",
+      "nivel_preenchimento": 92,
+      "status": "alerta",
+      "ultima_coleta": "2024-01-13T16:45:00",
+      "tipo": "reciclavel",
+      "coordenadas": {
+        "latitude": -15.8321,
+        "longitude": -48.0556
+      }
+    },
+    {
+      "id": 5,
+      "localizacao": "Ceilândia - Norte",
+      "nivel_preenchimento": 35,
+      "status": "ativo",
+      "ultima_coleta": "2024-01-15T12:00:00",
+      "tipo": "organico",
+      "coordenadas": {
+        "latitude": -15.8201,
+        "longitude": -48.1089
+      }
+    },
+    {
+      "id": 6,
+      "localizacao": "Gama - Sul",
+      "nivel_preenchimento": 67,
+      "status": "ativo",
+      "ultima_coleta": "2024-01-14T09:30:00",
+      "tipo": "geral",
+      "coordenadas": {
+        "latitude": -16.0236,
+        "longitude": -48.0556
+      }
+    }
+  ],
+  "configuracoes": {
+    "nivel_alerta": 80,
+    "nivel_critico": 95,
+    "intervalo_atualizacao": 30,
+    "timezone": "America/Sao_Paulo"
+  },
+  "historico_coletas": [
+    {
+      "id_lixeira": 1,
+      "data_coleta": "2024-01-15T10:30:00",
+      "nivel_antes": 85,
+      "nivel_depois": 5,
+      "tipo_coleta": "programada"
+    },
+    {
+      "id_lixeira": 2,
+      "data_coleta": "2024-01-14T14:20:00",
+      "nivel_antes": 90,
+      "nivel_depois": 8,
+      "tipo_coleta": "emergencial"
+    },
+    {
+      "id_lixeira": 3,
+      "data_coleta": "2024-01-16T08:15:00",
+      "nivel_antes": 15,
+      "nivel_depois": 2,
+      "tipo_coleta": "manutencao"
+    }
+  ]
+}
