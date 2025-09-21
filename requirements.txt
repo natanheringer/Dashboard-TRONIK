@@ -1,0 +1,68 @@
+# ========================================
+# DASHBOARD-TRONIK - DEPENDÊNCIAS PYTHON
+# ========================================
+#
+# Este arquivo contém todas as dependências necessárias
+# para executar o projeto Dashboard-TRONIK.
+#
+# COMO INSTALAR:
+# 1. Certifique-se de ter Python 3.8+ instalado
+# 2. Abra o terminal na pasta do projeto
+# 3. Execute: pip install -r requirements.txt
+#
+# VERIFICAR INSTALAÇÃO:
+# Execute: python -c "import flask; print('Flask instalado!')"
+#
+# ========================================
+
+# Framework web principal
+Flask==2.3.3
+# Flask é o framework web que usaremos para criar a API
+# e servir as páginas HTML do dashboard
+
+# Permite requisições de diferentes origens (CORS)
+Flask-CORS==4.0.0
+# Necessário para o frontend se comunicar com a API
+# sem problemas de CORS no navegador
+
+# ORM para banco de dados
+SQLAlchemy==2.0.21
+# SQLAlchemy facilita o trabalho com banco de dados
+# Permite criar modelos e fazer queries de forma simples
+
+# Manipulação de datas
+python-dateutil==2.8.2
+# Facilita trabalhar com datas e horários
+# Útil para timestamps das coletas
+
+# Requisições HTTP (se precisar chamar APIs externas)
+requests==2.31.0
+# Biblioteca para fazer requisições HTTP
+# Pode ser útil para integrações futuras
+
+# Variáveis de ambiente (opcional)
+python-dotenv==1.0.0
+# Permite carregar configurações de arquivo .env
+# Útil para manter senhas e configurações seguras
+
+# ========================================
+# DEPENDÊNCIAS DE DESENVOLVIMENTO (OPCIONAL)
+# ========================================
+# Descomente as linhas abaixo se quiser usar:
+
+# Auto-reload durante desenvolvimento
+# Flask-DebugToolbar==0.13.1
+
+# Testes automatizados
+# pytest==7.4.2
+# pytest-flask==1.2.0
+
+# Formatação de código
+# black==23.7.0
+# flake8==6.0.0
+
+# ========================================
+# VERIFICAÇÃO DE INSTALAÇÃO
+# ========================================
+# Após instalar, teste com:
+# python -c "import flask, flask_cors, sqlalchemy; print('Todas as dependências instaladas!')"
