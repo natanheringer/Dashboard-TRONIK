@@ -6,6 +6,7 @@
 ## Mantenedores
 <!-- Adicione seu nome aqui -->
 - Pedro Gabryel Oliveira(@ySpecks) 
+- Gabriel Oliveira de Araújo (@gabrieloliveiraetb)
 
 ## Como adicionar seu nome
 1. Edite este arquivo
