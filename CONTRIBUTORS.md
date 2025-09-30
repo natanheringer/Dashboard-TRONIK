@@ -7,6 +7,8 @@
 <!-- Adicione seu nome aqui -->
 - Pedro Gabryel Oliveira(@ySpecks) 
 - Gabriel Oliveira de Araújo (@gabrieloliveiraetb)
+- Ruan Costa (@Ruan25-code)
+- Thales Leão (@tleaoribeironeves-max)
 
 ## Como adicionar seu nome
 1. Edite este arquivo
