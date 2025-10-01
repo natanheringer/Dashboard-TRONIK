@@ -1,0 +1,588 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Dashboard-TRONIK - Detalhe Lixeira #L001</title>
+    <style>
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+        
+        body {
+            font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Oxygen, Ubuntu, sans-serif;
+            background: #f0f2f5;
+            color: #2C3E50;
+            height: 100vh;
+            overflow: hidden;
+            display: flex;
+            flex-direction: column;
+        }
+        
+        /* Header */
+        .header {
+            background: white;
+            box-shadow: 0 2px 4px rgba(0,0,0,0.1);
+            padding: 12px 20px;
+            flex-shrink: 0;
+        }
+        
+        .header-content {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            max-width: 100%;
+        }
+        
+        .logo-section {
+            display: flex;
+            align-items: center;
+            gap: 12px;
+        }
+        
+        .logo {
+            width: 32px;
+            height: 32px;
+            background: #5DB5A4;
+            border-radius: 50%;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            color: white;
+            font-size: 18px;
+            font-weight: bold;
+        }
+        
+        .logo::before {
+            content: "$";
+        }
+        
+        .logo-text {
+            font-size: 18px;
+            font-weight: 600;
+            color: #2C3E50;
+        }
+        
+        .header-actions {
+            display: flex;
+            gap: 12px;
+            align-items: center;
+        }
+        
+        .btn-voltar {
+            padding: 6px 16px;
+            background: white;
+            color: #5DB5A4;
+            border: 1px solid #5DB5A4;
+            border-radius: 5px;
+            cursor: pointer;
+            font-weight: 500;
+            font-size: 13px;
+            display: flex;
+            align-items: center;
+            gap: 6px;
+        }
+        
+        .btn-voltar:hover {
+            background: #f0faf8;
+        }
+        
+        .btn-primary {
+            padding: 6px 16px;
+            background: #5DB5A4;
+            color: white;
+            border: none;
+            border-radius: 5px;
+            cursor: pointer;
+            font-weight: 500;
+            font-size: 13px;
+        }
+        
+        .btn-primary:hover {
+            background: #4A9B8E;
+        }
+        
+        /* Breadcrumb */
+        .breadcrumb {
+            padding: 10px 20px;
+            background: white;
+            border-bottom: 1px solid #e0e0e0;
+            font-size: 12px;
+            color: #7f8c8d;
+        }
+        
+        .breadcrumb a {
+            color: #5DB5A4;
+            text-decoration: none;
+        }
+        
+        .breadcrumb a:hover {
+            text-decoration: underline;
+        }
+        
+        /* Main Container */
+        .main-container {
+            display: flex;
+            flex: 1;
+            overflow: hidden;
+            gap: 20px;
+            padding: 20px;
+            height: calc(100vh - 100px);
+        }
+        
+        /* Left Panel - Details */
+        .left-panel {
+            flex: 1.5;
+            display: flex;
+            flex-direction: column;
+            gap: 15px;
+            overflow-y: auto;
+            padding-right: 10px;
+        }
+        
+        /* Right Panel - Map/Actions */
+        .right-panel {
+            flex: 1;
+            display: flex;
+            flex-direction: column;
+            gap: 15px;
+        }
+        
+        /* Card Base */
+        .card {
+            background: white;
+            border-radius: 8px;
+            box-shadow: 0 2px 4px rgba(0,0,0,0.05);
+            padding: 20px;
+        }
+        
+        .card-header {
+            font-size: 16px;
+            font-weight: 600;
+            color: #2C3E50;
+            margin-bottom: 15px;
+            padding-bottom: 10px;
+            border-bottom: 1px solid #f0f0f0;
+        }
+        
+        /* Status Card */
+        .status-header {
+            display: flex;
+            justify-content: space-between;
+            align-items: start;
+            margin-bottom: 20px;
+        }
+        
+        .lixeira-info h1 {
+            font-size: 24px;
+            color: #2C3E50;
+            margin-bottom: 5px;
+        }
+        
+        .lixeira-meta {
+            display: flex;
+            gap: 15px;
+            font-size: 13px;
+            color: #7f8c8d;
+        }
+        
+        .status-badge-large {
+            padding: 8px 20px;
+            border-radius: 20px;
+            font-size: 14px;
+            font-weight: 600;
+            text-transform: uppercase;
+        }
+        
+        .status-critical {
+            background: #f8d7da;
+            color: #721c24;
+        }
+        
+        /* Level Display */
+        .level-display {
+            display: grid;
+            grid-template-columns: 2fr 1fr;
+            gap: 30px;
+            margin: 20px 0;
+        }
+        
+        .level-visual {
+            display: flex;
+            flex-direction: column;
+            gap: 10px;
+        }
+        
+        .level-percentage-large {
+            font-size: 48px;
+            font-weight: 700;
+            color: #e74c3c;
+        }
+        
+        .level-bar-container {
+            width: 100%;
+            height: 20px;
+            background: #ecf0f1;
+            border-radius: 10px;
+            overflow: hidden;
+        }
+        
+        .level-fill-large {
+            height: 100%;
+            background: #e74c3c;
+            transition: width 0.3s;
+        }
+        
+        .level-stats {
+            display: flex;
+            flex-direction: column;
+            gap: 12px;
+        }
+        
+        .stat-row {
+            display: flex;
+            justify-content: space-between;
+            font-size: 13px;
+        }
+        
+        .stat-label {
+            color: #7f8c8d;
+        }
+        
+        .stat-value {
+            font-weight: 600;
+            color: #2C3E50;
+        }
+        
+        /* Info Grid */
+        .info-grid {
+            display: grid;
+            grid-template-columns: repeat(2, 1fr);
+            gap: 20px;
+            margin-top: 20px;
+        }
+        
+        .info-item {
+            display: flex;
+            flex-direction: column;
+            gap: 5px;
+        }
+        
+        .info-label {
+            font-size: 12px;
+            color: #7f8c8d;
+        }
+        
+        .info-value {
+            font-size: 14px;
+            font-weight: 500;
+            color: #2C3E50;
+        }
+        
+        /* Graph Placeholder */
+        .graph-container {
+            height: 200px;
+            background: linear-gradient(135deg, #5DB5A4 0%, #4A9B8E 100%);
+            border-radius: 8px;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            color: white;
+            font-size: 16px;
+            margin-top: 15px;
+        }
+        
+        /* Map Placeholder */
+        .map-container {
+            flex: 1;
+            background: #e0e0e0;
+            border-radius: 8px;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            color: #7f8c8d;
+            font-size: 16px;
+            min-height: 300px;
+        }
+        
+        /* Actions */
+        .actions-grid {
+            display: grid;
+            grid-template-columns: repeat(2, 1fr);
+            gap: 10px;
+        }
+        
+        .action-btn {
+            padding: 12px;
+            border: 1px solid #e0e0e0;
+            background: white;
+            border-radius: 6px;
+            cursor: pointer;
+            transition: all 0.2s;
+            text-align: center;
+        }
+        
+        .action-btn:hover {
+            background: #f8f9fa;
+            transform: translateY(-1px);
+        }
+        
+        .action-btn.primary {
+            background: #5DB5A4;
+            color: white;
+            border-color: #5DB5A4;
+        }
+        
+        .action-btn.primary:hover {
+            background: #4A9B8E;
+        }
+        
+        .action-btn.danger {
+            background: #e74c3c;
+            color: white;
+            border-color: #e74c3c;
+        }
+        
+        .action-btn.danger:hover {
+            background: #c0392b;
+        }
+        
+        .action-icon {
+            font-size: 20px;
+            margin-bottom: 5px;
+        }
+        
+        .action-label {
+            font-size: 13px;
+            font-weight: 500;
+        }
+        
+        /* History Table */
+        .history-table {
+            width: 100%;
+            font-size: 13px;
+        }
+        
+        .history-table th {
+            text-align: left;
+            padding: 8px;
+            background: #f8f9fa;
+            border-bottom: 2px solid #e0e0e0;
+            font-weight: 600;
+            color: #7f8c8d;
+        }
+        
+        .history-table td {
+            padding: 8px;
+            border-bottom: 1px solid #f0f0f0;
+        }
+        
+        .history-table tr:hover {
+            background: #f8f9fa;
+        }
+    </style>
+</head>
+<body>
+    <!-- Header -->
+    <header class="header">
+        <div class="header-content">
+            <div class="logo-section">
+                <div class="logo"></div>
+                <h1 class="logo-text">Dashboard-TRONIK</h1>
+            </div>
+            <div class="header-actions">
+                <button class="btn-voltar">
+                    ← Voltar ao Dashboard
+                </button>
+                <button class="btn-primary">
+                    ↻ Atualizar Dados
+                </button>
+            </div>
+        </div>
+    </header>
+
+    <!-- Breadcrumb -->
+    <div class="breadcrumb">
+        <a href="#">Dashboard</a> / <a href="#">Monitoramento</a> / <strong>Lixeira #L001</strong>
+    </div>
+
+    <!-- Main Container -->
+    <div class="main-container">
+        <!-- Left Panel -->
+        <div class="left-panel">
+            <!-- Status Card -->
+            <div class="card">
+                <div class="status-header">
+                    <div class="lixeira-info">
+                        <h1>Lixeira #L001 - Praça Central</h1>
+                        <div class="lixeira-meta">
+                            <span>📍 Centro - Rua XV de Novembro</span>
+                            <span>🔄 Atualizado há 2 minutos</span>
+                            <span>🔋 Bateria: 85%</span>
+                        </div>
+                    </div>
+                    <span class="status-badge-large status-critical">CRÍTICO</span>
+                </div>
+
+                <div class="level-display">
+                    <div class="level-visual">
+                        <div class="level-percentage-large">92%</div>
+                        <div>Nível de Preenchimento</div>
+                        <div class="level-bar-container">
+                            <div class="level-fill-large" style="width: 92%"></div>
+                        </div>
+                    </div>
+                    <div class="level-stats">
+                        <div class="stat-row">
+                            <span class="stat-label">Volume estimado:</span>
+                            <span class="stat-value">184L / 200L</span>
+                        </div>
+                        <div class="stat-row">
+                            <span class="stat-label">Última coleta:</span>
+                            <span class="stat-value">Há 3 dias</span>
+                        </div>
+                        <div class="stat-row">
+                            <span class="stat-label">Média diária:</span>
+                            <span class="stat-value">61L/dia</span>
+                        </div>
+                        <div class="stat-row">
+                            <span class="stat-label">Tempo até 100%:</span>
+                            <span class="stat-value" style="color: #e74c3c;">~3 horas</span>
+                        </div>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Informações Técnicas -->
+            <div class="card">
+                <h3 class="card-header">Informações Técnicas</h3>
+                <div class="info-grid">
+                    <div class="info-item">
+                        <span class="info-label">Tipo de Sensor</span>
+                        <span class="info-value">Ultrassônico HC-SR04</span>
+                    </div>
+                    <div class="info-item">
+                        <span class="info-label">ID do Dispositivo</span>
+                        <span class="info-value">TRK-2024-001</span>
+                    </div>
+                    <div class="info-item">
+                        <span class="info-label">Capacidade Total</span>
+                        <span class="info-value">200 Litros</span>
+                    </div>
+                    <div class="info-item">
+                        <span class="info-label">Data de Instalação</span>
+                        <span class="info-value">15/08/2024</span>
+                    </div>
+                    <div class="info-item">
+                        <span class="info-label">Última Manutenção</span>
+                        <span class="info-value">30/08/2025</span>
+                    </div>
+                    <div class="info-item">
+                        <span class="info-label">Frequência de Leitura</span>
+                        <span class="info-value">A cada 10 minutos</span>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Histórico de Coletas -->
+            <div class="card">
+                <h3 class="card-header">Últimas Coletas</h3>
+                <table class="history-table">
+                    <thead>
+                        <tr>
+                            <th>Data/Hora</th>
+                            <th>Nível Antes</th>
+                            <th>Volume Coletado</th>
+                            <th>Operador</th>
+                            <th>Duração</th>
+                        </tr>
+                    </thead>
+                    <tbody>
+                        <tr>
+                            <td>27/09/2025 14:30</td>
+                            <td>95%</td>
+                            <td>190L</td>
+                            <td>Equipe A</td>
+                            <td>5 min</td>
+                        </tr>
+                        <tr>
+                            <td>24/09/2025 15:45</td>
+                            <td>88%</td>
+                            <td>176L</td>
+                            <td>Equipe B</td>
+                            <td>4 min</td>
+                        </tr>
+                        <tr>
+                            <td>21/09/2025 13:20</td>
+                            <td>91%</td>
+                            <td>182L</td>
+                            <td>Equipe A</td>
+                            <td>6 min</td>
+                        </tr>
+                        <tr>
+                            <td>18/09/2025 16:10</td>
+                            <td>85%</td>
+                            <td>170L</td>
+                            <td>Equipe C</td>
+                            <td>4 min</td>
+                        </tr>
+                    </tbody>
+                </table>
+            </div>
+        </div>
+
+        <!-- Right Panel -->
+        <div class="right-panel">
+            <!-- Localização -->
+            <div class="card">
+                <h3 class="card-header">Localização</h3>
+                <div class="map-container">
+                    Mapa Interativo
+                </div>
+                <div class="info-grid" style="margin-top: 15px;">
+                    <div class="info-item">
+                        <span class="info-label">Coordenadas</span>
+                        <span class="info-value">-15.7942, -47.8825</span>
+                    </div>
+                    <div class="info-item">
+                        <span class="info-label">Endereço</span>
+                        <span class="info-value">Rua XV de Novembro, 123</span>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Ações Rápidas -->
+            <div class="card">
+                <h3 class="card-header">Ações Rápidas</h3>
+                <div class="actions-grid">
+                    <button class="action-btn danger">
+                        <div class="action-icon">🚨</div>
+                        <div class="action-label">Priorizar Coleta</div>
+                    </button>
+                    <button class="action-btn">
+                        <div class="action-icon">📋</div>
+                        <div class="action-label">Gerar Ordem</div>
+                    </button>
+                    <button class="action-btn">
+                        <div class="action-icon">🔧</div>
+                        <div class="action-label">Solicitar Manutenção</div>
+                    </button>
+                    <button class="action-btn">
+                        <div class="action-icon">📊</div>
+                        <div class="action-label">Exportar Dados</div>
+                    </button>
+                    <button class="action-btn primary" style="grid-column: span 2;">
+                        <div class="action-icon">✓</div>
+                        <div class="action-label">Marcar como Coletada</div>
+                    </button>
+                </div>
+            </div>
+
+            
+            </div>
+        </div>
+    </div>
+</body>
+</html>

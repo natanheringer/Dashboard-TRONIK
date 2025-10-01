@@ -1,0 +1,915 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Dashboard-TRONIK - Layout Horizontal</title>
+    <style>
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+        
+        body {
+            font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Oxygen, Ubuntu, sans-serif;
+            background: #f0f2f5;
+            color: #1a1a1a;
+            height: 100vh;
+            overflow: hidden;
+            display: flex;
+            flex-direction: column;
+        }
+        
+        /* Header */
+        .header {
+            background: white;
+            box-shadow: 0 2px 4px rgba(0,0,0,0.1);
+            padding: 12px 20px;
+            flex-shrink: 0;
+        }
+        
+        .header-content {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            max-width: 100%;
+        }
+        
+        .logo-section {
+            display: flex;
+            align-items: center;
+            gap: 12px;
+        }
+        
+        .logo {
+            width: 32px;
+            height: 32px;
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            border-radius: 6px;
+        }
+        
+        .logo-text {
+            font-size: 18px;
+            font-weight: 600;
+            color: #2c3e50;
+        }
+        
+        .header-actions {
+            display: flex;
+            gap: 12px;
+            align-items: center;
+        }
+        
+        .btn-atualizar {
+            padding: 6px 16px;
+            background: #3498db;
+            color: white;
+            border: none;
+            border-radius: 5px;
+            cursor: pointer;
+            font-weight: 500;
+            font-size: 13px;
+            display: flex;
+            align-items: center;
+            gap: 6px;
+        }
+        
+        .btn-atualizar:hover {
+            background: #2980b9;
+        }
+        
+        .btn-exportar {
+            padding: 6px 16px;
+            background: white;
+            color: #3498db;
+            border: 1px solid #3498db;
+            border-radius: 5px;
+            cursor: pointer;
+            font-weight: 500;
+            font-size: 13px;
+        }
+        
+        .btn-exportar:hover {
+            background: #f0f8ff;
+        }
+        
+        .status-indicator {
+            display: flex;
+            align-items: center;
+            gap: 6px;
+            padding: 6px 12px;
+            background: #d4edda;
+            border-radius: 20px;
+            font-size: 12px;
+        }
+        
+        .status-dot {
+            width: 6px;
+            height: 6px;
+            background: #27ae60;
+            border-radius: 50%;
+            animation: pulse 2s infinite;
+        }
+        
+        @keyframes pulse {
+            0%, 100% { opacity: 1; }
+            50% { opacity: 0.5; }
+        }
+        
+        /* Main Layout */
+        .main-container {
+            display: flex;
+            flex: 1;
+            overflow: hidden;
+            gap: 20px;
+            padding: 20px;
+            height: calc(100vh - 56px);
+        }
+        
+        /* Left Side - Dashboard */
+        .left-panel {
+            flex: 1.5;
+            display: flex;
+            flex-direction: column;
+            gap: 15px;
+            overflow-y: auto;
+            padding-right: 10px;
+        }
+        
+        /* Right Side - History */
+        .right-panel {
+            flex: 1;
+            background: white;
+            border-radius: 10px;
+            box-shadow: 0 2px 4px rgba(0,0,0,0.05);
+            padding: 20px;
+            overflow-y: auto;
+        }
+        
+        /* Alerts Bar */
+        .alerts-bar {
+            background: #fff3cd;
+            border: 1px solid #ffc107;
+            border-radius: 8px;
+            padding: 12px 16px;
+            display: flex;
+            align-items: center;
+            gap: 12px;
+            flex-shrink: 0;
+        }
+        
+        .alert-icon {
+            width: 32px;
+            height: 32px;
+            background: #ffc107;
+            border-radius: 50%;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            color: white;
+            font-size: 16px;
+            flex-shrink: 0;
+        }
+        
+        .alert-content {
+            flex: 1;
+        }
+        
+        .alert-title {
+            font-weight: 600;
+            color: #856404;
+            font-size: 14px;
+            margin-bottom: 2px;
+        }
+        
+        .alert-message {
+            font-size: 12px;
+            color: #856404;
+        }
+        
+        /* Stats and Filters Row */
+        .controls-row {
+            display: flex;
+            gap: 15px;
+            flex-shrink: 0;
+        }
+        
+        .stats-card {
+            background: white;
+            padding: 15px;
+            border-radius: 8px;
+            box-shadow: 0 2px 4px rgba(0,0,0,0.05);
+            flex: 1;
+        }
+        
+        .stats-grid {
+            display: grid;
+            grid-template-columns: repeat(4, 1fr);
+            gap: 20px;
+        }
+        
+        .stat-item {
+            text-align: center;
+        }
+        
+        .stat-value {
+            font-size: 24px;
+            font-weight: 700;
+            color: #2c3e50;
+            line-height: 1;
+        }
+        
+        .stat-value.alert {
+            color: #e74c3c;
+        }
+        
+        .stat-label {
+            font-size: 11px;
+            color: #7f8c8d;
+            margin-top: 4px;
+        }
+        
+        .filters-card {
+            background: white;
+            padding: 15px;
+            border-radius: 8px;
+            box-shadow: 0 2px 4px rgba(0,0,0,0.05);
+            flex: 1.5;
+        }
+        
+        .filters-row {
+            display: flex;
+            gap: 12px;
+            align-items: flex-end;
+        }
+        
+        .filter-group {
+            flex: 1;
+        }
+        
+        .filter-label {
+            font-size: 11px;
+            color: #7f8c8d;
+            margin-bottom: 4px;
+        }
+        
+        .filter-select, .filter-input {
+            width: 100%;
+            padding: 6px 10px;
+            border: 1px solid #ddd;
+            border-radius: 5px;
+            background: white;
+            font-size: 13px;
+        }
+        
+        /* Bins Grid */
+        .bins-section {
+            background: white;
+            padding: 15px;
+            border-radius: 8px;
+            box-shadow: 0 2px 4px rgba(0,0,0,0.05);
+            flex: 1;
+            overflow: hidden;
+            display: flex;
+            flex-direction: column;
+        }
+        
+        .bins-header {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            margin-bottom: 15px;
+        }
+        
+        .bins-title {
+            font-size: 16px;
+            font-weight: 600;
+            color: #2c3e50;
+        }
+        
+        .view-toggle {
+            display: flex;
+            gap: 3px;
+            background: #f0f2f5;
+            padding: 2px;
+            border-radius: 5px;
+        }
+        
+        .view-btn {
+            padding: 4px 10px;
+            background: transparent;
+            border: none;
+            border-radius: 3px;
+            cursor: pointer;
+            font-size: 12px;
+            color: #7f8c8d;
+        }
+        
+        .view-btn.active {
+            background: white;
+            color: #2c3e50;
+            box-shadow: 0 1px 2px rgba(0,0,0,0.1);
+        }
+        
+        .bins-grid {
+            display: grid;
+            grid-template-columns: repeat(3, 1fr);
+            gap: 12px;
+            overflow-y: auto;
+            padding-right: 5px;
+        }
+        
+        .bin-card {
+            border: 1px solid #e0e0e0;
+            border-radius: 6px;
+            padding: 12px;
+            transition: all 0.3s;
+            cursor: pointer;
+            position: relative;
+        }
+        
+        .bin-card:hover {
+            transform: translateY(-2px);
+            box-shadow: 0 4px 8px rgba(0,0,0,0.1);
+        }
+        
+        .bin-card.alert {
+            border-color: #e74c3c;
+            background: #fff5f5;
+        }
+        
+        .bin-card.warning {
+            border-color: #f39c12;
+            background: #fffbf0;
+        }
+        
+        .bin-header {
+            display: flex;
+            justify-content: space-between;
+            align-items: start;
+            margin-bottom: 10px;
+        }
+        
+        .bin-info {
+            flex: 1;
+        }
+        
+        .bin-id {
+            font-size: 11px;
+            color: #7f8c8d;
+        }
+        
+        .bin-name {
+            font-size: 14px;
+            font-weight: 600;
+            color: #2c3e50;
+            margin-top: 2px;
+        }
+        
+        .bin-location {
+            font-size: 11px;
+            color: #95a5a6;
+            margin-top: 3px;
+        }
+        
+        .bin-status-badge {
+            padding: 3px 8px;
+            border-radius: 12px;
+            font-size: 10px;
+            font-weight: 600;
+            text-transform: uppercase;
+        }
+        
+        .status-ok {
+            background: #d4edda;
+            color: #155724;
+        }
+        
+        .status-warning {
+            background: #fff3cd;
+            color: #856404;
+        }
+        
+        .status-alert {
+            background: #f8d7da;
+            color: #721c24;
+        }
+        
+        .bin-level {
+            margin: 10px 0;
+        }
+        
+        .level-label {
+            display: flex;
+            justify-content: space-between;
+            font-size: 11px;
+            color: #7f8c8d;
+            margin-bottom: 6px;
+        }
+        
+        .level-percentage {
+            font-size: 18px;
+            font-weight: 700;
+            color: #2c3e50;
+        }
+        
+        .level-bar {
+            width: 100%;
+            height: 6px;
+            background: #ecf0f1;
+            border-radius: 3px;
+            overflow: hidden;
+        }
+        
+        .level-fill {
+            height: 100%;
+            background: #27ae60;
+            transition: width 0.3s, background 0.3s;
+        }
+        
+        .level-fill.warning {
+            background: #f39c12;
+        }
+        
+        .level-fill.alert {
+            background: #e74c3c;
+        }
+        
+        .bin-footer {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            margin-top: 10px;
+            padding-top: 10px;
+            border-top: 1px solid #ecf0f1;
+        }
+        
+        .bin-update {
+            font-size: 10px;
+            color: #95a5a6;
+        }
+        
+        .bin-action {
+            padding: 3px 10px;
+            background: #3498db;
+            color: white;
+            border: none;
+            border-radius: 3px;
+            font-size: 11px;
+            cursor: pointer;
+        }
+        
+        .bin-action:hover {
+            background: #2980b9;
+        }
+        
+        /* History Table */
+        .history-header {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            margin-bottom: 15px;
+            padding-bottom: 15px;
+            border-bottom: 1px solid #e0e0e0;
+        }
+        
+        .history-title {
+            font-size: 16px;
+            font-weight: 600;
+            color: #2c3e50;
+        }
+        
+        .history-filter {
+            display: flex;
+            gap: 8px;
+        }
+        
+        .date-input {
+            padding: 4px 8px;
+            border: 1px solid #ddd;
+            border-radius: 4px;
+            font-size: 12px;
+        }
+        
+        table {
+            width: 100%;
+            border-collapse: collapse;
+        }
+        
+        th {
+            text-align: left;
+            padding: 10px 8px;
+            background: #f8f9fa;
+            border-bottom: 2px solid #e0e0e0;
+            font-size: 11px;
+            font-weight: 600;
+            color: #7f8c8d;
+        }
+        
+        td {
+            padding: 10px 8px;
+            border-bottom: 1px solid #f0f0f0;
+            font-size: 12px;
+        }
+        
+        tr:hover {
+            background: #f8f9fa;
+        }
+        
+        .table-scroll {
+            overflow-y: auto;
+            max-height: calc(100vh - 250px);
+        }
+        
+        /* Scrollbar personalizada */
+        ::-webkit-scrollbar {
+            width: 6px;
+            height: 6px;
+        }
+        
+        ::-webkit-scrollbar-track {
+            background: #f1f1f1;
+            border-radius: 3px;
+        }
+        
+        ::-webkit-scrollbar-thumb {
+            background: #888;
+            border-radius: 3px;
+        }
+        
+        ::-webkit-scrollbar-thumb:hover {
+            background: #555;
+        }
+    </style>
+</head>
+<body>
+    <!-- Header -->
+    <header class="header">
+        <div class="header-content">
+            <div class="logo-section">
+                <div class="logo"></div>
+                <h1 class="logo-text">Dashboard-TRONIK</h1>
+            </div>
+            <div class="header-actions">
+                <div class="status-indicator">
+                    <div class="status-dot"></div>
+                    <span>Conectado</span>
+                </div>
+                <button class="btn-atualizar">
+                    ↻ Atualizar
+                </button>
+                <button class="btn-exportar">
+                    ↓ Exportar CSV
+                </button>
+            </div>
+        </div>
+    </header>
+
+    <!-- Main Container -->
+    <div class="main-container">
+        <!-- Left Panel - Dashboard -->
+        <div class="left-panel">
+            <!-- Alerts -->
+            <div class="alerts-bar">
+                <div class="alert-icon">⚠</div>
+                <div class="alert-content">
+                    <div class="alert-title">3 lixeiras precisam de atenção urgente</div>
+                    <div class="alert-message">Lixeiras #L001, #L004 e #L007 estão acima de 80% de capacidade</div>
+                </div>
+            </div>
+
+            <!-- Stats and Filters -->
+            <div class="controls-row">
+                <!-- Stats -->
+                <div class="stats-card">
+                    <div class="stats-grid">
+                        <div class="stat-item">
+                            <div class="stat-value">42</div>
+                            <div class="stat-label">Total</div>
+                        </div>
+                        <div class="stat-item">
+                            <div class="stat-value">68%</div>
+                            <div class="stat-label">Nível Médio</div>
+                        </div>
+                        <div class="stat-item">
+                            <div class="stat-value alert">3</div>
+                            <div class="stat-label">Alertas</div>
+                        </div>
+                        <div class="stat-item">
+                            <div class="stat-value">15</div>
+                            <div class="stat-label">Coletas Hoje</div>
+                        </div>
+                    </div>
+                </div>
+                
+                <!-- Filters -->
+                <div class="filters-card">
+                    <div class="filters-row">
+                        <div class="filter-group">
+                            <div class="filter-label">Status</div>
+                            <select class="filter-select">
+                                <option>Todos</option>
+                                <option>Normal</option>
+                                <option>Atenção</option>
+                                <option>Crítico</option>
+                            </select>
+                        </div>
+                        <div class="filter-group">
+                            <div class="filter-label">Região</div>
+                            <select class="filter-select">
+                                <option>Todas</option>
+                                <option>Centro</option>
+                                <option>Zona Norte</option>
+                                <option>Zona Sul</option>
+                            </select>
+                        </div>
+                        <div class="filter-group">
+                            <div class="filter-label">Buscar</div>
+                            <input type="text" class="filter-input" placeholder="ID ou nome...">
+                        </div>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Bins Grid -->
+            <div class="bins-section">
+                <div class="bins-header">
+                    <h2 class="bins-title">Monitoramento de Lixeiras</h2>
+                    <div class="view-toggle">
+                        <button class="view-btn active">Grid</button>
+                        <button class="view-btn">Lista</button>
+                        <button class="view-btn">Mapa</button>
+                    </div>
+                </div>
+                
+                <div class="bins-grid">
+                    <!-- Lixeira Crítica -->
+                    <div class="bin-card alert">
+                        <div class="bin-header">
+                            <div class="bin-info">
+                                <div class="bin-id">#L001</div>
+                                <div class="bin-name">Praça Central</div>
+                                <div class="bin-location">Centro - Rua XV</div>
+                            </div>
+                            <span class="bin-status-badge status-alert">Crítico</span>
+                        </div>
+                        <div class="bin-level">
+                            <div class="level-label">
+                                <span>Nível</span>
+                                <span class="level-percentage">92%</span>
+                            </div>
+                            <div class="level-bar">
+                                <div class="level-fill alert" style="width: 92%"></div>
+                            </div>
+                        </div>
+                        <div class="bin-footer">
+                            <span class="bin-update">Há 2 min</span>
+                            <button class="bin-action">Priorizar</button>
+                        </div>
+                    </div>
+
+                    <!-- Lixeira Alerta -->
+                    <div class="bin-card warning">
+                        <div class="bin-header">
+                            <div class="bin-info">
+                                <div class="bin-id">#L004</div>
+                                <div class="bin-name">Escola Municipal</div>
+                                <div class="bin-location">Zona Norte</div>
+                            </div>
+                            <span class="bin-status-badge status-warning">Atenção</span>
+                        </div>
+                        <div class="bin-level">
+                            <div class="level-label">
+                                <span>Nível</span>
+                                <span class="level-percentage">78%</span>
+                            </div>
+                            <div class="level-bar">
+                                <div class="level-fill warning" style="width: 78%"></div>
+                            </div>
+                        </div>
+                        <div class="bin-footer">
+                            <span class="bin-update">Há 5 min</span>
+                            <button class="bin-action">Detalhes</button>
+                        </div>
+                    </div>
+
+                    <!-- Lixeira Crítica -->
+                    <div class="bin-card alert">
+                        <div class="bin-header">
+                            <div class="bin-info">
+                                <div class="bin-id">#L007</div>
+                                <div class="bin-name">Mercado Municipal</div>
+                                <div class="bin-location">Centro - Sul</div>
+                            </div>
+                            <span class="bin-status-badge status-alert">Crítico</span>
+                        </div>
+                        <div class="bin-level">
+                            <div class="level-label">
+                                <span>Nível</span>
+                                <span class="level-percentage">88%</span>
+                            </div>
+                            <div class="level-bar">
+                                <div class="level-fill alert" style="width: 88%"></div>
+                            </div>
+                        </div>
+                        <div class="bin-footer">
+                            <span class="bin-update">Há 1 min</span>
+                            <button class="bin-action">Priorizar</button>
+                        </div>
+                    </div>
+
+                    <!-- Lixeiras Normais -->
+                    <div class="bin-card">
+                        <div class="bin-header">
+                            <div class="bin-info">
+                                <div class="bin-id">#L002</div>
+                                <div class="bin-name">Parque Municipal</div>
+                                <div class="bin-location">Zona Sul</div>
+                            </div>
+                            <span class="bin-status-badge status-ok">Normal</span>
+                        </div>
+                        <div class="bin-level">
+                            <div class="level-label">
+                                <span>Nível</span>
+                                <span class="level-percentage">45%</span>
+                            </div>
+                            <div class="level-bar">
+                                <div class="level-fill" style="width: 45%"></div>
+                            </div>
+                        </div>
+                        <div class="bin-footer">
+                            <span class="bin-update">Há 1 min</span>
+                            <button class="bin-action">Detalhes</button>
+                        </div>
+                    </div>
+
+                    <div class="bin-card">
+                        <div class="bin-header">
+                            <div class="bin-info">
+                                <div class="bin-id">#L003</div>
+                                <div class="bin-name">Terminal Rodoviário</div>
+                                <div class="bin-location">Centro</div>
+                            </div>
+                            <span class="bin-status-badge status-ok">Normal</span>
+                        </div>
+                        <div class="bin-level">
+                            <div class="level-label">
+                                <span>Nível</span>
+                                <span class="level-percentage">32%</span>
+                            </div>
+                            <div class="level-bar">
+                                <div class="level-fill" style="width: 32%"></div>
+                            </div>
+                        </div>
+                        <div class="bin-footer">
+                            <span class="bin-update">Há 3 min</span>
+                            <button class="bin-action">Detalhes</button>
+                        </div>
+                    </div>
+
+                    <div class="bin-card">
+                        <div class="bin-header">
+                            <div class="bin-info">
+                                <div class="bin-id">#L005</div>
+                                <div class="bin-name">Hospital Regional</div>
+                                <div class="bin-location">Zona Norte</div>
+                            </div>
+                            <span class="bin-status-badge status-ok">Normal</span>
+                        </div>
+                        <div class="bin-level">
+                            <div class="level-label">
+                                <span>Nível</span>
+                                <span class="level-percentage">56%</span>
+                            </div>
+                            <div class="level-bar">
+                                <div class="level-fill" style="width: 56%"></div>
+                            </div>
+                        </div>
+                        <div class="bin-footer">
+                            <span class="bin-update">Há 4 min</span>
+                            <button class="bin-action">Detalhes</button>
+                        </div>
+                    </div>
+
+                    <div class="bin-card">
+                        <div class="bin-header">
+                            <div class="bin-info">
+                                <div class="bin-id">#L008</div>
+                                <div class="bin-name">Shopping Center</div>
+                                <div class="bin-location">Centro</div>
+                            </div>
+                            <span class="bin-status-badge status-ok">Normal</span>
+                        </div>
+                        <div class="bin-level">
+                            <div class="level-label">
+                                <span>Nível</span>
+                                <span class="level-percentage">23%</span>
+                            </div>
+                            <div class="level-bar">
+                                <div class="level-fill" style="width: 23%"></div>
+                            </div>
+                        </div>
+                        <div class="bin-footer">
+                            <span class="bin-update">Há 6 min</span>
+                            <button class="bin-action">Detalhes</button>
+                        </div>
+                    </div>
+
+                    <div class="bin-card warning">
+                        <div class="bin-header">
+                            <div class="bin-info">
+                                <div class="bin-id">#L009</div>
+                                <div class="bin-name">Posto de Saúde</div>
+                                <div class="bin-location">Zona Sul</div>
+                            </div>
+                            <span class="bin-status-badge status-warning">Atenção</span>
+                        </div>
+                        <div class="bin-level">
+                            <div class="level-label">
+                                <span>Nível</span>
+                                <span class="level-percentage">75%</span>
+                            </div>
+                            <div class="level-bar">
+                                <div class="level-fill warning" style="width: 75%"></div>
+                            </div>
+                        </div>
+                        <div class="bin-footer">
+                            <span class="bin-update">Há 2 min</span>
+                            <button class="bin-action">Detalhes</button>
+                        </div>
+                    </div>
+
+                    <div class="bin-card">
+                        <div class="bin-header">
+                            <div class="bin-info">
+                                <div class="bin-id">#L010</div>
+                                <div class="bin-name">Biblioteca</div>
+                                <div class="bin-location">Centro</div>
+                            </div>
+                            <span class="bin-status-badge status-ok">Normal</span>
+                        </div>
+                        <div class="bin-level">
+                            <div class="level-label">
+                                <span>Nível</span>
+                                <span class="level-percentage">41%</span>
+                            </div>
+                            <div class="level-bar">
+                                <div class="level-fill" style="width: 41%"></div>
+                            </div>
+                        </div>
+                        <div class="bin-footer">
+                            <span class="bin-update">Há 7 min</span>
+                            <button class="bin-action">Detalhes</button>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <!-- Right Panel - History -->
+        <div class="right-panel">
+            <div class="history-header">
+                <h2 class="history-title">Histórico de Coletas</h2>
+                <div class="history-filter">
+                    <input type="date" class="date-input" value="2025-09-30">
+                    <button class="btn-exportar">Relatório</button>
+                </div>
+            </div>
+            
+            <div class="table-scroll">
+                <table>
+                    <thead>
+                        <tr>
+                            <th>ID</th>
+                            <th>Local</th>
+                            <th>Hora</th>
+                            <th>Nível</th>
+                            <th>Vol.</th>
+                            <th>Status</th>
+                        </tr>
+                    </thead>
+                    <tbody>
+                        <tr>
+                            <td>#L001</td>
+                            <td>Praça Central</td>
+                            <td>14:30</td>
+                            <td>95%</td>
+                            <td>190L</td>
+                            <td><span class="bin-status-badge status-ok">OK</span></td>
+                        </tr>
+                        <tr>
+                            <td>#L007</td>
+                            <td>Mercado</td>
+                            <td>12:15</td>
+                            <td>87%</td>
+                            <td>174L</td>
+                            <td><span class="bin-status-badge status-ok">OK</span></td>
+                        </tr>
+                        <tr>
+                            <td>#L004</td>
+                            <td>Escola</td>
+                            <td>09:45</td>
+                            <td>82%</td>
+                            <td>164L</td>
+                            <td><span class="bin-status-badge status
