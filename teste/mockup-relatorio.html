@@ -1,0 +1,653 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Dashboard-TRONIK - Relatórios</title>
+    <style>
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+        
+        body {
+            font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Oxygen, Ubuntu, sans-serif;
+            background: #f0f2f5;
+            color: #2C3E50;
+            height: 100vh;
+            overflow: hidden;
+            display: flex;
+            flex-direction: column;
+        }
+        
+        /* Header */
+        .header {
+            background: white;
+            box-shadow: 0 2px 4px rgba(0,0,0,0.1);
+            padding: 12px 20px;
+            flex-shrink: 0;
+        }
+        
+        .header-content {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+        }
+        
+        .logo-section {
+            display: flex;
+            align-items: center;
+            gap: 12px;
+        }
+        
+        .logo {
+            width: 32px;
+            height: 32px;
+            background: #5DB5A4;
+            border-radius: 50%;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            color: white;
+            font-size: 18px;
+            font-weight: bold;
+        }
+        
+        .logo::before {
+            content: "$";
+        }
+        
+        .logo-text {
+            font-size: 18px;
+            font-weight: 600;
+            color: #2C3E50;
+        }
+        
+        .header-actions {
+            display: flex;
+            gap: 12px;
+            align-items: center;
+        }
+        
+        .btn-voltar {
+            padding: 6px 16px;
+            background: white;
+            color: #5DB5A4;
+            border: 1px solid #5DB5A4;
+            border-radius: 5px;
+            cursor: pointer;
+            font-weight: 500;
+            font-size: 13px;
+            display: flex;
+            align-items: center;
+            gap: 6px;
+        }
+        
+        .btn-voltar:hover {
+            background: #f0faf8;
+        }
+        
+        .btn-primary {
+            padding: 6px 16px;
+            background: #5DB5A4;
+            color: white;
+            border: none;
+            border-radius: 5px;
+            cursor: pointer;
+            font-weight: 500;
+            font-size: 13px;
+        }
+        
+        .btn-primary:hover {
+            background: #4A9B8E;
+        }
+        
+        /* Main Container */
+        .main-container {
+            display: flex;
+            flex: 1;
+            overflow: hidden;
+            gap: 15px;
+            padding: 15px;
+            height: calc(100vh - 56px);
+        }
+        
+        /* Left Panel */
+        .left-panel {
+            flex: 1.5;
+            display: flex;
+            flex-direction: column;
+            gap: 15px;
+        }
+        
+        /* Right Panel */
+        .right-panel {
+            flex: 1;
+            display: flex;
+            flex-direction: column;
+            gap: 15px;
+        }
+        
+        /* Card Base */
+        .card {
+            background: white;
+            border-radius: 8px;
+            box-shadow: 0 2px 4px rgba(0,0,0,0.05);
+            padding: 15px;
+        }
+        
+        .card-header {
+            font-size: 14px;
+            font-weight: 600;
+            color: #2C3E50;
+            margin-bottom: 12px;
+            padding-bottom: 8px;
+            border-bottom: 1px solid #f0f0f0;
+        }
+        
+        /* Filters Compact */
+        .filters-compact {
+            display: flex;
+            gap: 10px;
+            align-items: end;
+        }
+        
+        .filter-group {
+            flex: 1;
+        }
+        
+        .filter-label {
+            font-size: 11px;
+            color: #7f8c8d;
+            margin-bottom: 4px;
+        }
+        
+        .filter-input, .filter-select {
+            width: 100%;
+            padding: 6px 10px;
+            border: 1px solid #ddd;
+            border-radius: 4px;
+            font-size: 12px;
+        }
+        
+        /* KPI Cards */
+        .kpi-grid {
+            display: grid;
+            grid-template-columns: repeat(5, 1fr);
+            gap: 10px;
+        }
+        
+        .kpi-card {
+            text-align: center;
+            padding: 10px;
+            background: #f8f9fa;
+            border-radius: 6px;
+            border-left: 3px solid #5DB5A4;
+        }
+        
+        .kpi-card.warning {
+            border-left-color: #f39c12;
+        }
+        
+        .kpi-card.danger {
+            border-left-color: #e74c3c;
+        }
+        
+        .kpi-value {
+            font-size: 22px;
+            font-weight: 700;
+            color: #2C3E50;
+        }
+        
+        .kpi-label {
+            font-size: 10px;
+            color: #7f8c8d;
+            margin-top: 2px;
+        }
+        
+        .kpi-change {
+            font-size: 10px;
+            color: #27ae60;
+            margin-top: 2px;
+        }
+        
+        .kpi-change.negative {
+            color: #e74c3c;
+        }
+        
+        /* Charts */
+        .chart-placeholder {
+            height: 180px;
+            background: linear-gradient(135deg, #5DB5A4 0%, #4A9B8E 100%);
+            border-radius: 6px;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            color: white;
+            font-size: 14px;
+        }
+        
+        /* Table Compact */
+        .table-container {
+            overflow-y: auto;
+            max-height: 250px;
+        }
+        
+        table {
+            width: 100%;
+            border-collapse: collapse;
+            font-size: 11px;
+        }
+        
+        th {
+            position: sticky;
+            top: 0;
+            background: #f8f9fa;
+            padding: 8px 6px;
+            text-align: left;
+            font-weight: 600;
+            color: #7f8c8d;
+            border-bottom: 2px solid #e0e0e0;
+        }
+        
+        td {
+            padding: 6px;
+            border-bottom: 1px solid #f0f0f0;
+        }
+        
+        tr:hover {
+            background: #f8f9fa;
+        }
+        
+        .badge {
+            padding: 2px 6px;
+            border-radius: 10px;
+            font-size: 10px;
+            font-weight: 600;
+        }
+        
+        .badge.success {
+            background: #d4edda;
+            color: #155724;
+        }
+        
+        .badge.warning {
+            background: #fff3cd;
+            color: #856404;
+        }
+        
+        .badge.danger {
+            background: #f8d7da;
+            color: #721c24;
+        }
+        
+        /* Top List */
+        .top-list {
+            font-size: 12px;
+        }
+        
+        .top-item {
+            display: flex;
+            justify-content: space-between;
+            padding: 6px 0;
+            border-bottom: 1px solid #f0f0f0;
+        }
+        
+        .top-item:last-child {
+            border-bottom: none;
+        }
+        
+        .top-name {
+            color: #2C3E50;
+        }
+        
+        .top-value {
+            font-weight: 600;
+            color: #e74c3c;
+        }
+        
+        /* Summary Box */
+        .summary-box {
+            background: #f8f9fa;
+            padding: 10px;
+            border-radius: 6px;
+            font-size: 12px;
+            line-height: 1.6;
+        }
+        
+        .summary-title {
+            font-weight: 600;
+            color: #2C3E50;
+            margin-bottom: 5px;
+        }
+        
+        /* Chart Options */
+        .chart-header {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            margin-bottom: 10px;
+        }
+        
+        .chart-title {
+            font-size: 13px;
+            font-weight: 600;
+        }
+        
+        .chart-tabs {
+            display: flex;
+            gap: 3px;
+        }
+        
+        .tab-btn {
+            padding: 3px 8px;
+            border: 1px solid #ddd;
+            background: white;
+            border-radius: 3px;
+            font-size: 10px;
+            cursor: pointer;
+        }
+        
+        .tab-btn.active {
+            background: #5DB5A4;
+            color: white;
+            border-color: #5DB5A4;
+        }
+    </style>
+</head>
+<body>
+    <!-- Header -->
+    <header class="header">
+        <div class="header-content">
+            <div class="logo-section">
+                <div class="logo"></div>
+                <h1 class="logo-text">Dashboard-TRONIK</h1>
+            </div>
+            <div class="header-actions">
+                <button class="btn-voltar">
+                    ← Voltar ao Dashboard
+                </button>
+                <button class="btn-primary">
+                    ↓ Exportar Relatório
+                </button>
+            </div>
+        </div>
+    </header>
+
+    <!-- Main Container -->
+    <div class="main-container">
+        <!-- Left Panel -->
+        <div class="left-panel">
+            <!-- Filters -->
+            <div class="card" style="flex-shrink: 0;">
+                <h3 class="card-header">Filtros do Relatório</h3>
+                <div class="filters-compact">
+                    <div class="filter-group">
+                        <div class="filter-label">Data Início</div>
+                        <input type="date" class="filter-input" value="2025-09-01">
+                    </div>
+                    <div class="filter-group">
+                        <div class="filter-label">Data Fim</div>
+                        <input type="date" class="filter-input" value="2025-09-30">
+                    </div>
+                    <div class="filter-group">
+                        <div class="filter-label">Região</div>
+                        <select class="filter-select">
+                            <option>Todas</option>
+                            <option>Centro</option>
+                            <option>Zona Norte</option>
+                            <option>Zona Sul</option>
+                        </select>
+                    </div>
+                    <div class="filter-group">
+                        <div class="filter-label">Status</div>
+                        <select class="filter-select">
+                            <option>Todos</option>
+                            <option>Normal</option>
+                            <option>Alerta</option>
+                            <option>Crítico</option>
+                        </select>
+                    </div>
+                    <button class="btn-primary" style="padding: 6px 12px; font-size: 11px;">
+                        Aplicar
+                    </button>
+                </div>
+            </div>
+
+            <!-- KPIs -->
+            <div class="card" style="flex-shrink: 0;">
+                <h3 class="card-header">Indicadores do Período</h3>
+                <div class="kpi-grid">
+                    <div class="kpi-card">
+                        <div class="kpi-value">487</div>
+                        <div class="kpi-label">Total Coletas</div>
+                        <div class="kpi-change">↑ 12%</div>
+                    </div>
+                    <div class="kpi-card">
+                        <div class="kpi-value">94.3%</div>
+                        <div class="kpi-label">Eficiência</div>
+                        <div class="kpi-change">↑ 3.2%</div>
+                    </div>
+                    <div class="kpi-card warning">
+                        <div class="kpi-value">2.4h</div>
+                        <div class="kpi-label">Tempo Resposta</div>
+                        <div class="kpi-change negative">↑ 15min</div>
+                    </div>
+                    <div class="kpi-card">
+                        <div class="kpi-value">87.4m³</div>
+                        <div class="kpi-label">Volume Total</div>
+                        <div class="kpi-change">↑ 8%</div>
+                    </div>
+                    <div class="kpi-card danger">
+                        <div class="kpi-value">12</div>
+                        <div class="kpi-label">Transbordos</div>
+                        <div class="kpi-change negative">↑ 3</div>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Main Chart -->
+            <div class="card" style="flex: 1;">
+                <div class="chart-header">
+                    <h3 class="chart-title">Evolução de Coletas</h3>
+                    <div class="chart-tabs">
+                        <button class="tab-btn">7 dias</button>
+                        <button class="tab-btn active">30 dias</button>
+                        <button class="tab-btn">90 dias</button>
+                    </div>
+                </div>
+                <div class="chart-placeholder">
+                    Gráfico de Linha - Coletas Diárias
+                </div>
+            </div>
+
+            <!-- Data Table -->
+            <div class="card" style="flex: 1;">
+                <h3 class="card-header">Detalhamento de Coletas</h3>
+                <div class="table-container">
+                    <table>
+                        <thead>
+                            <tr>
+                                <th>Data/Hora</th>
+                                <th>ID</th>
+                                <th>Local</th>
+                                <th>Nível</th>
+                                <th>Volume</th>
+                                <th>Tempo</th>
+                                <th>Equipe</th>
+                                <th>Status</th>
+                            </tr>
+                        </thead>
+                        <tbody>
+                            <tr>
+                                <td>30/09 14:30</td>
+                                <td>#L001</td>
+                                <td>Praça Central</td>
+                                <td>95%</td>
+                                <td>190L</td>
+                                <td>1.2h</td>
+                                <td>A</td>
+                                <td><span class="badge success">OK</span></td>
+                            </tr>
+                            <tr>
+                                <td>30/09 12:15</td>
+                                <td>#L007</td>
+                                <td>Mercado</td>
+                                <td>87%</td>
+                                <td>174L</td>
+                                <td>2.1h</td>
+                                <td>B</td>
+                                <td><span class="badge success">OK</span></td>
+                            </tr>
+                            <tr>
+                                <td>30/09 09:45</td>
+                                <td>#L004</td>
+                                <td>Escola</td>
+                                <td>82%</td>
+                                <td>164L</td>
+                                <td>1.8h</td>
+                                <td>A</td>
+                                <td><span class="badge success">OK</span></td>
+                            </tr>
+                            <tr>
+                                <td>29/09 16:20</td>
+                                <td>#L002</td>
+                                <td>Parque</td>
+                                <td>78%</td>
+                                <td>156L</td>
+                                <td>3.5h</td>
+                                <td>C</td>
+                                <td><span class="badge warning">Atraso</span></td>
+                            </tr>
+                            <tr>
+                                <td>29/09 14:10</td>
+                                <td>#L015</td>
+                                <td>Shopping</td>
+                                <td>91%</td>
+                                <td>182L</td>
+                                <td>0.8h</td>
+                                <td>B</td>
+                                <td><span class="badge success">OK</span></td>
+                            </tr>
+                            <tr>
+                                <td>29/09 11:30</td>
+                                <td>#L009</td>
+                                <td>Posto Saúde</td>
+                                <td>88%</td>
+                                <td>176L</td>
+                                <td>1.5h</td>
+                                <td>A</td>
+                                <td><span class="badge success">OK</span></td>
+                            </tr>
+                            <tr>
+                                <td>28/09 15:45</td>
+                                <td>#L011</td>
+                                <td>Biblioteca</td>
+                                <td>72%</td>
+                                <td>144L</td>
+                                <td>4.2h</td>
+                                <td>C</td>
+                                <td><span class="badge danger">Transb.</span></td>
+                            </tr>
+                            <tr>
+                                <td>28/09 13:20</td>
+                                <td>#L003</td>
+                                <td>Terminal</td>
+                                <td>85%</td>
+                                <td>170L</td>
+                                <td>2.0h</td>
+                                <td>B</td>
+                                <td><span class="badge success">OK</span></td>
+                            </tr>
+                            <tr>
+                                <td>28/09 10:15</td>
+                                <td>#L006</td>
+                                <td>Hospital</td>
+                                <td>90%</td>
+                                <td>180L</td>
+                                <td>1.1h</td>
+                                <td>A</td>
+                                <td><span class="badge success">OK</span></td>
+                            </tr>
+                            <tr>
+                                <td>27/09 16:30</td>
+                                <td>#L008</td>
+                                <td>Prefeitura</td>
+                                <td>83%</td>
+                                <td>166L</td>
+                                <td>2.3h</td>
+                                <td>B</td>
+                                <td><span class="badge success">OK</span></td>
+                            </tr>
+                        </tbody>
+                    </table>
+                </div>
+            </div>
+        </div>
+
+        <!-- Right Panel -->
+        <div class="right-panel">
+            <!-- Distribution Chart -->
+            <div class="card">
+                <h3 class="card-header">Distribuição por Região</h3>
+                <div class="chart-placeholder" style="height: 140px;">
+                    Gráfico Pizza - Por Região
+                </div>
+            </div>
+
+            <!-- Top Critical -->
+            <div class="card">
+                <h3 class="card-header">Top 5 Lixeiras Críticas</h3>
+                <div class="top-list">
+                    <div class="top-item">
+                        <span class="top-name">#L001 - Praça Central</span>
+                        <span class="top-value">28 alertas</span>
+                    </div>
+                    <div class="top-item">
+                        <span class="top-name">#L007 - Mercado Municipal</span>
+                        <span class="top-value">24 alertas</span>
+                    </div>
+                    <div class="top-item">
+                        <span class="top-name">#L004 - Escola Municipal</span>
+                        <span class="top-value" style="color: #f39c12;">19 alertas</span>
+                    </div>
+                    <div class="top-item">
+                        <span class="top-name">#L012 - Terminal Bus</span>
+                        <span class="top-value" style="color: #f39c12;">15 alertas</span>
+                    </div>
+                    <div class="top-item">
+                        <span class="top-name">#L009 - Posto de Saúde</span>
+                        <span class="top-value" style="color: #f39c12;">12 alertas</span>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Heatmap -->
+            <div class="card">
+                <h3 class="card-header">Horários de Pico</h3>
+                <div class="chart-placeholder" style="height: 120px;">
+                    Heatmap - Dias x Horas
+                </div>
+            </div>
+
+            <!-- Summary -->
+            <div class="card" style="flex: 1;">
+                <h3 class="card-header">Resumo Executivo</h3>
+                <div class="summary-box">
+                    <div class="summary-title">📊 Desempenho Geral</div>
+                    <p>Eficiência de 94.3% com 487 coletas e apenas 12 transbordos. Volume total: 87.4m³ (+8%).</p>
+                </div>
+                <div class="summary-box" style="margin-top: 10px;">
+                    <div class="summary-title">⚠️ Pontos de Atenção</div>
+                    <p>Lixeiras #L001, #L007 e #L004 com alto número de alertas. Tempo de resposta aumentou 15min.</p>
+                </div>
+                <div class="summary-box" style="margin-top: 10px;">
+                    <div class="summary-title">💡 Recomendações</div>
+                    <p>Aumentar frequência nas lixeiras críticas. Implementar coletas preventivas 11h-14h e 16h-19h.</p>
+                </div>
+            </div>
+        </div>
+    </div>
+</body>
+</html>
