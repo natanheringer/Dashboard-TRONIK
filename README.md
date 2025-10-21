@@ -2,11 +2,11 @@
 
 ## Sobre o Projeto
 
-O Dashboard-TRONIK é um sistema de monitoramento de lixeiras inteligentes que permite visualizar em tempo real o nível de preenchimento e status de cada lixeira equipada com sensores ultrassônicos.
+O Dashboard-TRONIK é um sistema de monitoramento de coletores inteligentes que permite visualizar em tempo real o nível de preenchimento e status de cada lixeira equipada com sensores ultrassônicos.
 
 ## Objetivo
 
-Desenvolver uma solução web completa para monitoramento de lixeiras, permitindo que a equipe aprenda desenvolvimento web moderno através de um projeto real e prático.
+Desenvolver uma solução web completa para monitoramento de coletores, permitindo que a equipe aprenda desenvolvimento web moderno através de um projeto real e prático.
 
 ## Stack Tecnológico
 
