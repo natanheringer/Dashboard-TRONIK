@@ -70,7 +70,7 @@ def relatorios():
 def api_lixeiras():
     """Endpoint para obter todas os coletores"""
     dados = carregar_dados_mock
-    return jsonify(dados['lixeiras'])
+    return jsonify(dados()['lixeiras'])
 
 # API - obter lixeira especifica 
 @app.route('/api/lixeira/<int:lixeira_id>')
