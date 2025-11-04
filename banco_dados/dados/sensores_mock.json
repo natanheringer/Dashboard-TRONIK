@@ -6,7 +6,7 @@
       "nivel_preenchimento": 45,
       "status": "ativo",
       "ultima_coleta": "2024-01-15T10:30:00",
-      "tipo": "reciclavel",
+      "tipo": "residuos eletronicos",
       "coordenadas": {
         "latitude": -15.7801,
         "longitude": -47.9292
@@ -18,7 +18,7 @@
       "nivel_preenchimento": 78,
       "status": "ativo",
       "ultima_coleta": "2024-01-14T14:20:00",
-      "tipo": "organico",
+      "tipo": "residuos eletronicos",
       "coordenadas": {
         "latitude": -15.7942,
         "longitude": -47.8822
@@ -30,7 +30,7 @@
       "nivel_preenchimento": 12,
       "status": "manutencao",
       "ultima_coleta": "2024-01-16T08:15:00",
-      "tipo": "geral",
+      "tipo": "residuos eletronicos",
       "coordenadas": {
         "latitude": -15.8401,
         "longitude": -47.9258
@@ -42,7 +42,7 @@
       "nivel_preenchimento": 92,
       "status": "alerta",
       "ultima_coleta": "2024-01-13T16:45:00",
-      "tipo": "reciclavel",
+      "tipo": "residuos eletronicos",
       "coordenadas": {
         "latitude": -15.8321,
         "longitude": -48.0556
@@ -54,7 +54,7 @@
       "nivel_preenchimento": 35,
       "status": "ativo",
       "ultima_coleta": "2024-01-15T12:00:00",
-      "tipo": "organico",
+      "tipo": "residuos eletronicos",
       "coordenadas": {
         "latitude": -15.8201,
         "longitude": -48.1089
@@ -66,7 +66,7 @@
       "nivel_preenchimento": 67,
       "status": "ativo",
       "ultima_coleta": "2024-01-14T09:30:00",
-      "tipo": "geral",
+      "tipo": "residuos eletronicos",
       "coordenadas": {
         "latitude": -16.0236,
         "longitude": -48.0556

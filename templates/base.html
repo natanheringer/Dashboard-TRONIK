@@ -1,15 +1,49 @@
-<!--
-Template Base - Dashboard-TRONIK
-===============================
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>{% block title %}Dashboard-TRONIK{% endblock %}</title>
+    <link rel="stylesheet" href="{{ url_for('static', filename='css/estilo.css') }}">
+    {% block extra_css %}{% endblock %}
+</head>
+<body>
+    <!-- Header -->
+    <header class="header">
+        <div class="header-content">
+            <div class="logo-section">
+                <div class="logo"></div>
+                <a href="{{ url_for('paginas.index') }}" style="text-decoration: none; color: inherit;">
+                    <h1 class="logo-text">Dashboard-TRONIK</h1>
+                </a>
+            </div>
+            <nav class="nav-links">
+                <a href="{{ url_for('paginas.index') }}" class="nav-link">Dashboard</a>
+                <a href="{{ url_for('paginas.relatorios') }}" class="nav-link">Relatórios</a>
+            </nav>
+            <div class="header-actions">
+                <div class="status-indicator" id="status-indicator">
+                    <div class="status-dot"></div>
+                    <span>Conectado</span>
+                </div>
+                <button class="btn-atualizar" id="btn-atualizar">
+                    ↻ Atualizar
+                </button>
+                <button class="btn-exportar" id="btn-exportar">
+                    ↓ Exportar CSV
+                </button>
+            </div>
+        </div>
+    </header>
 
-Este é o template base que será estendido por todas as páginas.
-Contém a estrutura HTML comum (cabeçalho, rodapé, navegação).
+    <!-- Main Content -->
+    <main class="main-container">
+        {% block content %}{% endblock %}
+    </main>
 
-TODO para a equipe Frontend:
-- Implementar estrutura HTML completa
-- Adicionar CSS e JavaScript
-- Criar navegação
-- Implementar responsividade
--->
-
-<!-- TODO: Estrutura HTML base -->
+    <!-- Scripts -->
+    <script src="{{ url_for('static', filename='js/api.js') }}"></script>
+    <script src="{{ url_for('static', filename='js/dashboard.js') }}"></script>
+    {% block extra_js %}{% endblock %}
+</body>
+</html>

@@ -34,17 +34,17 @@ from datetime import datetime
 # Função: cria o banco de dados SQLite e as tabelas
 # ----------------------------------------------------------
 def criar_banco(caminho_db="sqlite:///tronik.db"):
-    print("🚀 Criando banco de dados...")
+    print("Criando banco de dados...")
     engine = create_engine(caminho_db, echo=False)
     Base.metadata.create_all(engine)
-    print("✅ Banco criado com sucesso!")
+    print("Banco criado com sucesso!")
     return engine
 
 # ----------------------------------------------------------
 # Função: insere dados iniciais a partir do JSON completo
 # ----------------------------------------------------------
 def inserir_dados_iniciais(engine, caminho_json="banco_dados/dados/sensores_mock.json"):
-    print("📥 Lendo arquivo JSON...")
+    print("Lendo arquivo JSON...")
 
     Session = sessionmaker(bind=engine)
     session = Session()
@@ -54,7 +54,7 @@ def inserir_dados_iniciais(engine, caminho_json="banco_dados/dados/sensores_mock
             dados = json.load(f)
 
         # --- INSERIR LIXEIRAS ---
-        print("🗑️ Inserindo lixeiras...")
+        print("Inserindo lixeiras...")
         for item in dados["lixeiras"]:
             lixeira = Lixeira(
                 localizacao=item["localizacao"],
@@ -66,10 +66,10 @@ def inserir_dados_iniciais(engine, caminho_json="banco_dados/dados/sensores_mock
             )
             session.add(lixeira)
         session.commit()
-        print("✅ Lixeiras inseridas com sucesso!")
+        print("Lixeiras inseridas com sucesso!")
 
         # --- INSERIR COLETAS ---
-        print("🚛 Inserindo histórico de coletas...")
+        print("Inserindo histórico de coletas...")
         for coleta in dados["historico_coletas"]:
             nova_coleta = Coleta(
                 lixeira_id=coleta["id_lixeira"],
@@ -78,12 +78,12 @@ def inserir_dados_iniciais(engine, caminho_json="banco_dados/dados/sensores_mock
             )
             session.add(nova_coleta)
         session.commit()
-        print("✅ Histórico de coletas inserido com sucesso!")
+        print("Histórico de coletas inserido com sucesso!")
 
-        print("🎉 Todos os dados iniciais foram carregados com sucesso!")
+        print("Todos os dados iniciais foram carregados com sucesso!")
 
     except Exception as e:
-        print("❌ Erro ao inserir dados:", e)
+        print("ERRO ao inserir dados:", e)
         session.rollback()
 
     finally:
@@ -93,10 +93,10 @@ def inserir_dados_iniciais(engine, caminho_json="banco_dados/dados/sensores_mock
 # Função: resetar banco (apaga e recria)
 # ----------------------------------------------------------
 def resetar_banco(engine):
-    print("🧹 Resetando banco de dados...")
+    print("Resetando banco de dados...")
     Base.metadata.drop_all(engine)
     Base.metadata.create_all(engine)
-    print("✅ Banco resetado com sucesso!")
+    print("Banco resetado com sucesso!")
 
 # ----------------------------------------------------------
 # Execução direta do script

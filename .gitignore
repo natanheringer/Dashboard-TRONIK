@@ -1,0 +1,60 @@
+# === Segurança / Segredos ===
+.env
+*.env
+.env.*
+.envrc
+deploy/*.pem
+deploy/*.key
+certs/
+letsencrypt/
+
+# === Python ===
+__pycache__/
+*.py[cod]
+*.pyo
+*.pyd
+*.so
+*.egg-info/
+.Python
+pip-wheel-metadata/
+.pytest_cache/
+
+# === Virtualenvs ===
+.venv/
+venv/
+env/
+
+# === Banco de dados local ===
+*.db
+*.sqlite
+*.sqlite3
+
+# === Logs / Execução ===
+*.log
+logs/
+gunicorn*.log
+
+# === Build / Cache ===
+build/
+dist/
+.cache/
+node_modules/
+
+# === Testes / Cobertura ===
+.coverage
+htmlcov/
+
+# === IDE / Sistema ===
+.vscode/
+.idea/
+*.code-workspace
+.DS_Store
+Thumbs.db
+
+# === Backups temporários ===
+*.bak
+*.swp
+*.swo
+backup/
+
+
