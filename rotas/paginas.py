@@ -4,25 +4,29 @@ Rotas das Páginas - Dashboard-TRONIK
 
 Rotas para as páginas web do dashboard.
 Gerencia a navegação e renderização das páginas.
-
-TODO para a equipe Backend:
-- Implementar rota da página principal
-- Implementar rota de relatórios
-- Implementar rota de configurações
-- Adicionar tratamento de erros 404
-- Implementar autenticação se necessário
 """
 
-# TODO: Importar Flask Blueprint
+from flask import Blueprint, render_template
 
-# TODO: Criar blueprint das páginas
+# Criar blueprint das páginas
+paginas_bp = Blueprint('paginas', __name__)
 
-# TODO: Rota GET / (página principal)
+@paginas_bp.route('/')
+def index():
+    """Renderiza a página principal do dashboard"""
+    return render_template('index.html')
 
-# TODO: Rota GET /relatorios
+@paginas_bp.route('/relatorios')
+def relatorios():
+    """Renderiza a página de relatórios"""
+    return render_template('relatorios.html')
 
-# TODO: Rota GET /configuracoes
+@paginas_bp.route('/configuracoes')
+def configuracoes():
+    """Renderiza a página de configurações"""
+    return render_template('configuracoes.html')
 
-# TODO: Rota GET /sobre
-
-# TODO: Tratamento de erro 404
+@paginas_bp.route('/sobre')
+def sobre():
+    """Renderiza a página sobre o projeto"""
+    return render_template('sobre.html')
