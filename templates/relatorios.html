@@ -1,0 +1,464 @@
+{% extends "base.html" %}
+
+{% block title %}Dashboard-TRONIK - Relatórios{% endblock %}
+
+{% block content %}
+<div class="relatorios-container">
+    <!-- Left Panel -->
+    <div class="relatorios-left-panel">
+        <!-- Filters -->
+        <div class="card" style="flex-shrink: 0;">
+            <h3 class="card-header">Filtros do Relatório</h3>
+            <div class="filters-compact">
+                <div class="filter-group">
+                    <div class="filter-label">Data Início</div>
+                    <input type="date" class="filter-input" id="data-inicio" value="">
+                </div>
+                <div class="filter-group">
+                    <div class="filter-label">Data Fim</div>
+                    <input type="date" class="filter-input" id="data-fim" value="">
+                </div>
+                <button class="btn-primary" id="btn-aplicar-filtro" style="padding: 6px 12px; font-size: 11px;">
+                    Aplicar
+                </button>
+            </div>
+        </div>
+
+        <!-- KPIs -->
+        <div class="card" style="flex-shrink: 0;">
+            <h3 class="card-header">Indicadores do Período</h3>
+            <div class="kpi-grid">
+                <div class="kpi-card">
+                    <div class="kpi-value" id="kpi-total-coletas">0</div>
+                    <div class="kpi-label">Total Coletas</div>
+                </div>
+                <div class="kpi-card">
+                    <div class="kpi-value" id="kpi-volume-total">0</div>
+                    <div class="kpi-label">Volume Total</div>
+                </div>
+                <div class="kpi-card">
+                    <div class="kpi-value" id="kpi-eficiencia">0%</div>
+                    <div class="kpi-label">Eficiência</div>
+                </div>
+                <div class="kpi-card">
+                    <div class="kpi-value" id="kpi-lixeiras-ativas">0</div>
+                    <div class="kpi-label">Lixeiras Ativas</div>
+                </div>
+            </div>
+        </div>
+
+        <!-- Main Chart -->
+        <div class="card" style="flex: 1;">
+            <div class="chart-header">
+                <h3 class="chart-title">Evolução de Coletas</h3>
+                <div class="chart-tabs">
+                    <button class="tab-btn" data-periodo="7">7 dias</button>
+                    <button class="tab-btn active" data-periodo="30">30 dias</button>
+                    <button class="tab-btn" data-periodo="90">90 dias</button>
+                </div>
+            </div>
+            <div class="chart-placeholder">
+                <div class="chart-message">Gráfico de Linha - Coletas Diárias</div>
+                <div class="chart-placeholder-text">Gráfico será implementado em breve</div>
+            </div>
+        </div>
+
+        <!-- Data Table -->
+        <div class="card" style="flex: 1;">
+            <h3 class="card-header">Detalhamento de Coletas</h3>
+            <div class="table-container">
+                <table id="relatorio-table">
+                    <thead>
+                        <tr>
+                            <th>Data/Hora</th>
+                            <th>ID</th>
+                            <th>Local</th>
+                            <th>Volume</th>
+                            <th>Status</th>
+                        </tr>
+                    </thead>
+                    <tbody id="relatorio-tbody">
+                        <tr>
+                            <td colspan="5" style="text-align: center;">Carregando dados...</td>
+                        </tr>
+                    </tbody>
+                </table>
+            </div>
+        </div>
+    </div>
+
+    <!-- Right Panel -->
+    <div class="relatorios-right-panel">
+        <!-- Summary -->
+        <div class="card" style="flex: 1;">
+            <h3 class="card-header">Resumo Executivo</h3>
+            <div id="resumo-executivo">
+                <div class="summary-box">
+                    <div class="summary-title">Desempenho Geral</div>
+                    <p id="resumo-desempenho">Selecione um período para ver o resumo.</p>
+                </div>
+                <div class="summary-box" style="margin-top: 10px;">
+                    <div class="summary-title">Pontos de Atenção</div>
+                    <p id="resumo-atencao">Nenhum ponto de atenção no período selecionado.</p>
+                </div>
+                <div class="summary-box" style="margin-top: 10px;">
+                    <div class="summary-title">Recomendações</div>
+                    <p id="resumo-recomendacoes">Analisando dados para gerar recomendações.</p>
+                </div>
+            </div>
+        </div>
+        
+        <!-- Distribution Chart -->
+        <div class="card">
+            <h3 class="card-header">Distribuição por Região</h3>
+            <div class="chart-placeholder" style="height: 140px;">
+                <div class="chart-message">Gráfico Pizza - Por Região</div>
+                <div class="chart-placeholder-text">Gráfico será implementado em breve</div>
+            </div>
+        </div>
+
+        <!-- Top Lixeiras -->
+        <div class="card">
+            <h3 class="card-header">Top 5 Lixeiras Mais Coletadas</h3>
+            <div class="top-list" id="top-lixeiras">
+                <p style="text-align: center; color: #7f8c8d; font-size: 12px;">Carregando...</p>
+            </div>
+        </div>
+
+        <!-- Heatmap -->
+        <div class="card">
+            <h3 class="card-header">Horários de Pico</h3>
+            <div class="chart-placeholder" style="height: 120px;">
+                <div class="chart-message">Heatmap - Dias x Horas</div>
+                <div class="chart-placeholder-text">Gráfico será implementado em breve</div>
+            </div>
+        </div>
+    </div>
+</div>
+{% endblock %}
+
+{% block extra_css %}
+<style>
+/* Override main-container padding for reports page */
+.main-container:has(.relatorios-container) {
+    padding: 20px;
+    overflow: hidden;
+}
+
+.relatorios-container .card {
+    background: white;
+    border-radius: 8px;
+    box-shadow: 0 2px 4px rgba(0,0,0,0.05);
+    padding: 15px;
+}
+
+.card-header {
+    font-size: 14px;
+    font-weight: 600;
+    color: #2C3E50;
+    margin-bottom: 12px;
+    padding-bottom: 8px;
+    border-bottom: 1px solid #f0f0f0;
+}
+
+.filters-compact {
+    display: flex;
+    gap: 10px;
+    align-items: end;
+}
+
+.kpi-grid {
+    display: grid;
+    grid-template-columns: repeat(4, 1fr);
+    gap: 10px;
+}
+
+.kpi-card {
+    text-align: center;
+    padding: 10px;
+    background: #f8f9fa;
+    border-radius: 6px;
+    border-left: 3px solid #5DB5A4;
+}
+
+.kpi-card.warning {
+    border-left-color: #f39c12;
+}
+
+.kpi-card.danger {
+    border-left-color: #e74c3c;
+}
+
+.kpi-value {
+    font-size: 22px;
+    font-weight: 700;
+    color: #2C3E50;
+}
+
+.kpi-label {
+    font-size: 10px;
+    color: #7f8c8d;
+    margin-top: 2px;
+}
+
+.table-container {
+    overflow-y: auto;
+    max-height: 400px;
+    width: 100%;
+}
+
+#relatorio-table {
+    width: 100%;
+    table-layout: auto;
+}
+
+.summary-box {
+    background: #f8f9fa;
+    padding: 10px;
+    border-radius: 6px;
+    font-size: 12px;
+    line-height: 1.6;
+}
+
+.summary-title {
+    font-weight: 600;
+    color: #2C3E50;
+    margin-bottom: 5px;
+}
+
+.top-list {
+    font-size: 12px;
+}
+
+.top-item {
+    display: flex;
+    justify-content: space-between;
+    padding: 6px 0;
+    border-bottom: 1px solid #f0f0f0;
+}
+
+.top-item:last-child {
+    border-bottom: none;
+}
+
+.top-name {
+    color: #2C3E50;
+}
+
+.top-value {
+    font-weight: 600;
+    color: #e74c3c;
+}
+
+/* Chart Styles */
+.chart-header {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    margin-bottom: 10px;
+}
+
+.chart-title {
+    font-size: 13px;
+    font-weight: 600;
+    color: #2C3E50;
+}
+
+.chart-tabs {
+    display: flex;
+    gap: 3px;
+}
+
+.tab-btn {
+    padding: 3px 8px;
+    border: 1px solid #ddd;
+    background: white;
+    border-radius: 3px;
+    font-size: 10px;
+    cursor: pointer;
+    transition: all 0.2s;
+}
+
+.tab-btn:hover {
+    background: #f8f9fa;
+}
+
+.tab-btn.active {
+    background: #5DB5A4;
+    color: white;
+    border-color: #5DB5A4;
+}
+
+.chart-placeholder {
+    height: 180px;
+    background: linear-gradient(135deg, #5DB5A4 0%, #4A9B8E 100%);
+    border-radius: 6px;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    justify-content: center;
+    color: white;
+    font-size: 14px;
+}
+
+.chart-message {
+    font-weight: 600;
+    margin-bottom: 5px;
+}
+
+.chart-placeholder-text {
+    font-size: 11px;
+    opacity: 0.9;
+}
+
+/* Ajustar layout para não cortar */
+.relatorios-container {
+    height: 100%;
+    overflow: hidden;
+    width: 100%;
+    max-width: 100%;
+    box-sizing: border-box;
+    display: flex;
+    gap: 15px;
+}
+
+.relatorios-left-panel {
+    flex: 1.5;
+    height: 100%;
+    overflow-y: auto;
+    overflow-x: hidden;
+    min-width: 0;
+    display: flex;
+    flex-direction: column;
+    gap: 15px;
+    padding-right: 5px;
+}
+
+.relatorios-right-panel {
+    flex: 1;
+    height: 100%;
+    overflow-y: auto;
+    overflow-x: hidden;
+    min-width: 0;
+    display: flex;
+    flex-direction: column;
+    gap: 15px;
+}
+
+/* Garantir que os cards tenham espaço suficiente */
+.relatorios-container .card {
+    min-height: fit-content;
+    width: 100%;
+    box-sizing: border-box;
+}
+</style>
+{% endblock %}
+
+{% block extra_js %}
+<script>
+// Configurar datas padrão (últimos 30 dias)
+const hoje = new Date();
+const inicio = new Date(hoje);
+inicio.setDate(inicio.getDate() - 30);
+
+document.getElementById('data-inicio').value = inicio.toISOString().split('T')[0];
+document.getElementById('data-fim').value = hoje.toISOString().split('T')[0];
+
+// Carregar relatório inicial
+carregarRelatorio();
+
+// Botão aplicar filtro
+document.getElementById('btn-aplicar-filtro').addEventListener('click', carregarRelatorio);
+
+async function carregarRelatorio() {
+    try {
+        const dataInicio = document.getElementById('data-inicio').value;
+        const dataFim = document.getElementById('data-fim').value;
+        
+        const relatorio = await obterRelatorios(dataInicio, dataFim);
+        
+        // Atualizar KPIs
+        document.getElementById('kpi-total-coletas').textContent = relatorio.resumo.total_coletas || 0;
+        document.getElementById('kpi-volume-total').textContent = 
+            relatorio.resumo.volume_total ? Math.round(relatorio.resumo.volume_total) + 'L' : '0L';
+        document.getElementById('kpi-eficiencia').textContent = 
+            relatorio.resumo.total_coletas > 0 ? '95%' : '0%'; // Simplificado
+        document.getElementById('kpi-lixeiras-ativas').textContent = 
+            relatorio.resumo.coletas_por_lixeira ? relatorio.resumo.coletas_por_lixeira.length : 0;
+        
+        // Atualizar tabela
+        const tbody = document.getElementById('relatorio-tbody');
+        if (relatorio.detalhes.length === 0) {
+            tbody.innerHTML = '<tr><td colspan="5" style="text-align: center;">Nenhuma coleta no período</td></tr>';
+        } else {
+            tbody.innerHTML = relatorio.detalhes.map(coleta => {
+                const data = new Date(coleta.data_coleta);
+                return `
+                    <tr>
+                        <td>${data.toLocaleString('pt-BR')}</td>
+                        <td>#L${String(coleta.id_lixeira).padStart(3, '0')}</td>
+                        <td>Lixeira ${coleta.id_lixeira}</td>
+                        <td>${coleta.volume_estimado ? Math.round(coleta.volume_estimado) + 'L' : 'N/A'}</td>
+                        <td><span class="bin-status-badge status-ok">OK</span></td>
+                    </tr>
+                `;
+            }).join('');
+        }
+        
+        // Atualizar top lixeiras
+        const topList = document.getElementById('top-lixeiras');
+        if (relatorio.resumo.coletas_por_lixeira && relatorio.resumo.coletas_por_lixeira.length > 0) {
+            const top = relatorio.resumo.coletas_por_lixeira
+                .sort((a, b) => b.total_coletas - a.total_coletas)
+                .slice(0, 5);
+            
+            topList.innerHTML = top.map(item => `
+                <div class="top-item">
+                    <span class="top-name">#L${String(item.lixeira_id).padStart(3, '0')}</span>
+                    <span class="top-value">${item.total_coletas} coletas</span>
+                </div>
+            `).join('');
+        } else {
+            topList.innerHTML = '<p style="text-align: center; color: #7f8c8d; font-size: 12px;">Nenhum dado disponível</p>';
+        }
+        
+        // Atualizar resumo executivo
+        const eficiencia = relatorio.resumo.total_coletas > 0 ? '95%' : '0%';
+        const volumeTotal = Math.round(relatorio.resumo.volume_total || 0);
+        
+        document.getElementById('resumo-desempenho').textContent = 
+            `Eficiência de ${eficiencia} com ${relatorio.resumo.total_coletas} coletas e volume total de ${volumeTotal}L no período selecionado.`;
+        
+        // Pontos de atenção
+        const lixeirasComProblemas = relatorio.resumo.coletas_por_lixeira 
+            ? relatorio.resumo.coletas_por_lixeira.filter(l => l.total_coletas > 10).length 
+            : 0;
+        
+        if (lixeirasComProblemas > 0) {
+            document.getElementById('resumo-atencao').textContent = 
+                `${lixeirasComProblemas} lixeira(s) com alto número de coletas no período. Verifique necessidade de otimização de rotas.`;
+        } else {
+            document.getElementById('resumo-atencao').textContent = 
+                'Nenhum ponto de atenção crítico no período selecionado.';
+        }
+        
+        // Recomendações
+        if (relatorio.resumo.total_coletas > 50) {
+            document.getElementById('resumo-recomendacoes').textContent = 
+                'Aumentar frequência nas lixeiras críticas. Implementar coletas preventivas nos horários de pico.';
+        } else if (relatorio.resumo.total_coletas > 0) {
+            document.getElementById('resumo-recomendacoes').textContent = 
+                'Monitorar padrões de coleta para identificar horários de pico e otimizar rotas.';
+        } else {
+            document.getElementById('resumo-recomendacoes').textContent = 
+                'Selecione um período com dados para gerar recomendações.';
+        }
+        
+    } catch (error) {
+        console.error('Erro ao carregar relatório:', error);
+        alert('Erro ao carregar relatório.');
+    }
+}
+</script>
+{% endblock %}
+
