@@ -1,0 +1,222 @@
+{% extends "base.html" %}
+
+{% block title %}Dashboard-TRONIK - Configurações{% endblock %}
+
+{% block extra_css %}
+<link rel="stylesheet" href="{{ url_for('static', filename='css/configuracoes.css') }}">
+{% endblock %}
+
+{% block content %}
+<div class="configuracoes-container">
+    <div class="configuracoes-content">
+        <!-- Header -->
+        <div class="config-header">
+            <h2>Configurações do Sistema</h2>
+            <p>Gerencie lixeiras e configurações do sistema</p>
+        </div>
+
+        <!-- Formulário para Adicionar Lixeira -->
+        <div class="card">
+            <h3 class="card-header">Adicionar Nova Lixeira</h3>
+            <form id="form-nova-lixeira" class="form-lixeira">
+                <div class="form-grid">
+                    <div class="form-group">
+                        <label for="localizacao">Localização *</label>
+                        <input type="text" id="localizacao" name="localizacao" required 
+                               placeholder="Ex: Asa Norte - Bloco A">
+                    </div>
+
+                    <div class="form-group">
+                        <label for="tipo">Tipo de Resíduo</label>
+                        <input type="text" id="tipo" name="tipo" 
+                               placeholder="Ex: residuos eletronicos" value="residuos eletronicos">
+                    </div>
+
+                    <div class="form-group">
+                        <label for="nivel_preenchimento">Nível de Preenchimento (%)</label>
+                        <input type="number" id="nivel_preenchimento" name="nivel_preenchimento" 
+                               min="0" max="100" step="0.1" value="0" required>
+                    </div>
+
+                    <div class="form-group">
+                        <label for="status">Status</label>
+                        <select id="status" name="status">
+                            <option value="ativo">Ativo</option>
+                            <option value="manutencao">Manutenção</option>
+                            <option value="alerta">Alerta</option>
+                        </select>
+                    </div>
+
+                    <div class="form-group">
+                        <label for="latitude">Latitude</label>
+                        <input type="number" id="latitude" name="latitude" 
+                               step="0.0001" placeholder="Ex: -15.7801">
+                    </div>
+
+                    <div class="form-group">
+                        <label for="longitude">Longitude</label>
+                        <input type="number" id="longitude" name="longitude" 
+                               step="0.0001" placeholder="Ex: -47.9292">
+                    </div>
+                </div>
+
+                <div class="form-actions">
+                    <button type="submit" class="btn-primary">Adicionar Lixeira</button>
+                    <button type="reset" class="btn-secondary">Limpar</button>
+                </div>
+
+                <div id="form-mensagem" class="form-mensagem" style="display: none;"></div>
+            </form>
+        </div>
+
+        <!-- Lista de Lixeiras Existentes -->
+        <div class="card">
+            <h3 class="card-header">Lixeiras Cadastradas</h3>
+            <div id="lista-lixeiras" class="lista-lixeiras">
+                <div class="loading-message">Carregando lixeiras...</div>
+            </div>
+        </div>
+    </div>
+</div>
+
+<script>
+// Carregar lista de lixeiras ao carregar a página
+document.addEventListener('DOMContentLoaded', function() {
+    // Permitir scroll na página de configurações
+    const mainContainer = document.querySelector('.main-container');
+    if (mainContainer) {
+        mainContainer.style.overflowY = 'auto';
+        mainContainer.style.overflowX = 'hidden';
+    }
+    
+    carregarListaLixeiras();
+    
+    // Event listener para o formulário
+    document.getElementById('form-nova-lixeira').addEventListener('submit', async function(e) {
+        e.preventDefault();
+        await criarNovaLixeira();
+    });
+});
+
+// Função para carregar lista de lixeiras
+async function carregarListaLixeiras() {
+    try {
+        const lixeiras = await obterTodasLixeiras();
+        exibirListaLixeiras(lixeiras);
+    } catch (error) {
+        console.error('Erro ao carregar lixeiras:', error);
+        document.getElementById('lista-lixeiras').innerHTML = 
+            '<div class="loading-message">Erro ao carregar lixeiras</div>';
+    }
+}
+
+// Função para exibir lista de lixeiras
+function exibirListaLixeiras(lixeiras) {
+    const container = document.getElementById('lista-lixeiras');
+    
+    if (lixeiras.length === 0) {
+        container.innerHTML = '<div class="loading-message">Nenhuma lixeira cadastrada</div>';
+        return;
+    }
+    
+    container.innerHTML = lixeiras.map(lixeira => `
+        <div class="lixeira-item">
+            <div class="lixeira-info">
+                <div class="lixeira-id">#L${String(lixeira.id).padStart(3, '0')}</div>
+                <div class="lixeira-local">${lixeira.localizacao || 'Sem localização'}</div>
+            </div>
+            <div class="lixeira-acoes">
+                <button class="btn-delete" onclick="deletarLixeiraConfig(${lixeira.id})">Excluir</button>
+            </div>
+        </div>
+    `).join('');
+}
+
+// Função para criar nova lixeira
+async function criarNovaLixeira() {
+    const form = document.getElementById('form-nova-lixeira');
+    const mensagem = document.getElementById('form-mensagem');
+    
+    // Coletar dados do formulário
+    const dados = {
+        localizacao: document.getElementById('localizacao').value.trim(),
+        tipo: document.getElementById('tipo').value.trim() || null,
+        nivel_preenchimento: parseFloat(document.getElementById('nivel_preenchimento').value) || 0,
+        status: document.getElementById('status').value
+    };
+    
+    // Adicionar coordenadas se fornecidas
+    const lat = document.getElementById('latitude').value;
+    const lon = document.getElementById('longitude').value;
+    if (lat && lon) {
+        dados.coordenadas = {
+            latitude: parseFloat(lat),
+            longitude: parseFloat(lon)
+        };
+    }
+    
+    // Validar
+    if (!dados.localizacao) {
+        mostrarMensagem('Por favor, preencha a localização', 'error');
+        return;
+    }
+    
+    try {
+        mensagem.style.display = 'none';
+        
+        const novaLixeira = await criarLixeira(dados);
+        
+        mostrarMensagem(`Lixeira #L${String(novaLixeira.id).padStart(3, '0')} criada com sucesso!`, 'success');
+        form.reset();
+        
+        // Recarregar lista
+        await carregarListaLixeiras();
+        
+        // Atualizar estatísticas no dashboard (se estiver aberto)
+        if (typeof carregarDados === 'function') {
+            carregarDados();
+        }
+        
+    } catch (error) {
+        console.error('Erro ao criar lixeira:', error);
+        mostrarMensagem('Erro ao criar lixeira: ' + (error.message || 'Erro desconhecido'), 'error');
+    }
+}
+
+// Função para mostrar mensagem
+function mostrarMensagem(texto, tipo) {
+    const mensagem = document.getElementById('form-mensagem');
+    mensagem.textContent = texto;
+    mensagem.className = `form-mensagem ${tipo}`;
+    mensagem.style.display = 'block';
+    
+    // Esconder após 5 segundos se for sucesso
+    if (tipo === 'success') {
+        setTimeout(() => {
+            mensagem.style.display = 'none';
+        }, 5000);
+    }
+}
+
+// Função para deletar lixeira
+async function deletarLixeiraConfig(id) {
+    if (!confirm(`Tem certeza que deseja excluir a lixeira #L${String(id).padStart(3, '0')}?`)) {
+        return;
+    }
+    
+    try {
+        await deletarLixeira(id);
+        await carregarListaLixeiras();
+        
+        // Atualizar estatísticas no dashboard (se estiver aberto)
+        if (typeof carregarDados === 'function') {
+            carregarDados();
+        }
+    } catch (error) {
+        console.error('Erro ao deletar lixeira:', error);
+        alert('Erro ao deletar lixeira: ' + (error.message || 'Erro desconhecido'));
+    }
+}
+</script>
+{% endblock %}
+

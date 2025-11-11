@@ -326,16 +326,26 @@ def obter_relatorios():
         # Aplicar filtros de data se fornecidos
         if data_inicio:
             try:
-                data_inicio_obj = datetime.fromisoformat(data_inicio)
+                # Se for apenas data (YYYY-MM-DD), incluir desde o início do dia
+                if len(data_inicio) == 10:
+                    data_inicio_obj = datetime.fromisoformat(data_inicio + 'T00:00:00')
+                else:
+                    data_inicio_obj = datetime.fromisoformat(data_inicio.replace('Z', '+00:00'))
                 query = query.filter(Coleta.data_hora >= data_inicio_obj)
-            except:
+            except Exception as e:
+                print(f"Erro ao processar data_inicio: {e}")
                 pass
         
         if data_fim:
             try:
-                data_fim_obj = datetime.fromisoformat(data_fim)
+                # Se for apenas data (YYYY-MM-DD), incluir até o final do dia
+                if len(data_fim) == 10:
+                    data_fim_obj = datetime.fromisoformat(data_fim + 'T23:59:59')
+                else:
+                    data_fim_obj = datetime.fromisoformat(data_fim.replace('Z', '+00:00'))
                 query = query.filter(Coleta.data_hora <= data_fim_obj)
-            except:
+            except Exception as e:
+                print(f"Erro ao processar data_fim: {e}")
                 pass
         
         coletas = query.order_by(Coleta.data_hora.desc()).all()

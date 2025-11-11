@@ -5,24 +5,11 @@ Inicialização do Banco - Dashboard-TRONIK
 Script para configurar e inicializar o banco de dados.
 Cria as tabelas e insere dados iniciais.
 
-TODO para a equipe Backend:
-- Configurar conexão com SQLite
-- Criar todas as tabelas
-- Inserir dados mock iniciais
-- Implementar funções de reset/backup
+Funções implementadas:
+- criar_banco(): Cria o banco de dados SQLite e todas as tabelas
+- inserir_dados_iniciais(): Carrega dados mock do arquivo JSON
+- resetar_banco(): Remove e recria todas as tabelas
 """
-
-# TODO: Importar dependências necessárias
-
-# TODO: Função para criar banco de dados
-
-# TODO: Função para criar tabelas
-
-# TODO: Função para inserir dados iniciais
-
-# TODO: Função para resetar banco
-
-# TODO: Executar inicialização se chamado diretamente 
 
 from sqlalchemy import create_engine
 from sqlalchemy.orm import sessionmaker

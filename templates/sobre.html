@@ -1,0 +1,301 @@
+{% extends "base.html" %}
+
+{% block title %}Dashboard-TRONIK - Sobre{% endblock %}
+
+{% block extra_css %}
+<link rel="stylesheet" href="{{ url_for('static', filename='css/sobre.css') }}">
+{% endblock %}
+
+{% block content %}
+<div class="sobre-container">
+    <div class="sobre-content">
+        <!-- Header -->
+        <div class="sobre-header">
+            <h1>Sobre o Dashboard-TRONIK</h1>
+            <p class="sobre-subtitle">Sistema de monitoramento inteligente de coletores de resíduos eletrônicos</p>
+        </div>
+
+        <!-- Sobre o Projeto -->
+        <section class="sobre-section">
+            <h2 class="section-title">Sobre o Projeto</h2>
+            <div class="section-content">
+                <p>
+                    O <strong>Dashboard-TRONIK</strong> é um sistema de monitoramento de coletores inteligentes que permite 
+                    visualizar em tempo real o nível de preenchimento e status de cada lixeira equipada com sensores ultrassônicos.
+                </p>
+                <p>
+                    Desenvolvido como uma solução web completa para monitoramento de coletores, o projeto permite que equipes 
+                    aprendam desenvolvimento web moderno através de um projeto real e prático, utilizando tecnologias como 
+                    Python Flask, HTML5, CSS3 e JavaScript.
+                </p>
+            </div>
+        </section>
+
+        <!-- Sobre a TRONIK -->
+        <section class="sobre-section">
+            <h2 class="section-title">Sobre a TRONIK</h2>
+            <div class="section-content">
+                <p>
+                    A <strong>TRONIK</strong> é uma empresa especializada na coleta e reciclagem de resíduos eletrônicos, 
+                    atuando tanto em residências quanto em empresas. Nosso processo inclui:
+                </p>
+                <ul class="feature-list">
+                    <li>
+                        <strong>Coleta:</strong> Recolhemos resíduos eletrônicos em casas e empresas
+                    </li>
+                    <li>
+                        <strong>Parcerias:</strong> Enviamos os materiais coletados para parceiros especializados
+                    </li>
+                    <li>
+                        <strong>Separação:</strong> Realizamos a separação de vidro, plásticos, componentes, cobre e alumínio
+                    </li>
+                    <li>
+                        <strong>Reaproveitamento:</strong> Enviamos os materiais separados aos fabricantes de eletrônicos para reaproveitamento
+                    </li>
+                </ul>
+            </div>
+        </section>
+
+        <!-- Objetivo -->
+        <section class="sobre-section">
+            <h2 class="section-title">Objetivo</h2>
+            <div class="section-content">
+                <p>
+                    Desenvolver uma solução web completa para monitoramento de coletores, permitindo que a equipe aprenda 
+                    desenvolvimento web moderno através de um projeto real e prático. O sistema visa:
+                </p>
+                <ul class="feature-list">
+                    <li>Visualização em tempo real do nível de preenchimento das lixeiras</li>
+                    <li>Alertas automáticos quando o nível ultrapassa 80%</li>
+                    <li>Relatórios detalhados de coletas e níveis por período</li>
+                    <li>Interface web responsiva para desktop e mobile</li>
+                    <li>Otimização de rotas de coleta baseada em dados</li>
+                </ul>
+            </div>
+        </section>
+
+        <!-- Modelo de Negócio -->
+        <section class="sobre-section">
+            <h2 class="section-title">Modelo de Negócio</h2>
+            <div class="section-content">
+                <div class="business-model">
+                    <div class="model-badge">B2B2C</div>
+                    <p>
+                        A TRONIK opera com modelo de negócio <strong>B2B2C</strong> (Business-to-Business-to-Consumer), 
+                        conectando empresas, instituições e consumidores finais através de uma plataforma de coleta e 
+                        reciclagem de resíduos eletrônicos.
+                    </p>
+                </div>
+            </div>
+        </section>
+
+        <!-- Público-Alvo -->
+        <section class="sobre-section">
+            <h2 class="section-title">Público-Alvo</h2>
+            <div class="section-content">
+                <div class="target-audience">
+                    <div class="audience-item">
+                        <h3>Residências</h3>
+                        <p>Famílias que buscam descartar corretamente seus resíduos eletrônicos</p>
+                    </div>
+                    <div class="audience-item">
+                        <h3>Empresas</h3>
+                        <p>Organizações que precisam gerenciar o descarte de equipamentos eletrônicos</p>
+                    </div>
+                    <div class="audience-item">
+                        <h3>Faculdades e Universidades</h3>
+                        <p>Instituições de ensino que promovem a reciclagem de eletrônicos</p>
+                    </div>
+                </div>
+            </div>
+        </section>
+
+        <!-- Stack Tecnológico -->
+        <section class="sobre-section">
+            <h2 class="section-title">Tecnologias Utilizadas</h2>
+            <div class="section-content">
+                <div class="tech-stack">
+                    <div class="tech-item">
+                        <h3>Frontend</h3>
+                        <ul>
+                            <li>HTML5</li>
+                            <li>CSS3</li>
+                            <li>JavaScript (Vanilla)</li>
+                            <li>Chart.js</li>
+                        </ul>
+                    </div>
+                    <div class="tech-item">
+                        <h3>Backend</h3>
+                        <ul>
+                            <li>Python 3.x</li>
+                            <li>Flask</li>
+                            <li>Flask-CORS</li>
+                            <li>SQLAlchemy</li>
+                        </ul>
+                    </div>
+                    <div class="tech-item">
+                        <h3>Banco de Dados</h3>
+                        <ul>
+                            <li>SQLite</li>
+                        </ul>
+                    </div>
+                    <div class="tech-item">
+                        <h3>Comunicação</h3>
+                        <ul>
+                            <li>REST API</li>
+                            <li>JSON</li>
+                            <li>Polling</li>
+                        </ul>
+                    </div>
+                </div>
+            </div>
+        </section>
+
+        <!-- Localização -->
+        <section class="sobre-section">
+            <h2 class="section-title">Onde Encontrar</h2>
+            <div class="section-content">
+                <div class="location-info">
+                    <div class="location-details">
+                        <h3>Recanto das Emas - DF - Brasil</h3>
+                        <p>Distrito Federal, Brasil</p>
+                    </div>
+                </div>
+            </div>
+        </section>
+
+        <!-- Fundadores -->
+        <section class="sobre-section">
+            <h2 class="section-title">Fundadores</h2>
+            <div class="section-content">
+                <div class="founders">
+                    <div class="founder-card">
+                        <div class="founder-avatar">MG</div>
+                        <h3>Maiara Gualberto da Silva</h3>
+                        <p class="founder-role">Fundadora</p>
+                    </div>
+                </div>
+            </div>
+        </section>
+
+        <!-- Contribuidores -->
+        <section class="sobre-section">
+            <h2 class="section-title">Contribuidores</h2>
+            <div class="section-content">
+                <p>
+                    Este projeto é desenvolvido por uma equipe dedicada de desenvolvedores. 
+                    Agradecemos a todos que contribuíram para o desenvolvimento do Dashboard-TRONIK.
+                </p>
+                
+                <div class="contributors-section">
+                    <div class="contributor-category">
+                        <h3>Autor e Mantenedor</h3>
+                        <div class="contributors-list">
+                            <div class="contributor-item">
+                                <div class="contributor-avatar">NH</div>
+                                <div class="contributor-info">
+                                    <h4>Natan Heringer</h4>
+                                    <p class="contributor-username">@natanheringer</p>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                    
+                    <div class="contributor-category">
+                        <h3>Mantenedores</h3>
+                        <div class="contributors-list">
+                            <div class="contributor-item">
+                                <div class="contributor-avatar">PG</div>
+                                <div class="contributor-info">
+                                    <h4>Pedro Gabryel Oliveira</h4>
+                                    <p class="contributor-username">@ySpecks</p>
+                                </div>
+                            </div>
+                            <div class="contributor-item">
+                                <div class="contributor-avatar">GA</div>
+                                <div class="contributor-info">
+                                    <h4>Gabriel Oliveira de Araújo</h4>
+                                    <p class="contributor-username">@gabrieloliveiraetb</p>
+                                </div>
+                            </div>
+                            <div class="contributor-item">
+                                <div class="contributor-avatar">RC</div>
+                                <div class="contributor-info">
+                                    <h4>Ruan Costa</h4>
+                                    <p class="contributor-username">@Ruan25-code</p>
+                                </div>
+                            </div>
+                            <div class="contributor-item">
+                                <div class="contributor-avatar">TL</div>
+                                <div class="contributor-info">
+                                    <h4>Thales Leão</h4>
+                                    <p class="contributor-username">@tleaoribeironeves-max</p>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </section>
+
+        <!-- Contato -->
+        <section class="sobre-section">
+            <h2 class="section-title">Entre em Contato</h2>
+            <div class="section-content">
+                <p>
+                    Para mais informações sobre o projeto Dashboard-TRONIK ou sobre os serviços da TRONIK, 
+                    entre em contato conosco.
+                </p>
+                <div class="contact-info">
+                    <p><strong>Localização:</strong> Recanto das Emas - DF - Brasil</p>
+                </div>
+            </div>
+        </section>
+
+        <!-- Funcionalidades -->
+        <section class="sobre-section">
+            <h2 class="section-title">Funcionalidades do Sistema</h2>
+            <div class="section-content">
+                <div class="features-grid">
+                    <div class="feature-card">
+                        <h3>Dashboard Visual</h3>
+                        <p>Visualização em tempo real do status de todas as lixeiras</p>
+                    </div>
+                    <div class="feature-card">
+                        <h3>Sistema de Alertas</h3>
+                        <p>Notificações automáticas quando o nível ultrapassa 80%</p>
+                    </div>
+                    <div class="feature-card">
+                        <h3>Relatórios Detalhados</h3>
+                        <p>Análise de coletas, distribuição por região e horários de pico</p>
+                    </div>
+                    <div class="feature-card">
+                        <h3>Interface Responsiva</h3>
+                        <p>Acessível em desktop, tablet e mobile</p>
+                    </div>
+                    <div class="feature-card">
+                        <h3>Gestão de Lixeiras</h3>
+                        <p>CRUD completo para cadastro e gerenciamento de lixeiras</p>
+                    </div>
+                    <div class="feature-card">
+                        <h3>Exportação de Dados</h3>
+                        <p>Exportação de relatórios em formato CSV</p>
+                    </div>
+                </div>
+            </div>
+        </section>
+    </div>
+</div>
+
+<script>
+// Permitir scroll na página sobre
+document.addEventListener('DOMContentLoaded', function() {
+    const mainContainer = document.querySelector('.main-container');
+    if (mainContainer) {
+        mainContainer.style.overflowY = 'auto';
+        mainContainer.style.overflowX = 'hidden';
+    }
+});
+</script>
+{% endblock %}
+

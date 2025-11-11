@@ -1,0 +1,212 @@
+/*
+Estilos CSS - Página Relatórios
+================================
+Estilos específicos para a página relatorios.html
+*/
+
+/* Override main-container padding for reports page */
+.main-container:has(.relatorios-container) {
+    padding: 20px;
+    overflow: hidden;
+}
+
+.relatorios-container .card {
+    background: white;
+    border-radius: 8px;
+    box-shadow: 0 2px 4px rgba(0,0,0,0.05);
+    padding: 15px;
+}
+
+.card-header {
+    font-size: 14px;
+    font-weight: 600;
+    color: #2C3E50;
+    margin-bottom: 12px;
+    padding-bottom: 8px;
+    border-bottom: 1px solid #f0f0f0;
+}
+
+.filters-compact {
+    display: flex;
+    gap: 10px;
+    align-items: end;
+}
+
+.kpi-grid {
+    display: grid;
+    grid-template-columns: repeat(4, 1fr);
+    gap: 10px;
+}
+
+.kpi-card {
+    text-align: center;
+    padding: 10px;
+    background: #f8f9fa;
+    border-radius: 6px;
+    border-left: 3px solid #5DB5A4;
+}
+
+.kpi-card.warning {
+    border-left-color: #f39c12;
+}
+
+.kpi-card.danger {
+    border-left-color: #e74c3c;
+}
+
+.kpi-value {
+    font-size: 22px;
+    font-weight: 700;
+    color: #2C3E50;
+}
+
+.kpi-label {
+    font-size: 10px;
+    color: #7f8c8d;
+    margin-top: 2px;
+}
+
+.table-container {
+    overflow-y: auto;
+    max-height: 400px;
+    width: 100%;
+}
+
+#relatorio-table {
+    width: 100%;
+    table-layout: auto;
+}
+
+.summary-box {
+    background: #f8f9fa;
+    padding: 10px;
+    border-radius: 6px;
+    font-size: 12px;
+    line-height: 1.6;
+}
+
+.summary-title {
+    font-weight: 600;
+    color: #2C3E50;
+    margin-bottom: 5px;
+}
+
+.top-list {
+    font-size: 12px;
+}
+
+.top-item {
+    display: flex;
+    justify-content: space-between;
+    padding: 6px 0;
+    border-bottom: 1px solid #f0f0f0;
+}
+
+.top-item:last-child {
+    border-bottom: none;
+}
+
+.top-name {
+    color: #2C3E50;
+}
+
+.top-value {
+    font-weight: 600;
+    color: #e74c3c;
+}
+
+/* Chart Styles */
+.chart-header {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    margin-bottom: 10px;
+}
+
+.chart-title {
+    font-size: 13px;
+    font-weight: 600;
+    color: #2C3E50;
+}
+
+.chart-tabs {
+    display: flex;
+    gap: 3px;
+}
+
+.tab-btn {
+    padding: 3px 8px;
+    border: 1px solid #ddd;
+    background: white;
+    border-radius: 3px;
+    font-size: 10px;
+    cursor: pointer;
+    transition: all 0.2s;
+}
+
+.tab-btn:hover {
+    background: #f8f9fa;
+}
+
+.tab-btn.active {
+    background: #5DB5A4;
+    color: white;
+    border-color: #5DB5A4;
+}
+
+.chart-container {
+    height: 180px;
+    position: relative;
+}
+
+.chart-container-small {
+    height: 140px;
+    position: relative;
+}
+
+.chart-container canvas,
+.chart-container-small canvas {
+    max-height: 100%;
+}
+
+/* Ajustar layout para não cortar */
+.relatorios-container {
+    height: 100%;
+    overflow: hidden;
+    width: 100%;
+    max-width: 100%;
+    box-sizing: border-box;
+    display: flex;
+    gap: 15px;
+}
+
+.relatorios-left-panel {
+    flex: 1.5;
+    height: 100%;
+    overflow-y: auto;
+    overflow-x: hidden;
+    min-width: 0;
+    display: flex;
+    flex-direction: column;
+    gap: 15px;
+    padding-right: 5px;
+}
+
+.relatorios-right-panel {
+    flex: 1;
+    height: 100%;
+    overflow-y: auto;
+    overflow-x: hidden;
+    min-width: 0;
+    display: flex;
+    flex-direction: column;
+    gap: 15px;
+}
+
+/* Garantir que os cards tenham espaço suficiente */
+.relatorios-container .card {
+    min-height: fit-content;
+    width: 100%;
+    box-sizing: border-box;
+}
+
