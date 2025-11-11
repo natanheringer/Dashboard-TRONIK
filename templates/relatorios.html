@@ -2,6 +2,10 @@
 
 {% block title %}Dashboard-TRONIK - Relatórios{% endblock %}
 
+{% block extra_css %}
+<link rel="stylesheet" href="{{ url_for('static', filename='css/relatorios.css') }}">
+{% endblock %}
+
 {% block content %}
 <div class="relatorios-container">
     <!-- Left Panel -->
@@ -57,9 +61,8 @@
                     <button class="tab-btn" data-periodo="90">90 dias</button>
                 </div>
             </div>
-            <div class="chart-placeholder">
-                <div class="chart-message">Gráfico de Linha - Coletas Diárias</div>
-                <div class="chart-placeholder-text">Gráfico será implementado em breve</div>
+            <div class="chart-container">
+                <canvas id="chart-evolucao"></canvas>
             </div>
         </div>
 
@@ -111,9 +114,8 @@
         <!-- Distribution Chart -->
         <div class="card">
             <h3 class="card-header">Distribuição por Região</h3>
-            <div class="chart-placeholder" style="height: 140px;">
-                <div class="chart-message">Gráfico Pizza - Por Região</div>
-                <div class="chart-placeholder-text">Gráfico será implementado em breve</div>
+            <div class="chart-container-small">
+                <canvas id="chart-distribuicao"></canvas>
             </div>
         </div>
 
@@ -128,263 +130,417 @@
         <!-- Heatmap -->
         <div class="card">
             <h3 class="card-header">Horários de Pico</h3>
-            <div class="chart-placeholder" style="height: 120px;">
-                <div class="chart-message">Heatmap - Dias x Horas</div>
-                <div class="chart-placeholder-text">Gráfico será implementado em breve</div>
+            <div class="chart-container-small">
+                <canvas id="chart-horarios"></canvas>
             </div>
         </div>
     </div>
 </div>
 {% endblock %}
 
-{% block extra_css %}
-<style>
-/* Override main-container padding for reports page */
-.main-container:has(.relatorios-container) {
-    padding: 20px;
-    overflow: hidden;
-}
-
-.relatorios-container .card {
-    background: white;
-    border-radius: 8px;
-    box-shadow: 0 2px 4px rgba(0,0,0,0.05);
-    padding: 15px;
-}
-
-.card-header {
-    font-size: 14px;
-    font-weight: 600;
-    color: #2C3E50;
-    margin-bottom: 12px;
-    padding-bottom: 8px;
-    border-bottom: 1px solid #f0f0f0;
-}
-
-.filters-compact {
-    display: flex;
-    gap: 10px;
-    align-items: end;
-}
-
-.kpi-grid {
-    display: grid;
-    grid-template-columns: repeat(4, 1fr);
-    gap: 10px;
-}
-
-.kpi-card {
-    text-align: center;
-    padding: 10px;
-    background: #f8f9fa;
-    border-radius: 6px;
-    border-left: 3px solid #5DB5A4;
-}
-
-.kpi-card.warning {
-    border-left-color: #f39c12;
-}
-
-.kpi-card.danger {
-    border-left-color: #e74c3c;
-}
-
-.kpi-value {
-    font-size: 22px;
-    font-weight: 700;
-    color: #2C3E50;
-}
-
-.kpi-label {
-    font-size: 10px;
-    color: #7f8c8d;
-    margin-top: 2px;
-}
-
-.table-container {
-    overflow-y: auto;
-    max-height: 400px;
-    width: 100%;
-}
-
-#relatorio-table {
-    width: 100%;
-    table-layout: auto;
-}
-
-.summary-box {
-    background: #f8f9fa;
-    padding: 10px;
-    border-radius: 6px;
-    font-size: 12px;
-    line-height: 1.6;
-}
-
-.summary-title {
-    font-weight: 600;
-    color: #2C3E50;
-    margin-bottom: 5px;
-}
-
-.top-list {
-    font-size: 12px;
-}
-
-.top-item {
-    display: flex;
-    justify-content: space-between;
-    padding: 6px 0;
-    border-bottom: 1px solid #f0f0f0;
-}
-
-.top-item:last-child {
-    border-bottom: none;
-}
-
-.top-name {
-    color: #2C3E50;
-}
-
-.top-value {
-    font-weight: 600;
-    color: #e74c3c;
-}
-
-/* Chart Styles */
-.chart-header {
-    display: flex;
-    justify-content: space-between;
-    align-items: center;
-    margin-bottom: 10px;
-}
-
-.chart-title {
-    font-size: 13px;
-    font-weight: 600;
-    color: #2C3E50;
-}
-
-.chart-tabs {
-    display: flex;
-    gap: 3px;
-}
-
-.tab-btn {
-    padding: 3px 8px;
-    border: 1px solid #ddd;
-    background: white;
-    border-radius: 3px;
-    font-size: 10px;
-    cursor: pointer;
-    transition: all 0.2s;
-}
-
-.tab-btn:hover {
-    background: #f8f9fa;
-}
-
-.tab-btn.active {
-    background: #5DB5A4;
-    color: white;
-    border-color: #5DB5A4;
-}
-
-.chart-placeholder {
-    height: 180px;
-    background: linear-gradient(135deg, #5DB5A4 0%, #4A9B8E 100%);
-    border-radius: 6px;
-    display: flex;
-    flex-direction: column;
-    align-items: center;
-    justify-content: center;
-    color: white;
-    font-size: 14px;
-}
-
-.chart-message {
-    font-weight: 600;
-    margin-bottom: 5px;
-}
-
-.chart-placeholder-text {
-    font-size: 11px;
-    opacity: 0.9;
-}
-
-/* Ajustar layout para não cortar */
-.relatorios-container {
-    height: 100%;
-    overflow: hidden;
-    width: 100%;
-    max-width: 100%;
-    box-sizing: border-box;
-    display: flex;
-    gap: 15px;
-}
-
-.relatorios-left-panel {
-    flex: 1.5;
-    height: 100%;
-    overflow-y: auto;
-    overflow-x: hidden;
-    min-width: 0;
-    display: flex;
-    flex-direction: column;
-    gap: 15px;
-    padding-right: 5px;
-}
-
-.relatorios-right-panel {
-    flex: 1;
-    height: 100%;
-    overflow-y: auto;
-    overflow-x: hidden;
-    min-width: 0;
-    display: flex;
-    flex-direction: column;
-    gap: 15px;
-}
-
-/* Garantir que os cards tenham espaço suficiente */
-.relatorios-container .card {
-    min-height: fit-content;
-    width: 100%;
-    box-sizing: border-box;
-}
-</style>
-{% endblock %}
-
 {% block extra_js %}
+<!-- Chart.js CDN -->
+<script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.0/dist/chart.umd.min.js"></script>
 <script>
-// Configurar datas padrão (últimos 30 dias)
-const hoje = new Date();
-const inicio = new Date(hoje);
-inicio.setDate(inicio.getDate() - 30);
+// Verificar se Chart.js carregou
+if (typeof Chart === 'undefined') {
+    console.error('Chart.js não foi carregado corretamente!');
+}
+// Variáveis globais para gráficos
+let chartEvolucao = null;
+let chartDistribuicao = null;
+let chartHorarios = null;
 
-document.getElementById('data-inicio').value = inicio.toISOString().split('T')[0];
-document.getElementById('data-fim').value = hoje.toISOString().split('T')[0];
+// Função para inicializar a página
+function inicializarPagina() {
+    // Verificar se Chart.js está disponível
+    if (typeof Chart === 'undefined') {
+        console.error('Chart.js não foi carregado! Verifique a conexão com o CDN.');
+        // Tentar novamente após 500ms
+        setTimeout(inicializarPagina, 500);
+        return;
+    }
+    
+    // Configurar datas padrão para incluir os dados mock (janeiro a março 2024)
+    // Os dados mock estão entre 2024-01-02 e 2024-03-31
+    // Vamos usar um período que inclua esses dados
+    const dataInicioEl = document.getElementById('data-inicio');
+    const dataFimEl = document.getElementById('data-fim');
+    
+    if (dataInicioEl && dataFimEl) {
+        // Se não houver valor, usar período dos dados mock (últimos 30 dias)
+        if (!dataInicioEl.value || !dataFimEl.value) {
+            const hoje = new Date('2024-03-31'); // Data fim dos dados mock
+            const inicio = new Date(hoje);
+            inicio.setDate(inicio.getDate() - 29); // 30 dias
+            dataInicioEl.value = inicio.toISOString().split('T')[0];
+            dataFimEl.value = hoje.toISOString().split('T')[0];
+        }
+    }
+    
+    // Botão aplicar filtro
+    const btnAplicar = document.getElementById('btn-aplicar-filtro');
+    if (btnAplicar) {
+        btnAplicar.addEventListener('click', carregarRelatorio);
+    }
+    
+    // Tabs de período
+    document.querySelectorAll('.tab-btn').forEach(btn => {
+        btn.addEventListener('click', function() {
+            document.querySelectorAll('.tab-btn').forEach(b => b.classList.remove('active'));
+            this.classList.add('active');
+            
+            // Obter período selecionado
+            const periodo = parseInt(this.dataset.periodo);
+            
+            // Atualizar campos de data
+            const dataInicioEl = document.getElementById('data-inicio');
+            const dataFimEl = document.getElementById('data-fim');
+            
+            if (dataInicioEl && dataFimEl) {
+                const dataMockFim = new Date('2024-03-31'); // Dados agora vão até 31/03
+                const dataMockInicio = new Date('2024-01-02'); // Primeira coleta é em 02/01
+                
+                // Determinar data fim: usar sempre o fim dos dados mock (31/03/2024)
+                const dataFimAtual = new Date(dataMockFim);
+                
+                // Calcular nova data início retrocedendo o período a partir da data fim
+                const novaDataInicio = new Date(dataFimAtual);
+                novaDataInicio.setDate(novaDataInicio.getDate() - periodo + 1); // +1 para incluir o dia atual
+                
+                // Lógica diferenciada para cada período:
+                // - 7 dias: últimos 7 dias a partir da data fim
+                // - 30 dias: últimos 30 dias a partir da data fim
+                // - 90 dias: TODOS os dados disponíveis (período completo desde o início)
+                if (periodo >= 90) {
+                    // 90 dias: mostrar TODOS os dados disponíveis (período completo desde o início)
+                    dataInicioEl.value = dataMockInicio.toISOString().split('T')[0];
+                    dataFimEl.value = dataMockFim.toISOString().split('T')[0];
+                } else if (periodo === 30) {
+                    // 30 dias: mostrar exatamente 30 dias a partir da data fim
+                    // Se o período calculado vai antes do início dos dados, limitar ao início
+                    if (novaDataInicio < dataMockInicio) {
+                        // Período maior que dados disponíveis: mostrar todos os dados disponíveis
+                        dataInicioEl.value = dataMockInicio.toISOString().split('T')[0];
+                        dataFimEl.value = dataFimAtual.toISOString().split('T')[0];
+                    } else {
+                        // Período normal de 30 dias dentro dos dados disponíveis
+                        dataInicioEl.value = novaDataInicio.toISOString().split('T')[0];
+                        dataFimEl.value = dataFimAtual.toISOString().split('T')[0];
+                    }
+                } else {
+                    // 7 dias ou outros períodos menores: calcular normalmente
+                    if (novaDataInicio < dataMockInicio) {
+                        dataInicioEl.value = dataMockInicio.toISOString().split('T')[0];
+                    } else {
+                        dataInicioEl.value = novaDataInicio.toISOString().split('T')[0];
+                    }
+                    dataFimEl.value = dataFimAtual.toISOString().split('T')[0];
+                }
+                
+                console.log(`Período ${periodo} dias: ${dataInicioEl.value} até ${dataFimEl.value}`);
+                
+                // Recarregar relatório com novas datas
+                carregarRelatorio();
+            }
+        });
+    });
+    
+    // Carregar relatório inicial
+    carregarRelatorio();
+}
 
-// Carregar relatório inicial
-carregarRelatorio();
+// Aguardar DOM estar pronto
+if (document.readyState === 'loading') {
+    document.addEventListener('DOMContentLoaded', inicializarPagina);
+} else {
+    // DOM já está pronto
+    inicializarPagina();
+}
 
-// Botão aplicar filtro
-document.getElementById('btn-aplicar-filtro').addEventListener('click', carregarRelatorio);
+// Função para processar dados para gráfico de evolução
+function processarDadosEvolucao(coletas) {
+    // Agrupar coletas por data
+    const coletasPorData = {};
+    
+    coletas.forEach(coleta => {
+        const data = new Date(coleta.data_coleta);
+        const dataStr = data.toLocaleDateString('pt-BR', { day: '2-digit', month: '2-digit' });
+        
+        if (!coletasPorData[dataStr]) {
+            coletasPorData[dataStr] = 0;
+        }
+        coletasPorData[dataStr]++;
+    });
+    
+    // Ordenar por data
+    const datas = Object.keys(coletasPorData).sort((a, b) => {
+        const [diaA, mesA] = a.split('/');
+        const [diaB, mesB] = b.split('/');
+        return new Date(2024, mesA - 1, diaA) - new Date(2024, mesB - 1, diaB);
+    });
+    
+    return {
+        labels: datas,
+        valores: datas.map(d => coletasPorData[d])
+    };
+}
+
+// Função para processar dados de distribuição por região
+function processarDadosDistribuicao(coletasPorLixeira, lixeiras) {
+    // Agrupar por região (usando parte do nome da localização)
+    const regioes = {};
+    
+    coletasPorLixeira.forEach(item => {
+        const lixeira = lixeiras.find(l => l.id === item.lixeira_id);
+        if (lixeira) {
+            // Extrair região do nome (ex: "Asa Norte" de "Asa Norte - Bloco A")
+            const regiao = lixeira.localizacao.split(' - ')[0] || 'Outros';
+            if (!regioes[regiao]) {
+                regioes[regiao] = 0;
+            }
+            regioes[regiao] += item.total_coletas;
+        }
+    });
+    
+    return {
+        labels: Object.keys(regioes),
+        valores: Object.values(regioes)
+    };
+}
+
+// Função para processar dados de horários de pico
+function processarDadosHorarios(coletas) {
+    const horarios = Array(24).fill(0);
+    
+    coletas.forEach(coleta => {
+        const data = new Date(coleta.data_coleta);
+        const hora = data.getHours();
+        horarios[hora]++;
+    });
+    
+    return {
+        labels: Array.from({length: 24}, (_, i) => `${i.toString().padStart(2, '0')}h`),
+        valores: horarios
+    };
+}
+
+// Função para criar/atualizar gráfico de evolução
+function atualizarGraficoEvolucao(dados) {
+    const ctx = document.getElementById('chart-evolucao');
+    
+    if (!ctx) {
+        console.error('Canvas chart-evolucao não encontrado');
+        return;
+    }
+    
+    if (chartEvolucao) {
+        chartEvolucao.destroy();
+    }
+    
+    const processed = processarDadosEvolucao(dados.detalhes || []);
+    
+    // Se não houver dados, mostrar gráfico vazio
+    if (processed.labels.length === 0) {
+        processed.labels = ['Sem dados'];
+        processed.valores = [0];
+    }
+    
+    try {
+        chartEvolucao = new Chart(ctx, {
+            type: 'line',
+            data: {
+                labels: processed.labels,
+                datasets: [{
+                    label: 'Coletas',
+                    data: processed.valores,
+                    borderColor: '#5DB5A4',
+                    backgroundColor: 'rgba(93, 181, 164, 0.1)',
+                    tension: 0.4,
+                    fill: true
+                }]
+            },
+            options: {
+                responsive: true,
+                maintainAspectRatio: false,
+                plugins: {
+                    legend: {
+                        display: false
+                    },
+                    tooltip: {
+                        enabled: processed.labels.length > 1
+                    }
+                },
+                scales: {
+                    y: {
+                        beginAtZero: true,
+                        ticks: {
+                            stepSize: 1
+                        }
+                    }
+                }
+            }
+        });
+    } catch (error) {
+        console.error('Erro ao criar gráfico de evolução:', error);
+    }
+}
+
+// Função para criar/atualizar gráfico de distribuição
+function atualizarGraficoDistribuicao(coletasPorLixeira, lixeiras) {
+    const ctx = document.getElementById('chart-distribuicao');
+    
+    if (!ctx) {
+        console.error('Canvas chart-distribuicao não encontrado');
+        return;
+    }
+    
+    if (chartDistribuicao) {
+        chartDistribuicao.destroy();
+    }
+    
+    const processed = processarDadosDistribuicao(coletasPorLixeira || [], lixeiras || []);
+    
+    // Se não houver dados, mostrar gráfico vazio
+    if (processed.labels.length === 0) {
+        processed.labels = ['Sem dados'];
+        processed.valores = [1];
+    }
+    
+    try {
+        chartDistribuicao = new Chart(ctx, {
+            type: 'doughnut',
+            data: {
+                labels: processed.labels,
+                datasets: [{
+                    data: processed.valores,
+                    backgroundColor: [
+                        '#5DB5A4',
+                        '#3498db',
+                        '#f39c12',
+                        '#e74c3c',
+                        '#9b59b6',
+                        '#1abc9c',
+                        '#34495e'
+                    ]
+                }]
+            },
+            options: {
+                responsive: true,
+                maintainAspectRatio: false,
+                plugins: {
+                    legend: {
+                        position: 'bottom',
+                        labels: {
+                            boxWidth: 12,
+                            font: {
+                                size: 10
+                            }
+                        }
+                    }
+                }
+            }
+        });
+    } catch (error) {
+        console.error('Erro ao criar gráfico de distribuição:', error);
+    }
+}
+
+// Função para criar/atualizar gráfico de horários
+function atualizarGraficoHorarios(coletas) {
+    const ctx = document.getElementById('chart-horarios');
+    
+    if (!ctx) {
+        console.error('Canvas chart-horarios não encontrado');
+        return;
+    }
+    
+    if (chartHorarios) {
+        chartHorarios.destroy();
+    }
+    
+    const processed = processarDadosHorarios(coletas || []);
+    
+    try {
+        chartHorarios = new Chart(ctx, {
+            type: 'bar',
+            data: {
+                labels: processed.labels,
+                datasets: [{
+                    label: 'Coletas',
+                    data: processed.valores,
+                    backgroundColor: '#5DB5A4',
+                    borderColor: '#4A9B8E',
+                    borderWidth: 1
+                }]
+            },
+            options: {
+                responsive: true,
+                maintainAspectRatio: false,
+                plugins: {
+                    legend: {
+                        display: false
+                    }
+                },
+                scales: {
+                    y: {
+                        beginAtZero: true,
+                        ticks: {
+                            stepSize: 1
+                        }
+                    },
+                    x: {
+                        ticks: {
+                            maxRotation: 45,
+                            minRotation: 45,
+                            font: {
+                                size: 8
+                            }
+                        }
+                    }
+                }
+            }
+        });
+    } catch (error) {
+        console.error('Erro ao criar gráfico de horários:', error);
+    }
+}
 
 async function carregarRelatorio() {
     try {
         const dataInicio = document.getElementById('data-inicio').value;
         const dataFim = document.getElementById('data-fim').value;
         
+        // Debug: verificar datas sendo enviadas
+        console.log('Carregando relatório:', { dataInicio, dataFim });
+        
         const relatorio = await obterRelatorios(dataInicio, dataFim);
+        
+        // Debug: verificar quantas coletas foram retornadas
+        console.log('Coletas retornadas:', relatorio.detalhes.length);
+        
+        // Carregar lixeiras para gráfico de distribuição
+        const lixeiras = await obterTodasLixeiras();
         
         // Atualizar KPIs
         document.getElementById('kpi-total-coletas').textContent = relatorio.resumo.total_coletas || 0;
         document.getElementById('kpi-volume-total').textContent = 
             relatorio.resumo.volume_total ? Math.round(relatorio.resumo.volume_total) + 'L' : '0L';
         document.getElementById('kpi-eficiencia').textContent = 
-            relatorio.resumo.total_coletas > 0 ? '95%' : '0%'; // Simplificado
+            relatorio.resumo.total_coletas > 0 ? '95%' : '0%';
         document.getElementById('kpi-lixeiras-ativas').textContent = 
             relatorio.resumo.coletas_por_lixeira ? relatorio.resumo.coletas_por_lixeira.length : 0;
+        
+        // Sempre atualizar gráficos com os dados filtrados
+        atualizarGraficoEvolucao(relatorio);
+        atualizarGraficoHorarios(relatorio.detalhes || []);
+        
+        // Gráfico de distribuição só se houver coletas por lixeira
+        if (relatorio.resumo && relatorio.resumo.coletas_por_lixeira) {
+            atualizarGraficoDistribuicao(relatorio.resumo.coletas_por_lixeira, lixeiras);
+        } else {
+            atualizarGraficoDistribuicao([], lixeiras);
+        }
         
         // Atualizar tabela
         const tbody = document.getElementById('relatorio-tbody');
