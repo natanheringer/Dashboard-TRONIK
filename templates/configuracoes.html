@@ -136,6 +136,7 @@ function exibirListaLixeiras(lixeiras) {
 async function criarNovaLixeira() {
     const form = document.getElementById('form-nova-lixeira');
     const mensagem = document.getElementById('form-mensagem');
+    const btnSubmit = form.querySelector('button[type="submit"]');
     
     // Coletar dados do formulário
     const dados = {
@@ -160,9 +161,22 @@ async function criarNovaLixeira() {
         mostrarMensagem('Por favor, preencha a localização', 'error');
         return;
     }
+    if (isNaN(dados.nivel_preenchimento) || dados.nivel_preenchimento < 0 || dados.nivel_preenchimento > 100) {
+        mostrarMensagem('Nível de preenchimento deve estar entre 0 e 100', 'error');
+        return;
+    }
+    if ((lat && !lon) || (!lat && lon)) {
+        mostrarMensagem('Informe latitude e longitude juntos', 'error');
+        return;
+    }
     
     try {
         mensagem.style.display = 'none';
+        // Feedback visual
+        if (btnSubmit) {
+            btnSubmit.disabled = true;
+            btnSubmit.textContent = 'Adicionando...';
+        }
         
         const novaLixeira = await criarLixeira(dados);
         
@@ -180,6 +194,12 @@ async function criarNovaLixeira() {
     } catch (error) {
         console.error('Erro ao criar lixeira:', error);
         mostrarMensagem('Erro ao criar lixeira: ' + (error.message || 'Erro desconhecido'), 'error');
+    }
+    finally {
+        if (btnSubmit) {
+            btnSubmit.disabled = false;
+            btnSubmit.textContent = 'Adicionar Lixeira';
+        }
     }
 }
 

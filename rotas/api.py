@@ -10,6 +10,7 @@ from flask import Blueprint, jsonify, request
 from sqlalchemy.orm import scoped_session
 from banco_dados.modelos import Lixeira, Sensor, Coleta
 from datetime import datetime
+import random
 
 # Criar blueprint da API
 api_bp = Blueprint('api', __name__, url_prefix='/api')
@@ -384,6 +385,47 @@ def obter_relatorios():
         return jsonify(relatorio)
         
     except Exception as e:
+        return jsonify({"erro": str(e)}), 500
+    finally:
+        db.close()
+
+# ============================================================
+# ENDPOINTS DE SIMULAÇÃO
+# ============================================================
+
+@api_bp.route('/lixeiras/simular-niveis', methods=['POST'])
+def simular_niveis():
+    """Endpoint para simular alterações nos níveis das lixeiras.
+    Ajusta aleatoriamente o nível de preenchimento de todas as lixeiras,
+    dentro de um intervalo seguro, mantendo valores entre 0 e 100.
+    """
+    db = get_db()
+    try:
+        params = request.get_json() or {}
+        # Intensidade controla o delta máximo de alteração por passo
+        delta_max = float(params.get('delta_max', 10))  # padrão: até +10/-5
+        reduzir_max = float(params.get('reduzir_max', 5))
+
+        lixeiras = db.query(Lixeira).all()
+        atualizadas = []
+        agora = datetime.utcnow()
+        for l in lixeiras:
+            # Delta positivo maior que negativo para simular enchimento gradual
+            delta = random.uniform(-reduzir_max, delta_max)
+            novo_nivel = max(0.0, min(100.0, (l.nivel_preenchimento or 0.0) + delta))
+            l.nivel_preenchimento = round(novo_nivel, 1)
+            # Atualiza última coleta como "última atualização" para fins de exibição
+            l.ultima_coleta = agora
+            atualizadas.append(l)
+
+        db.commit()
+        return jsonify({
+            "mensagem": "Níveis simulados com sucesso",
+            "total_atualizadas": len(atualizadas),
+            "lixeiras": [lixeira_para_dict(l) for l in atualizadas]
+        })
+    except Exception as e:
+        db.rollback()
         return jsonify({"erro": str(e)}), 500
     finally:
         db.close()

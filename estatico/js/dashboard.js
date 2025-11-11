@@ -9,10 +9,14 @@ Gerencia a interação com a interface e comunicação com a API.
 let todasLixeiras = [];
 let estatisticas = {};
 let intervaloAtualizacao = null;
+let intervaloSimulacao = null;
+let simulacaoAtiva = false;
 let filtros = {
     status: '',
     busca: ''
 };
+// Ordenação padrão: nível decrescente
+let ordenacao = 'nivel_desc';
 
 // Função para determinar status da lixeira
 function determinarStatus(lixeira) {
@@ -146,6 +150,33 @@ function aplicarFiltros() {
             return id.includes(busca) || localizacao.includes(busca);
         });
     }
+
+    // Ordenação
+    lixeirasFiltradas.sort((a, b) => {
+        const nivelA = a.nivel_preenchimento || 0;
+        const nivelB = b.nivel_preenchimento || 0;
+        const nomeA = (a.localizacao || '').toLowerCase();
+        const nomeB = (b.localizacao || '').toLowerCase();
+        const dataA = a.ultima_coleta ? new Date(a.ultima_coleta).getTime() : 0;
+        const dataB = b.ultima_coleta ? new Date(b.ultima_coleta).getTime() : 0;
+        
+        switch (ordenacao) {
+            case 'nivel_desc':
+                return nivelB - nivelA;
+            case 'nivel_asc':
+                return nivelA - nivelB;
+            case 'nome_asc':
+                return nomeA.localeCompare(nomeB);
+            case 'nome_desc':
+                return nomeB.localeCompare(nomeA);
+            case 'data_desc':
+                return dataB - dataA;
+            case 'data_asc':
+                return dataA - dataB;
+            default:
+                return nivelB - nivelA;
+        }
+    });
     
     renderizarGridLixeiras(lixeirasFiltradas);
 }
@@ -155,7 +186,7 @@ async function carregarDados() {
     try {
         // Atualizar status de conexão
         const statusIndicator = document.getElementById('status-indicator');
-        statusIndicator.querySelector('span').textContent = 'Carregando...';
+        statusIndicator.querySelector('span').textContent = simulacaoAtiva ? 'Simulando...' : 'Carregando...';
         
         // Carregar lixeiras e estatísticas em paralelo
         const [lixeiras, stats] = await Promise.all([
@@ -172,7 +203,7 @@ async function carregarDados() {
         carregarHistorico();
         
         // Atualizar status
-        statusIndicator.querySelector('span').textContent = 'Conectado';
+        statusIndicator.querySelector('span').textContent = simulacaoAtiva ? 'Simulando' : 'Conectado';
         
     } catch (error) {
         console.error('Erro ao carregar dados:', error);
@@ -182,6 +213,50 @@ async function carregarDados() {
         
         document.getElementById('bins-grid').innerHTML = 
             '<div class="loading-message">Erro ao carregar dados. Tente novamente.</div>';
+    }
+}
+
+// Atualização manual com feedback de botão
+async function atualizarComFeedback() {
+    const btn = document.getElementById('btn-atualizar');
+    if (!btn) return carregarDados();
+    const original = btn.textContent;
+    btn.disabled = true;
+    btn.textContent = 'Atualizando...';
+    try {
+        await carregarDados();
+    } finally {
+        btn.disabled = false;
+        btn.textContent = original;
+    }
+}
+
+// Alternar simulação de níveis
+function alternarSimulacao() {
+    const btn = document.getElementById('btn-simular');
+    if (!btn) return;
+    simulacaoAtiva = !simulacaoAtiva;
+    if (simulacaoAtiva) {
+        btn.textContent = '⏸ Pausar Simulação';
+        btn.classList.add('ativo');
+        // Dispara imediatamente e depois a cada 5s
+        simularNiveis().then(carregarDados).catch(console.error);
+        intervaloSimulacao = setInterval(async () => {
+            try {
+                await simularNiveis();
+                await carregarDados();
+            } catch (e) {
+                console.error('Erro na simulação:', e);
+            }
+        }, 5000);
+    } else {
+        btn.textContent = '▶ Simular Níveis';
+        btn.classList.remove('ativo');
+        if (intervaloSimulacao) {
+            clearInterval(intervaloSimulacao);
+            intervaloSimulacao = null;
+        }
+        carregarDados();
     }
 }
 
@@ -307,10 +382,119 @@ async function verDetalhes(id) {
                 </table>
             </div>
             ` : ''}
+            
+            <div class="modal-detail-card" id="edit-section">
+                <h3 style="font-size: 14px; font-weight: 600; margin-bottom: 10px; color: #2c3e50;">Editar Lixeira</h3>
+                <div id="edit-feedback" style="display:none; font-size:12px; margin-bottom:8px;"></div>
+                <div class="form-grid" style="display:grid; grid-template-columns: 1fr 1fr; gap: 10px;">
+                    <div class="form-group">
+                        <label style="font-size:12px; color:#7f8c8d;">Localização *</label>
+                        <input type="text" id="edit-localizacao" value="${lixeira.localizacao || ''}" />
+                    </div>
+                    <div class="form-group">
+                        <label style="font-size:12px; color:#7f8c8d;">Tipo</label>
+                        <input type="text" id="edit-tipo" value="${lixeira.tipo || ''}" />
+                    </div>
+                    <div class="form-group">
+                        <label style="font-size:12px; color:#7f8c8d;">Nível (%)</label>
+                        <input type="number" id="edit-nivel" min="0" max="100" step="0.1" value="${lixeira.nivel_preenchimento || 0}" />
+                    </div>
+                    <div class="form-group">
+                        <label style="font-size:12px; color:#7f8c8d;">Status</label>
+                        <select id="edit-status">
+                            <option value="ativo" ${lixeira.status === 'ativo' ? 'selected' : ''}>Ativo</option>
+                            <option value="manutencao" ${lixeira.status === 'manutencao' ? 'selected' : ''}>Manutenção</option>
+                            <option value="alerta" ${lixeira.status === 'alerta' ? 'selected' : ''}>Alerta</option>
+                        </select>
+                    </div>
+                    <div class="form-group">
+                        <label style="font-size:12px; color:#7f8c8d;">Latitude</label>
+                        <input type="number" id="edit-lat" step="0.0001" value="${lixeira.coordenadas ? lixeira.coordenadas.latitude : ''}" />
+                    </div>
+                    <div class="form-group">
+                        <label style="font-size:12px; color:#7f8c8d;">Longitude</label>
+                        <input type="number" id="edit-lon" step="0.0001" value="${lixeira.coordenadas ? lixeira.coordenadas.longitude : ''}" />
+                    </div>
+                </div>
+                <div class="form-actions" style="margin-top:10px; display:flex; gap:8px;">
+                    <button class="btn-atualizar" id="btn-salvar-edicao">Salvar Alterações</button>
+                    <button class="btn-exportar" id="btn-cancelar-edicao">Cancelar</button>
+                </div>
+            </div>
         `;
         
         // Mostrar modal
         document.getElementById('modal-overlay').style.display = 'flex';
+        
+        // Listeners de edição
+        document.getElementById('btn-cancelar-edicao').addEventListener('click', fecharModal);
+        document.getElementById('btn-salvar-edicao').addEventListener('click', async function() {
+            const feedback = document.getElementById('edit-feedback');
+            feedback.style.display = 'none';
+            feedback.textContent = '';
+            feedback.className = '';
+
+            const localizacao = document.getElementById('edit-localizacao').value.trim();
+            const tipo = document.getElementById('edit-tipo').value.trim();
+            const nivelStr = document.getElementById('edit-nivel').value;
+            const statusSel = document.getElementById('edit-status').value;
+            const latStr = document.getElementById('edit-lat').value;
+            const lonStr = document.getElementById('edit-lon').value;
+
+            // Validações
+            if (!localizacao) {
+                feedback.textContent = 'Localização é obrigatória.';
+                feedback.style.display = 'block';
+                feedback.style.color = '#e74c3c';
+                return;
+            }
+            const nivel = parseFloat(nivelStr);
+            if (isNaN(nivel) || nivel < 0 || nivel > 100) {
+                feedback.textContent = 'Nível deve ser um número entre 0 e 100.';
+                feedback.style.display = 'block';
+                feedback.style.color = '#e74c3c';
+                return;
+            }
+
+            const dadosAtualizacao = {
+                localizacao,
+                tipo: tipo || null,
+                nivel_preenchimento: nivel,
+                status: statusSel
+            };
+            if (latStr && lonStr) {
+                const lat = parseFloat(latStr);
+                const lon = parseFloat(lonStr);
+                if (!isNaN(lat) && !isNaN(lon)) {
+                    dadosAtualizacao.coordenadas = { latitude: lat, longitude: lon };
+                }
+            }
+
+            // Feedback de loading
+            const btnSalvar = document.getElementById('btn-salvar-edicao');
+            btnSalvar.disabled = true;
+            btnSalvar.textContent = 'Salvando...';
+            try {
+                await atualizarLixeira(id, dadosAtualizacao);
+                feedback.textContent = 'Lixeira atualizada com sucesso!';
+                feedback.style.display = 'block';
+                feedback.style.color = '#27ae60';
+                // Atualizar grid e estatísticas
+                await carregarDados();
+                // Fechar modal após pequeno delay
+                setTimeout(() => {
+                    fecharModal();
+                }, 800);
+            } catch (err) {
+                console.error('Erro ao atualizar lixeira:', err);
+                feedback.textContent = 'Erro ao atualizar lixeira: ' + (err.message || 'Erro desconhecido');
+                feedback.style.display = 'block';
+                feedback.style.color = '#e74c3c';
+            } finally {
+                btnSalvar.disabled = false;
+                btnSalvar.textContent = 'Salvar Alterações';
+            }
+        });
         
     } catch (error) {
         console.error('Erro ao carregar detalhes:', error);
@@ -380,7 +564,7 @@ function exportarCSV() {
 // Event listeners
 document.addEventListener('DOMContentLoaded', function() {
     // Botão atualizar
-    document.getElementById('btn-atualizar').addEventListener('click', carregarDados);
+    document.getElementById('btn-atualizar').addEventListener('click', atualizarComFeedback);
     
     // Filtros
     document.getElementById('filter-status').addEventListener('change', function(e) {
@@ -392,9 +576,24 @@ document.addEventListener('DOMContentLoaded', function() {
         filtros.busca = e.target.value;
         aplicarFiltros();
     });
+
+    // Ordenação
+    const selectOrdenacao = document.getElementById('filter-ordenacao');
+    if (selectOrdenacao) {
+        selectOrdenacao.addEventListener('change', function(e) {
+            ordenacao = e.target.value;
+            aplicarFiltros();
+        });
+    }
     
     // Botão exportar
     document.getElementById('btn-exportar').addEventListener('click', exportarCSV);
+
+    // Botão simular
+    const btnSimular = document.getElementById('btn-simular');
+    if (btnSimular) {
+        btnSimular.addEventListener('click', alternarSimulacao);
+    }
     
     // Fechar modal
     document.getElementById('modal-close').addEventListener('click', fecharModal);
@@ -418,5 +617,8 @@ document.addEventListener('DOMContentLoaded', function() {
 window.addEventListener('beforeunload', function() {
     if (intervaloAtualizacao) {
         clearInterval(intervaloAtualizacao);
+    }
+    if (intervaloSimulacao) {
+        clearInterval(intervaloSimulacao);
     }
 });

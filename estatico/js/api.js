@@ -94,6 +94,14 @@ async function obterRelatorios(dataInicio = null, dataFim = null) {
     return await fazerRequisicao(url);
 }
 
+// Função para simular níveis das lixeiras
+async function simularNiveis({ delta_max = 10, reduzir_max = 5 } = {}) {
+    return await fazerRequisicao('/lixeiras/simular-niveis', {
+        method: 'POST',
+        body: JSON.stringify({ delta_max, reduzir_max })
+    });
+}
+
 // Exportar funções (para uso em outros scripts)
 if (typeof module !== 'undefined' && module.exports) {
     module.exports = {
@@ -105,6 +113,7 @@ if (typeof module !== 'undefined' && module.exports) {
         obterEstatisticas,
         obterHistorico,
         obterConfiguracoes,
-        obterRelatorios
+        obterRelatorios,
+        simularNiveis
     };
 }
