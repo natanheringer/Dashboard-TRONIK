@@ -169,6 +169,19 @@ body {
     box-sizing: border-box;
 }
 
+/* Permitir scroll na página de configurações */
+.main-container > .configuracoes-container {
+    overflow-y: auto;
+    overflow-x: hidden;
+    width: 100%;
+    height: 100%;
+}
+
+.main-container:has(> .configuracoes-container) {
+    overflow-y: auto !important;
+    overflow-x: hidden !important;
+}
+
 /* Left Panel */
 .left-panel {
     flex: 1.5;
@@ -719,28 +732,261 @@ tr:hover {
 
 /* Responsividade */
 @media (max-width: 768px) {
+    body {
+        overflow-y: auto;
+    }
+    
+    .header {
+        padding: 10px 15px;
+    }
+    
+    .header-content {
+        flex-wrap: wrap;
+        gap: 10px;
+    }
+    
+    .logo-text {
+        font-size: 16px;
+    }
+    
+    .nav-links {
+        order: 3;
+        width: 100%;
+        justify-content: center;
+        margin-left: 0;
+        margin-top: 10px;
+    }
+    
+    .header-actions {
+        flex-wrap: wrap;
+        gap: 8px;
+    }
+    
+    .btn-atualizar,
+    .btn-exportar {
+        font-size: 12px;
+        padding: 6px 10px;
+    }
+    
     .main-container {
         flex-direction: column;
+        padding: 10px;
+        height: auto;
+        overflow-y: auto;
+    }
+    
+    .left-panel {
+        width: 100%;
+        margin-bottom: 20px;
+    }
+    
+    .right-panel {
+        width: 100%;
+        max-height: 400px;
     }
     
     .bins-grid {
         grid-template-columns: 1fr;
+        gap: 12px;
+    }
+    
+    .bin-card {
+        padding: 12px;
     }
     
     .stats-grid {
         grid-template-columns: repeat(2, 1fr);
+        gap: 10px;
+    }
+    
+    .stat-item {
+        padding: 10px;
+    }
+    
+    .stat-value {
+        font-size: 20px;
     }
     
     .controls-row {
         flex-direction: column;
+        gap: 15px;
+    }
+    
+    .filters-card {
+        width: 100%;
+    }
+    
+    .filters-row {
+        flex-direction: column;
+        gap: 10px;
+    }
+    
+    .filter-group {
+        width: 100%;
+    }
+    
+    .history-header {
+        flex-direction: column;
+        gap: 10px;
+        align-items: stretch;
+    }
+    
+    .history-filter {
+        width: 100%;
+        flex-direction: column;
+        gap: 8px;
+    }
+    
+    .table-scroll {
+        max-height: 300px;
+    }
+    
+    #history-table {
+        font-size: 12px;
+    }
+    
+    #history-table th,
+    #history-table td {
+        padding: 6px 4px;
     }
     
     .modal-container {
-        max-width: 100%;
+        max-width: 95%;
         margin: 10px;
+        max-height: 90vh;
+        overflow-y: auto;
+    }
+    
+    .modal-header {
+        padding: 15px;
+    }
+    
+    .modal-header h2 {
+        font-size: 16px;
+    }
+    
+    .modal-body {
+        padding: 15px;
     }
     
     .modal-info-grid {
         grid-template-columns: 1fr;
+    }
+    
+    .modal-level-percentage {
+        font-size: 36px;
+    }
+    
+    .alerts-bar {
+        flex-direction: column;
+        text-align: center;
+        padding: 12px;
+    }
+    
+    .alert-icon {
+        margin-bottom: 8px;
+    }
+}
+
+/* Responsividade para relatórios */
+@media (max-width: 768px) {
+    .relatorios-container {
+        flex-direction: column;
+        height: auto;
+        overflow-y: auto;
+    }
+    
+    .relatorios-left-panel,
+    .relatorios-right-panel {
+        width: 100%;
+        height: auto;
+        overflow: visible;
+    }
+    
+    .kpi-grid {
+        grid-template-columns: repeat(2, 1fr);
+    }
+    
+    .chart-container {
+        height: 200px;
+    }
+    
+    .chart-container-small {
+        height: 160px;
+    }
+    
+    .filters-compact {
+        flex-direction: column;
+        align-items: stretch;
+    }
+    
+    .filter-group {
+        width: 100%;
+    }
+    
+    .chart-tabs {
+        flex-wrap: wrap;
+    }
+    
+    .tab-btn {
+        font-size: 9px;
+        padding: 2px 6px;
+    }
+}
+
+/* Responsividade extra pequena (smartphones) */
+@media (max-width: 480px) {
+    .header {
+        padding: 8px 10px;
+    }
+    
+    .logo-text {
+        font-size: 14px;
+    }
+    
+    .nav-link {
+        font-size: 12px;
+        padding: 4px 8px;
+    }
+    
+    .stats-grid {
+        grid-template-columns: 1fr;
+    }
+    
+    .stat-value {
+        font-size: 24px;
+    }
+    
+    .bin-card {
+        padding: 10px;
+    }
+    
+    .bin-id {
+        font-size: 12px;
+    }
+    
+    .bin-name {
+        font-size: 14px;
+    }
+    
+    .kpi-grid {
+        grid-template-columns: 1fr;
+    }
+    
+    .chart-container {
+        height: 180px;
+    }
+    
+    .chart-container-small {
+        height: 140px;
+    }
+    
+    .table-container {
+        font-size: 11px;
+    }
+    
+    #relatorio-table th,
+    #relatorio-table td {
+        padding: 4px 2px;
     }
 }
