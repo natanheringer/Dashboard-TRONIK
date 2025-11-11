@@ -1,0 +1,143 @@
+graph TB
+    subgraph "Cliente - Navegador"
+        Browser[Browser]
+        subgraph "Frontend - Templates HTML"
+            Index[index.html<br/>Dashboard Principal]
+            Relatorios[relatorios.html<br/>Relatórios e Gráficos]
+            Config[configuracoes.html<br/>CRUD Lixeiras]
+            Sobre[sobre.html<br/>Informações do Projeto]
+            Base[base.html<br/>Template Base]
+        end
+        
+        subgraph "Frontend - JavaScript"
+            DashboardJS[dashboard.js<br/>Lógica Principal<br/>- Carregar dados<br/>- Renderizar grid<br/>- Filtros<br/>- Exportar CSV<br/>- Polling automático]
+            APIJS[api.js<br/>Comunicação API<br/>- GET/POST/PUT/DELETE<br/>- Requisições HTTP<br/>- Tratamento de erros]
+        end
+        
+        subgraph "Frontend - CSS"
+            EstiloCSS[estilo.css<br/>Estilos Globais]
+            RelatoriosCSS[relatorios.css<br/>Estilos Relatórios]
+            ConfigCSS[configuracoes.css<br/>Estilos Configurações]
+            SobreCSS[sobre.css<br/>Estilos Sobre]
+        end
+    end
+    
+    subgraph "Backend - Flask Application"
+        App[app.py<br/>Aplicação Principal<br/>- Inicialização Flask<br/>- Configuração CORS<br/>- Setup Banco de Dados<br/>- Registro de Blueprints]
+        
+        subgraph "Blueprints"
+            APIBP[api.py<br/>Blueprint API<br/>Endpoints REST]
+            PaginasBP[paginas.py<br/>Blueprint Páginas<br/>Rotas HTML]
+        end
+        
+        subgraph "Endpoints API"
+            GET1[GET /api/lixeiras<br/>Listar todas]
+            GET2[GET /api/lixeira/id<br/>Obter uma]
+            GET3[GET /api/estatisticas<br/>Estatísticas gerais]
+            GET4[GET /api/historico<br/>Histórico coletas]
+            GET5[GET /api/configuracoes<br/>Configurações sistema]
+            GET6[GET /api/relatorios<br/>Dados para relatórios]
+            POST1[POST /api/lixeira<br/>Criar nova]
+            PUT1[PUT /api/lixeira/id<br/>Atualizar]
+            DELETE1[DELETE /api/lixeira/id<br/>Deletar]
+        end
+        
+        subgraph "Rotas Páginas"
+            R1[GET /<br/>Dashboard]
+            R2[GET /relatorios<br/>Relatórios]
+            R3[GET /configuracoes<br/>Configurações]
+            R4[GET /sobre<br/>Sobre]
+        end
+    end
+    
+    subgraph "Banco de Dados"
+        subgraph "Modelos SQLAlchemy"
+            ModelLixeira[Lixeira<br/>- id<br/>- localizacao<br/>- nivel_preenchimento<br/>- status<br/>- ultima_coleta<br/>- tipo<br/>- coordenadas]
+            ModelSensor[Sensor<br/>- id<br/>- lixeira_id<br/>- tipo<br/>- bateria<br/>- ultimo_ping]
+            ModelColeta[Coleta<br/>- id<br/>- lixeira_id<br/>- data_hora<br/>- volume_estimado]
+        end
+        
+        SQLite[(SQLite<br/>tronik.db)]
+        
+        subgraph "Inicialização"
+            Inicializar[inicializar.py<br/>- criar_banco<br/>- inserir_dados_iniciais<br/>- resetar_banco]
+            MockData[sensores_mock.json<br/>Dados Mock<br/>- Lixeiras<br/>- Histórico Coletas]
+        end
+    end
+    
+    subgraph "Deploy e Configuração"
+        Gunicorn[gunicorn.conf.py<br/>Configuração WSGI]
+        Nginx[nginx/tronik.conf<br/>Configuração Nginx]
+        Service[dashboard-tronik.service<br/>Systemd Service]
+    end
+    
+    Browser --> Index
+    Browser --> Relatorios
+    Browser --> Config
+    Browser --> Sobre
+    Browser --> Base
+    
+    Index --> DashboardJS
+    Relatorios --> DashboardJS
+    Config --> DashboardJS
+    Sobre --> DashboardJS
+    
+    Index --> EstiloCSS
+    Relatorios --> RelatoriosCSS
+    Config --> ConfigCSS
+    Sobre --> SobreCSS
+    Base --> EstiloCSS
+    
+    DashboardJS --> APIJS
+    APIJS --> APIBP
+    
+    App --> APIBP
+    App --> PaginasBP
+    
+    APIBP --> GET1
+    APIBP --> GET2
+    APIBP --> GET3
+    APIBP --> GET4
+    APIBP --> GET5
+    APIBP --> GET6
+    APIBP --> POST1
+    APIBP --> PUT1
+    APIBP --> DELETE1
+    
+    PaginasBP --> R1
+    PaginasBP --> R2
+    PaginasBP --> R3
+    PaginasBP --> R4
+    
+    GET1 --> ModelLixeira
+    GET2 --> ModelLixeira
+    GET3 --> ModelLixeira
+    GET3 --> ModelColeta
+    GET4 --> ModelColeta
+    GET6 --> ModelColeta
+    POST1 --> ModelLixeira
+    PUT1 --> ModelLixeira
+    DELETE1 --> ModelLixeira
+    
+    ModelLixeira --> SQLite
+    ModelSensor --> SQLite
+    ModelColeta --> SQLite
+    
+    ModelLixeira -.->|1:N| ModelSensor
+    ModelLixeira -.->|1:N| ModelColeta
+    
+    Inicializar --> SQLite
+    MockData --> Inicializar
+    
+    App --> Inicializar
+    
+    Gunicorn --> App
+    Nginx --> Gunicorn
+    Service --> Gunicorn
+    
+    style App fill:#4a90e2,stroke:#2c5aa0,stroke-width:3px,color:#fff
+    style SQLite fill:#3d9970,stroke:#2d6e4e,stroke-width:3px,color:#fff
+    style Browser fill:#f39c12,stroke:#d68910,stroke-width:2px,color:#fff
+    style DashboardJS fill:#e74c3c,stroke:#c0392b,stroke-width:2px,color:#fff
+    style APIJS fill:#e74c3c,stroke:#c0392b,stroke-width:2px,color:#fff
+
