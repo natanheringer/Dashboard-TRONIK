@@ -112,12 +112,56 @@
         </div>
         
         <!-- Distribution Chart -->
-        <div class="card">
-            <h3 class="card-header">Distribuição por Região</h3>
-            <div class="chart-container-small">
-                <canvas id="chart-distribuicao"></canvas>
+            
+<div class="card">
+    <div class="chart-header">
+        <h3 class="card-header">Distribuição por Região</h3>
+
+        <!-- Controles do gráfico -->
+        <div class="chart-controls">
+            <div class="control-group">
+                <span class="control-label">Orientação:</span>
+                <button
+                    type="button"
+                    class="chart-toggle-btn active"
+                    id="btn-orientacao-vertical"
+                    data-orientacao="vertical">
+                    Vertical
+                </button>
+                <button
+                    type="button"
+                    class="chart-toggle-btn"
+                    id="btn-orientacao-horizontal"
+                    data-orientacao="horizontal">
+                    Horizontal
+                </button>
+            </div>
+
+            <div class="control-group">
+                <span class="control-label">Ordem:</span>
+                <button
+                    type="button"
+                    class="chart-toggle-btn active"
+                    id="btn-ordem-desc"
+                    data-ordem="desc">
+                    Decrescente
+                </button>
+                <button
+                    type="button"
+                    class="chart-toggle-btn"
+                    id="btn-ordem-asc"
+                    data-ordem="asc">
+                    Crescente
+                </button>
             </div>
         </div>
+    </div>
+
+    <div class="chart-container-small">
+        <canvas id="chart-distribuicao"></canvas>
+    </div>
+</div>
+
 
         <!-- Top Lixeiras -->
         <div class="card">
@@ -150,6 +194,54 @@ if (typeof Chart === 'undefined') {
 let chartEvolucao = null;
 let chartDistribuicao = null;
 let chartHorarios = null;
+
+// Estado do gráfico de distribuição (orientação e ordenação)
+let distribOrientacao = 'vertical'; // 'vertical' ou 'horizontal'
+let distribOrdem = 'desc';          // 'asc' ou 'desc'
+
+// Guarda os últimos dados usados para poder redesenhar o gráfico
+let ultimoRelatorioDistribuicao = {
+    coletasPorLixeira: [],
+    lixeiras: []
+};
+
+function processarDadosDistribuicao(coletasPorLixeira, lixeiras, ordem = 'desc') {
+    // Agrupar por região (usando parte do nome da localização)
+    const regioes = {};
+    
+    coletasPorLixeira.forEach(item => {
+        const lixeira = lixeiras.find(l => l.id === item.lixeira_id);
+        if (lixeira) {
+            // Extrair região do nome (ex: "Asa Norte" de "Asa Norte - Bloco A")
+            const regiao = lixeira.localizacao.split(' - ')[0] || 'Outros';
+            if (!regioes[regiao]) {
+                regioes[regiao] = 0;
+            }
+            regioes[regiao] += item.total_coletas;
+        }
+    });
+
+    // Transforma em lista de { label, valor }
+    let pares = Object.keys(regioes).map(regiao => ({
+        label: regiao,
+        valor: regioes[regiao]
+    }));
+
+    // Ordena crescente ou decrescente
+    pares.sort((a, b) => {
+        if (ordem === 'asc') {
+            return a.valor - b.valor; // menor → maior
+        }
+        return b.valor - a.valor;     // maior → menor (padrão)
+    });
+
+    return {
+        labels: pares.map(p => p.label),
+        valores: pares.map(p => p.valor)
+    };
+}
+
+
 
 // Função para inicializar a página
 function inicializarPagina() {
@@ -398,21 +490,32 @@ function atualizarGraficoDistribuicao(coletasPorLixeira, lixeiras) {
     if (chartDistribuicao) {
         chartDistribuicao.destroy();
     }
+
+    // Guarda os dados pra reutilizar quando mudar orientação/ordem
+    ultimoRelatorioDistribuicao = {
+        coletasPorLixeira: coletasPorLixeira || [],
+        lixeiras: lixeiras || []
+    };
     
-    const processed = processarDadosDistribuicao(coletasPorLixeira || [], lixeiras || []);
+    const processed = processarDadosDistribuicao(
+        ultimoRelatorioDistribuicao.coletasPorLixeira,
+        ultimoRelatorioDistribuicao.lixeiras,
+        distribOrdem // usa o estado global de ordenação
+    );
     
-    // Se não houver dados, mostrar gráfico vazio
+    // Se não houver dados, mostra um gráfico "vazio"
     if (processed.labels.length === 0) {
         processed.labels = ['Sem dados'];
-        processed.valores = [1];
+        processed.valores = [0];
     }
     
     try {
         chartDistribuicao = new Chart(ctx, {
-            type: 'doughnut',
+            type: 'bar',
             data: {
                 labels: processed.labels,
                 datasets: [{
+                    label: 'Coletas por Região',
                     data: processed.valores,
                     backgroundColor: [
                         '#5DB5A4',
@@ -428,14 +531,31 @@ function atualizarGraficoDistribuicao(coletasPorLixeira, lixeiras) {
             options: {
                 responsive: true,
                 maintainAspectRatio: false,
+                // 👇 ISSO AQUI É O QUE MUDA VERTICAL / HORIZONTAL
+                indexAxis: distribOrientacao === 'horizontal' ? 'y' : 'x',
                 plugins: {
                     legend: {
-                        position: 'bottom',
-                        labels: {
-                            boxWidth: 12,
-                            font: {
-                                size: 10
+                        display: false
+                    },
+                    tooltip: {
+                        callbacks: {
+                            label: function(context) {
+                                return `${context.label}: ${context.formattedValue} coletas`;
                             }
+                        }
+                    }
+                },
+                scales: {
+                    x: {
+                        beginAtZero: true,
+                        ticks: {
+                            precision: 0
+                        }
+                    },
+                    y: {
+                        beginAtZero: true,
+                        ticks: {
+                            precision: 0
                         }
                     }
                 }
@@ -445,6 +565,7 @@ function atualizarGraficoDistribuicao(coletasPorLixeira, lixeiras) {
         console.error('Erro ao criar gráfico de distribuição:', error);
     }
 }
+
 
 // Função para criar/atualizar gráfico de horários
 function atualizarGraficoHorarios(coletas) {
@@ -615,6 +736,68 @@ async function carregarRelatorio() {
         alert('Erro ao carregar relatório.');
     }
 }
+
+document.addEventListener('DOMContentLoaded', function () {
+    const btnVert = document.getElementById('btn-orientacao-vertical');
+    const btnHor  = document.getElementById('btn-orientacao-horizontal');
+    const btnAsc  = document.getElementById('btn-ordem-asc');
+    const btnDesc = document.getElementById('btn-ordem-desc');
+
+    function atualizarBotoesOrientacao() {
+        if (!btnVert || !btnHor) return;
+        btnVert.classList.toggle('active', distribOrientacao === 'vertical');
+        btnHor.classList.toggle('active', distribOrientacao === 'horizontal');
+    }
+
+    function atualizarBotoesOrdem() {
+        if (!btnAsc || !btnDesc) return;
+        btnAsc.classList.toggle('active', distribOrdem === 'asc');
+        btnDesc.classList.toggle('active', distribOrdem === 'desc');
+    }
+
+    function redesenharGraficoDistribuicaoSePossivel() {
+        if (ultimoRelatorioDistribuicao.lixeiras.length > 0 ||
+            ultimoRelatorioDistribuicao.coletasPorLixeira.length > 0) {
+            atualizarGraficoDistribuicao(
+                ultimoRelatorioDistribuicao.coletasPorLixeira,
+                ultimoRelatorioDistribuicao.lixeiras
+            );
+        }
+    }
+
+    if (btnVert && btnHor) {
+        btnVert.addEventListener('click', function () {
+            distribOrientacao = 'vertical';
+            atualizarBotoesOrientacao();
+            redesenharGraficoDistribuicaoSePossivel();
+        });
+
+        btnHor.addEventListener('click', function () {
+            distribOrientacao = 'horizontal';
+            atualizarBotoesOrientacao();
+            redesenharGraficoDistribuicaoSePossivel();
+        });
+    }
+
+    if (btnAsc && btnDesc) {
+        btnAsc.addEventListener('click', function () {
+            distribOrdem = 'asc';
+            atualizarBotoesOrdem();
+            redesenharGraficoDistribuicaoSePossivel();
+        });
+
+        btnDesc.addEventListener('click', function () {
+            distribOrdem = 'desc';
+            atualizarBotoesOrdem();
+            redesenharGraficoDistribuicaoSePossivel();
+        });
+    }
+
+    // Deixa os botões marcados de acordo com o estado inicial
+    atualizarBotoesOrientacao();
+    atualizarBotoesOrdem();
+});
+
 </script>
 {% endblock %}
 
