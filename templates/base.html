@@ -1,54 +1,13 @@
 <!DOCTYPE html>
-<html lang="pt-BR">
+<html>
 <head>
-    <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>{% block title %}Dashboard-TRONIK{% endblock %}</title>
-    <link rel="stylesheet" href="{{ url_for('static', filename='css/estilo.css') }}">
-    {% block extra_css %}{% endblock %}
+  <meta charset="utf-8">
+  <title>{% block title %}Dashboard{% endblock %}</title>
+  <link rel="stylesheet" href="{{ url_for('static', filename='css/estilo.css') }}">
 </head>
 <body>
-    <!-- Header -->
-    <header class="header">
-        <div class="header-content">
-            <div class="logo-section">
-                <div class="logo"></div>
-                <a href="{{ url_for('paginas.index') }}" style="text-decoration: none; color: inherit;">
-                    <h1 class="logo-text">Dashboard-TRONIK</h1>
-                </a>
-            </div>
-            <nav class="nav-links">
-                <a href="{{ url_for('paginas.index') }}" class="nav-link">Dashboard</a>
-                <a href="{{ url_for('paginas.relatorios') }}" class="nav-link">Relatórios</a>
-                <a href="{{ url_for('paginas.configuracoes') }}" class="nav-link">Configurações</a>
-                <a href="{{ url_for('paginas.sobre') }}" class="nav-link">Sobre</a>
-            </nav>
-            <div class="header-actions">
-                <div class="status-indicator" id="status-indicator">
-                    <div class="status-dot"></div>
-                    <span>Conectado</span>
-                </div>
-                <button class="btn-atualizar" id="btn-atualizar">
-                    ↻ Atualizar
-                </button>
-                <button class="btn-atualizar" id="btn-simular">
-                    ▶ Simular Níveis
-                </button>
-                <button class="btn-exportar" id="btn-exportar">
-                    ↓ Exportar CSV
-                </button>
-            </div>
-        </div>
-    </header>
-
-    <!-- Main Content -->
-    <main class="main-container">
-        {% block content %}{% endblock %}
-    </main>
-
-    <!-- Scripts -->
-    <script src="{{ url_for('static', filename='js/api.js') }}"></script>
-    <script src="{{ url_for('static', filename='js/dashboard.js') }}"></script>
-    {% block extra_js %}{% endblock %}
+<header><h1>Dashboard TRONIK</h1></header>
+<main>{% block content %}{% endblock %}</main>
+{% block scripts %}{% endblock %}
 </body>
 </html>
