@@ -24,10 +24,14 @@ from sqlalchemy.orm import sessionmaker, scoped_session
 
 # Importações dos modelos
 # Importar todos os modelos para garantir que as tabelas sejam criadas
-from banco_dados.modelos import Base, Usuario, Lixeira, Sensor, Coleta
+from banco_dados.modelos import (
+    Base, Usuario, Lixeira, Sensor, Coleta,
+    Parceiro, TipoMaterial, TipoSensor, TipoColetor
+)
 
 # Importações do sistema de inicialização
-from banco_dados.inicializar import criar_banco, inserir_dados_iniciais
+from banco_dados.inicializar import criar_banco, inserir_dados_iniciais, criar_usuario_admin
+from banco_dados.seed_tipos import popular_tipos
 
 # Importações dos blueprints
 from rotas.api import api_bp
@@ -125,6 +129,7 @@ talisman = Talisman(
         'style-src': "'self' 'unsafe-inline'",
         'img-src': "'self' data: https:",
         'font-src': "'self' data:",
+        'connect-src': "'self' https://cdn.jsdelivr.net",
     },
     content_security_policy_nonce_in=['script-src']
 )
@@ -160,6 +165,10 @@ else:
 # Sempre criar todas as tabelas (SQLAlchemy só cria as que não existem)
 Base.metadata.create_all(engine)
 
+# Sempre popular tipos (seguro, não duplica se já existirem)
+logger.info("Populando tabelas de tipos...")
+popular_tipos(engine)
+
 # Se o banco não existia, inserir dados iniciais
 if not db_exists:
     # Tentar inserir dados iniciais
@@ -172,7 +181,6 @@ if not db_exists:
         logger.warning("Arquivo de dados mock não encontrado. Banco criado vazio.")
 
 # Sempre verificar/criar usuário admin (pode não existir mesmo se o banco existir)
-from banco_dados.inicializar import criar_usuario_admin
 criar_usuario_admin(engine)
 
 # ========================================

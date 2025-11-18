@@ -10,55 +10,74 @@
 <div class="relatorios-container">
     <!-- Left Panel -->
     <div class="relatorios-left-panel">
-        <!-- Filters -->
-        <div class="card" style="flex-shrink: 0;">
+        <!-- Filtros -->
+        <div class="card">
             <h3 class="card-header">Filtros do Relatório</h3>
             <div class="filters-compact">
                 <div class="filter-group">
                     <div class="filter-label">Data Início</div>
-                    <input type="date" class="filter-input" id="data-inicio" value="">
+                    <input type="date" id="data-inicio" class="filter-input">
                 </div>
                 <div class="filter-group">
                     <div class="filter-label">Data Fim</div>
-                    <input type="date" class="filter-input" id="data-fim" value="">
+                    <input type="date" id="data-fim" class="filter-input">
                 </div>
-                <button class="btn-primary" id="btn-aplicar-filtro" style="padding: 6px 12px; font-size: 11px;">
+                <div class="filter-group">
+                    <div class="filter-label">Parceiro</div>
+                    <select id="filtro-parceiro" class="filter-input">
+                        <option value="">Todos</option>
+                    </select>
+                </div>
+                <div class="filter-group">
+                    <div class="filter-label">Tipo de Operação</div>
+                    <select id="filtro-tipo-operacao" class="filter-input">
+                        <option value="">Todos</option>
+                        <option value="Avulsa">Avulsa</option>
+                        <option value="Campanha">Campanha</option>
+                    </select>
+                </div>
+                <button class="btn-primary" id="btn-aplicar-filtro" style="padding: 8px 16px; margin-top: 5px;">
                     Aplicar
                 </button>
             </div>
         </div>
 
-        <!-- KPIs -->
-        <div class="card" style="flex-shrink: 0;">
+        <!-- Indicadores do Período -->
+        <div class="card">
             <h3 class="card-header">Indicadores do Período</h3>
-            <div class="kpi-grid">
-                <div class="kpi-card">
-                    <div class="kpi-value" id="kpi-total-coletas">0</div>
-                    <div class="kpi-label">Total Coletas</div>
+            <div class="kpi-grid-indicadores">
+                <div class="kpi-card-indicador">
+                    <div class="kpi-value-indicador" id="kpi-total-coletas">0</div>
+                    <div class="kpi-label-indicador">Total Coletas</div>
                 </div>
-                <div class="kpi-card">
-                    <div class="kpi-value" id="kpi-volume-total">0</div>
-                    <div class="kpi-label">Volume Total</div>
+                <div class="kpi-card-indicador">
+                    <div class="kpi-value-indicador" id="kpi-volume-total">0KG</div>
+                    <div class="kpi-label-indicador">Volume Total</div>
                 </div>
-                <div class="kpi-card">
-                    <div class="kpi-value" id="kpi-eficiencia">0%</div>
-                    <div class="kpi-label">Eficiência</div>
+                <div class="kpi-card-indicador">
+                    <div class="kpi-value-indicador" id="kpi-km-total">0km</div>
+                    <div class="kpi-label-indicador">KM Total</div>
                 </div>
-                <div class="kpi-card">
-                    <div class="kpi-value" id="kpi-lixeiras-ativas">0</div>
-                    <div class="kpi-label">Lixeiras Ativas</div>
+                <div class="kpi-card-indicador">
+                    <div class="kpi-value-indicador" id="kpi-lucro-total">R$ 0</div>
+                    <div class="kpi-label-indicador">Lucro Total</div>
+                </div>
+                <div class="kpi-card-indicador">
+                    <div class="kpi-value-indicador" id="kpi-lucro-medio">R$ 0</div>
+                    <div class="kpi-label-indicador">Lucro Médio/Coleta</div>
                 </div>
             </div>
         </div>
 
-        <!-- Main Chart -->
-        <div class="card" style="flex: 1;">
+        <!-- Evolução de Coletas -->
+        <div class="card">
             <div class="chart-header">
                 <h3 class="chart-title">Evolução de Coletas</h3>
                 <div class="chart-tabs">
                     <button class="tab-btn" data-periodo="7">7 dias</button>
                     <button class="tab-btn active" data-periodo="30">30 dias</button>
                     <button class="tab-btn" data-periodo="90">90 dias</button>
+                    <button class="tab-btn" data-periodo="todos">Todos</button>
                 </div>
             </div>
             <div class="chart-container">
@@ -66,9 +85,14 @@
             </div>
         </div>
 
-        <!-- Data Table -->
-        <div class="card" style="flex: 1;">
-            <h3 class="card-header">Detalhamento de Coletas</h3>
+        <!-- Detalhamento de Coletas -->
+        <div class="card">
+            <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 10px;">
+                <h3 class="card-header" style="margin: 0;">Detalhamento de Coletas</h3>
+                <button class="btn-primary" id="btn-exportar-coletas" style="padding: 6px 12px; font-size: 11px;">
+                    Exportar CSV
+                </button>
+            </div>
             <div class="table-container">
                 <table id="relatorio-table">
                     <thead>
@@ -76,13 +100,16 @@
                             <th>Data/Hora</th>
                             <th>ID</th>
                             <th>Local</th>
-                            <th>Volume</th>
-                            <th>Status</th>
+                            <th>Volume (KG)</th>
+                            <th>KM</th>
+                            <th>Parceiro</th>
+                            <th>Tipo</th>
+                            <th>Lucro/KG</th>
                         </tr>
                     </thead>
                     <tbody id="relatorio-tbody">
                         <tr>
-                            <td colspan="5" style="text-align: center;">Carregando dados...</td>
+                            <td colspan="8" style="text-align: center;">Carregando dados...</td>
                         </tr>
                     </tbody>
                 </table>
@@ -92,8 +119,54 @@
 
     <!-- Right Panel -->
     <div class="relatorios-right-panel">
-        <!-- Summary -->
-        <div class="card" style="flex: 1;">
+        <!-- Distribuição por Região -->
+        <div class="card">
+            <div class="chart-header">
+                <h3 class="card-header">Distribuição por Região</h3>
+                <div class="chart-controls">
+                    <div class="control-group">
+                        <span class="control-label">Orientação:</span>
+                        <button type="button" class="chart-toggle-btn active" id="btn-orientacao-horizontal" data-orientacao="horizontal">
+                            Horizontal
+                        </button>
+                        <button type="button" class="chart-toggle-btn" id="btn-orientacao-vertical" data-orientacao="vertical">
+                            Vertical
+                        </button>
+                    </div>
+                    <div class="control-group">
+                        <span class="control-label">Ordem:</span>
+                        <button type="button" class="chart-toggle-btn active" id="btn-ordem-desc" data-ordem="desc">
+                            Decrescente
+                        </button>
+                        <button type="button" class="chart-toggle-btn" id="btn-ordem-asc" data-ordem="asc">
+                            Crescente
+                        </button>
+                    </div>
+                </div>
+            </div>
+            <div class="chart-container-small">
+                <canvas id="chart-distribuicao"></canvas>
+            </div>
+        </div>
+
+        <!-- Top 5 Lixeiras -->
+        <div class="card">
+            <h3 class="card-header">Top 5 Lixeiras Mais Coletadas</h3>
+            <div class="top-list" id="top-lixeiras">
+                <p style="text-align: center; color: #7f8c8d; font-size: 12px;">Carregando...</p>
+            </div>
+        </div>
+
+        <!-- Horários de Pico -->
+        <div class="card">
+            <h3 class="card-header">Horários de Pico</h3>
+            <div class="chart-container-small">
+                <canvas id="chart-horarios"></canvas>
+            </div>
+        </div>
+
+        <!-- Resumo Executivo -->
+        <div class="card">
             <h3 class="card-header">Resumo Executivo</h3>
             <div id="resumo-executivo">
                 <div class="summary-box">
@@ -110,74 +183,6 @@
                 </div>
             </div>
         </div>
-        
-        <!-- Distribution Chart -->
-            
-<div class="card">
-    <div class="chart-header">
-        <h3 class="card-header">Distribuição por Região</h3>
-
-        <!-- Controles do gráfico -->
-        <div class="chart-controls">
-            <div class="control-group">
-                <span class="control-label">Orientação:</span>
-                <button
-                    type="button"
-                    class="chart-toggle-btn active"
-                    id="btn-orientacao-vertical"
-                    data-orientacao="vertical">
-                    Vertical
-                </button>
-                <button
-                    type="button"
-                    class="chart-toggle-btn"
-                    id="btn-orientacao-horizontal"
-                    data-orientacao="horizontal">
-                    Horizontal
-                </button>
-            </div>
-
-            <div class="control-group">
-                <span class="control-label">Ordem:</span>
-                <button
-                    type="button"
-                    class="chart-toggle-btn active"
-                    id="btn-ordem-desc"
-                    data-ordem="desc">
-                    Decrescente
-                </button>
-                <button
-                    type="button"
-                    class="chart-toggle-btn"
-                    id="btn-ordem-asc"
-                    data-ordem="asc">
-                    Crescente
-                </button>
-            </div>
-        </div>
-    </div>
-
-    <div class="chart-container-small">
-        <canvas id="chart-distribuicao"></canvas>
-    </div>
-</div>
-
-
-        <!-- Top Lixeiras -->
-        <div class="card">
-            <h3 class="card-header">Top 5 Lixeiras Mais Coletadas</h3>
-            <div class="top-list" id="top-lixeiras">
-                <p style="text-align: center; color: #7f8c8d; font-size: 12px;">Carregando...</p>
-            </div>
-        </div>
-
-        <!-- Heatmap -->
-        <div class="card">
-            <h3 class="card-header">Horários de Pico</h3>
-            <div class="chart-container-small">
-                <canvas id="chart-horarios"></canvas>
-            </div>
-        </div>
     </div>
 </div>
 {% endblock %}
@@ -185,619 +190,5 @@
 {% block extra_js %}
 <!-- Chart.js CDN -->
 <script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.0/dist/chart.umd.min.js"></script>
-<script>
-// Verificar se Chart.js carregou
-if (typeof Chart === 'undefined') {
-    console.error('Chart.js não foi carregado corretamente!');
-}
-// Variáveis globais para gráficos
-let chartEvolucao = null;
-let chartDistribuicao = null;
-let chartHorarios = null;
-
-// Estado do gráfico de distribuição (orientação e ordenação)
-let distribOrientacao = 'vertical'; // 'vertical' ou 'horizontal'
-let distribOrdem = 'desc';          // 'asc' ou 'desc'
-
-// Guarda os últimos dados usados para poder redesenhar o gráfico
-let ultimoRelatorioDistribuicao = {
-    coletasPorLixeira: [],
-    lixeiras: []
-};
-
-function processarDadosDistribuicao(coletasPorLixeira, lixeiras, ordem = 'desc') {
-    // Agrupar por região (usando parte do nome da localização)
-    const regioes = {};
-    
-    coletasPorLixeira.forEach(item => {
-        const lixeira = lixeiras.find(l => l.id === item.lixeira_id);
-        if (lixeira) {
-            // Extrair região do nome (ex: "Asa Norte" de "Asa Norte - Bloco A")
-            const regiao = lixeira.localizacao.split(' - ')[0] || 'Outros';
-            if (!regioes[regiao]) {
-                regioes[regiao] = 0;
-            }
-            regioes[regiao] += item.total_coletas;
-        }
-    });
-
-    // Transforma em lista de { label, valor }
-    let pares = Object.keys(regioes).map(regiao => ({
-        label: regiao,
-        valor: regioes[regiao]
-    }));
-
-    // Ordena crescente ou decrescente
-    pares.sort((a, b) => {
-        if (ordem === 'asc') {
-            return a.valor - b.valor; // menor → maior
-        }
-        return b.valor - a.valor;     // maior → menor (padrão)
-    });
-
-    return {
-        labels: pares.map(p => p.label),
-        valores: pares.map(p => p.valor)
-    };
-}
-
-
-
-// Função para inicializar a página
-function inicializarPagina() {
-    // Verificar se Chart.js está disponível
-    if (typeof Chart === 'undefined') {
-        console.error('Chart.js não foi carregado! Verifique a conexão com o CDN.');
-        // Tentar novamente após 500ms
-        setTimeout(inicializarPagina, 500);
-        return;
-    }
-    
-    // Configurar datas padrão para incluir os dados mock (janeiro a março 2024)
-    // Os dados mock estão entre 2024-01-02 e 2024-03-31
-    // Vamos usar um período que inclua esses dados
-    const dataInicioEl = document.getElementById('data-inicio');
-    const dataFimEl = document.getElementById('data-fim');
-    
-    if (dataInicioEl && dataFimEl) {
-        // Se não houver valor, usar período dos dados mock (últimos 30 dias)
-        if (!dataInicioEl.value || !dataFimEl.value) {
-            const hoje = new Date('2024-03-31'); // Data fim dos dados mock
-            const inicio = new Date(hoje);
-            inicio.setDate(inicio.getDate() - 29); // 30 dias
-            dataInicioEl.value = inicio.toISOString().split('T')[0];
-            dataFimEl.value = hoje.toISOString().split('T')[0];
-        }
-    }
-    
-    // Botão aplicar filtro
-    const btnAplicar = document.getElementById('btn-aplicar-filtro');
-    if (btnAplicar) {
-        btnAplicar.addEventListener('click', carregarRelatorio);
-    }
-    
-    // Tabs de período
-    document.querySelectorAll('.tab-btn').forEach(btn => {
-        btn.addEventListener('click', function() {
-            document.querySelectorAll('.tab-btn').forEach(b => b.classList.remove('active'));
-            this.classList.add('active');
-            
-            // Obter período selecionado
-            const periodo = parseInt(this.dataset.periodo);
-            
-            // Atualizar campos de data
-            const dataInicioEl = document.getElementById('data-inicio');
-            const dataFimEl = document.getElementById('data-fim');
-            
-            if (dataInicioEl && dataFimEl) {
-                const dataMockFim = new Date('2024-03-31'); // Dados agora vão até 31/03
-                const dataMockInicio = new Date('2024-01-02'); // Primeira coleta é em 02/01
-                
-                // Determinar data fim: usar sempre o fim dos dados mock (31/03/2024)
-                const dataFimAtual = new Date(dataMockFim);
-                
-                // Calcular nova data início retrocedendo o período a partir da data fim
-                const novaDataInicio = new Date(dataFimAtual);
-                novaDataInicio.setDate(novaDataInicio.getDate() - periodo + 1); // +1 para incluir o dia atual
-                
-                // Lógica diferenciada para cada período:
-                // - 7 dias: últimos 7 dias a partir da data fim
-                // - 30 dias: últimos 30 dias a partir da data fim
-                // - 90 dias: TODOS os dados disponíveis (período completo desde o início)
-                if (periodo >= 90) {
-                    // 90 dias: mostrar TODOS os dados disponíveis (período completo desde o início)
-                    dataInicioEl.value = dataMockInicio.toISOString().split('T')[0];
-                    dataFimEl.value = dataMockFim.toISOString().split('T')[0];
-                } else if (periodo === 30) {
-                    // 30 dias: mostrar exatamente 30 dias a partir da data fim
-                    // Se o período calculado vai antes do início dos dados, limitar ao início
-                    if (novaDataInicio < dataMockInicio) {
-                        // Período maior que dados disponíveis: mostrar todos os dados disponíveis
-                        dataInicioEl.value = dataMockInicio.toISOString().split('T')[0];
-                        dataFimEl.value = dataFimAtual.toISOString().split('T')[0];
-                    } else {
-                        // Período normal de 30 dias dentro dos dados disponíveis
-                        dataInicioEl.value = novaDataInicio.toISOString().split('T')[0];
-                        dataFimEl.value = dataFimAtual.toISOString().split('T')[0];
-                    }
-                } else {
-                    // 7 dias ou outros períodos menores: calcular normalmente
-                    if (novaDataInicio < dataMockInicio) {
-                        dataInicioEl.value = dataMockInicio.toISOString().split('T')[0];
-                    } else {
-                        dataInicioEl.value = novaDataInicio.toISOString().split('T')[0];
-                    }
-                    dataFimEl.value = dataFimAtual.toISOString().split('T')[0];
-                }
-                
-                console.log(`Período ${periodo} dias: ${dataInicioEl.value} até ${dataFimEl.value}`);
-                
-                // Recarregar relatório com novas datas
-                carregarRelatorio();
-            }
-        });
-    });
-    
-    // Carregar relatório inicial
-    carregarRelatorio();
-}
-
-// Aguardar DOM estar pronto
-if (document.readyState === 'loading') {
-    document.addEventListener('DOMContentLoaded', inicializarPagina);
-} else {
-    // DOM já está pronto
-    inicializarPagina();
-}
-
-// Função para processar dados para gráfico de evolução
-function processarDadosEvolucao(coletas) {
-    // Agrupar coletas por data
-    const coletasPorData = {};
-    
-    coletas.forEach(coleta => {
-        const data = new Date(coleta.data_coleta);
-        const dataStr = data.toLocaleDateString('pt-BR', { day: '2-digit', month: '2-digit' });
-        
-        if (!coletasPorData[dataStr]) {
-            coletasPorData[dataStr] = 0;
-        }
-        coletasPorData[dataStr]++;
-    });
-    
-    // Ordenar por data
-    const datas = Object.keys(coletasPorData).sort((a, b) => {
-        const [diaA, mesA] = a.split('/');
-        const [diaB, mesB] = b.split('/');
-        return new Date(2024, mesA - 1, diaA) - new Date(2024, mesB - 1, diaB);
-    });
-    
-    return {
-        labels: datas,
-        valores: datas.map(d => coletasPorData[d])
-    };
-}
-
-// Função para processar dados de distribuição por região
-function processarDadosDistribuicao(coletasPorLixeira, lixeiras) {
-    // Agrupar por região (usando parte do nome da localização)
-    const regioes = {};
-    
-    coletasPorLixeira.forEach(item => {
-        const lixeira = lixeiras.find(l => l.id === item.lixeira_id);
-        if (lixeira) {
-            // Extrair região do nome (ex: "Asa Norte" de "Asa Norte - Bloco A")
-            const regiao = lixeira.localizacao.split(' - ')[0] || 'Outros';
-            if (!regioes[regiao]) {
-                regioes[regiao] = 0;
-            }
-            regioes[regiao] += item.total_coletas;
-        }
-    });
-    
-    return {
-        labels: Object.keys(regioes),
-        valores: Object.values(regioes)
-    };
-}
-
-// Função para processar dados de horários de pico
-function processarDadosHorarios(coletas) {
-    const horarios = Array(24).fill(0);
-    
-    coletas.forEach(coleta => {
-        const data = new Date(coleta.data_coleta);
-        const hora = data.getHours();
-        horarios[hora]++;
-    });
-    
-    return {
-        labels: Array.from({length: 24}, (_, i) => `${i.toString().padStart(2, '0')}h`),
-        valores: horarios
-    };
-}
-
-// Função para criar/atualizar gráfico de evolução
-function atualizarGraficoEvolucao(dados) {
-    const ctx = document.getElementById('chart-evolucao');
-    
-    if (!ctx) {
-        console.error('Canvas chart-evolucao não encontrado');
-        return;
-    }
-    
-    if (chartEvolucao) {
-        chartEvolucao.destroy();
-    }
-    
-    const processed = processarDadosEvolucao(dados.detalhes || []);
-    
-    // Se não houver dados, mostrar gráfico vazio
-    if (processed.labels.length === 0) {
-        processed.labels = ['Sem dados'];
-        processed.valores = [0];
-    }
-    
-    try {
-        chartEvolucao = new Chart(ctx, {
-            type: 'line',
-            data: {
-                labels: processed.labels,
-                datasets: [{
-                    label: 'Coletas',
-                    data: processed.valores,
-                    borderColor: '#5DB5A4',
-                    backgroundColor: 'rgba(93, 181, 164, 0.1)',
-                    tension: 0.4,
-                    fill: true
-                }]
-            },
-            options: {
-                responsive: true,
-                maintainAspectRatio: false,
-                plugins: {
-                    legend: {
-                        display: false
-                    },
-                    tooltip: {
-                        enabled: processed.labels.length > 1
-                    }
-                },
-                scales: {
-                    y: {
-                        beginAtZero: true,
-                        ticks: {
-                            stepSize: 1
-                        }
-                    }
-                }
-            }
-        });
-    } catch (error) {
-        console.error('Erro ao criar gráfico de evolução:', error);
-    }
-}
-
-// Função para criar/atualizar gráfico de distribuição
-function atualizarGraficoDistribuicao(coletasPorLixeira, lixeiras) {
-    const ctx = document.getElementById('chart-distribuicao');
-    
-    if (!ctx) {
-        console.error('Canvas chart-distribuicao não encontrado');
-        return;
-    }
-    
-    if (chartDistribuicao) {
-        chartDistribuicao.destroy();
-    }
-
-    // Guarda os dados pra reutilizar quando mudar orientação/ordem
-    ultimoRelatorioDistribuicao = {
-        coletasPorLixeira: coletasPorLixeira || [],
-        lixeiras: lixeiras || []
-    };
-    
-    const processed = processarDadosDistribuicao(
-        ultimoRelatorioDistribuicao.coletasPorLixeira,
-        ultimoRelatorioDistribuicao.lixeiras,
-        distribOrdem // usa o estado global de ordenação
-    );
-    
-    // Se não houver dados, mostra um gráfico "vazio"
-    if (processed.labels.length === 0) {
-        processed.labels = ['Sem dados'];
-        processed.valores = [0];
-    }
-    
-    try {
-        chartDistribuicao = new Chart(ctx, {
-            type: 'bar',
-            data: {
-                labels: processed.labels,
-                datasets: [{
-                    label: 'Coletas por Região',
-                    data: processed.valores,
-                    backgroundColor: [
-                        '#5DB5A4',
-                        '#3498db',
-                        '#f39c12',
-                        '#e74c3c',
-                        '#9b59b6',
-                        '#1abc9c',
-                        '#34495e'
-                    ]
-                }]
-            },
-            options: {
-                responsive: true,
-                maintainAspectRatio: false,
-                // 👇 ISSO AQUI É O QUE MUDA VERTICAL / HORIZONTAL
-                indexAxis: distribOrientacao === 'horizontal' ? 'y' : 'x',
-                plugins: {
-                    legend: {
-                        display: false
-                    },
-                    tooltip: {
-                        callbacks: {
-                            label: function(context) {
-                                return `${context.label}: ${context.formattedValue} coletas`;
-                            }
-                        }
-                    }
-                },
-                scales: {
-                    x: {
-                        beginAtZero: true,
-                        ticks: {
-                            precision: 0
-                        }
-                    },
-                    y: {
-                        beginAtZero: true,
-                        ticks: {
-                            precision: 0
-                        }
-                    }
-                }
-            }
-        });
-    } catch (error) {
-        console.error('Erro ao criar gráfico de distribuição:', error);
-    }
-}
-
-
-// Função para criar/atualizar gráfico de horários
-function atualizarGraficoHorarios(coletas) {
-    const ctx = document.getElementById('chart-horarios');
-    
-    if (!ctx) {
-        console.error('Canvas chart-horarios não encontrado');
-        return;
-    }
-    
-    if (chartHorarios) {
-        chartHorarios.destroy();
-    }
-    
-    const processed = processarDadosHorarios(coletas || []);
-    
-    try {
-        chartHorarios = new Chart(ctx, {
-            type: 'bar',
-            data: {
-                labels: processed.labels,
-                datasets: [{
-                    label: 'Coletas',
-                    data: processed.valores,
-                    backgroundColor: '#5DB5A4',
-                    borderColor: '#4A9B8E',
-                    borderWidth: 1
-                }]
-            },
-            options: {
-                responsive: true,
-                maintainAspectRatio: false,
-                plugins: {
-                    legend: {
-                        display: false
-                    }
-                },
-                scales: {
-                    y: {
-                        beginAtZero: true,
-                        ticks: {
-                            stepSize: 1
-                        }
-                    },
-                    x: {
-                        ticks: {
-                            maxRotation: 45,
-                            minRotation: 45,
-                            font: {
-                                size: 8
-                            }
-                        }
-                    }
-                }
-            }
-        });
-    } catch (error) {
-        console.error('Erro ao criar gráfico de horários:', error);
-    }
-}
-
-async function carregarRelatorio() {
-    try {
-        const dataInicio = document.getElementById('data-inicio').value;
-        const dataFim = document.getElementById('data-fim').value;
-        
-        // Debug: verificar datas sendo enviadas
-        console.log('Carregando relatório:', { dataInicio, dataFim });
-        
-        const relatorio = await obterRelatorios(dataInicio, dataFim);
-        
-        // Debug: verificar quantas coletas foram retornadas
-        console.log('Coletas retornadas:', relatorio.detalhes.length);
-        
-        // Carregar lixeiras para gráfico de distribuição
-        const lixeiras = await obterTodasLixeiras();
-        
-        // Atualizar KPIs
-        document.getElementById('kpi-total-coletas').textContent = relatorio.resumo.total_coletas || 0;
-        document.getElementById('kpi-volume-total').textContent = 
-            relatorio.resumo.volume_total ? Math.round(relatorio.resumo.volume_total) + 'L' : '0L';
-        document.getElementById('kpi-eficiencia').textContent = 
-            relatorio.resumo.total_coletas > 0 ? '95%' : '0%';
-        document.getElementById('kpi-lixeiras-ativas').textContent = 
-            relatorio.resumo.coletas_por_lixeira ? relatorio.resumo.coletas_por_lixeira.length : 0;
-        
-        // Sempre atualizar gráficos com os dados filtrados
-        atualizarGraficoEvolucao(relatorio);
-        atualizarGraficoHorarios(relatorio.detalhes || []);
-        
-        // Gráfico de distribuição só se houver coletas por lixeira
-        if (relatorio.resumo && relatorio.resumo.coletas_por_lixeira) {
-            atualizarGraficoDistribuicao(relatorio.resumo.coletas_por_lixeira, lixeiras);
-        } else {
-            atualizarGraficoDistribuicao([], lixeiras);
-        }
-        
-        // Atualizar tabela
-        const tbody = document.getElementById('relatorio-tbody');
-        if (relatorio.detalhes.length === 0) {
-            tbody.innerHTML = '<tr><td colspan="5" style="text-align: center;">Nenhuma coleta no período</td></tr>';
-        } else {
-            tbody.innerHTML = relatorio.detalhes.map(coleta => {
-                const data = new Date(coleta.data_coleta);
-                return `
-                    <tr>
-                        <td>${data.toLocaleString('pt-BR')}</td>
-                        <td>#L${String(coleta.id_lixeira).padStart(3, '0')}</td>
-                        <td>Lixeira ${coleta.id_lixeira}</td>
-                        <td>${coleta.volume_estimado ? Math.round(coleta.volume_estimado) + 'L' : 'N/A'}</td>
-                        <td><span class="bin-status-badge status-ok">OK</span></td>
-                    </tr>
-                `;
-            }).join('');
-        }
-        
-        // Atualizar top lixeiras
-        const topList = document.getElementById('top-lixeiras');
-        if (relatorio.resumo.coletas_por_lixeira && relatorio.resumo.coletas_por_lixeira.length > 0) {
-            const top = relatorio.resumo.coletas_por_lixeira
-                .sort((a, b) => b.total_coletas - a.total_coletas)
-                .slice(0, 5);
-            
-            topList.innerHTML = top.map(item => `
-                <div class="top-item">
-                    <span class="top-name">#L${String(item.lixeira_id).padStart(3, '0')}</span>
-                    <span class="top-value">${item.total_coletas} coletas</span>
-                </div>
-            `).join('');
-        } else {
-            topList.innerHTML = '<p style="text-align: center; color: #7f8c8d; font-size: 12px;">Nenhum dado disponível</p>';
-        }
-        
-        // Atualizar resumo executivo
-        const eficiencia = relatorio.resumo.total_coletas > 0 ? '95%' : '0%';
-        const volumeTotal = Math.round(relatorio.resumo.volume_total || 0);
-        
-        document.getElementById('resumo-desempenho').textContent = 
-            `Eficiência de ${eficiencia} com ${relatorio.resumo.total_coletas} coletas e volume total de ${volumeTotal}L no período selecionado.`;
-        
-        // Pontos de atenção
-        const lixeirasComProblemas = relatorio.resumo.coletas_por_lixeira 
-            ? relatorio.resumo.coletas_por_lixeira.filter(l => l.total_coletas > 10).length 
-            : 0;
-        
-        if (lixeirasComProblemas > 0) {
-            document.getElementById('resumo-atencao').textContent = 
-                `${lixeirasComProblemas} lixeira(s) com alto número de coletas no período. Verifique necessidade de otimização de rotas.`;
-        } else {
-            document.getElementById('resumo-atencao').textContent = 
-                'Nenhum ponto de atenção crítico no período selecionado.';
-        }
-        
-        // Recomendações
-        if (relatorio.resumo.total_coletas > 50) {
-            document.getElementById('resumo-recomendacoes').textContent = 
-                'Aumentar frequência nas lixeiras críticas. Implementar coletas preventivas nos horários de pico.';
-        } else if (relatorio.resumo.total_coletas > 0) {
-            document.getElementById('resumo-recomendacoes').textContent = 
-                'Monitorar padrões de coleta para identificar horários de pico e otimizar rotas.';
-        } else {
-            document.getElementById('resumo-recomendacoes').textContent = 
-                'Selecione um período com dados para gerar recomendações.';
-        }
-        
-    } catch (error) {
-        console.error('Erro ao carregar relatório:', error);
-        alert('Erro ao carregar relatório.');
-    }
-}
-
-document.addEventListener('DOMContentLoaded', function () {
-    const btnVert = document.getElementById('btn-orientacao-vertical');
-    const btnHor  = document.getElementById('btn-orientacao-horizontal');
-    const btnAsc  = document.getElementById('btn-ordem-asc');
-    const btnDesc = document.getElementById('btn-ordem-desc');
-
-    function atualizarBotoesOrientacao() {
-        if (!btnVert || !btnHor) return;
-        btnVert.classList.toggle('active', distribOrientacao === 'vertical');
-        btnHor.classList.toggle('active', distribOrientacao === 'horizontal');
-    }
-
-    function atualizarBotoesOrdem() {
-        if (!btnAsc || !btnDesc) return;
-        btnAsc.classList.toggle('active', distribOrdem === 'asc');
-        btnDesc.classList.toggle('active', distribOrdem === 'desc');
-    }
-
-    function redesenharGraficoDistribuicaoSePossivel() {
-        if (ultimoRelatorioDistribuicao.lixeiras.length > 0 ||
-            ultimoRelatorioDistribuicao.coletasPorLixeira.length > 0) {
-            atualizarGraficoDistribuicao(
-                ultimoRelatorioDistribuicao.coletasPorLixeira,
-                ultimoRelatorioDistribuicao.lixeiras
-            );
-        }
-    }
-
-    if (btnVert && btnHor) {
-        btnVert.addEventListener('click', function () {
-            distribOrientacao = 'vertical';
-            atualizarBotoesOrientacao();
-            redesenharGraficoDistribuicaoSePossivel();
-        });
-
-        btnHor.addEventListener('click', function () {
-            distribOrientacao = 'horizontal';
-            atualizarBotoesOrientacao();
-            redesenharGraficoDistribuicaoSePossivel();
-        });
-    }
-
-    if (btnAsc && btnDesc) {
-        btnAsc.addEventListener('click', function () {
-            distribOrdem = 'asc';
-            atualizarBotoesOrdem();
-            redesenharGraficoDistribuicaoSePossivel();
-        });
-
-        btnDesc.addEventListener('click', function () {
-            distribOrdem = 'desc';
-            atualizarBotoesOrdem();
-            redesenharGraficoDistribuicaoSePossivel();
-        });
-    }
-
-    // Deixa os botões marcados de acordo com o estado inicial
-    atualizarBotoesOrientacao();
-    atualizarBotoesOrdem();
-});
-
-</script>
+<script src="{{ url_for('static', filename='js/relatorios.js') }}"></script>
 {% endblock %}
-

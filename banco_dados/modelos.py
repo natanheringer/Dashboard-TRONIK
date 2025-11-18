@@ -6,8 +6,13 @@ Define os modelos de dados para o banco SQLite.
 Contém as classes que representam as tabelas.
 
 Modelos implementados:
-- Lixeira: Representa uma lixeira inteligente com sensores
-- Sensor: Representa sensores associados a lixeiras
+- Usuario: Usuários do sistema
+- Parceiro: Parceiros/clientes da Tronik
+- TipoMaterial: Tipos de material coletado
+- TipoSensor: Tipos de sensores
+- TipoColetor: Tipos de coletores
+- Lixeira: Lixeiras inteligentes com sensores
+- Sensor: Sensores associados a lixeiras
 - Coleta: Histórico de coletas realizadas
 """
 
@@ -49,6 +54,73 @@ class Usuario(Base, UserMixin):
 
 
 # ----------------------------------------------------------
+# TABELA: Parceiros
+# ----------------------------------------------------------
+class Parceiro(Base):
+    __tablename__ = "parceiros"
+
+    id = Column(Integer, primary_key=True, autoincrement=True)
+    nome = Column(String(150), unique=True, nullable=False, index=True)
+    ativo = Column(Boolean, default=True)
+    criado_em = Column(DateTime, default=datetime.utcnow)
+
+    # Relacionamentos
+    lixeiras = relationship("Lixeira", back_populates="parceiro")
+    coletas = relationship("Coleta", back_populates="parceiro")
+
+    def __repr__(self):
+        return f"<Parceiro(id={self.id}, nome='{self.nome}', ativo={self.ativo})>"
+
+
+# ----------------------------------------------------------
+# TABELA: Tipo de Material
+# ----------------------------------------------------------
+class TipoMaterial(Base):
+    __tablename__ = "tipo_material"
+
+    id = Column(Integer, primary_key=True, autoincrement=True)
+    nome = Column(String(100), unique=True, nullable=False, index=True)
+
+    # Relacionamentos
+    lixeiras = relationship("Lixeira", back_populates="tipo_material")
+
+    def __repr__(self):
+        return f"<TipoMaterial(id={self.id}, nome='{self.nome}')>"
+
+
+# ----------------------------------------------------------
+# TABELA: Tipo de Sensor
+# ----------------------------------------------------------
+class TipoSensor(Base):
+    __tablename__ = "tipo_sensor"
+
+    id = Column(Integer, primary_key=True, autoincrement=True)
+    nome = Column(String(100), unique=True, nullable=False, index=True)
+
+    # Relacionamentos
+    sensores = relationship("Sensor", back_populates="tipo_sensor")
+
+    def __repr__(self):
+        return f"<TipoSensor(id={self.id}, nome='{self.nome}')>"
+
+
+# ----------------------------------------------------------
+# TABELA: Tipo de Coletor
+# ----------------------------------------------------------
+class TipoColetor(Base):
+    __tablename__ = "tipo_coletor"
+
+    id = Column(Integer, primary_key=True, autoincrement=True)
+    nome = Column(String(100), unique=True, nullable=False, index=True)
+
+    # Relacionamentos
+    coletas = relationship("Coleta", back_populates="tipo_coletor")
+
+    def __repr__(self):
+        return f"<TipoColetor(id={self.id}, nome='{self.nome}')>"
+
+
+# ----------------------------------------------------------
 # TABELA: Lixeiras
 # ----------------------------------------------------------
 class Lixeira(Base):
@@ -57,12 +129,18 @@ class Lixeira(Base):
     id = Column(Integer, primary_key=True, autoincrement=True)
     localizacao = Column(String(150), nullable=False)
     nivel_preenchimento = Column(Float, default=0.0)
-    status = Column(String(20), default="OK")  # OK, alerta, manutencao etc.
+    status = Column(String(20), default="OK")  # OK, CHEIA, QUEBRADA, etc.
     ultima_coleta = Column(DateTime, default=datetime.utcnow)
-    tipo = Column(String(50))
-    coordenadas = Column(String(100))
+    
+    # NOVOS CAMPOS (substituem coordenadas string e tipo string)
+    latitude = Column(Float)  # Coordenada latitude
+    longitude = Column(Float)  # Coordenada longitude
+    parceiro_id = Column(Integer, ForeignKey("parceiros.id"), nullable=True, index=True)
+    tipo_material_id = Column(Integer, ForeignKey("tipo_material.id"), nullable=True, index=True)
 
     # Relacionamentos
+    parceiro = relationship("Parceiro", back_populates="lixeiras")
+    tipo_material = relationship("TipoMaterial", back_populates="lixeiras")
     sensores = relationship("Sensor", back_populates="lixeira", cascade="all, delete-orphan")
     coletas = relationship("Coleta", back_populates="lixeira", cascade="all, delete-orphan")
 
@@ -77,16 +155,18 @@ class Sensor(Base):
     __tablename__ = "sensores"
 
     id = Column(Integer, primary_key=True, autoincrement=True)
-    lixeira_id = Column(Integer, ForeignKey("lixeiras.id"))
-    tipo = Column(String(50))  # ultrassonico, temperatura, etc.
+    lixeira_id = Column(Integer, ForeignKey("lixeiras.id"), nullable=False, index=True)
+    tipo_sensor_id = Column(Integer, ForeignKey("tipo_sensor.id"), nullable=True, index=True)
     bateria = Column(Float, default=100.0)
     ultimo_ping = Column(DateTime, default=datetime.utcnow)
 
-    # Relacionamento reverso
+    # Relacionamentos
     lixeira = relationship("Lixeira", back_populates="sensores")
+    tipo_sensor = relationship("TipoSensor", back_populates="sensores")
 
     def __repr__(self):
-        return f"<Sensor(id={self.id}, tipo={self.tipo}, bateria={self.bateria}%)>"
+        tipo_nome = self.tipo_sensor.nome if self.tipo_sensor else "N/A"
+        return f"<Sensor(id={self.id}, tipo='{tipo_nome}', bateria={self.bateria}%)>"
 
 
 # ----------------------------------------------------------
@@ -96,14 +176,24 @@ class Coleta(Base):
     __tablename__ = "coletas"
 
     id = Column(Integer, primary_key=True, autoincrement=True)
-    lixeira_id = Column(Integer, ForeignKey("lixeiras.id"))
-    data_hora = Column(DateTime, default=datetime.utcnow)
-    volume_estimado = Column(Float)  # diferença entre nível antes/depois da coleta
+    lixeira_id = Column(Integer, ForeignKey("lixeiras.id"), nullable=False, index=True)
+    data_hora = Column(DateTime, default=datetime.utcnow, index=True)
+    volume_estimado = Column(Float)  # Mantido para compatibilidade
+    
+    # NOVOS CAMPOS (do CSV)
+    tipo_operacao = Column(String(50))  # "Avulsa" ou "Campanha"
+    km_percorrido = Column(Float)  # Distância percorrida em km
+    preco_combustivel = Column(Float)  # Preço do combustível por litro
+    lucro_por_kg = Column(Float)  # Lucro em reais por quilograma
+    emissao_mtr = Column(Boolean, default=False)  # Se houve emissão de MTR
+    tipo_coletor_id = Column(Integer, ForeignKey("tipo_coletor.id"), nullable=True, index=True)
+    parceiro_id = Column(Integer, ForeignKey("parceiros.id"), nullable=True, index=True)
 
+    # Relacionamentos
     lixeira = relationship("Lixeira", back_populates="coletas")
+    tipo_coletor = relationship("TipoColetor", back_populates="coletas")
+    parceiro = relationship("Parceiro", back_populates="coletas")
 
     def __repr__(self):
-        return f"<Coleta(id={self.id}, lixeira_id={self.lixeira_id}, volume={self.volume_estimado})>"
-
-
-
+        parceiro_nome = self.parceiro.nome if self.parceiro else "N/A"
+        return f"<Coleta(id={self.id}, lixeira_id={self.lixeira_id}, data={self.data_hora}, parceiro='{parceiro_nome}')>"

@@ -70,8 +70,58 @@ async function obterEstatisticas() {
 }
 
 // Função para obter histórico de coletas
-async function obterHistorico() {
-    return await fazerRequisicao('/historico');
+async function obterHistorico(dataFiltro = null) {
+    let url = '/historico';
+    if (dataFiltro) {
+        url += '?data=' + encodeURIComponent(dataFiltro);
+    }
+    return await fazerRequisicao(url);
+}
+
+// Função para obter coletas (novo endpoint com filtros)
+async function obterColetas(filtros = {}) {
+    let url = '/coletas';
+    const params = new URLSearchParams();
+    
+    if (filtros.lixeira_id) params.append('lixeira_id', filtros.lixeira_id);
+    if (filtros.parceiro_id) params.append('parceiro_id', filtros.parceiro_id);
+    if (filtros.tipo_operacao) params.append('tipo_operacao', filtros.tipo_operacao);
+    if (filtros.data_inicio) params.append('data_inicio', filtros.data_inicio);
+    if (filtros.data_fim) params.append('data_fim', filtros.data_fim);
+    
+    if (params.toString()) {
+        url += '?' + params.toString();
+    }
+    
+    return await fazerRequisicao(url);
+}
+
+// Função para criar coleta
+async function criarColeta(dados) {
+    return await fazerRequisicao('/coleta', {
+        method: 'POST',
+        body: JSON.stringify(dados)
+    });
+}
+
+// Função para obter parceiros
+async function obterParceiros() {
+    return await fazerRequisicao('/parceiros');
+}
+
+// Função para obter tipos de material
+async function obterTiposMaterial() {
+    return await fazerRequisicao('/tipos/material');
+}
+
+// Função para obter tipos de sensor
+async function obterTiposSensor() {
+    return await fazerRequisicao('/tipos/sensor');
+}
+
+// Função para obter tipos de coletor
+async function obterTiposColetor() {
+    return await fazerRequisicao('/tipos/coletor');
 }
 
 // Função para obter configurações
@@ -80,12 +130,14 @@ async function obterConfiguracoes() {
 }
 
 // Função para obter relatórios
-async function obterRelatorios(dataInicio = null, dataFim = null) {
+async function obterRelatorios(dataInicio = null, dataFim = null, parceiroId = null, tipoOperacao = null) {
     let url = '/relatorios';
     const params = new URLSearchParams();
     
     if (dataInicio) params.append('data_inicio', dataInicio);
     if (dataFim) params.append('data_fim', dataFim);
+    if (parceiroId) params.append('parceiro_id', parceiroId);
+    if (tipoOperacao) params.append('tipo_operacao', tipoOperacao);
     
     if (params.toString()) {
         url += '?' + params.toString();
@@ -112,6 +164,12 @@ if (typeof module !== 'undefined' && module.exports) {
         deletarLixeira,
         obterEstatisticas,
         obterHistorico,
+        obterColetas,
+        criarColeta,
+        obterParceiros,
+        obterTiposMaterial,
+        obterTiposSensor,
+        obterTiposColetor,
         obterConfiguracoes,
         obterRelatorios,
         simularNiveis

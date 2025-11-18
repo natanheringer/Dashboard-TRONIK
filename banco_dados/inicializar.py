@@ -13,7 +13,11 @@ Funções implementadas:
 
 from sqlalchemy import create_engine
 from sqlalchemy.orm import sessionmaker
-from banco_dados.modelos import Base, Lixeira, Sensor, Coleta, Usuario
+from banco_dados.modelos import (
+    Base, Lixeira, Sensor, Coleta, Usuario,
+    Parceiro, TipoMaterial, TipoSensor, TipoColetor
+)
+from banco_dados.seed_tipos import popular_tipos
 import json
 from datetime import datetime
 import os
@@ -167,6 +171,8 @@ def criar_usuario_admin(engine):
 # ----------------------------------------------------------
 if __name__ == "__main__":
     engine = criar_banco()
+    # Popular tipos antes de inserir dados iniciais
+    popular_tipos(engine)
     inserir_dados_iniciais(engine)
     criar_usuario_admin(engine)
 
