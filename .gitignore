@@ -28,6 +28,12 @@ env/
 *.db
 *.sqlite
 *.sqlite3
+tronik.db
+
+# === Dados reais / CSV ===
+*.csv
+BaseTronik*.csv
+**/BaseTronik*.csv
 
 # === Logs / Execução ===
 *.log

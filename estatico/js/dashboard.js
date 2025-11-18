@@ -17,6 +17,14 @@ let filtros = {
 };
 // Ordenação padrão: nível decrescente
 let ordenacao = 'nivel_desc';
+// Filtro de data para histórico
+let dataFiltroHistorico = null;
+// Ordenação da tabela de histórico
+let ordenacaoHistorico = {
+    coluna: null,
+    direcao: 'desc' // 'asc' ou 'desc'
+};
+let dadosHistoricoAtual = [];
 
 // Função para determinar status da lixeira
 function determinarStatus(lixeira) {
@@ -49,6 +57,8 @@ function formatarData(dataISO) {
 function criarCardLixeira(lixeira) {
     const status = determinarStatus(lixeira);
     const nivel = Math.round(lixeira.nivel_preenchimento || 0);
+    const tipoMaterial = lixeira.tipo_material ? lixeira.tipo_material.nome : 'Não especificado';
+    const parceiro = lixeira.parceiro ? lixeira.parceiro.nome : null;
     
     const card = document.createElement('div');
     card.className = `bin-card ${status.tipo === 'alert' ? 'alert' : status.tipo === 'warning' ? 'warning' : ''}`;
@@ -59,7 +69,7 @@ function criarCardLixeira(lixeira) {
             <div class="bin-info">
                 <div class="bin-id">#L${String(lixeira.id).padStart(3, '0')}</div>
                 <div class="bin-name">${lixeira.localizacao || 'Sem localização'}</div>
-                <div class="bin-location">${lixeira.tipo || 'Resíduos Eletrônicos'}</div>
+                <div class="bin-location">${tipoMaterial}${parceiro ? ` | ${parceiro}` : ''}</div>
             </div>
             <span class="bin-status-badge status-${status.tipo}">${status.texto}</span>
         </div>
@@ -75,7 +85,7 @@ function criarCardLixeira(lixeira) {
         </div>
         <div class="bin-footer">
             <span class="bin-update">${formatarData(lixeira.ultima_coleta)}</span>
-            <button class="bin-action" onclick="verDetalhes(${lixeira.id})">Detalhes</button>
+            <button class="bin-action" data-lixeira-id="${lixeira.id}">Detalhes</button>
         </div>
     `;
     
@@ -94,6 +104,11 @@ function renderizarGridLixeiras(lixeirasFiltradas) {
     
     lixeirasFiltradas.forEach(lixeira => {
         const card = criarCardLixeira(lixeira);
+        // Adicionar event listener ao botão de detalhes
+        const btnDetalhes = card.querySelector('.bin-action');
+        if (btnDetalhes) {
+            btnDetalhes.addEventListener('click', () => verDetalhes(lixeira.id));
+        }
         grid.appendChild(card);
     });
 }
@@ -102,10 +117,15 @@ function renderizarGridLixeiras(lixeirasFiltradas) {
 function atualizarEstatisticas(dados) {
     estatisticas = dados;
     
-    document.getElementById('stat-total').textContent = dados.total_lixeiras || 0;
-    document.getElementById('stat-nivel-medio').textContent = `${dados.nivel_medio || 0}%`;
-    document.getElementById('stat-alertas').textContent = dados.lixeiras_alerta || 0;
-    document.getElementById('stat-coletas-hoje').textContent = dados.coletas_hoje || 0;
+    const statTotal = document.getElementById('stat-total');
+    const statNivelMedio = document.getElementById('stat-nivel-medio');
+    const statAlertas = document.getElementById('stat-alertas');
+    const statColetasHoje = document.getElementById('stat-coletas-hoje');
+    
+    if (statTotal) statTotal.textContent = dados.total_lixeiras || 0;
+    if (statNivelMedio) statNivelMedio.textContent = `${dados.nivel_medio || 0}%`;
+    if (statAlertas) statAlertas.textContent = dados.lixeiras_alerta || 0;
+    if (statColetasHoje) statColetasHoje.textContent = dados.coletas_hoje || 0;
 }
 
 // Função para atualizar alertas
@@ -184,9 +204,21 @@ function aplicarFiltros() {
 // Função para carregar dados
 async function carregarDados() {
     try {
+        // Verificar se estamos na página do dashboard
+        const binsGrid = document.getElementById('bins-grid');
+        if (!binsGrid) {
+            // Não é a página do dashboard, não executar
+            return;
+        }
+        
         // Atualizar status de conexão
         const statusIndicator = document.getElementById('status-indicator');
-        statusIndicator.querySelector('span').textContent = simulacaoAtiva ? 'Simulando...' : 'Carregando...';
+        if (statusIndicator) {
+            const statusSpan = statusIndicator.querySelector('span');
+            if (statusSpan) {
+                statusSpan.textContent = simulacaoAtiva ? 'Simulando...' : 'Carregando...';
+            }
+        }
         
         // Carregar lixeiras e estatísticas em paralelo
         const [lixeiras, stats] = await Promise.all([
@@ -199,20 +231,35 @@ async function carregarDados() {
         atualizarAlertas();
         aplicarFiltros();
         
-        // Carregar histórico
-        carregarHistorico();
+        // Carregar histórico (só se o elemento existir)
+        const historyTbody = document.getElementById('history-tbody');
+        if (historyTbody) {
+            carregarHistorico();
+        }
         
         // Atualizar status
-        statusIndicator.querySelector('span').textContent = simulacaoAtiva ? 'Simulando' : 'Conectado';
+        if (statusIndicator) {
+            const statusSpan = statusIndicator.querySelector('span');
+            if (statusSpan) {
+                statusSpan.textContent = simulacaoAtiva ? 'Simulando' : 'Conectado';
+            }
+        }
         
     } catch (error) {
         console.error('Erro ao carregar dados:', error);
         const statusIndicator = document.getElementById('status-indicator');
-        statusIndicator.querySelector('span').textContent = 'Erro';
-        statusIndicator.style.background = '#f8d7da';
+        if (statusIndicator) {
+            const statusSpan = statusIndicator.querySelector('span');
+            if (statusSpan) {
+                statusSpan.textContent = 'Erro';
+            }
+            statusIndicator.style.background = '#f8d7da';
+        }
         
-        document.getElementById('bins-grid').innerHTML = 
-            '<div class="loading-message">Erro ao carregar dados. Tente novamente.</div>';
+        const binsGrid = document.getElementById('bins-grid');
+        if (binsGrid) {
+            binsGrid.innerHTML = '<div class="loading-message">Erro ao carregar dados. Tente novamente.</div>';
+        }
     }
 }
 
@@ -263,35 +310,193 @@ function alternarSimulacao() {
 // Função para carregar histórico
 async function carregarHistorico() {
     try {
-        const historico = await obterHistorico();
         const tbody = document.getElementById('history-tbody');
-        
-        if (historico.length === 0) {
-            tbody.innerHTML = '<tr><td colspan="6" style="text-align: center;">Nenhuma coleta registrada</td></tr>';
+        if (!tbody) {
+            // Elemento não existe, não executar
             return;
         }
         
-        tbody.innerHTML = historico.slice(0, 10).map(coleta => {
-            const lixeira = todasLixeiras.find(l => l.id === coleta.id_lixeira);
-            const data = new Date(coleta.data_coleta);
-            const hora = data.toLocaleTimeString('pt-BR', { hour: '2-digit', minute: '2-digit' });
-            const dataFormatada = data.toLocaleDateString('pt-BR');
+        const historico = await obterHistorico(dataFiltroHistorico);
+        
+        // Armazenar dados para ordenação
+        dadosHistoricoAtual = historico;
+        
+        if (historico.length === 0) {
+            tbody.innerHTML = '<tr><td colspan="8" style="text-align: center;">Nenhuma coleta registrada</td></tr>';
+            return;
+        }
+        
+        // Aplicar ordenação se houver
+        let historicoOrdenado = [...historico];
+        if (ordenacaoHistorico.coluna) {
+            historicoOrdenado = ordenarHistorico(historicoOrdenado, ordenacaoHistorico.coluna, ordenacaoHistorico.direcao);
+        }
+        
+        // Mostrar todas as coletas (ou limitar a 50 se houver muitas)
+        const coletasLimitadas = historicoOrdenado.length > 50 ? historicoOrdenado.slice(0, 50) : historicoOrdenado;
+        tbody.innerHTML = coletasLimitadas.map(coleta => {
+            const lixeira = todasLixeiras.find(l => l.id === coleta.lixeira_id) || coleta.lixeira;
+            const data = coleta.data_hora ? new Date(coleta.data_hora) : null;
+            const hora = data ? data.toLocaleTimeString('pt-BR', { hour: '2-digit', minute: '2-digit' }) : 'N/A';
+            const dataFormatada = data ? data.toLocaleDateString('pt-BR') : 'N/A';
+            const volume = coleta.volume_estimado ? Math.round(coleta.volume_estimado) : 0;
+            const km = coleta.km_percorrido ? Math.round(coleta.km_percorrido * 10) / 10 : 'N/A';
+            const parceiro = coleta.parceiro ? coleta.parceiro.nome : 'N/A';
+            const tipoOperacao = coleta.tipo_operacao || 'N/A';
             
             return `
                 <tr>
-                    <td>#L${String(coleta.id_lixeira).padStart(3, '0')}</td>
-                    <td>${lixeira ? lixeira.localizacao : 'N/A'}</td>
+                    <td>#L${String(coleta.lixeira_id || 'N/A').padStart(3, '0')}</td>
+                    <td>${lixeira ? (lixeira.localizacao || 'N/A') : 'N/A'}</td>
                     <td>${dataFormatada} ${hora}</td>
-                    <td>${coleta.volume_estimado ? Math.round(coleta.volume_estimado) + 'L' : 'N/A'}</td>
-                    <td>${coleta.volume_estimado ? Math.round(coleta.volume_estimado) : 'N/A'}</td>
+                    <td>${volume}KG</td>
+                    <td>${km}${typeof km === 'number' ? 'km' : ''}</td>
+                    <td>${parceiro}</td>
+                    <td>${tipoOperacao}</td>
                     <td><span class="bin-status-badge status-ok">OK</span></td>
                 </tr>
             `;
         }).join('');
         
+        // Atualizar indicadores de ordenação após renderizar
+        atualizarIndicadoresOrdenacao();
+        
     } catch (error) {
         console.error('Erro ao carregar histórico:', error);
     }
+}
+
+// Função para ordenar histórico
+function ordenarHistorico(coletas, coluna, direcao) {
+    const copia = [...coletas];
+    
+    copia.sort((a, b) => {
+        let valorA, valorB;
+        
+        switch(coluna) {
+            case 'id':
+                valorA = a.lixeira_id || 0;
+                valorB = b.lixeira_id || 0;
+                break;
+            case 'local':
+                const lixeiraA = todasLixeiras.find(l => l.id === a.lixeira_id) || a.lixeira;
+                const lixeiraB = todasLixeiras.find(l => l.id === b.lixeira_id) || b.lixeira;
+                valorA = (lixeiraA ? (lixeiraA.localizacao || '') : '').toLowerCase();
+                valorB = (lixeiraB ? (lixeiraB.localizacao || '') : '').toLowerCase();
+                break;
+            case 'hora':
+                valorA = a.data_hora ? new Date(a.data_hora).getTime() : 0;
+                valorB = b.data_hora ? new Date(b.data_hora).getTime() : 0;
+                break;
+            case 'volume':
+                valorA = a.volume_estimado || 0;
+                valorB = b.volume_estimado || 0;
+                break;
+            case 'km':
+                valorA = a.km_percorrido || 0;
+                valorB = b.km_percorrido || 0;
+                break;
+            case 'parceiro':
+                valorA = (a.parceiro ? a.parceiro.nome : 'N/A').toLowerCase();
+                valorB = (b.parceiro ? b.parceiro.nome : 'N/A').toLowerCase();
+                break;
+            case 'tipo':
+                valorA = (a.tipo_operacao || 'N/A').toLowerCase();
+                valorB = (b.tipo_operacao || 'N/A').toLowerCase();
+                break;
+            default:
+                return 0;
+        }
+        
+        if (typeof valorA === 'string' && typeof valorB === 'string') {
+            if (direcao === 'asc') {
+                return valorA.localeCompare(valorB, 'pt-BR');
+            } else {
+                return valorB.localeCompare(valorA, 'pt-BR');
+            }
+        } else {
+            if (direcao === 'asc') {
+                return valorA - valorB;
+            } else {
+                return valorB - valorA;
+            }
+        }
+    });
+    
+    return copia;
+}
+
+// Função para alternar ordenação ao clicar no cabeçalho
+function alternarOrdenacaoHistorico(coluna) {
+    if (ordenacaoHistorico.coluna === coluna) {
+        // Se já está ordenando por esta coluna, inverte a direção
+        ordenacaoHistorico.direcao = ordenacaoHistorico.direcao === 'asc' ? 'desc' : 'asc';
+    } else {
+        // Nova coluna, começa com desc
+        ordenacaoHistorico.coluna = coluna;
+        ordenacaoHistorico.direcao = 'desc';
+    }
+    
+    // Atualizar indicadores visuais
+    atualizarIndicadoresOrdenacao();
+    
+    // Re-renderizar tabela
+    renderizarHistoricoOrdenado();
+}
+
+// Função para atualizar indicadores visuais de ordenação
+function atualizarIndicadoresOrdenacao() {
+    const headers = document.querySelectorAll('#history-table thead th');
+    headers.forEach((th, index) => {
+        // Remover todas as classes de ordenação
+        th.classList.remove('sort-asc', 'sort-desc');
+        
+        // Mapear índice para nome da coluna
+        const colunas = ['id', 'local', 'hora', 'volume', 'km', 'parceiro', 'tipo', 'status'];
+        const coluna = colunas[index];
+        
+        if (coluna && ordenacaoHistorico.coluna === coluna) {
+            th.classList.add('sort-' + ordenacaoHistorico.direcao);
+        }
+    });
+}
+
+// Função para renderizar histórico ordenado
+function renderizarHistoricoOrdenado() {
+    const tbody = document.getElementById('history-tbody');
+    
+    if (dadosHistoricoAtual.length === 0) {
+        tbody.innerHTML = '<tr><td colspan="8" style="text-align: center;">Nenhuma coleta registrada</td></tr>';
+        return;
+    }
+    
+    // Aplicar ordenação
+    const historicoOrdenado = ordenarHistorico(dadosHistoricoAtual, ordenacaoHistorico.coluna, ordenacaoHistorico.direcao);
+    const coletasLimitadas = historicoOrdenado.length > 50 ? historicoOrdenado.slice(0, 50) : historicoOrdenado;
+    
+    tbody.innerHTML = coletasLimitadas.map(coleta => {
+        const lixeira = todasLixeiras.find(l => l.id === coleta.lixeira_id) || coleta.lixeira;
+        const data = coleta.data_hora ? new Date(coleta.data_hora) : null;
+        const hora = data ? data.toLocaleTimeString('pt-BR', { hour: '2-digit', minute: '2-digit' }) : 'N/A';
+        const dataFormatada = data ? data.toLocaleDateString('pt-BR') : 'N/A';
+        const volume = coleta.volume_estimado ? Math.round(coleta.volume_estimado) : 0;
+        const km = coleta.km_percorrido ? Math.round(coleta.km_percorrido * 10) / 10 : 'N/A';
+        const parceiro = coleta.parceiro ? coleta.parceiro.nome : 'N/A';
+        const tipoOperacao = coleta.tipo_operacao || 'N/A';
+        
+        return `
+            <tr>
+                <td>#L${String(coleta.lixeira_id || 'N/A').padStart(3, '0')}</td>
+                <td>${lixeira ? (lixeira.localizacao || 'N/A') : 'N/A'}</td>
+                <td>${dataFormatada} ${hora}</td>
+                <td>${volume}KG</td>
+                <td>${km}${typeof km === 'number' ? 'km' : ''}</td>
+                <td>${parceiro}</td>
+                <td>${tipoOperacao}</td>
+                <td><span class="bin-status-badge status-ok">OK</span></td>
+            </tr>
+        `;
+    }).join('');
 }
 
 // Função para ver detalhes
@@ -299,7 +504,7 @@ async function verDetalhes(id) {
     try {
         const lixeira = await obterLixeira(id);
         const historico = await obterHistorico();
-        const historicoLixeira = historico.filter(c => c.id_lixeira === id).slice(0, 5);
+        const historicoLixeira = historico.filter(c => c.lixeira_id === id).slice(0, 5);
         
         const status = determinarStatus(lixeira);
         const nivel = Math.round(lixeira.nivel_preenchimento || 0);
@@ -308,6 +513,15 @@ async function verDetalhes(id) {
         document.getElementById('modal-title').textContent = 
             `Lixeira #L${String(lixeira.id).padStart(3, '0')} - ${lixeira.localizacao || 'Sem localização'}`;
         
+        // Carregar tipos e parceiros para dropdowns
+        const [tiposMaterial, parceiros] = await Promise.all([
+            obterTiposMaterial().catch(() => []),
+            obterParceiros().catch(() => [])
+        ]);
+        
+        const tipoMaterialAtual = lixeira.tipo_material ? lixeira.tipo_material.id : null;
+        const parceiroAtual = lixeira.parceiro ? lixeira.parceiro.id : null;
+        
         const modalBody = document.getElementById('modal-body');
         modalBody.innerHTML = `
             <div class="modal-detail-card">
@@ -315,7 +529,7 @@ async function verDetalhes(id) {
                     <div>
                         <div class="modal-detail-title">${lixeira.localizacao || 'Sem localização'}</div>
                         <div style="font-size: 12px; color: #7f8c8d; margin-top: 5px;">
-                            ${lixeira.tipo || 'Resíduos Eletrônicos'} | Atualizado ${formatarData(lixeira.ultima_coleta)}
+                            ${lixeira.tipo_material ? lixeira.tipo_material.nome : 'Não especificado'}${lixeira.parceiro ? ` | ${lixeira.parceiro.nome}` : ''} | Atualizado ${formatarData(lixeira.ultima_coleta)}
                         </div>
                     </div>
                     <span class="bin-status-badge status-${status.tipo}">${status.texto}</span>
@@ -337,11 +551,15 @@ async function verDetalhes(id) {
                 <div class="modal-info-grid">
                     <div class="modal-info-item">
                         <span class="modal-info-label">Status</span>
-                        <span class="modal-info-value">${lixeira.status || 'ativo'}</span>
+                        <span class="modal-info-value">${lixeira.status || 'OK'}</span>
                     </div>
                     <div class="modal-info-item">
-                        <span class="modal-info-label">Tipo</span>
-                        <span class="modal-info-value">${lixeira.tipo || 'Resíduos Eletrônicos'}</span>
+                        <span class="modal-info-label">Tipo de Material</span>
+                        <span class="modal-info-value">${lixeira.tipo_material ? lixeira.tipo_material.nome : 'Não especificado'}</span>
+                    </div>
+                    <div class="modal-info-item">
+                        <span class="modal-info-label">Parceiro</span>
+                        <span class="modal-info-value">${lixeira.parceiro ? lixeira.parceiro.nome : 'N/A'}</span>
                     </div>
                     <div class="modal-info-item">
                         <span class="modal-info-label">Última Coleta</span>
@@ -350,8 +568,8 @@ async function verDetalhes(id) {
                     <div class="modal-info-item">
                         <span class="modal-info-label">Coordenadas</span>
                         <span class="modal-info-value">
-                            ${lixeira.coordenadas ? 
-                                `${lixeira.coordenadas.latitude.toFixed(4)}, ${lixeira.coordenadas.longitude.toFixed(4)}` : 
+                            ${lixeira.latitude && lixeira.longitude ? 
+                                `${parseFloat(lixeira.latitude).toFixed(4)}, ${parseFloat(lixeira.longitude).toFixed(4)}` : 
                                 'N/A'}
                         </span>
                     </div>
@@ -365,16 +583,27 @@ async function verDetalhes(id) {
                     <thead>
                         <tr style="background: #f8f9fa;">
                             <th style="padding: 8px; text-align: left;">Data/Hora</th>
-                            <th style="padding: 8px; text-align: left;">Volume</th>
+                            <th style="padding: 8px; text-align: left;">Volume (KG)</th>
+                            <th style="padding: 8px; text-align: left;">KM</th>
+                            <th style="padding: 8px; text-align: left;">Tipo</th>
+                            <th style="padding: 8px; text-align: left;">Parceiro</th>
+                            <th style="padding: 8px; text-align: left;">Lucro/KG</th>
                         </tr>
                     </thead>
                     <tbody>
                         ${historicoLixeira.map(coleta => {
-                            const data = new Date(coleta.data_coleta);
+                            const data = coleta.data_hora ? new Date(coleta.data_hora) : null;
+                            const km = coleta.km_percorrido ? Math.round(coleta.km_percorrido * 10) / 10 : 'N/A';
+                            const parceiro = coleta.parceiro ? coleta.parceiro.nome : 'N/A';
+                            const lucro = coleta.lucro_por_kg ? `R$ ${coleta.lucro_por_kg.toFixed(2)}` : 'N/A';
                             return `
                                 <tr>
-                                    <td style="padding: 8px;">${data.toLocaleString('pt-BR')}</td>
-                                    <td style="padding: 8px;">${coleta.volume_estimado ? Math.round(coleta.volume_estimado) + 'L' : 'N/A'}</td>
+                                    <td style="padding: 8px;">${data ? data.toLocaleString('pt-BR') : 'N/A'}</td>
+                                    <td style="padding: 8px;">${coleta.volume_estimado ? Math.round(coleta.volume_estimado) + 'KG' : 'N/A'}</td>
+                                    <td style="padding: 8px;">${km}${typeof km === 'number' ? 'km' : ''}</td>
+                                    <td style="padding: 8px;">${coleta.tipo_operacao || 'N/A'}</td>
+                                    <td style="padding: 8px;">${parceiro}</td>
+                                    <td style="padding: 8px;">${lucro}</td>
                                 </tr>
                             `;
                         }).join('')}
@@ -392,8 +621,22 @@ async function verDetalhes(id) {
                         <input type="text" id="edit-localizacao" value="${lixeira.localizacao || ''}" />
                     </div>
                     <div class="form-group">
-                        <label style="font-size:12px; color:#7f8c8d;">Tipo</label>
-                        <input type="text" id="edit-tipo" value="${lixeira.tipo || ''}" />
+                        <label style="font-size:12px; color:#7f8c8d;">Tipo de Material</label>
+                        <select id="edit-tipo-material">
+                            <option value="">Selecione...</option>
+                            ${tiposMaterial.map(tipo => `
+                                <option value="${tipo.id}" ${tipo.id === tipoMaterialAtual ? 'selected' : ''}>${tipo.nome}</option>
+                            `).join('')}
+                        </select>
+                    </div>
+                    <div class="form-group">
+                        <label style="font-size:12px; color:#7f8c8d;">Parceiro</label>
+                        <select id="edit-parceiro">
+                            <option value="">Selecione...</option>
+                            ${parceiros.map(parceiro => `
+                                <option value="${parceiro.id}" ${parceiro.id === parceiroAtual ? 'selected' : ''}>${parceiro.nome}</option>
+                            `).join('')}
+                        </select>
                     </div>
                     <div class="form-group">
                         <label style="font-size:12px; color:#7f8c8d;">Nível (%)</label>
@@ -402,18 +645,18 @@ async function verDetalhes(id) {
                     <div class="form-group">
                         <label style="font-size:12px; color:#7f8c8d;">Status</label>
                         <select id="edit-status">
-                            <option value="ativo" ${lixeira.status === 'ativo' ? 'selected' : ''}>Ativo</option>
-                            <option value="manutencao" ${lixeira.status === 'manutencao' ? 'selected' : ''}>Manutenção</option>
-                            <option value="alerta" ${lixeira.status === 'alerta' ? 'selected' : ''}>Alerta</option>
+                            <option value="OK" ${lixeira.status === 'OK' ? 'selected' : ''}>OK</option>
+                            <option value="CHEIA" ${lixeira.status === 'CHEIA' ? 'selected' : ''}>CHEIA</option>
+                            <option value="QUEBRADA" ${lixeira.status === 'QUEBRADA' ? 'selected' : ''}>QUEBRADA</option>
                         </select>
                     </div>
                     <div class="form-group">
                         <label style="font-size:12px; color:#7f8c8d;">Latitude</label>
-                        <input type="number" id="edit-lat" step="0.0001" value="${lixeira.coordenadas ? lixeira.coordenadas.latitude : ''}" />
+                        <input type="number" id="edit-lat" step="0.0001" value="${lixeira.latitude || ''}" />
                     </div>
                     <div class="form-group">
                         <label style="font-size:12px; color:#7f8c8d;">Longitude</label>
-                        <input type="number" id="edit-lon" step="0.0001" value="${lixeira.coordenadas ? lixeira.coordenadas.longitude : ''}" />
+                        <input type="number" id="edit-lon" step="0.0001" value="${lixeira.longitude || ''}" />
                     </div>
                 </div>
                 <div class="form-actions" style="margin-top:10px; display:flex; gap:8px;">
@@ -435,7 +678,8 @@ async function verDetalhes(id) {
             feedback.className = '';
 
             const localizacao = document.getElementById('edit-localizacao').value.trim();
-            const tipo = document.getElementById('edit-tipo').value.trim();
+            const tipoMaterialId = document.getElementById('edit-tipo-material').value;
+            const parceiroId = document.getElementById('edit-parceiro').value;
             const nivelStr = document.getElementById('edit-nivel').value;
             const statusSel = document.getElementById('edit-status').value;
             const latStr = document.getElementById('edit-lat').value;
@@ -458,15 +702,18 @@ async function verDetalhes(id) {
 
             const dadosAtualizacao = {
                 localizacao,
-                tipo: tipo || null,
                 nivel_preenchimento: nivel,
-                status: statusSel
+                status: statusSel,
+                tipo_material_id: tipoMaterialId ? parseInt(tipoMaterialId) : null,
+                parceiro_id: parceiroId ? parseInt(parceiroId) : null
             };
+            
             if (latStr && lonStr) {
                 const lat = parseFloat(latStr);
                 const lon = parseFloat(lonStr);
                 if (!isNaN(lat) && !isNaN(lon)) {
-                    dadosAtualizacao.coordenadas = { latitude: lat, longitude: lon };
+                    dadosAtualizacao.latitude = lat;
+                    dadosAtualizacao.longitude = lon;
                 }
             }
 
@@ -518,9 +765,10 @@ function exportarCSV() {
                 'Localização': l.localizacao || '',
                 'Nível (%)': l.nivel_preenchimento || 0,
                 'Status': status.texto,
-                'Tipo': l.tipo || '',
+                'Tipo de Material': l.tipo_material ? l.tipo_material.nome : '',
+                'Parceiro': l.parceiro ? l.parceiro.nome : '',
                 'Última Coleta': l.ultima_coleta ? new Date(l.ultima_coleta).toLocaleString('pt-BR') : 'N/A',
-                'Coordenadas': l.coordenadas ? `${l.coordenadas.latitude}, ${l.coordenadas.longitude}` : ''
+                'Coordenadas': (l.latitude && l.longitude) ? `${l.latitude}, ${l.longitude}` : ''
             };
         });
         
@@ -563,19 +811,37 @@ function exportarCSV() {
 
 // Event listeners
 document.addEventListener('DOMContentLoaded', function() {
+    // Verificar se estamos na página do dashboard (não na página de relatórios)
+    // A página de relatórios tem o elemento 'relatorios-container'
+    const isRelatoriosPage = document.querySelector('.relatorios-container') !== null;
+    
+    if (isRelatoriosPage) {
+        // É a página de relatórios, não executar listeners específicos do dashboard
+        return;
+    }
+    
     // Botão atualizar
-    document.getElementById('btn-atualizar').addEventListener('click', atualizarComFeedback);
+    const btnAtualizar = document.getElementById('btn-atualizar');
+    if (btnAtualizar) {
+        btnAtualizar.addEventListener('click', atualizarComFeedback);
+    }
     
     // Filtros
-    document.getElementById('filter-status').addEventListener('change', function(e) {
-        filtros.status = e.target.value;
-        aplicarFiltros();
-    });
+    const filterStatus = document.getElementById('filter-status');
+    if (filterStatus) {
+        filterStatus.addEventListener('change', function(e) {
+            filtros.status = e.target.value;
+            aplicarFiltros();
+        });
+    }
     
-    document.getElementById('filter-busca').addEventListener('input', function(e) {
-        filtros.busca = e.target.value;
-        aplicarFiltros();
-    });
+    const filterBusca = document.getElementById('filter-busca');
+    if (filterBusca) {
+        filterBusca.addEventListener('input', function(e) {
+            filtros.busca = e.target.value;
+            aplicarFiltros();
+        });
+    }
 
     // Ordenação
     const selectOrdenacao = document.getElementById('filter-ordenacao');
@@ -587,7 +853,10 @@ document.addEventListener('DOMContentLoaded', function() {
     }
     
     // Botão exportar
-    document.getElementById('btn-exportar').addEventListener('click', exportarCSV);
+    const btnExportar = document.getElementById('btn-exportar');
+    if (btnExportar) {
+        btnExportar.addEventListener('click', exportarCSV);
+    }
 
     // Botão simular
     const btnSimular = document.getElementById('btn-simular');
@@ -595,13 +864,56 @@ document.addEventListener('DOMContentLoaded', function() {
         btnSimular.addEventListener('click', alternarSimulacao);
     }
     
+    // Filtro de data no histórico
+    const filterDate = document.getElementById('filter-date');
+    if (filterDate) {
+        filterDate.addEventListener('change', function(e) {
+            dataFiltroHistorico = e.target.value || null;
+            carregarHistorico();
+        });
+    }
+    
+    // Botão Relatório
+    const btnRelatorio = document.getElementById('btn-relatorio');
+    if (btnRelatorio) {
+        btnRelatorio.addEventListener('click', function() {
+            window.location.href = '/relatorios';
+        });
+    }
+    
+    // Ordenação ao clicar nos cabeçalhos da tabela de histórico
+    const historyTable = document.getElementById('history-table');
+    if (historyTable) {
+        const headers = historyTable.querySelectorAll('thead th');
+        const colunas = ['id', 'local', 'hora', 'volume', 'km', 'parceiro', 'tipo', 'status'];
+        
+        headers.forEach((th, index) => {
+            if (colunas[index] && colunas[index] !== 'status') { // Status não é ordenável
+                th.style.cursor = 'pointer';
+                th.style.userSelect = 'none';
+                th.title = 'Clique para ordenar';
+                
+                th.addEventListener('click', function() {
+                    alternarOrdenacaoHistorico(colunas[index]);
+                });
+            }
+        });
+    }
+    
     // Fechar modal
-    document.getElementById('modal-close').addEventListener('click', fecharModal);
-    document.getElementById('modal-overlay').addEventListener('click', function(e) {
-        if (e.target.id === 'modal-overlay') {
-            fecharModal();
-        }
-    });
+    const modalClose = document.getElementById('modal-close');
+    if (modalClose) {
+        modalClose.addEventListener('click', fecharModal);
+    }
+    
+    const modalOverlay = document.getElementById('modal-overlay');
+    if (modalOverlay) {
+        modalOverlay.addEventListener('click', function(e) {
+            if (e.target.id === 'modal-overlay') {
+                fecharModal();
+            }
+        });
+    }
     
     // Carregar dados iniciais
     carregarDados();
@@ -610,6 +922,8 @@ document.addEventListener('DOMContentLoaded', function() {
     obterConfiguracoes().then(configuracoes => {
         const intervalo = (configuracoes.intervalo_atualizacao || 30) * 1000;
         intervaloAtualizacao = setInterval(carregarDados, intervalo);
+    }).catch(err => {
+        console.warn('Erro ao obter configurações:', err);
     });
 });
 
