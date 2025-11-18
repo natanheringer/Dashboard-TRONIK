@@ -1,0 +1,63 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Login - Dashboard-TRONIK</title>
+    <link rel="stylesheet" href="{{ url_for('static', filename='css/estilo.css') }}">
+    <link rel="stylesheet" href="{{ url_for('static', filename='css/auth.css') }}">
+</head>
+<body>
+    <div class="login-container">
+        <div class="login-card">
+            <div class="login-header">
+                <h1>Dashboard-TRONIK</h1>
+                <p>Faça login para continuar</p>
+            </div>
+
+            {% with messages = get_flashed_messages(with_categories=true) %}
+                {% if messages %}
+                    {% for category, message in messages %}
+                        <div class="alert alert-{{ category }}">
+                            {{ message }}
+                        </div>
+                    {% endfor %}
+                {% endif %}
+            {% endwith %}
+
+            <form id="login-form" method="POST" action="{{ url_for('auth.login') }}">
+                <div class="form-group">
+                    <label for="username">Username ou Email</label>
+                    <input type="text" id="username" name="username" required autofocus>
+                </div>
+
+                <div class="form-group">
+                    <label for="senha">Senha</label>
+                    <input type="password" id="senha" name="senha" required>
+                </div>
+
+                <div class="form-group-checkbox">
+                    <input type="checkbox" id="remember" name="remember" value="true">
+                    <label for="remember">Lembrar-me</label>
+                </div>
+
+                <button type="submit" class="btn-login">Entrar</button>
+            </form>
+
+            <div class="login-footer">
+                <p>Não tem uma conta? <a href="{{ url_for('auth.registro') }}">Registre-se</a></p>
+            </div>
+        </div>
+    </div>
+
+    <script>
+        // Feedback visual no submit
+        document.getElementById('login-form').addEventListener('submit', function(e) {
+            const btn = this.querySelector('.btn-login');
+            btn.disabled = true;
+            btn.textContent = 'Entrando...';
+        });
+    </script>
+</body>
+</html>
+

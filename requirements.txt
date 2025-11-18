@@ -41,10 +41,32 @@ requests==2.31.0
 # Biblioteca para fazer requisições HTTP
 # Pode ser útil para integrações futuras
 
-# Variáveis de ambiente (opcional)
+# Variáveis de ambiente
 python-dotenv==1.0.0
 # Permite carregar configurações de arquivo .env
 # Útil para manter senhas e configurações seguras
+
+# Autenticação e segurança
+Flask-Login==0.6.3
+# Sistema de autenticação de usuários
+# Gerencia sessões de login de forma segura
+
+Flask-Limiter==3.5.0
+# Rate limiting para proteção contra abuso
+# Limita número de requisições por IP/usuário
+
+Werkzeug==3.0.1
+# Necessário para hash de senhas
+# Já incluído com Flask, mas especificamos versão
+
+marshmallow==3.20.1
+# Validação e serialização de dados
+# Protege contra dados inválidos e maliciosos
+
+# Headers de segurança
+Flask-Talisman==1.1.0
+# Adiciona headers de segurança HTTP
+# Proteção contra XSS, clickjacking, etc.
 
 # ========================================
 # DEPENDÊNCIAS DE DESENVOLVIMENTO (OPCIONAL)
