@@ -1,26 +1,79 @@
-from flask_sqlalchemy import SQLAlchemy
+"""
+Modelos de Dados - Dashboard-TRONIK
+==================================
 
-db = SQLAlchemy()
+Define os modelos de dados para o banco SQLite.
+Contém as classes que representam as tabelas.
 
-class Lixeira(db.Model):
+Modelos implementados:
+- Lixeira: Representa uma lixeira inteligente com sensores
+- Sensor: Representa sensores associados a lixeiras
+- Coleta: Histórico de coletas realizadas
+"""
+
+from sqlalchemy import Column, Integer, String, Float, DateTime, ForeignKey
+from sqlalchemy.orm import relationship, declarative_base
+from datetime import datetime
+
+# Base do SQLAlchemy (todas as tabelas herdam dela)
+Base = declarative_base()
+
+# ----------------------------------------------------------
+# TABELA: Lixeiras
+# ----------------------------------------------------------
+class Lixeira(Base):
     __tablename__ = "lixeiras"
-    id = db.Column(db.Integer, primary_key=True)
-    nome = db.Column(db.String(100), nullable=False)
-    localizacao = db.Column(db.String(255), nullable=False)
-    nivel = db.Column(db.Integer, nullable=False, default=0)
-    status = db.Column(db.String(20), nullable=False, default="OK")
 
-    def atualizar_status(self):
-        if self.nivel >= 90:
-            self.status = "CRITICO"
-        elif self.nivel >= 80:
-            self.status = "ALERTA"
-        else:
-            self.status = "OK"
+    id = Column(Integer, primary_key=True, autoincrement=True)
+    localizacao = Column(String(150), nullable=False)
+    nivel_preenchimento = Column(Float, default=0.0)
+    status = Column(String(20), default="OK")  # OK, alerta, manutencao etc.
+    ultima_coleta = Column(DateTime, default=datetime.utcnow)
+    tipo = Column(String(50))
+    coordenadas = Column(String(100))
 
-class Sensor(db.Model):
+    # Relacionamentos
+    sensores = relationship("Sensor", back_populates="lixeira", cascade="all, delete-orphan")
+    coletas = relationship("Coleta", back_populates="lixeira", cascade="all, delete-orphan")
+
+    def __repr__(self):
+        return f"<Lixeira(id={self.id}, local='{self.localizacao}', nivel={self.nivel_preenchimento}%)>"
+
+
+# ----------------------------------------------------------
+# TABELA: Sensores
+# ----------------------------------------------------------
+class Sensor(Base):
     __tablename__ = "sensores"
-    id = db.Column(db.Integer, primary_key=True)
-    identificador = db.Column(db.String(100), unique=True, nullable=False)
-    lixeira_id = db.Column(db.Integer, db.ForeignKey("lixeiras.id"), nullable=False)
-    lixeira = db.relationship("Lixeira", backref="sensores")
+
+    id = Column(Integer, primary_key=True, autoincrement=True)
+    lixeira_id = Column(Integer, ForeignKey("lixeiras.id"))
+    tipo = Column(String(50))  # ultrassonico, temperatura, etc.
+    bateria = Column(Float, default=100.0)
+    ultimo_ping = Column(DateTime, default=datetime.utcnow)
+
+    # Relacionamento reverso
+    lixeira = relationship("Lixeira", back_populates="sensores")
+
+    def __repr__(self):
+        return f"<Sensor(id={self.id}, tipo={self.tipo}, bateria={self.bateria}%)>"
+
+
+# ----------------------------------------------------------
+# TABELA: Coletas
+# ----------------------------------------------------------
+class Coleta(Base):
+    __tablename__ = "coletas"
+
+    id = Column(Integer, primary_key=True, autoincrement=True)
+    lixeira_id = Column(Integer, ForeignKey("lixeiras.id"))
+    data_hora = Column(DateTime, default=datetime.utcnow)
+    volume_estimado = Column(Float)  # diferença entre nível antes/depois da coleta
+
+    lixeira = relationship("Lixeira", back_populates="coletas")
+
+    def __repr__(self):
+        return f"<Coleta(id={self.id}, lixeira_id={self.lixeira_id}, volume={self.volume_estimado})>"
+
+
+
