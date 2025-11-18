@@ -1,0 +1,93 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Registro - Dashboard-TRONIK</title>
+    <link rel="stylesheet" href="{{ url_for('static', filename='css/estilo.css') }}">
+    <link rel="stylesheet" href="{{ url_for('static', filename='css/auth.css') }}">
+</head>
+<body>
+    <div class="login-container">
+        <div class="login-card registro">
+            <div class="login-header">
+                <h1>Dashboard-TRONIK</h1>
+                <p>Crie sua conta</p>
+            </div>
+
+            {% with messages = get_flashed_messages(with_categories=true) %}
+                {% if messages %}
+                    {% for category, message in messages %}
+                        <div class="alert alert-{{ category }}">
+                            {{ message }}
+                        </div>
+                    {% endfor %}
+                {% endif %}
+            {% endwith %}
+
+            <form id="registro-form" method="POST" action="{{ url_for('auth.registro') }}">
+                <div class="form-group">
+                    <label for="username">Username <span class="required">*</span></label>
+                    <input type="text" id="username" name="username" required autofocus minlength="3" maxlength="30">
+                    <small>3-30 caracteres, apenas letras, números, underscore e hífen</small>
+                </div>
+
+                <div class="form-group">
+                    <label for="email">Email <span class="required">*</span></label>
+                    <input type="email" id="email" name="email" required>
+                </div>
+
+                <div class="form-group">
+                    <label for="nome_completo">Nome Completo</label>
+                    <input type="text" id="nome_completo" name="nome_completo">
+                </div>
+
+                <div class="form-group">
+                    <label for="senha">Senha <span class="required">*</span></label>
+                    <input type="password" id="senha" name="senha" required minlength="8">
+                    <small>Mínimo 8 caracteres, com letras maiúsculas, minúsculas e números</small>
+                </div>
+
+                <button type="submit" class="btn-register">Registrar</button>
+            </form>
+
+            <div class="login-footer">
+                <p>Já tem uma conta? <a href="{{ url_for('auth.login') }}">Faça login</a></p>
+            </div>
+        </div>
+    </div>
+
+    <script>
+        // Validação básica no frontend
+        document.getElementById('registro-form').addEventListener('submit', function(e) {
+            const senha = document.getElementById('senha').value;
+            const username = document.getElementById('username').value;
+            
+            // Validar senha
+            if (senha.length < 8) {
+                e.preventDefault();
+                alert('A senha deve ter pelo menos 8 caracteres');
+                return false;
+            }
+            
+            if (!/[A-Z]/.test(senha) || !/[a-z]/.test(senha) || !/\d/.test(senha)) {
+                e.preventDefault();
+                alert('A senha deve conter letras maiúsculas, minúsculas e números');
+                return false;
+            }
+            
+            // Validar username
+            if (!/^[a-zA-Z0-9][a-zA-Z0-9_-]*$/.test(username)) {
+                e.preventDefault();
+                alert('Username inválido. Use apenas letras, números, underscore e hífen');
+                return false;
+            }
+            
+            const btn = this.querySelector('.btn-register');
+            btn.disabled = true;
+            btn.textContent = 'Registrando...';
+        });
+    </script>
+</body>
+</html>
+

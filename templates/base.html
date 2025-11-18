@@ -13,7 +13,7 @@
         <div class="header-content">
             <div class="logo-section">
                 <div class="logo"></div>
-                <a href="{{ url_for('paginas.index') }}" style="text-decoration: none; color: inherit;">
+                <a href="{{ url_for('paginas.index') }}" class="logo-link">
                     <h1 class="logo-text">Dashboard-TRONIK</h1>
                 </a>
             </div>
@@ -24,6 +24,23 @@
                 <a href="{{ url_for('paginas.sobre') }}" class="nav-link">Sobre</a>
             </nav>
             <div class="header-actions">
+                {% if current_user.is_authenticated %}
+                <div class="user-info">
+                    <span class="user-username">{{ current_user.username }}</span>
+                    {% if current_user.admin %}
+                    <span class="admin-badge">ADMIN</span>
+                    {% endif %}
+                </div>
+                <form method="POST" action="{{ url_for('auth.logout') }}" class="logout-form">
+                    <button type="submit" class="btn-exportar btn-logout">
+                        Sair
+                    </button>
+                </form>
+                {% else %}
+                <a href="{{ url_for('auth.login') }}" class="btn-atualizar btn-entrar">
+                    Entrar
+                </a>
+                {% endif %}
                 <div class="status-indicator" id="status-indicator">
                     <div class="status-dot"></div>
                     <span>Conectado</span>

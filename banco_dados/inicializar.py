@@ -13,9 +13,13 @@ Funções implementadas:
 
 from sqlalchemy import create_engine
 from sqlalchemy.orm import sessionmaker
-from banco_dados.modelos import Base, Lixeira, Sensor, Coleta
+from banco_dados.modelos import Base, Lixeira, Sensor, Coleta, Usuario
 import json
 from datetime import datetime
+import os
+import logging
+
+logger = logging.getLogger(__name__)
 
 # ----------------------------------------------------------
 # Função: cria o banco de dados SQLite e as tabelas
@@ -86,10 +90,84 @@ def resetar_banco(engine):
     print("Banco resetado com sucesso!")
 
 # ----------------------------------------------------------
+# Função: criar usuário admin padrão
+# ----------------------------------------------------------
+def criar_usuario_admin(engine):
+    """
+    Cria um usuário administrador se não existir.
+    
+    IMPORTANTE: Requer variáveis de ambiente configuradas:
+    - ADMIN_USERNAME (obrigatório)
+    - ADMIN_EMAIL (obrigatório)
+    - ADMIN_PASSWORD (obrigatório)
+    
+    Se as variáveis não estiverem configuradas, o usuário admin não será criado.
+    """
+    Session = sessionmaker(bind=engine)
+    session = Session()
+    
+    try:
+        # Verificar se já existe admin
+        admin_existente = session.query(Usuario).filter(Usuario.admin == True).first()
+        if admin_existente:
+            logger.info(f"Usuário admin já existe: {admin_existente.username}")
+            return
+        
+        # Obter credenciais do ambiente (OBRIGATÓRIAS)
+        admin_username = os.getenv('ADMIN_USERNAME')
+        admin_email = os.getenv('ADMIN_EMAIL')
+        admin_password = os.getenv('ADMIN_PASSWORD')
+        
+        # Validar que todas as credenciais foram fornecidas
+        if not admin_username or not admin_email or not admin_password:
+            logger.warning(
+                "⚠️  Usuário admin não criado: variáveis de ambiente não configuradas.\n"
+                "   Configure no arquivo .env:\n"
+                "   - ADMIN_USERNAME=seu-usuario\n"
+                "   - ADMIN_EMAIL=seu-email@dominio.com\n"
+                "   - ADMIN_PASSWORD=sua-senha-forte\n"
+                "   Ou crie manualmente via página de registro."
+            )
+            return
+        
+        # Validar força básica da senha (mais flexível para admin inicial)
+        if len(admin_password) < 8:
+            logger.error("❌ Senha do admin muito curta. Mínimo 8 caracteres.")
+            return
+        
+        # Aviso se a senha não for muito forte, mas permite
+        if len(admin_password) < 12:
+            logger.warning("⚠️  Senha do admin é curta. Recomendado: pelo menos 12 caracteres.")
+        
+        # Criar admin
+        admin = Usuario(
+            username=admin_username,
+            email=admin_email,
+            nome_completo='Administrador',
+            ativo=True,
+            admin=True
+        )
+        admin.set_senha(admin_password)
+        
+        session.add(admin)
+        session.commit()
+        logger.info(f"✅ Usuário admin criado: {admin_username}")
+        logger.info(f"   Email: {admin_email}")
+        
+    except Exception as e:
+        logger.error(f"ERRO ao criar usuário admin: {e}")
+        session.rollback()
+        # Não levantar exceção para não quebrar a aplicação
+        # O admin pode ser criado manualmente depois
+    finally:
+        session.close()
+
+# ----------------------------------------------------------
 # Execução direta do script
 # ----------------------------------------------------------
 if __name__ == "__main__":
     engine = criar_banco()
     inserir_dados_iniciais(engine)
+    criar_usuario_admin(engine)
 
 

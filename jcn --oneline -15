@@ -1,0 +1,42 @@
+ .gitignore                                         |   60 [32m+[m
+ ARQUITETURA.md                                     |  444 [32m++++++[m
+ README.md                                          |    4 [32m+[m[31m-[m
+ app.py                                             |   86 [32m+[m[31m-[m
+ arquitetura.mmd                                    |  143 [32m++[m
+ banco_dados/__init__.py                            |    0
+ banco_dados/__pycache__/__init__.cpython-314.pyc   |  Bin [31m0[m -> [32m153[m bytes
+ .../__pycache__/inicializar.cpython-314.pyc        |  Bin [31m0[m -> [32m4243[m bytes
+ banco_dados/__pycache__/modelos.cpython-314.pyc    |  Bin [31m0[m -> [32m3772[m bytes
+ banco_dados/atualizar_tipos.py                     |   64 [32m+[m
+ banco_dados/dados/sensores_mock.json               | 1470 [32m++++++++++++++++++++[m
+ banco_dados/inicializar.py                         |   92 [32m+[m[31m-[m
+ banco_dados/modelos.py                             |   77 [32m+[m[31m-[m
+ banco_dados/tronik.db                              |  Bin [31m0[m -> [32m16384[m bytes
+ dados/sensores_mock.json                           |  105 [31m--[m
+ deploy/dashboard-tronik.service                    |   17 [32m+[m
+ deploy/env.example                                 |    8 [32m+[m
+ deploy/nginx/tronik.conf                           |   54 [32m+[m
+ diagrama_arquitetura_dashboard.png                 |  Bin [31m0[m -> [32m1044601[m bytes
+ diagrama_arquitetura_dashboard.svg                 |  102 [32m++[m
+ docs/Especificacao_Tecnica.md                      |   58 [32m+[m
+ docs/MVP.md                                        |   46 [32m+[m
+ docs/Planejamento.md                               |   87 [32m++[m
+ estatico/css/configuracoes.css                     |  216 [32m+++[m
+ estatico/css/estilo.css                            |  996 [32m++++++++++++[m[31m-[m
+ estatico/css/relatorios.css                        |  252 [32m++++[m
+ estatico/css/sobre.css                             |  387 [32m++++++[m
+ estatico/js/api.js                                 |  120 [32m+[m[31m-[m
+ estatico/js/dashboard.js                           |  626 [32m++++++++[m[31m-[m
+ gunicorn.conf.py                                   |   22 [32m+[m
+ requirements.txt                                   |    3 [32m+[m[31m-[m
+ rotas/api.py                                       |  432 [32m+++++[m[31m-[m
+ rotas/paginas.py                                   |   34 [32m+[m[31m-[m
+ templates/base.html                                |   65 [32m+[m[31m-[m
+ templates/configuracoes.html                       |  242 [32m++++[m
+ templates/index.html                               |  138 [32m+[m[31m-[m
+ templates/relatorios.html                          |  803 [32m+++++++++++[m
+ templates/sobre.html                               |  301 [32m++++[m
+ teste/mockup-detalhes.html                         |  588 [32m++++++++[m
+ teste/mockup-main.html                             |  915 [32m++++++++++++[m
+ teste/mockup-relatorio.html                        |  653 [32m+++++++++[m
+ 41 files changed, 9460 insertions(+), 250 deletions(-)

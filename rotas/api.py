@@ -7,13 +7,40 @@ Gerencia todas as operações CRUD das lixeiras.
 """
 
 from flask import Blueprint, jsonify, request
+from flask_login import login_required, current_user
+from flask_limiter import Limiter
+from flask_limiter.util import get_remote_address
 from sqlalchemy.orm import scoped_session
 from banco_dados.modelos import Lixeira, Sensor, Coleta
+from banco_dados.seguranca import (
+    validar_coordenadas, validar_nivel_preenchimento, sanitizar_string
+)
 from datetime import datetime
 import random
+import logging
+
+# Configurar logging
+logger = logging.getLogger(__name__)
 
 # Criar blueprint da API
 api_bp = Blueprint('api', __name__, url_prefix='/api')
+
+# Rate limiter específico para API
+limiter = Limiter(
+    key_func=get_remote_address,
+    default_limits=["100 per hour"]
+)
+
+def admin_required(f):
+    """Decorator para exigir que o usuário seja admin"""
+    from functools import wraps
+    @wraps(f)
+    @login_required
+    def decorated_function(*args, **kwargs):
+        if not current_user.is_authenticated or not current_user.admin:
+            return jsonify({"erro": "Acesso negado. Apenas administradores."}), 403
+        return f(*args, **kwargs)
+    return decorated_function
 
 # Função auxiliar para obter sessão do banco
 def get_db():
@@ -183,6 +210,8 @@ def obter_estatisticas():
 # ============================================================
 
 @api_bp.route('/lixeira', methods=['POST'])
+@login_required
+@limiter.limit("10 per minute")
 def criar_lixeira():
     """Endpoint para criar uma nova lixeira"""
     db = get_db()
@@ -197,11 +226,18 @@ def criar_lixeira():
         if erros:
             return jsonify({"erro": "Erros de validação", "detalhes": erros}), 400
         
-        # Processar coordenadas
+        # Sanitizar localização
+        dados['localizacao'] = sanitizar_string(dados.get('localizacao', ''), max_length=150)
+        if not dados['localizacao']:
+            return jsonify({"erro": "Localização é obrigatória"}), 400
+        
+        # Processar coordenadas com validação
         coordenadas_str = None
         if 'coordenadas' in dados and isinstance(dados['coordenadas'], dict):
             lat = dados['coordenadas'].get('latitude', 0.0)
             lon = dados['coordenadas'].get('longitude', 0.0)
+            if not validar_coordenadas(lat, lon):
+                return jsonify({"erro": "Coordenadas inválidas"}), 400
             coordenadas_str = f"{lat}, {lon}"
         
         # Processar última coleta
@@ -214,13 +250,22 @@ def criar_lixeira():
         else:
             ultima_coleta = datetime.utcnow()
         
+        # Validar nível de preenchimento
+        nivel = dados.get('nivel_preenchimento', 0.0)
+        valido, erro = validar_nivel_preenchimento(nivel)
+        if not valido:
+            return jsonify({"erro": erro}), 400
+        
+        # Sanitizar tipo
+        tipo = sanitizar_string(dados.get('tipo', ''), max_length=50) or None
+        
         # Criar nova lixeira
         nova_lixeira = Lixeira(
             localizacao=dados['localizacao'],
-            nivel_preenchimento=dados.get('nivel_preenchimento', 0.0),
+            nivel_preenchimento=float(nivel),
             status=dados.get('status', 'ativo'),
             ultima_coleta=ultima_coleta,
-            tipo=dados.get('tipo'),
+            tipo=tipo,
             coordenadas=coordenadas_str
         )
         
@@ -237,6 +282,8 @@ def criar_lixeira():
         db.close()
 
 @api_bp.route('/lixeira/<int:lixeira_id>', methods=['PUT'])
+@login_required
+@limiter.limit("20 per minute")
 def atualizar_lixeira(lixeira_id):
     """Endpoint para atualizar uma lixeira"""
     db = get_db()
@@ -292,6 +339,8 @@ def atualizar_lixeira(lixeira_id):
         db.close()
 
 @api_bp.route('/lixeira/<int:lixeira_id>', methods=['DELETE'])
+@admin_required
+@limiter.limit("5 per minute")
 def deletar_lixeira(lixeira_id):
     """Endpoint para deletar uma lixeira"""
     db = get_db()
@@ -394,6 +443,8 @@ def obter_relatorios():
 # ============================================================
 
 @api_bp.route('/lixeiras/simular-niveis', methods=['POST'])
+@login_required
+@limiter.limit("10 per minute")
 def simular_niveis():
     """Endpoint para simular alterações nos níveis das lixeiras.
     Ajusta aleatoriamente o nível de preenchimento de todas as lixeiras,
