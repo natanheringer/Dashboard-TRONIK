@@ -28,13 +28,111 @@ Estilos específicos para a página relatorios.html
 
 .filters-compact {
     display: flex;
-    gap: 10px;
-    align-items: end;
+    flex-direction: column;
+    gap: 12px;
 }
 
+.filter-group {
+    display: flex;
+    flex-direction: column;
+    gap: 5px;
+}
+
+.filter-label {
+    font-size: 11px;
+    font-weight: 600;
+    color: #2C3E50;
+}
+
+.filter-input {
+    padding: 8px;
+    border: 1px solid #ddd;
+    border-radius: 4px;
+    font-size: 12px;
+    width: 100%;
+    box-sizing: border-box;
+}
+
+/* KPIs Indicadores do Período (5 cards) */
+.kpi-grid-indicadores {
+    display: grid;
+    grid-template-columns: repeat(5, 1fr);
+    gap: 10px;
+}
+
+@media (max-width: 1400px) {
+    .kpi-grid-indicadores {
+        grid-template-columns: repeat(3, 1fr);
+    }
+}
+
+@media (max-width: 900px) {
+    .kpi-grid-indicadores {
+        grid-template-columns: repeat(2, 1fr);
+    }
+}
+
+.kpi-card-indicador {
+    text-align: center;
+    padding: 15px 10px;
+    background: #f8f9fa;
+    border-radius: 6px;
+    border-left: 3px solid #5DB5A4;
+}
+
+.kpi-value-indicador {
+    font-size: 24px;
+    font-weight: 700;
+    color: #2C3E50;
+    margin-bottom: 5px;
+}
+
+.kpi-label-indicador {
+    font-size: 10px;
+    color: #7f8c8d;
+    font-weight: 500;
+}
+
+/* KPIs Principais (Top 3) - mantido para compatibilidade */
+.kpi-grid-main {
+    display: grid;
+    grid-template-columns: repeat(3, 1fr);
+    gap: 15px;
+}
+
+.kpi-card-main {
+    text-align: center;
+    padding: 20px;
+    background: #5DB5A4;
+    border-radius: 8px;
+    color: white;
+    box-shadow: 0 2px 4px rgba(0,0,0,0.1);
+}
+
+.kpi-value-main {
+    font-size: 32px;
+    font-weight: 700;
+    color: white;
+    margin-bottom: 5px;
+}
+
+.kpi-label-main {
+    font-size: 12px;
+    color: rgba(255, 255, 255, 0.9);
+    font-weight: 500;
+}
+
+/* KPIs Financeiros (Bottom 3) */
+.kpi-grid-financial {
+    display: grid;
+    grid-template-columns: repeat(3, 1fr);
+    gap: 15px;
+}
+
+/* KPIs antigos (mantidos para compatibilidade) */
 .kpi-grid {
     display: grid;
-    grid-template-columns: repeat(4, 1fr);
+    grid-template-columns: repeat(3, 1fr);
     gap: 10px;
 }
 
@@ -155,7 +253,7 @@ Estilos específicos para a página relatorios.html
 }
 
 .chart-container {
-    height: 180px;
+    height: 250px;
     position: relative;
 }
 
@@ -171,7 +269,7 @@ Estilos específicos para a página relatorios.html
 
 /* Ajustar layout para não cortar */
 .relatorios-container {
-    height: 100%;
+    height: calc(100vh - 120px);
     overflow: hidden;
     width: 100%;
     max-width: 100%;
@@ -189,7 +287,7 @@ Estilos específicos para a página relatorios.html
     display: flex;
     flex-direction: column;
     gap: 15px;
-    padding-right: 5px;
+    padding-right: 10px;
 }
 
 .relatorios-right-panel {
