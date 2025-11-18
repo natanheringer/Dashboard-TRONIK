@@ -150,3 +150,118 @@ def validar_username(username: str) -> Tuple[bool, Optional[str]]:
     
     return True, None
 
+
+def validar_latitude(latitude: float) -> Tuple[bool, Optional[str]]:
+    """
+    Valida latitude (-90 a 90).
+    
+    Args:
+        latitude: Latitude a validar
+        
+    Returns:
+        Tupla (é_válida, mensagem_erro)
+    """
+    try:
+        lat = float(latitude)
+        if lat < -90 or lat > 90:
+            return False, "Latitude deve estar entre -90 e 90"
+        return True, None
+    except (ValueError, TypeError):
+        return False, "Latitude deve ser um número"
+
+
+def validar_longitude(longitude: float) -> Tuple[bool, Optional[str]]:
+    """
+    Valida longitude (-180 a 180).
+    
+    Args:
+        longitude: Longitude a validar
+        
+    Returns:
+        Tupla (é_válida, mensagem_erro)
+    """
+    try:
+        lon = float(longitude)
+        if lon < -180 or lon > 180:
+            return False, "Longitude deve estar entre -180 e 180"
+        return True, None
+    except (ValueError, TypeError):
+        return False, "Longitude deve ser um número"
+
+
+def validar_quantidade_kg(quantidade: float) -> Tuple[bool, Optional[str]]:
+    """
+    Valida quantidade em quilogramas (deve ser > 0).
+    
+    Args:
+        quantidade: Quantidade a validar
+        
+    Returns:
+        Tupla (é_válida, mensagem_erro)
+    """
+    try:
+        qtd = float(quantidade)
+        if qtd <= 0:
+            return False, "Quantidade deve ser maior que zero"
+        return True, None
+    except (ValueError, TypeError):
+        return False, "Quantidade deve ser um número"
+
+
+def validar_km_percorrido(km: float) -> Tuple[bool, Optional[str]]:
+    """
+    Valida quilômetros percorridos (deve ser >= 0).
+    
+    Args:
+        km: Quilômetros a validar
+        
+    Returns:
+        Tupla (é_válido, mensagem_erro)
+    """
+    try:
+        km_float = float(km)
+        if km_float < 0:
+            return False, "KM percorrido não pode ser negativo"
+        return True, None
+    except (ValueError, TypeError):
+        return False, "KM percorrido deve ser um número"
+
+
+def validar_preco_combustivel(preco: float) -> Tuple[bool, Optional[str]]:
+    """
+    Valida preço do combustível (deve ser >= 0).
+    
+    Args:
+        preco: Preço a validar
+        
+    Returns:
+        Tupla (é_válido, mensagem_erro)
+    """
+    try:
+        preco_float = float(preco)
+        if preco_float < 0:
+            return False, "Preço do combustível não pode ser negativo"
+        return True, None
+    except (ValueError, TypeError):
+        return False, "Preço do combustível deve ser um número"
+
+
+def validar_tipo_operacao(tipo: str) -> Tuple[bool, Optional[str]]:
+    """
+    Valida tipo de operação (deve ser "Avulsa" ou "Campanha").
+    
+    Args:
+        tipo: Tipo de operação a validar
+        
+    Returns:
+        Tupla (é_válido, mensagem_erro)
+    """
+    if not tipo:
+        return True, None  # Opcional
+    
+    tipo_str = str(tipo).strip()
+    if tipo_str not in ['Avulsa', 'Campanha']:
+        return False, "Tipo de operação deve ser 'Avulsa' ou 'Campanha'"
+    
+    return True, None
+
