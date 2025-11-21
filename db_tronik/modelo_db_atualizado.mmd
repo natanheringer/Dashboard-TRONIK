@@ -1,0 +1,78 @@
+erDiagram
+
+    USUARIOS {
+        INTEGER id PK "Primary Key"
+        TEXT username UK "Unique"
+        TEXT email UK "Unique"
+        TEXT senha_hash
+        TEXT nome_completo
+        BOOLEAN ativo "0/1"
+        BOOLEAN admin "0/1"
+        TEXT criado_em "ISO8601"
+        TEXT ultimo_login "ISO8601"
+    }
+
+    PARCEIROS {
+        INTEGER id PK
+        TEXT nome UK
+        BOOLEAN ativo
+        TEXT criado_em "ISO8601"
+    }
+
+    TIPO_MATERIAL {
+        INTEGER id PK
+        TEXT nome UK
+    }
+
+    TIPO_SENSOR {
+        INTEGER id PK
+        TEXT nome UK
+    }
+
+    TIPO_COLETOR {
+        INTEGER id PK
+        TEXT nome UK
+    }
+
+    LIXEIRAS {
+        INTEGER id PK
+        TEXT localizacao
+        REAL nivel_preenchimento
+        TEXT status "OK / CHEIA / QUEBRADA"
+        TEXT ultima_coleta "ISO8601"
+        REAL latitude
+        REAL longitude
+        INTEGER parceiro_id FK
+        INTEGER tipo_material_id FK
+    }
+
+    SENSORES {
+        INTEGER id PK
+        INTEGER lixeira_id FK
+        INTEGER tipo_sensor_id FK
+        REAL bateria "0 a 100"
+        TEXT ultimo_ping "ISO8601"
+    }
+
+    COLETAS {
+        INTEGER id PK
+        INTEGER lixeira_id FK
+        TEXT data_hora "ISO8601"
+        REAL volume_estimado
+        INTEGER tipo_coletor_id FK
+        TEXT tipo_operacao "Avulsa / Campanha"
+        REAL km_percorrido
+        REAL preco_combustivel
+        REAL lucro_por_kg
+        BOOLEAN emissao_mtr
+        INTEGER parceiro_id FK
+    }
+
+    %% RELACIONAMENTOS
+    PARCEIROS ||--o{ LIXEIRAS : "cliente"
+    PARCEIROS ||--o{ COLETAS : "opera"
+    LIXEIRAS ||--o{ SENSORES : "possui"
+    LIXEIRAS ||--o{ COLETAS : "coletas"
+    TIPO_MATERIAL ||--o{ LIXEIRAS : "material"
+    TIPO_SENSOR ||--o{ SENSORES : "tipo"
+    TIPO_COLETOR ||--o{ COLETAS : "coletor"

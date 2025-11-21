@@ -1,0 +1,96 @@
+{% extends "base.html" %}
+
+{% block title %}Dashboard-TRONIK - Notificações{% endblock %}
+
+{% block extra_css %}
+<link rel="stylesheet" href="{{ url_for('static', filename='css/notificacoes.css') }}">
+{% endblock %}
+
+{% block content %}
+<div class="notificacoes-container">
+    <!-- Header da página -->
+    <div class="notificacoes-header">
+        <h1 class="notificacoes-title">Notificações</h1>
+        <div class="notificacoes-actions">
+            <button class="btn-primary" id="btn-processar-alertas" title="Processar alertas e enviar notificações" aria-label="Processar alertas e enviar notificações por email">
+                🔔 Processar Alertas
+            </button>
+            <button class="btn-secondary" id="btn-atualizar" title="Atualizar lista" aria-label="Atualizar lista de notificações">
+                ↻ Atualizar
+            </button>
+        </div>
+    </div>
+
+    <!-- Filtros -->
+    <div class="notificacoes-filters" role="group" aria-label="Filtros de notificações">
+        <div class="filter-group">
+            <label for="filter-tipo" aria-label="Filtrar por tipo de notificação">Tipo:</label>
+            <select class="filter-select" id="filter-tipo" aria-label="Selecione o tipo de notificação">
+                <option value="">Todos</option>
+                <option value="lixeira_cheia">Lixeira Cheia</option>
+                <option value="bateria_baixa">Bateria Baixa</option>
+            </select>
+        </div>
+        <div class="filter-group">
+            <label for="filter-enviada" aria-label="Filtrar por status de envio">Status Envio:</label>
+            <select class="filter-select" id="filter-enviada" aria-label="Selecione o status de envio">
+                <option value="">Todas</option>
+                <option value="true">Enviadas</option>
+                <option value="false">Não Enviadas</option>
+            </select>
+        </div>
+        <div class="filter-group">
+            <label for="filter-lida" aria-label="Filtrar por status de leitura">Status Leitura:</label>
+            <select class="filter-select" id="filter-lida" aria-label="Selecione o status de leitura">
+                <option value="">Todas</option>
+                <option value="true">Lidas</option>
+                <option value="false">Não Lidas</option>
+            </select>
+        </div>
+        <div class="filter-group">
+            <label for="filter-lixeira" aria-label="Filtrar por ID da lixeira">Lixeira:</label>
+            <input type="number" class="filter-input" id="filter-lixeira" placeholder="ID da lixeira..." aria-label="Digite o ID da lixeira">
+        </div>
+        <button class="btn-secondary" id="btn-limpar-filtros" aria-label="Limpar todos os filtros">Limpar Filtros</button>
+    </div>
+
+    <!-- Estatísticas -->
+    <div class="notificacoes-stats">
+        <div class="stat-card">
+            <div class="stat-value" id="stat-total">0</div>
+            <div class="stat-label">Total</div>
+        </div>
+        <div class="stat-card">
+            <div class="stat-value" id="stat-enviadas">0</div>
+            <div class="stat-label">Enviadas</div>
+        </div>
+        <div class="stat-card">
+            <div class="stat-value" id="stat-pendentes">0</div>
+            <div class="stat-label">Pendentes</div>
+        </div>
+        <div class="stat-card">
+            <div class="stat-value" id="stat-hoje">0</div>
+            <div class="stat-label">Hoje</div>
+        </div>
+    </div>
+
+    <!-- Lista de notificações -->
+    <div class="notificacoes-list-container">
+        <div id="notificacoes-loading" class="loading-message">
+            <div class="spinner"></div>
+            <p>Carregando notificações...</p>
+        </div>
+        <div id="notificacoes-list" class="notificacoes-list" style="display: none;">
+            <!-- Notificações serão inseridas aqui via JavaScript -->
+        </div>
+        <div id="notificacoes-empty" class="empty-message" style="display: none;">
+            <p>Nenhuma notificação encontrada.</p>
+        </div>
+    </div>
+</div>
+{% endblock %}
+
+{% block extra_js %}
+<script src="{{ url_for('static', filename='js/notificacoes.js') }}"></script>
+{% endblock %}
+

@@ -53,12 +53,56 @@ function formatarData(dataISO) {
     return `Há ${diffDias} dias`;
 }
 
+// Função para calcular distância da sede (Haversine)
+function calcularDistanciaSede(lixeira) {
+    if (!lixeira || !lixeira.latitude || !lixeira.longitude) {
+        return null;
+    }
+    
+    const SEDE_TRONIK = {
+        lat: -15.908661672774747,
+        lon: -48.076158282355806
+    };
+    
+    const lat = parseFloat(lixeira.latitude);
+    const lon = parseFloat(lixeira.longitude);
+    
+    if (isNaN(lat) || isNaN(lon)) {
+        return null;
+    }
+    
+    const R = 6371; // Raio da Terra em km
+    const dLat = (lat - SEDE_TRONIK.lat) * Math.PI / 180;
+    const dLon = (lon - SEDE_TRONIK.lon) * Math.PI / 180;
+    const a = 
+        Math.sin(dLat / 2) * Math.sin(dLat / 2) +
+        Math.cos(SEDE_TRONIK.lat * Math.PI / 180) * Math.cos(lat * Math.PI / 180) *
+        Math.sin(dLon / 2) * Math.sin(dLon / 2);
+    const c = 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1 - a));
+    return R * c;
+}
+
+// Função para formatar distância
+function formatarDistancia(distancia) {
+    if (distancia === null || distancia === undefined) {
+        return 'N/A';
+    }
+    
+    if (distancia < 1) {
+        return `${Math.round(distancia * 1000)}m`;
+    }
+    
+    return `${distancia.toFixed(1)}km`;
+}
+
 // Função para criar card de lixeira
 function criarCardLixeira(lixeira) {
     const status = determinarStatus(lixeira);
     const nivel = Math.round(lixeira.nivel_preenchimento || 0);
     const tipoMaterial = lixeira.tipo_material ? lixeira.tipo_material.nome : 'Não especificado';
     const parceiro = lixeira.parceiro ? lixeira.parceiro.nome : null;
+    const distanciaSede = calcularDistanciaSede(lixeira);
+    const distanciaFormatada = formatarDistancia(distanciaSede);
     
     const card = document.createElement('div');
     card.className = `bin-card ${status.tipo === 'alert' ? 'alert' : status.tipo === 'warning' ? 'warning' : ''}`;
@@ -69,7 +113,7 @@ function criarCardLixeira(lixeira) {
             <div class="bin-info">
                 <div class="bin-id">#L${String(lixeira.id).padStart(3, '0')}</div>
                 <div class="bin-name">${lixeira.localizacao || 'Sem localização'}</div>
-                <div class="bin-location">${tipoMaterial}${parceiro ? ` | ${parceiro}` : ''}</div>
+                <div class="bin-location">${tipoMaterial}${parceiro ? ` | ${parceiro}` : ''}${distanciaSede !== null ? ` | 📍 ${distanciaFormatada} da sede` : ''}</div>
             </div>
             <span class="bin-status-badge status-${status.tipo}">${status.texto}</span>
         </div>

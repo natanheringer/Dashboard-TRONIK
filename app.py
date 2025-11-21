@@ -26,7 +26,7 @@ from sqlalchemy.orm import sessionmaker, scoped_session
 # Importar todos os modelos para garantir que as tabelas sejam criadas
 from banco_dados.modelos import (
     Base, Usuario, Lixeira, Sensor, Coleta,
-    Parceiro, TipoMaterial, TipoSensor, TipoColetor
+    Parceiro, TipoMaterial, TipoSensor, TipoColetor, Notificacao
 )
 
 # Importações do sistema de inicialização
@@ -126,12 +126,12 @@ talisman = Talisman(
     content_security_policy={
         'default-src': "'self'",
         'script-src': "'self' 'unsafe-inline' https://cdn.jsdelivr.net",
-        'style-src': "'self' 'unsafe-inline'",
+        'style-src': "'self' 'unsafe-inline' https://cdn.jsdelivr.net",
         'img-src': "'self' data: https:",
-        'font-src': "'self' data:",
-        'connect-src': "'self' https://cdn.jsdelivr.net",
-    },
-    content_security_policy_nonce_in=['script-src']
+        'font-src': "'self' data: https://cdn.jsdelivr.net",
+        'connect-src': "'self' https://cdn.jsdelivr.net https://router.project-osrm.org",
+    }
+    # Removido content_security_policy_nonce_in para evitar conflito com 'unsafe-inline'
 )
 
 # ========================================
@@ -143,6 +143,34 @@ logging.basicConfig(
     datefmt='%Y-%m-%d %H:%M:%S'
 )
 logger = logging.getLogger(__name__)
+
+# ========================================
+# FLASK-MAIL (Notificações por Email)
+# ========================================
+from banco_dados.notificacoes import inicializar_mail
+
+# Configurações de email (opcionais - podem estar no .env)
+app.config['MAIL_SERVER'] = os.getenv('MAIL_SERVER', '')
+app.config['MAIL_PORT'] = int(os.getenv('MAIL_PORT', 587))
+app.config['MAIL_USE_TLS'] = os.getenv('MAIL_USE_TLS', 'true').lower() == 'true'
+app.config['MAIL_USERNAME'] = os.getenv('MAIL_USERNAME', '')
+app.config['MAIL_PASSWORD'] = os.getenv('MAIL_PASSWORD', '')
+app.config['MAIL_DEFAULT_SENDER'] = os.getenv('MAIL_DEFAULT_SENDER', 'noreply@tronik.com')
+
+# Inicializar Flask-Mail (só funciona se MAIL_SERVER estiver configurado)
+if app.config['MAIL_SERVER']:
+    inicializar_mail(app)
+    logger.info("Sistema de notificações por email ativado")
+else:
+    logger.info("Sistema de notificações por email desativado (MAIL_SERVER não configurado)")
+
+# ========================================
+# AGENDAMENTO AUTOMÁTICO (APScheduler)
+# ========================================
+from banco_dados.agendamento import inicializar_agendamento
+
+# Inicializar agendamento automático
+inicializar_agendamento(app)
 
 # ========================================
 # CONFIGURAÇÃO DO BANCO DE DADOS
@@ -169,16 +197,17 @@ Base.metadata.create_all(engine)
 logger.info("Populando tabelas de tipos...")
 popular_tipos(engine)
 
-# Se o banco não existia, inserir dados iniciais
-if not db_exists:
-    # Tentar inserir dados iniciais
-    caminho_json = 'banco_dados/dados/sensores_mock.json'
-    if not os.path.exists(caminho_json):
-        caminho_json = 'dados/sensores_mock.json'
-    if os.path.exists(caminho_json):
-        inserir_dados_iniciais(engine, caminho_json)
-    else:
-        logger.warning("Arquivo de dados mock não encontrado. Banco criado vazio.")
+# NÃO carregar dados mock automaticamente
+# Os dados devem ser importados via CSV usando banco_dados/importar_csv.py
+# if not db_exists:
+#     # Tentar inserir dados iniciais
+#     caminho_json = 'banco_dados/dados/sensores_mock.json'
+#     if not os.path.exists(caminho_json):
+#         caminho_json = 'dados/sensores_mock.json'
+#     if os.path.exists(caminho_json):
+#         inserir_dados_iniciais(engine, caminho_json)
+#     else:
+#         logger.warning("Arquivo de dados mock não encontrado. Banco criado vazio.")
 
 # Sempre verificar/criar usuário admin (pode não existir mesmo se o banco existir)
 criar_usuario_admin(engine)
