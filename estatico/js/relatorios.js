@@ -127,10 +127,16 @@ function inicializarPagina() {
         btnAplicar.addEventListener('click', carregarRelatorio);
     }
     
-    // Botão exportar coletas
+    // Botão exportar coletas CSV
     const btnExportar = document.getElementById('btn-exportar-coletas');
     if (btnExportar) {
         btnExportar.addEventListener('click', exportarColetasCSV);
+    }
+    
+    // Botão exportar PDF
+    const btnExportarPDF = document.getElementById('btn-exportar-pdf');
+    if (btnExportarPDF) {
+        btnExportarPDF.addEventListener('click', exportarRelatorioPDF);
     }
     
     // Tabs de período
@@ -941,5 +947,33 @@ function exportarColetasCSV() {
     } catch (error) {
         console.error('Erro ao exportar CSV:', error);
         alert('Erro ao exportar CSV. Tente novamente.');
+    }
+}
+
+// Função para exportar relatório em PDF
+function exportarRelatorioPDF() {
+    try {
+        // Obter filtros atuais
+        const dataInicio = document.getElementById('data-inicio')?.value || '';
+        const dataFim = document.getElementById('data-fim')?.value || '';
+        const parceiroId = document.getElementById('filtro-parceiro')?.value || '';
+        const tipoOperacao = document.getElementById('filtro-tipo-operacao')?.value || '';
+        
+        // Construir URL com parâmetros
+        let url = '/api/relatorios/exportar-pdf?';
+        const params = [];
+        
+        if (dataInicio) params.push(`data_inicio=${encodeURIComponent(dataInicio)}`);
+        if (dataFim) params.push(`data_fim=${encodeURIComponent(dataFim)}`);
+        if (parceiroId) params.push(`parceiro_id=${encodeURIComponent(parceiroId)}`);
+        if (tipoOperacao) params.push(`tipo_operacao=${encodeURIComponent(tipoOperacao)}`);
+        
+        url += params.join('&');
+        
+        // Abrir em nova aba para download
+        window.open(url, '_blank');
+    } catch (error) {
+        console.error('Erro ao exportar PDF:', error);
+        alert('Erro ao exportar PDF. Tente novamente.');
     }
 }

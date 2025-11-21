@@ -12,6 +12,7 @@ from banco_dados.seguranca import (
     validar_email, validar_senha, validar_username, sanitizar_string
 )
 from datetime import datetime
+from banco_dados.utils import utc_now_naive
 import logging
 
 # Configurar logging
@@ -79,7 +80,7 @@ def login():
                 return render_template('login.html')
             
             # Login bem-sucedido
-            usuario.ultimo_login = datetime.utcnow()
+            usuario.ultimo_login = utc_now_naive()
             db.commit()
             
             login_user(usuario, remember=bool(dados.get('remember', False)))

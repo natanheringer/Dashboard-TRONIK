@@ -49,6 +49,25 @@ def validar_coordenadas(latitude: float, longitude: float) -> bool:
         return False
 
 
+def validar_bateria(bateria: float) -> Tuple[bool, Optional[str]]:
+    """
+    Valida nível de bateria (deve estar entre 0 e 100).
+    
+    Args:
+        bateria: Nível de bateria a validar (0-100)
+        
+    Returns:
+        Tupla (é_válido, mensagem_erro)
+    """
+    try:
+        bateria_float = float(bateria)
+        if bateria_float < 0 or bateria_float > 100:
+            return False, "Bateria deve estar entre 0 e 100"
+        return True, None
+    except (ValueError, TypeError):
+        return False, "Bateria deve ser um número"
+
+
 def sanitizar_string(texto: str, max_length: Optional[int] = None) -> str:
     """
     Sanitiza uma string removendo caracteres perigosos e limitando tamanho.

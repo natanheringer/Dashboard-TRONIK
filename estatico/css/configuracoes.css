@@ -43,7 +43,7 @@ Estilos específicos para a página configuracoes.html
     margin: 0 0 20px 0;
     color: #333;
     font-size: 18px;
-    border-bottom: 2px solid #6c5ce7;
+    border-bottom: 2px solid #27ae60;
     padding-bottom: 10px;
 }
 
@@ -82,7 +82,7 @@ Estilos específicos para a página configuracoes.html
 .form-group input:focus,
 .form-group select:focus {
     outline: none;
-    border-color: #6c5ce7;
+    border-color: #27ae60;
 }
 
 .form-actions {
@@ -92,7 +92,7 @@ Estilos específicos para a página configuracoes.html
 }
 
 .btn-primary {
-    background: #6c5ce7;
+    background: #27ae60;
     color: white;
     border: none;
     padding: 12px 24px;
@@ -104,7 +104,7 @@ Estilos específicos para a página configuracoes.html
 }
 
 .btn-primary:hover {
-    background: #5a4fcf;
+    background: #229954;
 }
 
 .btn-secondary {
@@ -154,7 +154,7 @@ Estilos específicos para a página configuracoes.html
     padding: 15px;
     background: #f8f9fa;
     border-radius: 4px;
-    border-left: 4px solid #6c5ce7;
+    border-left: 4px solid #27ae60;
 }
 
 .lixeira-info {
@@ -163,7 +163,7 @@ Estilos específicos para a página configuracoes.html
 
 .lixeira-id {
     font-weight: 600;
-    color: #6c5ce7;
+    color: #27ae60;
     margin-bottom: 5px;
 }
 
@@ -198,6 +198,100 @@ Estilos específicos para a página configuracoes.html
     color: #666;
 }
 
+/* Estilos para sensores */
+.bateria-ok {
+    color: #28a745;
+    font-weight: 600;
+}
+
+.bateria-media {
+    color: #ffc107;
+    font-weight: 600;
+}
+
+.bateria-baixa {
+    color: #dc3545;
+    font-weight: 600;
+}
+
+/* Loading global */
+.global-loading {
+    position: fixed;
+    top: 0;
+    left: 0;
+    width: 100%;
+    height: 100%;
+    background: rgba(0, 0, 0, 0.5);
+    display: flex;
+    flex-direction: column;
+    justify-content: center;
+    align-items: center;
+    z-index: 9999;
+    backdrop-filter: blur(2px);
+}
+
+.loading-spinner {
+    width: 50px;
+    height: 50px;
+    border: 4px solid #f3f3f3;
+    border-top: 4px solid #27ae60;
+    border-radius: 50%;
+    animation: spin 1s linear infinite;
+    margin-bottom: 15px;
+}
+
+.loading-text {
+    color: white;
+    font-size: 16px;
+    font-weight: 500;
+}
+
+@keyframes spin {
+    0% { transform: rotate(0deg); }
+    100% { transform: rotate(360deg); }
+}
+
+/* Melhorias de UX - Botões desabilitados */
+.btn-primary:disabled,
+.btn-secondary:disabled,
+.btn-delete:disabled {
+    opacity: 0.6;
+    cursor: not-allowed;
+}
+
+/* Tooltips (para uso futuro) */
+[data-tooltip] {
+    position: relative;
+    cursor: help;
+}
+
+[data-tooltip]:hover::after {
+    content: attr(data-tooltip);
+    position: absolute;
+    bottom: 100%;
+    left: 50%;
+    transform: translateX(-50%);
+    padding: 8px 12px;
+    background: #333;
+    color: white;
+    border-radius: 4px;
+    font-size: 12px;
+    white-space: nowrap;
+    z-index: 1000;
+    margin-bottom: 5px;
+}
+
+[data-tooltip]:hover::before {
+    content: '';
+    position: absolute;
+    bottom: 100%;
+    left: 50%;
+    transform: translateX(-50%);
+    border: 5px solid transparent;
+    border-top-color: #333;
+    z-index: 1000;
+}
+
 @media (max-width: 768px) {
     .form-grid {
         grid-template-columns: 1fr;
@@ -211,6 +305,15 @@ Estilos específicos para a página configuracoes.html
     .lixeira-acoes {
         width: 100%;
         margin-top: 10px;
+    }
+    
+    .global-loading {
+        padding: 20px;
+    }
+    
+    .loading-text {
+        font-size: 14px;
+        text-align: center;
     }
 }
 

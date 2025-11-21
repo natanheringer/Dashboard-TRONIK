@@ -27,7 +27,7 @@ Estilos específicos para a página sobre.html
     text-align: center;
     margin-bottom: 40px;
     padding-bottom: 30px;
-    border-bottom: 3px solid #6c5ce7;
+    border-bottom: 3px solid #27ae60;
 }
 
 .sobre-header h1 {
@@ -48,7 +48,7 @@ Estilos específicos para a página sobre.html
 
 .section-title {
     font-size: 24px;
-    color: #6c5ce7;
+    color: #27ae60;
     margin-bottom: 20px;
     padding-bottom: 10px;
     border-bottom: 2px solid #e0e0e0;
@@ -79,13 +79,13 @@ Estilos específicos para a página sobre.html
     content: "✓";
     position: absolute;
     left: 0;
-    color: #6c5ce7;
+    color: #27ae60;
     font-weight: bold;
     font-size: 18px;
 }
 
 .business-model {
-    background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+    background: linear-gradient(135deg, #27ae60 0%, #229954 100%);
     padding: 30px;
     border-radius: 8px;
     color: white;
@@ -131,7 +131,7 @@ Estilos específicos para a página sobre.html
 }
 
 .audience-item h3 {
-    color: #6c5ce7;
+    color: #27ae60;
     margin-bottom: 10px;
 }
 
@@ -152,11 +152,11 @@ Estilos específicos para a página sobre.html
     background: #f8f9fa;
     padding: 20px;
     border-radius: 8px;
-    border-left: 4px solid #6c5ce7;
+    border-left: 4px solid #27ae60;
 }
 
 .tech-item h3 {
-    color: #6c5ce7;
+    color: #27ae60;
     margin-bottom: 15px;
     font-size: 18px;
 }
@@ -184,11 +184,11 @@ Estilos específicos para a página sobre.html
     background: #f8f9fa;
     padding: 25px;
     border-radius: 8px;
-    border-left: 4px solid #6c5ce7;
+    border-left: 4px solid #27ae60;
 }
 
 .location-details h3 {
-    color: #6c5ce7;
+    color: #27ae60;
     margin-bottom: 5px;
 }
 
@@ -223,7 +223,7 @@ Estilos específicos para a página sobre.html
     width: 100px;
     height: 100px;
     border-radius: 50%;
-    background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+    background: linear-gradient(135deg, #27ae60 0%, #229954 100%);
     color: white;
     display: flex;
     align-items: center;
@@ -239,7 +239,7 @@ Estilos específicos para a página sobre.html
 }
 
 .founder-role {
-    color: #6c5ce7;
+    color: #27ae60;
     font-weight: 500;
     margin: 0;
 }
@@ -253,7 +253,7 @@ Estilos específicos para a página sobre.html
 }
 
 .contributor-category h3 {
-    color: #6c5ce7;
+    color: #27ae60;
     font-size: 20px;
     margin-bottom: 20px;
     padding-bottom: 10px;
@@ -280,14 +280,14 @@ Estilos específicos para a página sobre.html
 .contributor-item:hover {
     transform: translateY(-3px);
     box-shadow: 0 4px 12px rgba(0,0,0,0.1);
-    border-color: #6c5ce7;
+    border-color: #27ae60;
 }
 
 .contributor-avatar {
     width: 60px;
     height: 60px;
     border-radius: 50%;
-    background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+    background: linear-gradient(135deg, #27ae60 0%, #229954 100%);
     color: white;
     display: flex;
     align-items: center;
@@ -308,7 +308,7 @@ Estilos específicos para a página sobre.html
 }
 
 .contributor-username {
-    color: #6c5ce7;
+    color: #27ae60;
     font-size: 14px;
     margin: 0;
     font-weight: 500;
@@ -345,11 +345,11 @@ Estilos específicos para a página sobre.html
 .feature-card:hover {
     transform: translateY(-5px);
     box-shadow: 0 4px 12px rgba(0,0,0,0.1);
-    border-color: #6c5ce7;
+    border-color: #27ae60;
 }
 
 .feature-card h3 {
-    color: #6c5ce7;
+    color: #27ae60;
     margin-bottom: 10px;
     font-size: 18px;
 }

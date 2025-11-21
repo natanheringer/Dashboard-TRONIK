@@ -1,0 +1,143 @@
+/* Menu Mobile (Hambúrguer) - Dashboard-TRONIK */
+
+/* Overlay escuro quando menu aberto */
+.menu-overlay {
+    position: fixed;
+    top: 0;
+    left: 280px; /* Começa após o menu */
+    width: calc(100vw - 280px);
+    height: 100vh;
+    background: rgba(0, 0, 0, 0.5);
+    z-index: 9998; /* Abaixo do menu */
+    display: none;
+    opacity: 0;
+    transition: opacity 0.3s ease;
+    pointer-events: none; /* Permite cliques passarem quando inativo */
+}
+
+.menu-overlay.active {
+    display: block;
+    opacity: 1;
+    pointer-events: auto; /* Bloqueia cliques quando ativo */
+}
+
+/* Menu Mobile Overlay */
+.nav-menu-mobile {
+    position: fixed;
+    top: 0;
+    left: -100%;
+    width: 280px;
+    height: 100vh;
+    background: white;
+    box-shadow: 2px 0 10px rgba(0, 0, 0, 0.1);
+    z-index: 9999 !important; /* Muito acima de tudo */
+    transition: left 0.3s ease;
+    overflow-y: auto;
+    overflow-x: hidden;
+    pointer-events: auto !important; /* Sempre permite cliques no menu */
+    will-change: left; /* Otimização de performance */
+    isolation: isolate; /* Cria novo contexto de empilhamento */
+}
+
+.nav-menu-mobile.active {
+    left: 0;
+}
+
+/* Header do menu mobile */
+.menu-mobile-header {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    padding: 15px 20px;
+    border-bottom: 2px solid #27ae60;
+    background: linear-gradient(135deg, #2ecc71 0%, #27ae60 100%);
+    color: white;
+    position: relative;
+    z-index: 2002 !important; /* Garante que o header esteja acima */
+    pointer-events: auto !important; /* Garante que o botão X funcione */
+}
+
+.menu-mobile-header h3 {
+    margin: 0;
+    font-size: 18px;
+    font-weight: 600;
+}
+
+.menu-close {
+    background: transparent;
+    border: none;
+    color: white;
+    font-size: 32px;
+    line-height: 1;
+    cursor: pointer;
+    padding: 0;
+    width: 32px;
+    height: 32px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    border-radius: 4px;
+    transition: background 0.2s;
+}
+
+.menu-close:hover {
+    background: rgba(255, 255, 255, 0.2);
+}
+
+/* Links do menu mobile */
+.menu-mobile-links {
+    padding: 10px 0;
+    position: relative;
+    z-index: 2002 !important; /* Garante que os links estejam acima */
+    pointer-events: auto !important; /* Garante que os cliques funcionem */
+}
+
+.menu-mobile-link {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    padding: 15px 20px;
+    color: #2c3e50;
+    text-decoration: none;
+    font-size: 15px;
+    font-weight: 500;
+    transition: all 0.2s;
+    border-left: 3px solid transparent;
+    position: relative;
+    z-index: 2002 !important; /* Acima do menu para garantir cliques */
+    pointer-events: auto !important; /* Sempre permite cliques */
+    cursor: pointer;
+    user-select: none; /* Previne seleção de texto */
+    -webkit-user-select: none;
+    -moz-user-select: none;
+    -ms-user-select: none;
+}
+
+.menu-mobile-link:hover {
+    background: #f8f9fa;
+    border-left-color: #27ae60;
+    color: #27ae60;
+}
+
+.menu-mobile-link .notification-badge {
+    margin-left: auto;
+    margin-right: 0;
+}
+
+/* Responsividade */
+@media (min-width: 1401px) {
+    .menu-toggle {
+        display: none !important;
+    }
+    
+    .nav-menu-mobile {
+        display: none !important;
+    }
+}
+
+@media (max-width: 1400px) {
+    .menu-toggle {
+        display: flex;
+    }
+}
+

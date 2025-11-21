@@ -159,11 +159,54 @@
             </form>
         </div>
 
+        <!-- Formulário para Adicionar Sensor -->
+        <div class="card">
+            <h3 class="card-header">Adicionar Novo Sensor</h3>
+            <form id="form-novo-sensor" class="form-lixeira">
+                <div class="form-grid">
+                    <div class="form-group">
+                        <label for="sensor-lixeira-id">Lixeira *</label>
+                        <select id="sensor-lixeira-id" name="lixeira_id" required>
+                            <option value="">Selecione uma lixeira...</option>
+                        </select>
+                    </div>
+
+                    <div class="form-group">
+                        <label for="sensor-tipo-sensor-id">Tipo de Sensor</label>
+                        <select id="sensor-tipo-sensor-id" name="tipo_sensor_id">
+                            <option value="">Selecione...</option>
+                        </select>
+                    </div>
+
+                    <div class="form-group">
+                        <label for="sensor-bateria">Nível de Bateria (%)</label>
+                        <input type="number" id="sensor-bateria" name="bateria" 
+                               min="0" max="100" step="0.1" value="100" required>
+                    </div>
+                </div>
+
+                <div class="form-actions">
+                    <button type="submit" class="btn-primary">Adicionar Sensor</button>
+                    <button type="reset" class="btn-secondary">Limpar</button>
+                </div>
+
+                <div id="sensor-form-mensagem" class="form-mensagem" style="display: none;"></div>
+            </form>
+        </div>
+
         <!-- Lista de Lixeiras Existentes -->
         <div class="card">
             <h3 class="card-header">Lixeiras Cadastradas</h3>
             <div id="lista-lixeiras" class="lista-lixeiras">
                 <div class="loading-message">Carregando lixeiras...</div>
+            </div>
+        </div>
+
+        <!-- Lista de Sensores Existentes -->
+        <div class="card">
+            <h3 class="card-header">Sensores Cadastrados</h3>
+            <div id="lista-sensores" class="lista-lixeiras">
+                <div class="loading-message">Carregando sensores...</div>
             </div>
         </div>
     </div>

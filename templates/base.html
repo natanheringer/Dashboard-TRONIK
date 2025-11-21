@@ -5,23 +5,61 @@
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>{% block title %}Dashboard-TRONIK{% endblock %}</title>
     <link rel="stylesheet" href="{{ url_for('static', filename='css/estilo.css') }}">
+    <link rel="stylesheet" href="{{ url_for('static', filename='css/menu-mobile.css') }}">
+    <!-- Leaflet CSS -->
+    <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/leaflet@1.9.4/dist/leaflet.css"
+          integrity="sha256-p4NxAoJBhIIN+hmNHrzRCf9tD/miZyoHS5obTRR9BMY="
+          crossorigin=""/>
+    <!-- Leaflet MarkerCluster CSS -->
+    <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/leaflet.markercluster@1.5.3/dist/MarkerCluster.css"
+          crossorigin=""/>
+    <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/leaflet.markercluster@1.5.3/dist/MarkerCluster.Default.css"
+          crossorigin=""/>
     {% block extra_css %}{% endblock %}
 </head>
 <body>
+    <!-- Overlay do menu mobile -->
+    <div class="menu-overlay" id="menu-overlay"></div>
+    
     <!-- Header -->
     <header class="header">
         <div class="header-content">
             <div class="logo-section">
+                <!-- Menu Hambúrguer -->
+                <button class="menu-toggle" id="menu-toggle" aria-label="Menu">
+                    <span></span>
+                    <span></span>
+                    <span></span>
+                </button>
                 <div class="logo"></div>
                 <a href="{{ url_for('paginas.index') }}" class="logo-link">
                     <h1 class="logo-text">Dashboard-TRONIK</h1>
                 </a>
             </div>
-            <nav class="nav-links">
-                <a href="{{ url_for('paginas.index') }}" class="nav-link">Dashboard</a>
-                <a href="{{ url_for('paginas.relatorios') }}" class="nav-link">Relatórios</a>
-                <a href="{{ url_for('paginas.configuracoes') }}" class="nav-link">Configurações</a>
-                <a href="{{ url_for('paginas.sobre') }}" class="nav-link">Sobre</a>
+            <!-- Menu Principal (sempre visível) -->
+            <nav class="nav-links nav-main" role="navigation" aria-label="Menu principal">
+                <a href="{{ url_for('paginas.index') }}" class="nav-link" aria-label="Ir para o dashboard">Dashboard</a>
+                <a href="{{ url_for('paginas.mapa') }}" class="nav-link" aria-label="Ir para o mapa de lixeiras">Mapa</a>
+                <a href="{{ url_for('paginas.relatorios') }}" class="nav-link" aria-label="Ir para os relatórios">Relatórios</a>
+            </nav>
+            <!-- Menu Secundário (no hambúrguer) -->
+            <nav class="nav-menu-mobile" id="nav-menu-mobile">
+                <div class="menu-mobile-header">
+                    <h3>Menu</h3>
+                    <button class="menu-close" id="menu-close" aria-label="Fechar menu">×</button>
+                </div>
+                <div class="menu-mobile-links" role="menu">
+                    <a href="{{ url_for('paginas.configuracoes') }}" class="menu-mobile-link" role="menuitem" aria-label="Ir para configurações">
+                        ⚙️ Configurações
+                    </a>
+                    <a href="{{ url_for('paginas.notificacoes') }}" class="menu-mobile-link" role="menuitem" aria-label="Ir para notificações">
+                        🔔 Notificações
+                        <span class="notification-badge" id="notification-badge-mobile" style="display: none;" aria-label="Notificações pendentes">0</span>
+                    </a>
+                    <a href="{{ url_for('paginas.sobre') }}" class="menu-mobile-link" role="menuitem" aria-label="Ir para página sobre">
+                        ℹ️ Sobre
+                    </a>
+                </div>
             </nav>
             <div class="header-actions">
                 {% if current_user.is_authenticated %}
@@ -43,17 +81,19 @@
                 {% endif %}
                 <div class="status-indicator" id="status-indicator">
                     <div class="status-dot"></div>
-                    <span>Conectado</span>
+                    <span class="status-text">Conectado</span>
                 </div>
-                <button class="btn-atualizar" id="btn-atualizar">
-                    ↻ Atualizar
-                </button>
-                <button class="btn-atualizar" id="btn-simular">
-                    ▶ Simular Níveis
-                </button>
-                <button class="btn-exportar" id="btn-exportar">
-                    ↓ Exportar CSV
-                </button>
+                <div class="header-buttons-compact">
+                    <button class="btn-atualizar btn-compact" id="btn-atualizar" title="Atualizar">
+                        ↻
+                    </button>
+                    <button class="btn-atualizar btn-compact" id="btn-simular" title="Simular Níveis">
+                        ▶
+                    </button>
+                    <button class="btn-exportar btn-compact" id="btn-exportar" title="Exportar CSV">
+                        ↓
+                    </button>
+                </div>
             </div>
         </div>
     </header>
@@ -64,7 +104,31 @@
     </main>
 
     <!-- Scripts -->
+    <!-- Leaflet JS -->
+    <script src="https://cdn.jsdelivr.net/npm/leaflet@1.9.4/dist/leaflet.js"
+            integrity="sha256-20nQCchB9co0qIjJZRGuk2/Z9VM+kNiyxNV1lvTlZBo="
+            crossorigin=""></script>
+    <!-- Leaflet MarkerCluster JS -->
+    <script src="https://cdn.jsdelivr.net/npm/leaflet.markercluster@1.5.3/dist/leaflet.markercluster.js"
+            crossorigin=""></script>
+    <!-- Leaflet Routing Machine (para rotas) -->
+    <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/leaflet-routing-machine@3.2.12/dist/leaflet-routing-machine.css"
+          crossorigin=""/>
+    <script src="https://cdn.jsdelivr.net/npm/leaflet-routing-machine@3.2.12/dist/leaflet-routing-machine.min.js"
+            crossorigin=""></script>
+    <!-- Localização Português para Leaflet Routing Machine -->
+    <script src="{{ url_for('static', filename='js/routing-pt.js') }}"></script>
+    <!-- Módulos de Roteamento -->
+    <script src="{{ url_for('static', filename='js/routing/algoritmos.js') }}"></script>
+    <script src="{{ url_for('static', filename='js/routing/heuristicas.js') }}"></script>
+    <script src="{{ url_for('static', filename='js/routing/cache.js') }}"></script>
+    <script src="{{ url_for('static', filename='js/routing/osm.js') }}"></script>
+    <script src="{{ url_for('static', filename='js/routing/suavizacao.js') }}"></script>
+    <script src="{{ url_for('static', filename='js/routing/aprendizado.js') }}"></script>
+    <script src="{{ url_for('static', filename='js/routing/otimizacao.js') }}"></script>
+    <script src="{{ url_for('static', filename='js/routing/router.js') }}"></script>
     <script src="{{ url_for('static', filename='js/api.js') }}"></script>
+    <script src="{{ url_for('static', filename='js/menu.js') }}"></script>
     <script src="{{ url_for('static', filename='js/dashboard.js') }}"></script>
     {% block extra_js %}{% endblock %}
 </body>

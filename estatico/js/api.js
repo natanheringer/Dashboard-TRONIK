@@ -154,6 +154,92 @@ async function simularNiveis({ delta_max = 10, reduzir_max = 5 } = {}) {
     });
 }
 
+// ============================================================
+// FUNÇÕES DE API PARA SENSORES
+// ============================================================
+
+// Função para obter todos os sensores
+async function obterTodosSensores(filtros = {}) {
+    let url = '/sensores';
+    const params = new URLSearchParams();
+    
+    if (filtros.lixeira_id) params.append('lixeira_id', filtros.lixeira_id);
+    if (filtros.tipo_sensor_id) params.append('tipo_sensor_id', filtros.tipo_sensor_id);
+    if (filtros.bateria_min) params.append('bateria_min', filtros.bateria_min);
+    if (filtros.bateria_max) params.append('bateria_max', filtros.bateria_max);
+    
+    if (params.toString()) {
+        url += '?' + params.toString();
+    }
+    
+    return await fazerRequisicao(url);
+}
+
+// Função para obter sensor específico
+async function obterSensor(id) {
+    return await fazerRequisicao(`/sensor/${id}`);
+}
+
+// Função para criar novo sensor
+async function criarSensor(dados) {
+    return await fazerRequisicao('/sensor', {
+        method: 'POST',
+        body: JSON.stringify(dados)
+    });
+}
+
+// Função para atualizar sensor
+async function atualizarSensor(id, dados) {
+    return await fazerRequisicao(`/sensor/${id}`, {
+        method: 'PUT',
+        body: JSON.stringify(dados)
+    });
+}
+
+// Função para deletar sensor
+async function deletarSensor(id) {
+    return await fazerRequisicao(`/sensor/${id}`, {
+        method: 'DELETE'
+    });
+}
+
+// Funções para Notificações
+async function obterNotificacoes(filtros = {}) {
+    let url = '/notificacoes';
+    const params = new URLSearchParams();
+    
+    if (filtros.tipo) params.append('tipo', filtros.tipo);
+    if (filtros.enviada !== undefined) params.append('enviada', filtros.enviada);
+    if (filtros.lixeira_id) params.append('lixeira_id', filtros.lixeira_id);
+    if (filtros.limite) params.append('limite', filtros.limite);
+    
+    if (params.toString()) {
+        url += '?' + params.toString();
+    }
+    
+    return await fazerRequisicao(url);
+}
+
+async function processarAlertas() {
+    return await fazerRequisicao('/notificacoes/processar-alertas', {
+        method: 'POST'
+    });
+}
+
+async function marcarNotificacaoLida(notificacaoId) {
+    return await fazerRequisicao(`/notificacoes/${notificacaoId}/marcar-lida`, {
+        method: 'PUT'
+    });
+}
+
+async function obterNotificacoesPendentesCount() {
+    return await fazerRequisicao('/notificacoes/pendentes-count');
+}
+
+async function obterStatusAgendamento() {
+    return await fazerRequisicao('/notificacoes/status-agendamento');
+}
+
 // Exportar funções (para uso em outros scripts)
 if (typeof module !== 'undefined' && module.exports) {
     module.exports = {
@@ -172,6 +258,16 @@ if (typeof module !== 'undefined' && module.exports) {
         obterTiposColetor,
         obterConfiguracoes,
         obterRelatorios,
-        simularNiveis
+        simularNiveis,
+        obterTodosSensores,
+        obterSensor,
+        criarSensor,
+        atualizarSensor,
+        deletarSensor,
+        obterNotificacoes,
+        processarAlertas,
+        marcarNotificacaoLida,
+        obterNotificacoesPendentesCount,
+        obterStatusAgendamento
     };
 }

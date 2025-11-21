@@ -9,6 +9,7 @@ import csv
 import os
 import sys
 from datetime import datetime
+from banco_dados.utils import utc_now_naive
 from sqlalchemy.orm import sessionmaker
 
 # Adicionar diretório raiz ao path para imports
@@ -114,7 +115,7 @@ def criar_ou_buscar_lixeira(session, nome_empresa, parceiro_id=None, tipo_materi
             localizacao=nome_empresa,
             nivel_preenchimento=0.0,
             status="OK",
-            ultima_coleta=datetime.utcnow(),
+            ultima_coleta=utc_now_naive(),
             parceiro_id=parceiro_id,
             tipo_material_id=tipo_material_id
         )
