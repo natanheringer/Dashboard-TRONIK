@@ -305,3 +305,4 @@ def processar_alertas(db: Session) -> Dict[str, int]:
         return stats
 
 
+

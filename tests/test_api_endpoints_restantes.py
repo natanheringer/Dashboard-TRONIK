@@ -292,3 +292,4 @@ class TestUsuarioAtual:
         assert data['admin'] == True
 
 
+
