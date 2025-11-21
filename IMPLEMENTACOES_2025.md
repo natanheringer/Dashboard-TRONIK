@@ -220,3 +220,4 @@ MapaTronik.removerRota();
 **Status:** ✅ Todas as implementações concluídas e testadas!
 
 
+
