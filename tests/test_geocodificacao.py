@@ -327,3 +327,4 @@ class TestGeocodificacaoFuncao:
         assert resultado['longitude'] == -47.8822
 
 
+
