@@ -30,7 +30,19 @@ def configuracoes():
     """Renderiza a página de configurações"""
     return render_template('configuracoes.html')
 
+@paginas_bp.route('/mapa')
+@login_required
+def mapa():
+    """Renderiza a página de mapa com localização das lixeiras"""
+    return render_template('mapa.html')
+
 @paginas_bp.route('/sobre')
 def sobre():
     """Renderiza a página sobre o projeto (pública)"""
     return render_template('sobre.html')
+
+@paginas_bp.route('/notificacoes')
+@login_required
+def notificacoes():
+    """Renderiza a página de notificações"""
+    return render_template('notificacoes.html')

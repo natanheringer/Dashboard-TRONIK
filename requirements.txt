@@ -68,6 +68,21 @@ Flask-Talisman==1.1.0
 # Adiciona headers de segurança HTTP
 # Proteção contra XSS, clickjacking, etc.
 
+# Envio de emails
+Flask-Mail==0.9.1
+# Sistema de notificações por email
+# Envio de alertas e notificações do sistema
+
+# Agendamento de tarefas
+APScheduler==3.10.4
+# Sistema de agendamento para processar alertas automaticamente
+# Permite executar tarefas em intervalos regulares
+
+# Geração de PDFs
+reportlab==4.0.7
+# Biblioteca para gerar relatórios em PDF
+# Usado para exportação de relatórios financeiros e de coletas
+
 # ========================================
 # DEPENDÊNCIAS DE DESENVOLVIMENTO (OPCIONAL)
 # ========================================
@@ -77,8 +92,9 @@ Flask-Talisman==1.1.0
 # Flask-DebugToolbar==0.13.1
 
 # Testes automatizados
-# pytest==7.4.2
-# pytest-flask==1.2.0
+pytest==7.4.2
+pytest-flask==1.2.0
+pytest-cov==4.1.0
 
 # Formatação de código
 # black==23.7.0

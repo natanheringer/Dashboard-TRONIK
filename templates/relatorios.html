@@ -15,28 +15,28 @@
             <h3 class="card-header">Filtros do Relatório</h3>
             <div class="filters-compact">
                 <div class="filter-group">
-                    <div class="filter-label">Data Início</div>
-                    <input type="date" id="data-inicio" class="filter-input">
+                    <label for="data-inicio" class="filter-label">Data Início</label>
+                    <input type="date" id="data-inicio" class="filter-input" aria-label="Selecione a data de início do período">
                 </div>
                 <div class="filter-group">
-                    <div class="filter-label">Data Fim</div>
-                    <input type="date" id="data-fim" class="filter-input">
+                    <label for="data-fim" class="filter-label">Data Fim</label>
+                    <input type="date" id="data-fim" class="filter-input" aria-label="Selecione a data de fim do período">
                 </div>
                 <div class="filter-group">
-                    <div class="filter-label">Parceiro</div>
-                    <select id="filtro-parceiro" class="filter-input">
+                    <label for="filtro-parceiro" class="filter-label">Parceiro</label>
+                    <select id="filtro-parceiro" class="filter-input" aria-label="Selecione o parceiro para filtrar">
                         <option value="">Todos</option>
                     </select>
                 </div>
                 <div class="filter-group">
-                    <div class="filter-label">Tipo de Operação</div>
-                    <select id="filtro-tipo-operacao" class="filter-input">
+                    <label for="filtro-tipo-operacao" class="filter-label">Tipo de Operação</label>
+                    <select id="filtro-tipo-operacao" class="filter-input" aria-label="Selecione o tipo de operação">
                         <option value="">Todos</option>
                         <option value="Avulsa">Avulsa</option>
                         <option value="Campanha">Campanha</option>
                     </select>
                 </div>
-                <button class="btn-primary" id="btn-aplicar-filtro" style="padding: 8px 16px; margin-top: 5px;">
+                <button class="btn-primary" id="btn-aplicar-filtro" style="padding: 8px 16px; margin-top: 5px;" aria-label="Aplicar filtros ao relatório">
                     Aplicar
                 </button>
             </div>
@@ -89,9 +89,14 @@
         <div class="card">
             <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 10px;">
                 <h3 class="card-header" style="margin: 0;">Detalhamento de Coletas</h3>
-                <button class="btn-primary" id="btn-exportar-coletas" style="padding: 6px 12px; font-size: 11px;">
-                    Exportar CSV
-                </button>
+                <div style="display: flex; gap: 8px;">
+                    <button class="btn-primary" id="btn-exportar-coletas" style="padding: 6px 12px; font-size: 11px;" aria-label="Exportar coletas em formato CSV">
+                        Exportar CSV
+                    </button>
+                    <button class="btn-primary" id="btn-exportar-pdf" style="padding: 6px 12px; font-size: 11px;" aria-label="Exportar relatório completo em formato PDF">
+                        Exportar PDF
+                    </button>
+                </div>
             </div>
             <div class="table-container">
                 <table id="relatorio-table">

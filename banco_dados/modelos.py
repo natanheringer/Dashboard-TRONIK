@@ -21,6 +21,7 @@ from sqlalchemy.orm import relationship, declarative_base
 from datetime import datetime
 from werkzeug.security import generate_password_hash, check_password_hash
 from flask_login import UserMixin
+from banco_dados.utils import utc_now_naive
 
 # Base do SQLAlchemy (todas as tabelas herdam dela)
 Base = declarative_base()
@@ -38,7 +39,7 @@ class Usuario(Base, UserMixin):
     nome_completo = Column(String(150))
     ativo = Column(Boolean, default=True)
     admin = Column(Boolean, default=False)
-    criado_em = Column(DateTime, default=datetime.utcnow)
+    criado_em = Column(DateTime, default=utc_now_naive)
     ultimo_login = Column(DateTime)
 
     def set_senha(self, senha):
@@ -62,7 +63,7 @@ class Parceiro(Base):
     id = Column(Integer, primary_key=True, autoincrement=True)
     nome = Column(String(150), unique=True, nullable=False, index=True)
     ativo = Column(Boolean, default=True)
-    criado_em = Column(DateTime, default=datetime.utcnow)
+    criado_em = Column(DateTime, default=utc_now_naive)
 
     # Relacionamentos
     lixeiras = relationship("Lixeira", back_populates="parceiro")
@@ -130,7 +131,7 @@ class Lixeira(Base):
     localizacao = Column(String(150), nullable=False)
     nivel_preenchimento = Column(Float, default=0.0)
     status = Column(String(20), default="OK")  # OK, CHEIA, QUEBRADA, etc.
-    ultima_coleta = Column(DateTime, default=datetime.utcnow)
+    ultima_coleta = Column(DateTime, default=utc_now_naive)
     
     # NOVOS CAMPOS (substituem coordenadas string e tipo string)
     latitude = Column(Float)  # Coordenada latitude
@@ -158,7 +159,7 @@ class Sensor(Base):
     lixeira_id = Column(Integer, ForeignKey("lixeiras.id"), nullable=False, index=True)
     tipo_sensor_id = Column(Integer, ForeignKey("tipo_sensor.id"), nullable=True, index=True)
     bateria = Column(Float, default=100.0)
-    ultimo_ping = Column(DateTime, default=datetime.utcnow)
+    ultimo_ping = Column(DateTime, default=utc_now_naive)
 
     # Relacionamentos
     lixeira = relationship("Lixeira", back_populates="sensores")
@@ -177,7 +178,7 @@ class Coleta(Base):
 
     id = Column(Integer, primary_key=True, autoincrement=True)
     lixeira_id = Column(Integer, ForeignKey("lixeiras.id"), nullable=False, index=True)
-    data_hora = Column(DateTime, default=datetime.utcnow, index=True)
+    data_hora = Column(DateTime, default=utc_now_naive, index=True)
     volume_estimado = Column(Float)  # Mantido para compatibilidade
     
     # NOVOS CAMPOS (do CSV)
@@ -197,3 +198,29 @@ class Coleta(Base):
     def __repr__(self):
         parceiro_nome = self.parceiro.nome if self.parceiro else "N/A"
         return f"<Coleta(id={self.id}, lixeira_id={self.lixeira_id}, data={self.data_hora}, parceiro='{parceiro_nome}')>"
+
+
+# ----------------------------------------------------------
+# TABELA: Notificações
+# ----------------------------------------------------------
+class Notificacao(Base):
+    __tablename__ = "notificacoes"
+
+    id = Column(Integer, primary_key=True, autoincrement=True)
+    tipo = Column(String(50), nullable=False)  # 'lixeira_cheia', 'bateria_baixa', etc.
+    titulo = Column(String(200), nullable=False)
+    mensagem = Column(String(500), nullable=False)
+    lixeira_id = Column(Integer, ForeignKey("lixeiras.id"), nullable=True, index=True)
+    sensor_id = Column(Integer, ForeignKey("sensores.id"), nullable=True, index=True)
+    enviada = Column(Boolean, default=False)
+    enviada_em = Column(DateTime, nullable=True)
+    lida = Column(Boolean, default=False)
+    lida_em = Column(DateTime, nullable=True)
+    criada_em = Column(DateTime, default=utc_now_naive)
+
+    # Relacionamentos
+    lixeira = relationship("Lixeira", backref="notificacoes")
+    sensor = relationship("Sensor", backref="notificacoes")
+
+    def __repr__(self):
+        return f"<Notificacao(id={self.id}, tipo='{self.tipo}', enviada={self.enviada})>"

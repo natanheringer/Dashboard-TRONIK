@@ -1,0 +1,109 @@
+{% extends "base.html" %}
+
+{% block title %}Dashboard-TRONIK - Mapa{% endblock %}
+
+{% block extra_css %}
+<link rel="stylesheet" href="{{ url_for('static', filename='css/mapa.css') }}">
+{% endblock %}
+
+{% block content %}
+<div class="mapa-page-container">
+    <!-- Header da página de mapa -->
+    <div class="mapa-page-header">
+        <h1 class="mapa-page-title">Localização das Lixeiras</h1>
+        <div class="mapa-page-controls">
+            <button class="btn-controle-mapa" id="btn-ajustar-zoom" title="Ajustar zoom para todas as lixeiras">
+                🔍 Ajustar Zoom
+            </button>
+            <button class="btn-controle-mapa" id="btn-atualizar-mapa" title="Atualizar mapa">
+                ↻ Atualizar
+            </button>
+        </div>
+    </div>
+
+    <!-- Filtros -->
+    <div class="mapa-filters">
+        <div class="filter-group">
+            <label for="filter-status-mapa">Status:</label>
+            <select class="filter-select" id="filter-status-mapa">
+                <option value="">Todos</option>
+                <option value="normal">Normal</option>
+                <option value="atencao">Atenção</option>
+                <option value="critico">Crítico</option>
+                <option value="manutencao">Manutenção</option>
+            </select>
+        </div>
+        <div class="filter-group">
+            <label for="filter-parceiro-mapa">Parceiro:</label>
+            <select class="filter-select" id="filter-parceiro-mapa">
+                <option value="">Todos</option>
+            </select>
+        </div>
+        <div class="filter-group">
+            <label for="filter-busca-mapa">Buscar:</label>
+            <input type="text" class="filter-input" id="filter-busca-mapa" placeholder="Nome da lixeira...">
+        </div>
+        <div class="filter-group">
+            <label for="filter-distancia-mapa">Distância da Sede:</label>
+            <select class="filter-select" id="filter-distancia-mapa">
+                <option value="todas">Todas</option>
+                <option value="ate-10">Até 10 km</option>
+                <option value="10-20">10 - 20 km</option>
+                <option value="20-50">20 - 50 km</option>
+                <option value="mais-50">Mais de 50 km</option>
+            </select>
+        </div>
+        <div class="filter-group">
+            <label for="ordenar-distancia-mapa">Ordenar:</label>
+            <select class="filter-select" id="ordenar-distancia-mapa">
+                <option value="">Padrão</option>
+                <option value="proxima">Mais próxima primeiro</option>
+                <option value="distante">Mais distante primeiro</option>
+            </select>
+        </div>
+    </div>
+
+    <!-- Container do mapa -->
+    <div class="mapa-container-full">
+        <div id="mapa-lixeiras">
+            <div class="mapa-carregando">
+                <div class="spinner"></div>
+                <p>Carregando mapa...</p>
+            </div>
+        </div>
+    </div>
+
+    <!-- Legenda -->
+    <div class="mapa-legenda">
+        <h3>Legenda:</h3>
+        <div class="legenda-items">
+            <div class="legenda-item">
+                <div class="legenda-marker" style="background-color: #28a745;"></div>
+                <span>Normal</span>
+            </div>
+            <div class="legenda-item">
+                <div class="legenda-marker" style="background-color: #ffc107;"></div>
+                <span>Atenção (≥80%)</span>
+            </div>
+            <div class="legenda-item">
+                <div class="legenda-marker" style="background-color: #dc3545;"></div>
+                <span>Crítico (≥95%)</span>
+            </div>
+            <div class="legenda-item">
+                <div class="legenda-marker" style="background-color: #6c757d;"></div>
+                <span>Manutenção</span>
+            </div>
+            <div class="legenda-item">
+                <div class="legenda-marker sede-marker" style="background: linear-gradient(135deg, #27ae60 0%, #229954 100%); border: 2px solid white; font-size: 14px; display: flex; align-items: center; justify-content: center;">🏢</div>
+                <span>Sede Tronik</span>
+            </div>
+        </div>
+    </div>
+</div>
+{% endblock %}
+
+{% block extra_js %}
+<script src="{{ url_for('static', filename='js/mapa.js') }}"></script>
+<script src="{{ url_for('static', filename='js/mapa-page.js') }}"></script>
+{% endblock %}
+

@@ -12,16 +12,20 @@ from flask_limiter import Limiter
 from flask_limiter.util import get_remote_address
 from sqlalchemy.orm import scoped_session, joinedload
 from banco_dados.modelos import (
-    Lixeira, Sensor, Coleta, Parceiro, TipoMaterial, TipoSensor, TipoColetor
+    Lixeira, Sensor, Coleta, Parceiro, TipoMaterial, TipoSensor, TipoColetor, Notificacao
 )
 from banco_dados.seguranca import (
     validar_coordenadas, validar_nivel_preenchimento, sanitizar_string,
     validar_latitude, validar_longitude, validar_quantidade_kg,
-    validar_km_percorrido, validar_preco_combustivel, validar_tipo_operacao
+    validar_km_percorrido, validar_preco_combustivel, validar_tipo_operacao,
+    validar_bateria
 )
 from datetime import datetime
+from banco_dados.utils import utc_now_naive
 import random
 import logging
+from flask import Response
+from io import BytesIO
 
 # Configurar logging
 logger = logging.getLogger(__name__)
@@ -107,6 +111,24 @@ def coleta_para_dict(coleta):
             "id": coleta.lixeira.id,
             "localizacao": coleta.lixeira.localizacao
         } if coleta.lixeira else None
+    }
+
+# Função para converter Sensor para dict
+def sensor_para_dict(sensor):
+    """Converte um objeto Sensor para dicionário"""
+    return {
+        "id": sensor.id,
+        "lixeira_id": sensor.lixeira_id,
+        "bateria": sensor.bateria,
+        "ultimo_ping": sensor.ultimo_ping.isoformat() if sensor.ultimo_ping else None,
+        "tipo_sensor": {
+            "id": sensor.tipo_sensor.id,
+            "nome": sensor.tipo_sensor.nome
+        } if sensor.tipo_sensor else None,
+        "lixeira": {
+            "id": sensor.lixeira.id,
+            "localizacao": sensor.lixeira.localizacao
+        } if sensor.lixeira else None
     }
 
 # Função de validação de dados da lixeira
@@ -206,6 +228,35 @@ def validar_coleta(dados, criar=True, db=None):
         parceiro = db.query(Parceiro).filter(Parceiro.id == dados['parceiro_id']).first()
         if not parceiro:
             erros.append("Parceiro não encontrado")
+    
+    return erros
+
+# Função de validação de dados do sensor
+def validar_sensor(dados, criar=True, db=None):
+    """Valida dados do sensor"""
+    erros = []
+    
+    if criar:
+        if 'lixeira_id' not in dados or dados['lixeira_id'] is None:
+            erros.append("Campo 'lixeira_id' é obrigatório")
+    
+    # Validar lixeira_id existe
+    if 'lixeira_id' in dados and dados['lixeira_id'] is not None and db:
+        lixeira = db.query(Lixeira).filter(Lixeira.id == dados['lixeira_id']).first()
+        if not lixeira:
+            erros.append("Lixeira não encontrada")
+    
+    # Validar tipo_sensor_id (se fornecido)
+    if 'tipo_sensor_id' in dados and dados['tipo_sensor_id'] is not None and db:
+        tipo_sensor = db.query(TipoSensor).filter(TipoSensor.id == dados['tipo_sensor_id']).first()
+        if not tipo_sensor:
+            erros.append("Tipo de sensor não encontrado")
+    
+    # Validar bateria
+    if 'bateria' in dados and dados['bateria'] is not None:
+        valido, erro = validar_bateria(dados['bateria'])
+        if not valido:
+            erros.append(erro)
     
     return erros
 
@@ -384,7 +435,7 @@ def obter_estatisticas():
         else:
             nivel_medio = 0.0
         
-        hoje = datetime.now().date()
+        hoje = datetime.now().date()  # Data atual local
         coletas_hoje = len([c for c in coletas if c.data_hora and c.data_hora.date() == hoje])
         
         estatisticas = {
@@ -439,9 +490,9 @@ def criar_lixeira():
             try:
                 ultima_coleta = datetime.fromisoformat(dados['ultima_coleta'].replace('Z', '+00:00'))
             except:
-                ultima_coleta = datetime.utcnow()
+                ultima_coleta = utc_now_naive()
         else:
-            ultima_coleta = datetime.utcnow()
+            ultima_coleta = utc_now_naive()
         
         # Validar nível de preenchimento
         nivel = dados.get('nivel_preenchimento', 0.0)
@@ -464,6 +515,25 @@ def criar_lixeira():
         db.add(nova_lixeira)
         db.commit()
         db.refresh(nova_lixeira)
+        
+        # Geocodificação automática se não tiver coordenadas
+        if not latitude or not longitude:
+            try:
+                from banco_dados.geocodificacao import geocodificar_endereco
+                resultado = geocodificar_endereco(
+                    nova_lixeira.localizacao,
+                    cidade="Brasília",
+                    estado="DF"
+                )
+                if resultado:
+                    nova_lixeira.latitude = resultado['latitude']
+                    nova_lixeira.longitude = resultado['longitude']
+                    db.commit()
+                    db.refresh(nova_lixeira)
+                    logger.info(f"Coordenadas geocodificadas automaticamente para lixeira {nova_lixeira.id}")
+            except Exception as e:
+                # Não falhar a criação se geocodificação falhar
+                logger.warning(f"Geocodificação automática falhou para lixeira {nova_lixeira.id}: {e}")
         
         return jsonify(lixeira_para_dict(nova_lixeira)), 201
         
@@ -495,9 +565,16 @@ def atualizar_lixeira(lixeira_id):
         if erros:
             return jsonify({"erro": "Erros de validação", "detalhes": erros}), 400
         
+        # Verificar se localização mudou (para geocodificação automática)
+        localizacao_mudou = False
+        localizacao_anterior = lixeira.localizacao
+        
         # Atualizar campos
         if 'localizacao' in dados:
-            lixeira.localizacao = sanitizar_string(dados['localizacao'], max_length=150)
+            nova_localizacao = sanitizar_string(dados['localizacao'], max_length=150)
+            if nova_localizacao != lixeira.localizacao:
+                localizacao_mudou = True
+            lixeira.localizacao = nova_localizacao
         
         if 'nivel_preenchimento' in dados:
             lixeira.nivel_preenchimento = float(dados['nivel_preenchimento'])
@@ -511,11 +588,15 @@ def atualizar_lixeira(lixeira_id):
             except:
                 pass
         
+        # Se coordenadas foram fornecidas explicitamente, usar elas
+        coordenadas_fornecidas = False
         if 'latitude' in dados:
             lixeira.latitude = dados['latitude'] if dados['latitude'] is not None else None
+            coordenadas_fornecidas = True
         
         if 'longitude' in dados:
             lixeira.longitude = dados['longitude'] if dados['longitude'] is not None else None
+            coordenadas_fornecidas = True
         
         if 'parceiro_id' in dados:
             lixeira.parceiro_id = dados['parceiro_id'] if dados['parceiro_id'] is not None else None
@@ -524,6 +605,33 @@ def atualizar_lixeira(lixeira_id):
             lixeira.tipo_material_id = dados['tipo_material_id'] if dados['tipo_material_id'] is not None else None
         
         db.commit()
+        
+        # Geocodificação automática se:
+        # 1. Localização mudou E não tem coordenadas E coordenadas não foram fornecidas explicitamente
+        # 2. Não tem coordenadas E coordenadas não foram fornecidas explicitamente
+        if not coordenadas_fornecidas:
+            precisa_geocodificar = (
+                (localizacao_mudou and (not lixeira.latitude or not lixeira.longitude)) or
+                (not lixeira.latitude or not lixeira.longitude)
+            )
+            
+            if precisa_geocodificar:
+                try:
+                    from banco_dados.geocodificacao import geocodificar_endereco
+                    resultado = geocodificar_endereco(
+                        lixeira.localizacao,
+                        cidade="Brasília",
+                        estado="DF"
+                    )
+                    if resultado:
+                        lixeira.latitude = resultado['latitude']
+                        lixeira.longitude = resultado['longitude']
+                        db.commit()
+                        logger.info(f"Coordenadas geocodificadas automaticamente para lixeira {lixeira.id}")
+                except Exception as e:
+                    # Não falhar a atualização se geocodificação falhar
+                    logger.warning(f"Geocodificação automática falhou para lixeira {lixeira.id}: {e}")
+        
         db.refresh(lixeira)
         
         return jsonify(lixeira_para_dict(lixeira))
@@ -686,6 +794,185 @@ def obter_relatorios():
     finally:
         db.close()
 
+@api_bp.route('/relatorios/exportar-pdf', methods=['GET'])
+@login_required
+def exportar_relatorio_pdf():
+    """Endpoint para exportar relatório em PDF"""
+    db = get_db()
+    try:
+        from reportlab.lib.pagesizes import letter, A4
+        from reportlab.lib import colors
+        from reportlab.lib.styles import getSampleStyleSheet, ParagraphStyle
+        from reportlab.lib.units import inch
+        from reportlab.platypus import SimpleDocTemplate, Table, TableStyle, Paragraph, Spacer, PageBreak
+        from reportlab.pdfbase import pdfmetrics
+        from reportlab.pdfbase.ttfonts import TTFont
+        
+        # Obter parâmetros de filtro
+        data_inicio = request.args.get('data_inicio')
+        data_fim = request.args.get('data_fim')
+        parceiro_id = request.args.get('parceiro_id', type=int)
+        tipo_operacao = request.args.get('tipo_operacao')
+        
+        # Query base (mesma lógica do endpoint de relatórios)
+        query = db.query(Coleta).options(
+            joinedload(Coleta.lixeira),
+            joinedload(Coleta.parceiro),
+            joinedload(Coleta.tipo_coletor)
+        )
+        
+        if data_inicio:
+            try:
+                if len(data_inicio) == 10:
+                    data_inicio_obj = datetime.fromisoformat(data_inicio + 'T00:00:00')
+                else:
+                    data_inicio_obj = datetime.fromisoformat(data_inicio.replace('Z', '+00:00'))
+                query = query.filter(Coleta.data_hora >= data_inicio_obj)
+            except Exception:
+                pass
+        
+        if data_fim:
+            try:
+                if len(data_fim) == 10:
+                    data_fim_obj = datetime.fromisoformat(data_fim + 'T23:59:59')
+                else:
+                    data_fim_obj = datetime.fromisoformat(data_fim.replace('Z', '+00:00'))
+                query = query.filter(Coleta.data_hora <= data_fim_obj)
+            except Exception:
+                pass
+        
+        if parceiro_id:
+            query = query.filter(Coleta.parceiro_id == parceiro_id)
+        if tipo_operacao:
+            query = query.filter(Coleta.tipo_operacao == tipo_operacao)
+        
+        coletas = query.order_by(Coleta.data_hora.desc()).all()
+        
+        # Calcular totais
+        total_coletas = len(coletas)
+        volume_total = sum(c.volume_estimado for c in coletas if c.volume_estimado) or 0.0
+        km_total = sum(c.km_percorrido for c in coletas if c.km_percorrido) or 0.0
+        CONSUMO_KM_POR_LITRO = 4.0
+        custo_combustivel_total = sum(
+            ((c.km_percorrido or 0) / CONSUMO_KM_POR_LITRO) * (c.preco_combustivel or 0) for c in coletas
+        ) or 0.0
+        lucro_total = sum(
+            (c.volume_estimado or 0) * (c.lucro_por_kg or 0) for c in coletas
+        ) or 0.0
+        
+        # Criar PDF em memória
+        buffer = BytesIO()
+        doc = SimpleDocTemplate(buffer, pagesize=A4, topMargin=0.5*inch, bottomMargin=0.5*inch)
+        
+        # Estilos
+        styles = getSampleStyleSheet()
+        title_style = ParagraphStyle(
+            'CustomTitle',
+            parent=styles['Heading1'],
+            fontSize=20,
+            textColor=colors.HexColor('#27ae60'),
+            spaceAfter=12,
+            alignment=1  # Center
+        )
+        
+        # Conteúdo do PDF
+        story = []
+        
+        # Título
+        story.append(Paragraph("Relatório de Coletas - TRONIK Recicla", title_style))
+        story.append(Spacer(1, 0.2*inch))
+        
+        # Período
+        periodo_text = f"Período: {data_inicio or 'Início'} a {data_fim or 'Fim'}"
+        story.append(Paragraph(periodo_text, styles['Normal']))
+        story.append(Spacer(1, 0.1*inch))
+        
+        # Resumo
+        resumo_data = [
+            ['Métrica', 'Valor'],
+            ['Total de Coletas', str(total_coletas)],
+            ['Volume Total (kg)', f'{volume_total:.2f}'],
+            ['KM Total', f'{km_total:.2f}'],
+            ['Custo Combustível', f'R$ {custo_combustivel_total:.2f}'],
+            ['Lucro Total', f'R$ {lucro_total:.2f}'],
+        ]
+        
+        resumo_table = Table(resumo_data, colWidths=[3*inch, 2*inch])
+        resumo_table.setStyle(TableStyle([
+            ('BACKGROUND', (0, 0), (-1, 0), colors.HexColor('#27ae60')),
+            ('TEXTCOLOR', (0, 0), (-1, 0), colors.whitesmoke),
+            ('ALIGN', (0, 0), (-1, -1), 'LEFT'),
+            ('FONTNAME', (0, 0), (-1, 0), 'Helvetica-Bold'),
+            ('FONTSIZE', (0, 0), (-1, 0), 12),
+            ('BOTTOMPADDING', (0, 0), (-1, 0), 12),
+            ('BACKGROUND', (0, 1), (-1, -1), colors.beige),
+            ('GRID', (0, 0), (-1, -1), 1, colors.black),
+            ('ROWBACKGROUNDS', (0, 1), (-1, -1), [colors.white, colors.lightgrey]),
+        ]))
+        
+        story.append(Paragraph("<b>Resumo</b>", styles['Heading2']))
+        story.append(Spacer(1, 0.1*inch))
+        story.append(resumo_table)
+        story.append(Spacer(1, 0.3*inch))
+        
+        # Detalhamento (limitado a 50 coletas para não sobrecarregar o PDF)
+        if coletas:
+            story.append(Paragraph("<b>Detalhamento de Coletas</b>", styles['Heading2']))
+            story.append(Spacer(1, 0.1*inch))
+            
+            # Cabeçalho da tabela
+            detalhes_data = [['Data', 'Lixeira', 'Volume (kg)', 'KM', 'Lucro (R$)']]
+            
+            # Adicionar até 50 coletas
+            for coleta in coletas[:50]:
+                data_str = coleta.data_hora.strftime('%d/%m/%Y %H:%M') if coleta.data_hora else 'N/A'
+                lixeira_nome = coleta.lixeira.localizacao if coleta.lixeira else 'N/A'
+                volume = f'{coleta.volume_estimado:.2f}' if coleta.volume_estimado else '0.00'
+                km = f'{coleta.km_percorrido:.2f}' if coleta.km_percorrido else '0.00'
+                lucro = f'{(coleta.volume_estimado or 0) * (coleta.lucro_por_kg or 0):.2f}'
+                
+                detalhes_data.append([data_str, lixeira_nome[:30], volume, km, lucro])
+            
+            if len(coletas) > 50:
+                detalhes_data.append(['...', f'({len(coletas) - 50} coletas adicionais)', '', '', ''])
+            
+            detalhes_table = Table(detalhes_data, colWidths=[1.2*inch, 2*inch, 1*inch, 0.8*inch, 1*inch])
+            detalhes_table.setStyle(TableStyle([
+                ('BACKGROUND', (0, 0), (-1, 0), colors.HexColor('#27ae60')),
+                ('TEXTCOLOR', (0, 0), (-1, 0), colors.whitesmoke),
+                ('ALIGN', (0, 0), (-1, -1), 'LEFT'),
+                ('FONTNAME', (0, 0), (-1, 0), 'Helvetica-Bold'),
+                ('FONTSIZE', (0, 0), (-1, 0), 10),
+                ('FONTSIZE', (0, 1), (-1, -1), 8),
+                ('BOTTOMPADDING', (0, 0), (-1, 0), 12),
+                ('BACKGROUND', (0, 1), (-1, -1), colors.beige),
+                ('GRID', (0, 0), (-1, -1), 1, colors.black),
+                ('ROWBACKGROUNDS', (0, 1), (-1, -1), [colors.white, colors.lightgrey]),
+            ]))
+            
+            story.append(detalhes_table)
+        
+        # Gerar PDF
+        doc.build(story)
+        
+        # Retornar PDF
+        buffer.seek(0)
+        filename = f'relatorio_tronik_{datetime.now().strftime("%Y%m%d_%H%M%S")}.pdf'
+        
+        return Response(
+            buffer.getvalue(),
+            mimetype='application/pdf',
+            headers={
+                'Content-Disposition': f'attachment; filename={filename}'
+            }
+        )
+        
+    except Exception as e:
+        logger.error(f"Erro ao gerar PDF: {e}")
+        return jsonify({"erro": str(e)}), 500
+    finally:
+        db.close()
+
 # ============================================================
 # NOVOS ENDPOINTS: TIPOS E PARCEIROS
 # ============================================================
@@ -707,6 +994,50 @@ def listar_parceiros():
         ]
         return jsonify(resultado)
     except Exception as e:
+        return jsonify({"erro": str(e)}), 500
+    finally:
+        db.close()
+
+@api_bp.route('/lixeira/<int:lixeira_id>/geocodificar', methods=['POST'])
+@login_required
+@limiter.limit("10 per minute")
+def geocodificar_lixeira_endpoint(lixeira_id):
+    """Endpoint para geocodificar uma lixeira manualmente"""
+    db = get_db()
+    try:
+        from banco_dados.geocodificacao import geocodificar_lixeira
+        
+        lixeira = db.query(Lixeira).filter(Lixeira.id == lixeira_id).first()
+        
+        if not lixeira:
+            return jsonify({"erro": "Lixeira não encontrada"}), 404
+        
+        # Obter parâmetros opcionais
+        dados = request.get_json() or {}
+        cidade = dados.get('cidade', 'Brasília')
+        estado = dados.get('estado', 'DF')
+        forcar = dados.get('forcar', False)
+        
+        # Geocodificar
+        sucesso, mensagem = geocodificar_lixeira(
+            db,
+            lixeira_id,
+            cidade=cidade,
+            estado=estado,
+            forcar_atualizacao=forcar
+        )
+        
+        if sucesso:
+            db.refresh(lixeira)
+            return jsonify({
+                "mensagem": mensagem,
+                "lixeira": lixeira_para_dict(lixeira)
+            }), 200
+        else:
+            return jsonify({"erro": mensagem}), 400
+            
+    except Exception as e:
+        logger.error(f"Erro ao geocodificar lixeira {lixeira_id}: {e}")
         return jsonify({"erro": str(e)}), 500
     finally:
         db.close()
@@ -769,6 +1100,183 @@ def listar_tipos_coletor():
         db.close()
 
 # ============================================================
+# ENDPOINTS: SENSORES (CRUD)
+# ============================================================
+
+@api_bp.route('/sensores', methods=['GET'])
+def listar_sensores():
+    """Endpoint para listar todos os sensores com filtros opcionais"""
+    db = get_db()
+    try:
+        # Carregar relacionamentos (eager loading)
+        query = db.query(Sensor).options(
+            joinedload(Sensor.lixeira),
+            joinedload(Sensor.tipo_sensor)
+        )
+        
+        # Filtros opcionais
+        lixeira_id = request.args.get('lixeira_id', type=int)
+        tipo_sensor_id = request.args.get('tipo_sensor_id', type=int)
+        bateria_min = request.args.get('bateria_min', type=float)
+        bateria_max = request.args.get('bateria_max', type=float)
+        
+        if lixeira_id:
+            query = query.filter(Sensor.lixeira_id == lixeira_id)
+        if tipo_sensor_id:
+            query = query.filter(Sensor.tipo_sensor_id == tipo_sensor_id)
+        if bateria_min is not None:
+            query = query.filter(Sensor.bateria >= bateria_min)
+        if bateria_max is not None:
+            query = query.filter(Sensor.bateria <= bateria_max)
+        
+        sensores = query.all()
+        resultado = [sensor_para_dict(s) for s in sensores]
+        return jsonify(resultado)
+    except Exception as e:
+        logger.error(f"Erro ao listar sensores: {e}")
+        return jsonify({"erro": str(e)}), 500
+    finally:
+        db.close()
+
+@api_bp.route('/sensor/<int:sensor_id>', methods=['GET'])
+def obter_sensor(sensor_id):
+    """Endpoint para obter um sensor específico"""
+    db = get_db()
+    try:
+        sensor = db.query(Sensor).options(
+            joinedload(Sensor.lixeira),
+            joinedload(Sensor.tipo_sensor)
+        ).filter(Sensor.id == sensor_id).first()
+        
+        if not sensor:
+            return jsonify({"erro": "Sensor não encontrado"}), 404
+        
+        return jsonify(sensor_para_dict(sensor))
+    except Exception as e:
+        logger.error(f"Erro ao obter sensor: {e}")
+        return jsonify({"erro": str(e)}), 500
+    finally:
+        db.close()
+
+@api_bp.route('/sensor', methods=['POST'])
+@login_required
+@limiter.limit("10 per minute")
+def criar_sensor():
+    """Endpoint para criar um novo sensor"""
+    db = get_db()
+    try:
+        dados = request.get_json()
+        
+        if not dados:
+            return jsonify({"erro": "Dados JSON não fornecidos"}), 400
+        
+        # Validar dados
+        erros = validar_sensor(dados, criar=True, db=db)
+        if erros:
+            return jsonify({"erro": "Erros de validação", "detalhes": erros}), 400
+        
+        # Criar novo sensor
+        novo_sensor = Sensor(
+            lixeira_id=dados['lixeira_id'],
+            tipo_sensor_id=dados.get('tipo_sensor_id'),
+            bateria=dados.get('bateria', 100.0),
+            ultimo_ping=utc_now_naive()
+        )
+        
+        db.add(novo_sensor)
+        db.commit()
+        db.refresh(novo_sensor)
+        
+        # Carregar relacionamentos
+        db.refresh(novo_sensor)
+        novo_sensor = db.query(Sensor).options(
+            joinedload(Sensor.lixeira),
+            joinedload(Sensor.tipo_sensor)
+        ).filter(Sensor.id == novo_sensor.id).first()
+        
+        return jsonify(sensor_para_dict(novo_sensor)), 201
+    except Exception as e:
+        db.rollback()
+        logger.error(f"Erro ao criar sensor: {e}")
+        return jsonify({"erro": str(e)}), 500
+    finally:
+        db.close()
+
+@api_bp.route('/sensor/<int:sensor_id>', methods=['PUT'])
+@login_required
+@limiter.limit("10 per minute")
+def atualizar_sensor(sensor_id):
+    """Endpoint para atualizar um sensor"""
+    db = get_db()
+    try:
+        sensor = db.query(Sensor).filter(Sensor.id == sensor_id).first()
+        
+        if not sensor:
+            return jsonify({"erro": "Sensor não encontrado"}), 404
+        
+        dados = request.get_json()
+        if not dados:
+            return jsonify({"erro": "Dados JSON não fornecidos"}), 400
+        
+        # Validar dados
+        erros = validar_sensor(dados, criar=False, db=db)
+        if erros:
+            return jsonify({"erro": "Erros de validação", "detalhes": erros}), 400
+        
+        # Atualizar campos
+        if 'lixeira_id' in dados:
+            sensor.lixeira_id = dados['lixeira_id']
+        if 'tipo_sensor_id' in dados:
+            sensor.tipo_sensor_id = dados['tipo_sensor_id']
+        if 'bateria' in dados:
+            sensor.bateria = dados['bateria']
+        if 'ultimo_ping' in dados and dados['ultimo_ping']:
+            try:
+                sensor.ultimo_ping = datetime.fromisoformat(dados['ultimo_ping'].replace('Z', '+00:00'))
+            except:
+                sensor.ultimo_ping = utc_now_naive()
+        
+        db.commit()
+        db.refresh(sensor)
+        
+        # Carregar relacionamentos
+        sensor = db.query(Sensor).options(
+            joinedload(Sensor.lixeira),
+            joinedload(Sensor.tipo_sensor)
+        ).filter(Sensor.id == sensor_id).first()
+        
+        return jsonify(sensor_para_dict(sensor))
+    except Exception as e:
+        db.rollback()
+        logger.error(f"Erro ao atualizar sensor: {e}")
+        return jsonify({"erro": str(e)}), 500
+    finally:
+        db.close()
+
+@api_bp.route('/sensor/<int:sensor_id>', methods=['DELETE'])
+@admin_required
+@limiter.limit("10 per minute")
+def deletar_sensor(sensor_id):
+    """Endpoint para deletar um sensor (apenas admin)"""
+    db = get_db()
+    try:
+        sensor = db.query(Sensor).filter(Sensor.id == sensor_id).first()
+        
+        if not sensor:
+            return jsonify({"erro": "Sensor não encontrado"}), 404
+        
+        db.delete(sensor)
+        db.commit()
+        
+        return jsonify({"mensagem": "Sensor deletado com sucesso"}), 200
+    except Exception as e:
+        db.rollback()
+        logger.error(f"Erro ao deletar sensor: {e}")
+        return jsonify({"erro": str(e)}), 500
+    finally:
+        db.close()
+
+# ============================================================
 # ENDPOINT: CRIAR COLETA
 # ============================================================
 
@@ -795,9 +1303,9 @@ def criar_coleta():
             try:
                 data_hora = datetime.fromisoformat(dados['data_hora'].replace('Z', '+00:00'))
             except:
-                data_hora = datetime.utcnow()
+                data_hora = utc_now_naive()
         else:
-            data_hora = datetime.utcnow()
+            data_hora = utc_now_naive()
         
         # Criar nova coleta
         nova_coleta = Coleta(
@@ -847,7 +1355,7 @@ def simular_niveis():
 
         lixeiras = db.query(Lixeira).all()
         atualizadas = []
-        agora = datetime.utcnow()
+        agora = utc_now_naive()
         for l in lixeiras:
             # Delta positivo maior que negativo para simular enchimento gradual
             delta = random.uniform(-reduzir_max, delta_max)
@@ -868,3 +1376,147 @@ def simular_niveis():
         return jsonify({"erro": str(e)}), 500
     finally:
         db.close()
+
+# ============================================================
+# ENDPOINTS: NOTIFICAÇÕES
+# ============================================================
+
+@api_bp.route('/notificacoes', methods=['GET'])
+@login_required
+def listar_notificacoes():
+    """Endpoint para listar notificações com filtros opcionais"""
+    db = get_db()
+    try:
+        query = db.query(Notificacao).options(
+            joinedload(Notificacao.lixeira),
+            joinedload(Notificacao.sensor)
+        )
+        
+        # Filtros opcionais
+        tipo = request.args.get('tipo')
+        enviada = request.args.get('enviada')
+        lida = request.args.get('lida')
+        lixeira_id = request.args.get('lixeira_id', type=int)
+        
+        if tipo:
+            query = query.filter(Notificacao.tipo == tipo)
+        if enviada is not None:
+            enviada_bool = enviada.lower() == 'true'
+            query = query.filter(Notificacao.enviada == enviada_bool)
+        if lida is not None:
+            lida_bool = lida.lower() == 'true'
+            query = query.filter(Notificacao.lida == lida_bool)
+        if lixeira_id:
+            query = query.filter(Notificacao.lixeira_id == lixeira_id)
+        
+        # Ordenar por data (mais recentes primeiro)
+        query = query.order_by(Notificacao.criada_em.desc())
+        
+        # Limitar resultados (opcional)
+        limite = request.args.get('limite', type=int, default=50)
+        notificacoes = query.limit(limite).all()
+        
+        resultado = [{
+            "id": n.id,
+            "tipo": n.tipo,
+            "titulo": n.titulo,
+            "mensagem": n.mensagem,
+            "enviada": n.enviada,
+            "enviada_em": n.enviada_em.isoformat() if n.enviada_em else None,
+            "lida": n.lida if hasattr(n, 'lida') else False,
+            "lida_em": n.lida_em.isoformat() if hasattr(n, 'lida_em') and n.lida_em else None,
+            "criada_em": n.criada_em.isoformat() if n.criada_em else None,
+            "lixeira": {
+                "id": n.lixeira.id,
+                "localizacao": n.lixeira.localizacao
+            } if n.lixeira else None,
+            "sensor": {
+                "id": n.sensor.id,
+                "bateria": n.sensor.bateria
+            } if n.sensor else None
+        } for n in notificacoes]
+        
+        return jsonify(resultado)
+    except Exception as e:
+        logger.error(f"Erro ao listar notificações: {e}")
+        return jsonify({"erro": str(e)}), 500
+    finally:
+        db.close()
+
+@api_bp.route('/notificacoes/processar-alertas', methods=['POST'])
+@admin_required
+@limiter.limit("5 per minute")
+def processar_alertas_endpoint():
+    """Endpoint para processar alertas e enviar notificações (apenas admin)"""
+    db = get_db()
+    try:
+        from banco_dados.notificacoes import processar_alertas
+        
+        stats = processar_alertas(db)
+        
+        return jsonify({
+            "mensagem": "Alertas processados com sucesso",
+            "estatisticas": stats
+        })
+    except Exception as e:
+        logger.error(f"Erro ao processar alertas: {e}")
+        return jsonify({"erro": str(e)}), 500
+    finally:
+        db.close()
+
+@api_bp.route('/notificacoes/<int:notificacao_id>/marcar-lida', methods=['PUT'])
+@login_required
+def marcar_notificacao_lida(notificacao_id):
+    """Endpoint para marcar uma notificação como lida"""
+    db = get_db()
+    try:
+        notificacao = db.query(Notificacao).filter(Notificacao.id == notificacao_id).first()
+        
+        if not notificacao:
+            return jsonify({"erro": "Notificação não encontrada"}), 404
+        
+        notificacao.lida = True
+        notificacao.lida_em = utc_now_naive()
+        db.commit()
+        
+        return jsonify({
+            "mensagem": "Notificação marcada como lida",
+            "notificacao": {
+                "id": notificacao.id,
+                "lida": notificacao.lida,
+                "lida_em": notificacao.lida_em.isoformat() if notificacao.lida_em else None
+            }
+        })
+    except Exception as e:
+        logger.error(f"Erro ao marcar notificação como lida: {e}")
+        db.rollback()
+        return jsonify({"erro": str(e)}), 500
+    finally:
+        db.close()
+
+@api_bp.route('/notificacoes/pendentes-count', methods=['GET'])
+@login_required
+def contar_notificacoes_pendentes():
+    """Endpoint para obter contagem de notificações pendentes (não lidas)"""
+    db = get_db()
+    try:
+        count = db.query(Notificacao).filter(Notificacao.lida == False).count()
+        return jsonify({"count": count})
+    except Exception as e:
+        logger.error(f"Erro ao contar notificações pendentes: {e}")
+        return jsonify({"erro": str(e)}), 500
+    finally:
+        db.close()
+
+@api_bp.route('/notificacoes/status-agendamento', methods=['GET'])
+@login_required
+def status_agendamento():
+    """Endpoint para obter status do agendamento automático"""
+    try:
+        from banco_dados.agendamento import obter_status_agendamento
+        
+        status = obter_status_agendamento()
+        return jsonify(status)
+    except Exception as e:
+        logger.error(f"Erro ao obter status do agendamento: {e}")
+        return jsonify({"erro": str(e)}), 500

@@ -1,0 +1,68 @@
+# .dockerignore - Dashboard-TRONIK
+# =================================
+# Arquivos e diretórios a serem ignorados no build Docker
+
+# Python
+__pycache__/
+*.py[cod]
+*$py.class
+*.so
+.Python
+env/
+venv/
+ENV/
+.venv
+pip-log.txt
+pip-delete-this-directory.txt
+
+# Banco de dados
+*.db
+*.db-journal
+*.sqlite
+*.sqlite3
+data/
+
+# Testes
+.pytest_cache/
+.coverage
+htmlcov/
+tests/
+
+# IDEs
+.vscode/
+.idea/
+*.swp
+*.swo
+*~
+
+# Git
+.git/
+.gitignore
+.gitattributes
+
+# Documentação
+*.md
+docs/
+*.pdf
+
+# Logs
+*.log
+logs/
+
+# Ambiente
+.env
+.env.local
+.env.*.local
+
+# Docker
+Dockerfile
+docker-compose.yml
+.dockerignore
+
+# Outros
+.DS_Store
+Thumbs.db
+*.bak
+*.tmp
+
+

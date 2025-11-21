@@ -1,0 +1,55 @@
+# docker-compose.yml - Dashboard-TRONIK
+# =====================================
+# Configuração Docker Compose para desenvolvimento e produção
+
+version: '3.8'
+
+services:
+  # Aplicação Flask
+  app:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    container_name: dashboard-tronik-app
+    ports:
+      - "5000:5000"
+    environment:
+      - FLASK_ENV=${FLASK_ENV:-production}
+      - SECRET_KEY=${SECRET_KEY:-change-me-in-production}
+      - DATABASE_URL=sqlite:///data/tronik.db
+      - MAIL_SERVER=${MAIL_SERVER:-}
+      - MAIL_PORT=${MAIL_PORT:-587}
+      - MAIL_USE_TLS=${MAIL_USE_TLS:-true}
+      - MAIL_USERNAME=${MAIL_USERNAME:-}
+      - MAIL_PASSWORD=${MAIL_PASSWORD:-}
+      - MAIL_DEFAULT_SENDER=${MAIL_DEFAULT_SENDER:-noreply@tronik.com}
+      - LOG_LEVEL=${LOG_LEVEL:-INFO}
+    volumes:
+      # Persistir banco de dados
+      - ./data:/app/data
+      # Montar código em desenvolvimento (comentar em produção)
+      # - .:/app
+    restart: unless-stopped
+    healthcheck:
+      test: ["CMD", "python", "-c", "import requests; requests.get('http://localhost:5000/api/configuracoes', timeout=5)"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+      start_period: 40s
+
+  # Servidor de email para desenvolvimento (opcional)
+  # Descomente se quiser testar emails localmente
+  # mailhog:
+  #   image: mailhog/mailhog:latest
+  #   container_name: dashboard-tronik-mailhog
+  #   ports:
+  #     - "1025:1025"  # SMTP
+  #     - "8025:8025"  # Web UI
+  #   restart: unless-stopped
+
+# Volumes nomeados (opcional)
+volumes:
+  db_data:
+    driver: local
+
+
