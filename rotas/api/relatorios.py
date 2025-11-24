@@ -7,6 +7,7 @@ Endpoints para relatórios financeiros e operacionais.
 from flask import Blueprint, jsonify, request, Response
 from flask_login import login_required
 from rotas.api.decorators import get_db
+from rotas.api import decorators
 from banco_dados.services.relatorio_service import gerar_relatorio
 from banco_dados.utils.erros import tratar_erro_api
 from banco_dados.utils.logger import obter_logger
@@ -20,6 +21,7 @@ relatorios_bp = Blueprint('relatorios', __name__)
 
 
 @relatorios_bp.route('/relatorios', methods=['GET'])
+@decorators.rate_limit("20 per minute")
 def obter_relatorios():
     """Endpoint para obter dados para relatórios com dados financeiros e paginação"""
     db = get_db()
@@ -63,6 +65,7 @@ def obter_relatorios():
 
 @relatorios_bp.route('/relatorios/exportar-pdf', methods=['GET'])
 @login_required
+@decorators.rate_limit("5 per minute")
 def exportar_relatorio_pdf():
     """Endpoint para exportar relatório em PDF"""
     db = get_db()

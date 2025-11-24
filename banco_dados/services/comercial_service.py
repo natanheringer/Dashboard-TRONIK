@@ -66,8 +66,13 @@ class ComercialService:
             mes = mes or hoje.month
             ano = ano or hoje.year
             
-            # Buscar todas as coletas do mês
-            coletas = db.query(Coleta).filter(
+            # Buscar todas as coletas do mês com eager loading
+            from sqlalchemy.orm import joinedload
+            coletas = db.query(Coleta).options(
+                joinedload(Coleta.coletor),
+                joinedload(Coleta.parceiro),
+                joinedload(Coleta.tipo_coletor)
+            ).filter(
                 extract('month', Coleta.data_hora) == mes,
                 extract('year', Coleta.data_hora) == ano
             ).all()
@@ -276,7 +281,13 @@ class ComercialService:
             mes = mes or hoje.month
             ano = ano or hoje.year
             
-            coletas = db.query(Coleta).filter(
+            # Query otimizada com eager loading para evitar N+1
+            from sqlalchemy.orm import joinedload
+            coletas = db.query(Coleta).options(
+                joinedload(Coleta.coletor),
+                joinedload(Coleta.parceiro),
+                joinedload(Coleta.tipo_coletor)
+            ).filter(
                 extract('month', Coleta.data_hora) == mes,
                 extract('year', Coleta.data_hora) == ano,
                 Coleta.volume_estimado.isnot(None),

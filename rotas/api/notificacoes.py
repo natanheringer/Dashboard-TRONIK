@@ -7,7 +7,9 @@ Endpoints para operações com notificações.
 from flask import Blueprint, jsonify, request
 from flask_login import login_required
 from rotas.api.decorators import admin_required, get_db
+from rotas.api import decorators
 from banco_dados.modelos import Notificacao
+from banco_dados.utils.validacao import validar_paginacao
 from banco_dados.serializers import notificacao_para_dict
 from banco_dados.utils import utc_now_naive
 from banco_dados.utils.erros import tratar_erro_api, ErroNaoEncontrado, validar_requisicao_json
@@ -22,6 +24,7 @@ notificacoes_bp = Blueprint('notificacoes', __name__)
 
 @notificacoes_bp.route('/notificacoes', methods=['GET'])
 @login_required
+@decorators.rate_limit("30 per minute")
 def listar_notificacoes():
     """Endpoint para listar notificações com filtros opcionais e paginação"""
     db = get_db()
@@ -53,13 +56,21 @@ def listar_notificacoes():
         
         # Paginação
         # Parâmetros de paginação com validação
-        pagina = request.args.get('pagina', type=int, default=1)
+        pagina, por_pagina = validar_paginacao(
+            request.args.get('pagina', type=int),
+            request.args.get('por_pagina', type=int)
+        )
+        # pagina = request.args.get('pagina', type=int, default=1)
         if pagina < 1:
             pagina = 1
         if pagina > 1000:  # Limite máximo de páginas
             pagina = 1000
         
-        por_pagina = request.args.get('por_pagina', type=int, default=50)
+        pagina, por_pagina = validar_paginacao(
+            request.args.get('pagina', type=int),
+            request.args.get('por_pagina', type=int)
+        )
+        # por_pagina = request.args.get('por_pagina', type=int, default=50)
         limite = request.args.get('limite', type=int)  # Compatibilidade com código antigo
         
         if limite:

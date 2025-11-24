@@ -97,6 +97,7 @@ gunicorn==21.2.0
 psycopg2-binary==2.9.9
 # Driver PostgreSQL necessário para usar PostgreSQL
 # psycopg2-binary é a versão pré-compilada (mais fácil de instalar)
+# NOTA: Requer Python 3.12 ou inferior (veja runtime.txt)
 
 # ========================================
 # DEPENDÊNCIAS DE DESENVOLVIMENTO (OPCIONAL)

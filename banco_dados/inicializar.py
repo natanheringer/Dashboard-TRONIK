@@ -137,11 +137,13 @@ def criar_usuario_admin(engine):
         # Validar força básica da senha (mais flexível para admin inicial)
         if len(admin_password) < 8:
             logger.error("❌ Senha do admin muito curta. Mínimo 8 caracteres.")
+            # Não logar a senha em si
             return
         
         # Aviso se a senha não for muito forte, mas permite
         if len(admin_password) < 12:
             logger.warning("⚠️  Senha do admin é curta. Recomendado: pelo menos 12 caracteres.")
+            # Não logar a senha em si
         
         # Criar admin
         admin = Usuario(

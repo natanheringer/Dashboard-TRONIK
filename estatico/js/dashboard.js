@@ -633,17 +633,7 @@ async function verDetalhes(id) {
                 modalOverlay.id = 'modal-overlay';
                 modalOverlay.className = 'modal-overlay';
                 modalOverlay.style.display = 'none';
-                modalOverlay.innerHTML = `
-                    <div class="modal-container">
-                        <div class="modal-header">
-                            <h2 id="modal-title">Detalhes da Coletor</h2>
-                            <button class="modal-close" id="modal-close">&times;</button>
-                        </div>
-                        <div class="modal-body" id="modal-body">
-                            <!-- Conteúdo será preenchido via JavaScript -->
-                        </div>
-                    </div>
-                `;
+                modalOverlay.textContent = '\n                    <div class="modal-container">\n                        <div class="modal-header">\n                            <h2 id="modal-title">Detalhes da Coletor</h2>\n                            <button class="modal-close" id="modal-close">&times;</button>\n                        </div>\n                        <div class="modal-body" id="modal-body">\n                            <!-- Conteúdo será preenchido via JavaScript -->\n                        </div>\n                    </div>\n                ';
                 body.appendChild(modalOverlay);
                 
                 // Adicionar event listeners para fechar modal

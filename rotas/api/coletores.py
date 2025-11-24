@@ -34,13 +34,21 @@ def listar_coletores():
     db = get_db()
     try:
         # Parâmetros de paginação com validação
-        pagina = request.args.get('pagina', type=int, default=1)
+        pagina, por_pagina = validar_paginacao(
+            request.args.get('pagina', type=int),
+            request.args.get('por_pagina', type=int)
+        )
+        # pagina = request.args.get('pagina', type=int, default=1)
         if pagina < 1:
             pagina = 1
         if pagina > 1000:  # Limite máximo de páginas
             pagina = 1000
         
-        por_pagina = request.args.get('por_pagina', type=int, default=100)
+        pagina, por_pagina = validar_paginacao(
+            request.args.get('pagina', type=int),
+            request.args.get('por_pagina', type=int)
+        )
+        # por_pagina = request.args.get('por_pagina', type=int, default=100)
         if por_pagina < 1:
             por_pagina = 1
         if por_pagina > 500:  # Limite máximo de itens por página
@@ -98,11 +106,18 @@ def obter_lixeira(coletor_id):
 @decorators.rate_limit("10 per minute")
 def criar_coletor_endpoint():
     """Endpoint para criar uma nova coletor"""
-    """Endpoint para criar uma nova coletor"""
     db = get_db()
     try:
+        from banco_dados.utils.validacao import (
+            validar_dados_requisicao, sanitizar_dados_entrada
+        )
+        
         dados = request.get_json()
-        validar_requisicao_json(dados)
+        dados = validar_dados_requisicao(dados)
+        
+        # Sanitizar dados de entrada
+        campos_string = ['localizacao', 'status', 'observacoes']
+        dados = sanitizar_dados_entrada(dados, campos_string)
         
         # Validar dados
         erros = validar_dados_coletor(dados, criar=True, db=db)
@@ -156,8 +171,16 @@ def atualizar_coletor_endpoint(coletor_id):
         if not coletor:
             raise ErroNaoEncontrado("Coletor", coletor_id)
         
+        from banco_dados.utils.validacao import (
+            validar_dados_requisicao, sanitizar_dados_entrada
+        )
+        
         dados = request.get_json()
-        validar_requisicao_json(dados)
+        dados = validar_dados_requisicao(dados)
+        
+        # Sanitizar dados de entrada
+        campos_string = ['localizacao', 'status', 'observacoes']
+        dados = sanitizar_dados_entrada(dados, campos_string)
         
         # Validar dados
         erros = validar_dados_coletor(dados, criar=False, db=db)

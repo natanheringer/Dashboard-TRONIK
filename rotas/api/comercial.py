@@ -12,6 +12,7 @@ from flask_login import current_user
 from banco_dados.seguranca import validar_meta_comercial
 from banco_dados.utils.db_session import get_db_session
 from banco_dados.utils.logger import obter_logger
+from rotas.api import decorators
 
 logger = obter_logger(__name__)
 
@@ -20,6 +21,7 @@ comercial_bp = Blueprint('comercial_api', __name__, url_prefix='/comercial')
 
 @comercial_bp.route('/dashboard', methods=['GET'])
 @login_required
+@decorators.rate_limit("30 per minute")
 def get_dashboard():
     """
     GET /api/comercial/dashboard?mes=11&ano=2025
@@ -78,6 +80,7 @@ def get_meta_atual():
 
 @comercial_bp.route('/meta', methods=['PUT'])
 @login_required
+@decorators.rate_limit("10 per minute")
 def atualizar_meta():
     """
     PUT /api/comercial/meta
@@ -92,14 +95,29 @@ def atualizar_meta():
     """
     db = get_db_session()
     try:
-        dados = request.get_json()
-        if not dados:
-            return jsonify({'erro': 'Dados não fornecidos'}), 400
+        from banco_dados.utils.validacao import (
+            validar_dados_requisicao, validar_tipo_campo,
+            validar_range, validar_tamanho_string, sanitizar_dados_entrada
+        )
         
-        # Validação
+        dados = request.get_json()
+        dados = validar_dados_requisicao(dados)
+        
+        # Sanitizar dados de entrada
+        campos_string = ['observacoes']
+        dados = sanitizar_dados_entrada(dados, campos_string)
+        
+        # Validação usando função existente + validação padronizada
         erros = validar_meta_comercial(dados)
         if erros:
             return jsonify({'erros': erros}), 400
+        
+        # Validações adicionais padronizadas
+        if 'valor_meta' in dados:
+            validar_tipo_campo(dados.get('valor_meta'), (int, float), 'valor_meta')
+            validar_range(dados.get('valor_meta'), min_val=0, max_val=1000000, nome_campo='valor_meta')
+        if 'observacoes' in dados and dados['observacoes']:
+            validar_tamanho_string(dados.get('observacoes'), max_len=500, nome_campo='observacoes')
         
         # Obter meta atual
         from datetime import datetime
