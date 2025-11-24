@@ -33,7 +33,7 @@ def configuracoes():
 @paginas_bp.route('/mapa')
 @login_required
 def mapa():
-    """Renderiza a página de mapa com localização das lixeiras"""
+    """Renderiza a página de mapa com localização das coletores"""
     return render_template('mapa.html')
 
 @paginas_bp.route('/sobre')
@@ -46,3 +46,21 @@ def sobre():
 def notificacoes():
     """Renderiza a página de notificações"""
     return render_template('notificacoes.html')
+
+@paginas_bp.route('/comercial')
+@login_required
+def comercial():
+    """Renderiza a página do dashboard comercial"""
+    return render_template('comercial.html')
+
+@paginas_bp.route('/crm')
+@login_required
+def crm():
+    """Renderiza a página do CRM"""
+    return render_template('crm.html')
+
+@paginas_bp.route('/contratos')
+@login_required
+def contratos():
+    """Renderiza a página de contratos"""
+    return render_template('contratos.html')
