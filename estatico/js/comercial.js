@@ -353,14 +353,19 @@ async function carregarListaParceiros() {
         
         const parceiros = await response.json();
         
-        // Preencher filtro do gráfico
+        // Preencher filtro do gráfico (usando métodos seguros)
         const selectGrafico = document.getElementById('filtro-parceiro-grafico');
         if (selectGrafico) {
-            selectGrafico.innerHTML = '<option value="">Todos os Parceiros</option>';
+            selectGrafico.textContent = ''; // Limpar de forma segura
+            const optionTodos = document.createElement('option');
+            optionTodos.value = '';
+            optionTodos.textContent = 'Todos os Parceiros';
+            selectGrafico.appendChild(optionTodos);
+            
             parceiros.forEach(p => {
                 const option = document.createElement('option');
-                option.value = p.id;
-                option.textContent = p.nome;
+                option.value = String(p.id);
+                option.textContent = p.nome || 'Sem nome'; // textContent escapa automaticamente
                 if (p.id == parceiroSelecionadoGrafico) {
                     option.selected = true;
                 }
@@ -368,14 +373,19 @@ async function carregarListaParceiros() {
             });
         }
         
-        // Preencher filtro da tabela
+        // Preencher filtro da tabela (usando métodos seguros)
         const selectTabela = document.getElementById('filtro-parceiro-tabela');
         if (selectTabela) {
-            selectTabela.innerHTML = '<option value="">Todos os Parceiros</option>';
+            selectTabela.textContent = ''; // Limpar de forma segura
+            const optionTodos = document.createElement('option');
+            optionTodos.value = '';
+            optionTodos.textContent = 'Todos os Parceiros';
+            selectTabela.appendChild(optionTodos);
+            
             parceiros.forEach(p => {
                 const option = document.createElement('option');
-                option.value = p.id;
-                option.textContent = p.nome;
+                option.value = String(p.id);
+                option.textContent = p.nome || 'Sem nome'; // textContent escapa automaticamente
                 if (p.id == parceiroSelecionadoTabela) {
                     option.selected = true;
                 }
@@ -483,22 +493,45 @@ function renderizarProximasColetas() {
     const { proximas_coletas } = dashboardData;
     const container = document.getElementById('proximas-coletas');
     
+    // Limpar container de forma segura
+    container.textContent = '';
+    
     if (!proximas_coletas || proximas_coletas.length === 0) {
-        container.innerHTML = '<p style="text-align: center; color: #64748b; padding: 2rem;">Nenhuma coleta agendada</p>';
+        const emptyMsg = document.createElement('p');
+        emptyMsg.style.textAlign = 'center';
+        emptyMsg.style.color = '#64748b';
+        emptyMsg.style.padding = '2rem';
+        emptyMsg.textContent = 'Nenhuma coleta agendada';
+        container.appendChild(emptyMsg);
         return;
     }
     
-    container.innerHTML = proximas_coletas.map(coleta => `
-        <div class="coleta-item">
-            <div class="coleta-info">
-                <strong>${coleta.coletor?.localizacao || 'Coletor #' + coleta.coletor_id}</strong>
-                <span class="coleta-data">${formatarDataCurta(coleta.data_hora)}</span>
-            </div>
-            <div class="coleta-valor">
-                ${coleta.volume_estimado ? `~${coleta.volume_estimado.toFixed(1)}kg` : 'N/A'}
-            </div>
-        </div>
-    `).join('');
+    // Criar elementos de forma segura
+    proximas_coletas.forEach(coleta => {
+        const item = document.createElement('div');
+        item.className = 'coleta-item';
+        
+        const info = document.createElement('div');
+        info.className = 'coleta-info';
+        
+        const strong = document.createElement('strong');
+        strong.textContent = coleta.coletor?.localizacao || `Coletor #${coleta.coletor_id}`;
+        
+        const span = document.createElement('span');
+        span.className = 'coleta-data';
+        span.textContent = formatarDataCurta(coleta.data_hora);
+        
+        info.appendChild(strong);
+        info.appendChild(span);
+        
+        const valor = document.createElement('div');
+        valor.className = 'coleta-valor';
+        valor.textContent = coleta.volume_estimado ? `~${coleta.volume_estimado.toFixed(1)}kg` : 'N/A';
+        
+        item.appendChild(info);
+        item.appendChild(valor);
+        container.appendChild(item);
+    });
 }
 
 // Renderizar clientes inativos
@@ -509,22 +542,53 @@ function renderizarClientesInativos() {
     
     badge.textContent = clientes_inativos.quantidade;
     
+    // Limpar container de forma segura
+    container.textContent = '';
+    
     if (clientes_inativos.quantidade === 0) {
-        container.innerHTML = '<p style="text-align: center; color: #64748b; padding: 2rem;">Nenhum cliente inativo</p>';
+        const emptyMsg = document.createElement('p');
+        emptyMsg.style.textAlign = 'center';
+        emptyMsg.style.color = '#64748b';
+        emptyMsg.style.padding = '2rem';
+        emptyMsg.textContent = 'Nenhum cliente inativo';
+        container.appendChild(emptyMsg);
         return;
     }
     
-    container.innerHTML = clientes_inativos.lista.map(cliente => `
-        <div class="cliente-item">
-            <div class="cliente-info">
-                <strong>${cliente.localizacao || 'Cliente'}</strong>
-                <span class="cliente-distancia">${cliente.distancia_sede?.toFixed(1) || '?'} km</span>
-            </div>
-            <button onclick="contatarCliente(${cliente.id})" class="btn btn-xs btn-primario">
-                <img src="/static/icons/telephone_icon.png" alt="Contatar" class="btn-icon-small"> Contatar
-            </button>
-        </div>
-    `).join('');
+    // Criar elementos de forma segura
+    clientes_inativos.lista.forEach(cliente => {
+        const item = document.createElement('div');
+        item.className = 'cliente-item';
+        
+        const info = document.createElement('div');
+        info.className = 'cliente-info';
+        
+        const strong = document.createElement('strong');
+        strong.textContent = cliente.localizacao || 'Cliente';
+        
+        const span = document.createElement('span');
+        span.className = 'cliente-distancia';
+        span.textContent = `${cliente.distancia_sede?.toFixed(1) || '?'} km`;
+        
+        info.appendChild(strong);
+        info.appendChild(span);
+        
+        const btn = document.createElement('button');
+        btn.className = 'btn btn-xs btn-primario';
+        btn.onclick = () => contatarCliente(cliente.id);
+        
+        const img = document.createElement('img');
+        img.src = '/static/icons/telephone_icon.png';
+        img.alt = 'Contatar';
+        img.className = 'btn-icon-small';
+        
+        btn.appendChild(img);
+        btn.appendChild(document.createTextNode(' Contatar'));
+        
+        item.appendChild(info);
+        item.appendChild(btn);
+        container.appendChild(item);
+    });
 }
 
 // Renderizar sugestões

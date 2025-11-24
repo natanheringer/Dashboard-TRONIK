@@ -7,6 +7,7 @@ Endpoints para operações CRUD de sensores.
 from flask import Blueprint, jsonify, request
 from flask_login import login_required
 from rotas.api.decorators import admin_required, get_db
+from rotas.api import decorators
 from banco_dados.modelos import Sensor
 from banco_dados.serializers import sensor_para_dict
 from banco_dados.seguranca import validar_sensor
@@ -23,6 +24,7 @@ sensores_bp = Blueprint('sensores', __name__)
 
 
 @sensores_bp.route('/sensores', methods=['GET'])
+@decorators.rate_limit("30 per minute")
 def listar_sensores():
     """Endpoint para listar todos os sensores com filtros opcionais"""
     db = get_db()
@@ -78,12 +80,20 @@ def obter_sensor(sensor_id):
 
 @sensores_bp.route('/sensor', methods=['POST'])
 @login_required
+@decorators.rate_limit("10 per minute")
 def criar_sensor():
     """Endpoint para criar um novo sensor"""
     db = get_db()
     try:
+        from banco_dados.utils.validacao import (
+            validar_dados_requisicao, sanitizar_dados_entrada
+        )
+        
         dados = request.get_json()
-        validar_requisicao_json(dados)
+        dados = validar_dados_requisicao(dados)
+        
+        # Sanitizar dados de entrada (sensores geralmente não têm strings, mas por segurança)
+        dados = sanitizar_dados_entrada(dados, [])
         
         # Validar dados
         erros = validar_sensor(dados, criar=True, db=db)
@@ -118,6 +128,7 @@ def criar_sensor():
 
 @sensores_bp.route('/sensor/<int:sensor_id>', methods=['PUT'])
 @login_required
+@decorators.rate_limit("20 per minute")
 def atualizar_sensor(sensor_id):
     """Endpoint para atualizar um sensor"""
     db = get_db()
@@ -126,8 +137,15 @@ def atualizar_sensor(sensor_id):
         if not sensor:
             raise ErroNaoEncontrado("Sensor", sensor_id)
         
+        from banco_dados.utils.validacao import (
+            validar_dados_requisicao, sanitizar_dados_entrada
+        )
+        
         dados = request.get_json()
-        validar_requisicao_json(dados)
+        dados = validar_dados_requisicao(dados)
+        
+        # Sanitizar dados de entrada
+        dados = sanitizar_dados_entrada(dados, [])
         
         # Validar dados
         erros = validar_sensor(dados, criar=False, db=db)

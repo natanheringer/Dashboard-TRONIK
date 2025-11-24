@@ -10,6 +10,7 @@ from banco_dados.services.contrato_service import ContratoService
 from banco_dados.modelos import ContratoRecorrente, Coletor
 from banco_dados.utils.db_session import get_db_session
 from banco_dados.utils.logger import obter_logger
+from rotas.api import decorators
 from datetime import datetime
 
 logger = obter_logger(__name__)
@@ -19,6 +20,7 @@ contratos_bp = Blueprint('contratos_api', __name__, url_prefix='/contratos')
 
 @contratos_bp.route('/', methods=['GET'])
 @login_required
+@decorators.rate_limit("30 per minute")
 def listar_contratos():
     """
     GET /api/contratos
@@ -59,6 +61,7 @@ def listar_contratos():
 
 @contratos_bp.route('/', methods=['POST'])
 @login_required
+@decorators.rate_limit("10 per minute")
 def criar_contrato():
     """
     POST /api/contratos
@@ -80,17 +83,24 @@ def criar_contrato():
     }
     """
     try:
-        dados = request.get_json()
-        if not dados:
-            return jsonify({'erro': 'Dados não fornecidos'}), 400
+        from banco_dados.utils.validacao import (
+            validar_dados_requisicao, validar_id_positivo, validar_tipo_campo,
+            validar_range, validar_tamanho_string, sanitizar_dados_entrada
+        )
         
-        # Validações básicas
-        if 'coletor_id' not in dados:
-            return jsonify({'erro': 'coletor_id é obrigatório'}), 400
-        if 'titulo' not in dados or not dados['titulo']:
-            return jsonify({'erro': 'titulo é obrigatório'}), 400
-        if 'valor_mensal' not in dados:
-            return jsonify({'erro': 'valor_mensal é obrigatório'}), 400
+        dados = request.get_json()
+        dados = validar_dados_requisicao(dados, ['coletor_id', 'titulo', 'valor_mensal'])
+        
+        # Sanitizar dados de entrada
+        campos_string = ['titulo', 'descricao', 'observacoes', 'frequencia_coleta']
+        dados = sanitizar_dados_entrada(dados, campos_string)
+        
+        # Validações específicas
+        coletor_id = validar_id_positivo(dados.get('coletor_id'), 'coletor_id')
+        validar_tipo_campo(dados.get('titulo'), str, 'titulo')
+        validar_tamanho_string(dados.get('titulo'), min_len=1, max_len=200, nome_campo='titulo')
+        validar_tipo_campo(dados.get('valor_mensal'), (int, float), 'valor_mensal')
+        validar_range(dados.get('valor_mensal'), min_val=0, max_val=1000000, nome_campo='valor_mensal')
         
         # Validar que coletor existe
         db = get_db_session()
@@ -149,6 +159,7 @@ def obter_contrato(contrato_id):
 
 @contratos_bp.route('/<int:contrato_id>', methods=['PUT'])
 @login_required
+@decorators.rate_limit("20 per minute")
 def atualizar_contrato(contrato_id):
     """
     PUT /api/contratos/<id>
@@ -158,18 +169,23 @@ def atualizar_contrato(contrato_id):
     Body: Mesmos campos do POST (todos opcionais)
     """
     try:
-        dados = request.get_json()
-        if not dados:
-            return jsonify({'erro': 'Dados não fornecidos'}), 400
+        from banco_dados.utils.validacao import (
+            validar_dados_requisicao, validar_data_iso, sanitizar_dados_entrada
+        )
         
-        # Converter data_vencimento se fornecida
+        dados = request.get_json()
+        dados = validar_dados_requisicao(dados)
+        
+        # Sanitizar dados de entrada
+        campos_string = ['titulo', 'descricao', 'frequencia_coleta', 'observacoes']
+        dados = sanitizar_dados_entrada(dados, campos_string)
+        
+        # Converter data_vencimento se fornecida (usando validação padronizada)
         if 'data_vencimento' in dados and dados['data_vencimento']:
             try:
-                dados['data_vencimento'] = datetime.fromisoformat(
-                    dados['data_vencimento'].replace('Z', '+00:00')
-                )
-            except (ValueError, AttributeError):
-                return jsonify({'erro': 'Formato de data inválido (use ISO 8601)'}), 400
+                dados['data_vencimento'] = validar_data_iso(dados['data_vencimento'], 'data_vencimento')
+            except Exception as e:
+                return jsonify({'erro': str(e)}), 400
         
         contrato = ContratoService.atualizar_contrato(contrato_id, dados)
         return jsonify(contrato.to_dict()), 200

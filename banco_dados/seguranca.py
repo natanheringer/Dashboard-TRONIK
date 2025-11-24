@@ -68,13 +68,14 @@ def validar_bateria(bateria: float) -> Tuple[bool, Optional[str]]:
         return False, "Bateria deve ser um número"
 
 
-def sanitizar_string(texto: str, max_length: Optional[int] = None) -> str:
+def sanitizar_string(texto: str, max_length: Optional[int] = None, permitir_html: bool = False) -> str:
     """
     Sanitiza uma string removendo caracteres perigosos e limitando tamanho.
     
     Args:
         texto: String a sanitizar
         max_length: Tamanho máximo permitido (None = sem limite)
+        permitir_html: Se False, remove/escapa tags HTML (padrão: False para segurança)
         
     Returns:
         String sanitizada
@@ -85,6 +86,20 @@ def sanitizar_string(texto: str, max_length: Optional[int] = None) -> str:
     # Remove caracteres de controle e espaços extras
     texto = re.sub(r'[\x00-\x1f\x7f-\x9f]', '', texto)
     texto = texto.strip()
+    
+    # Prevenir XSS: remover/escapar HTML se não permitido
+    if not permitir_html:
+        # Escapar caracteres HTML perigosos
+        texto = texto.replace('&', '&amp;')
+        texto = texto.replace('<', '&lt;')
+        texto = texto.replace('>', '&gt;')
+        texto = texto.replace('"', '&quot;')
+        texto = texto.replace("'", '&#x27;')
+        texto = texto.replace('/', '&#x2F;')
+    
+    # Remover scripts e eventos inline (proteção adicional)
+    texto = re.sub(r'javascript:', '', texto, flags=re.IGNORECASE)
+    texto = re.sub(r'on\w+\s*=', '', texto, flags=re.IGNORECASE)
     
     # Limita tamanho se especificado
     if max_length and len(texto) > max_length:

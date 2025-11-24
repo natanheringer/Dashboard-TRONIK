@@ -257,11 +257,19 @@ function exibirListaLixeiras(coletores) {
     if (!container) return;
     
     if (coletores.length === 0) {
-        container.innerHTML = '<div class="loading-message">Nenhuma coletor cadastrada</div>';
+        const emptyMsg = document.createElement('div');
+        emptyMsg.className = 'loading-message';
+        emptyMsg.textContent = 'Nenhuma coletor cadastrada';
+        container.textContent = '';
+        container.appendChild(emptyMsg);
         return;
     }
     
-    container.innerHTML = coletores.map(coletor => {
+    // Limpar container
+    container.textContent = '';
+    
+    // Criar elementos de forma segura
+    coletores.forEach(coletor => {
         const tipoMaterial = coletor.tipo_material ? coletor.tipo_material.nome : 'Não especificado';
         const parceiro = coletor.parceiro ? coletor.parceiro.nome : 'N/A';
         const distanciaSede = calcularDistanciaSede(coletor);

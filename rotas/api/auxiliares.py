@@ -7,6 +7,7 @@ Endpoints auxiliares (estatísticas, tipos, parceiros, configurações).
 from flask import Blueprint, jsonify, request
 from flask_login import login_required
 from rotas.api.decorators import get_db
+from rotas.api import decorators
 from banco_dados.modelos import Coletor, Coleta, Parceiro, TipoMaterial, TipoSensor, TipoColetor, Sensor
 from banco_dados.utils.cache import obter_cache
 from banco_dados.utils.erros import tratar_erro_api
@@ -21,6 +22,7 @@ auxiliares_bp = Blueprint('auxiliares', __name__)
 
 
 @auxiliares_bp.route('/estatisticas', methods=['GET'])
+@decorators.rate_limit("30 per minute")
 def obter_estatisticas():
     """Endpoint para obter estatísticas gerais"""
     db = get_db()
@@ -170,27 +172,52 @@ def listar_tipos_coletor():
 
 @auxiliares_bp.route('/coletores/simular-niveis', methods=['POST'])
 @login_required
+@decorators.rate_limit("10 per minute")
 def simular_niveis():
     """Endpoint para simular mudança de níveis de coletores"""
     db = get_db()
     try:
+        from banco_dados.utils.validacao import (
+            validar_dados_requisicao, validar_tipo_campo, validar_range
+        )
+        
         dados = request.get_json()
-        if not dados or 'coletores' not in dados:
-            return jsonify({"erro": "Dados inválidos. Esperado: {'coletores': [...]}"}), 400
+        dados = validar_dados_requisicao(dados, ['coletores'])
+        
+        # Validar estrutura
+        validar_tipo_campo(dados.get('coletores'), list, 'coletores')
+        
+        if not dados.get('coletores'):
+            return jsonify({"erro": "Lista de coletores não pode estar vazia"}), 400
         
         lixeiras_atualizadas = []
         
         for item in dados['coletores']:
+            # Validar estrutura do item
+            if not isinstance(item, dict):
+                continue
+                
             coletor_id = item.get('id')
             novo_nivel = item.get('nivel')
             
             if not coletor_id or novo_nivel is None:
                 continue
             
+            # Validar tipos
+            try:
+                coletor_id = int(coletor_id)
+                novo_nivel = float(novo_nivel)
+            except (ValueError, TypeError):
+                continue
+            
+            # Validar range do nível
+            if novo_nivel < 0 or novo_nivel > 100:
+                continue
+            
             coletor = db.query(Coletor).filter(Coletor.id == coletor_id).first()
             if coletor:
                 # Atualizar nível
-                coletor.nivel_preenchimento = float(novo_nivel)
+                coletor.nivel_preenchimento = novo_nivel
                 
                 # Atualizar status baseado no nível
                 if coletor.nivel_preenchimento >= 95:

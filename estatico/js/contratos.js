@@ -155,33 +155,105 @@ function renderizarContratos() {
         contratosFiltrados = contratosFiltrados.filter(c => c.coletor_id === parseInt(filtroColetor));
     }
     
+    // Limpar container de forma segura
+    container.textContent = '';
+    
     if (contratosFiltrados.length === 0) {
-        container.innerHTML = '<p style="text-align: center; color: #64748b; padding: 2rem;">Nenhum contrato encontrado</p>';
+        const emptyMsg = document.createElement('p');
+        emptyMsg.style.textAlign = 'center';
+        emptyMsg.style.color = '#64748b';
+        emptyMsg.style.padding = '2rem';
+        emptyMsg.textContent = 'Nenhum contrato encontrado';
+        container.appendChild(emptyMsg);
         return;
     }
     
-    container.innerHTML = contratosFiltrados.map(contrato => `
-        <div class="contrato-item">
-            <div class="contrato-info">
-                <strong>${contrato.titulo}</strong>
-                <span class="contrato-status status-${contrato.status}">${contrato.status}</span>
-            </div>
-            <div class="contrato-detalhes">
-                <span>Cliente: ${contrato.coletor?.localizacao || 'N/A'}</span>
-                <span>Valor: ${formatarMoeda(contrato.valor_mensal)}/mês</span>
-                <span>Frequência: ${contrato.frequencia_coleta}</span>
-            </div>
-            <div class="contrato-datas">
-                <span>Início: ${formatarData(contrato.data_inicio)}</span>
-                ${contrato.data_vencimento ? `<span>Vencimento: ${formatarData(contrato.data_vencimento)}</span>` : '<span>Sem vencimento</span>'}
-            </div>
-            <div class="contrato-acoes">
-                <button class="btn btn-xs" onclick="verDetalhesContrato(${contrato.id})">Ver</button>
-                <button class="btn btn-xs" onclick="editarContrato(${contrato.id})">Editar</button>
-                ${contrato.status === 'ativo' ? `<button class="btn btn-xs btn-danger" onclick="cancelarContrato(${contrato.id})">Cancelar</button>` : ''}
-            </div>
-        </div>
-    `).join('');
+    // Criar elementos de forma segura
+    contratosFiltrados.forEach(contrato => {
+        const item = document.createElement('div');
+        item.className = 'contrato-item';
+        
+        // Info
+        const info = document.createElement('div');
+        info.className = 'contrato-info';
+        
+        const strong = document.createElement('strong');
+        strong.textContent = contrato.titulo || 'Sem título';
+        
+        const statusSpan = document.createElement('span');
+        statusSpan.className = `contrato-status status-${contrato.status || 'ativo'}`;
+        statusSpan.textContent = contrato.status || 'ativo';
+        
+        info.appendChild(strong);
+        info.appendChild(statusSpan);
+        
+        // Detalhes
+        const detalhes = document.createElement('div');
+        detalhes.className = 'contrato-detalhes';
+        
+        const clienteSpan = document.createElement('span');
+        clienteSpan.textContent = `Cliente: ${contrato.coletor?.localizacao || 'N/A'}`;
+        
+        const valorSpan = document.createElement('span');
+        valorSpan.textContent = `Valor: ${formatarMoeda(contrato.valor_mensal || 0)}/mês`;
+        
+        const freqSpan = document.createElement('span');
+        freqSpan.textContent = `Frequência: ${contrato.frequencia_coleta || 'N/A'}`;
+        
+        detalhes.appendChild(clienteSpan);
+        detalhes.appendChild(valorSpan);
+        detalhes.appendChild(freqSpan);
+        
+        // Datas
+        const datas = document.createElement('div');
+        datas.className = 'contrato-datas';
+        
+        const inicioSpan = document.createElement('span');
+        inicioSpan.textContent = `Início: ${formatarData(contrato.data_inicio)}`;
+        
+        datas.appendChild(inicioSpan);
+        
+        if (contrato.data_vencimento) {
+            const vencSpan = document.createElement('span');
+            vencSpan.textContent = `Vencimento: ${formatarData(contrato.data_vencimento)}`;
+            datas.appendChild(vencSpan);
+        } else {
+            const semVenc = document.createElement('span');
+            semVenc.textContent = 'Sem vencimento';
+            datas.appendChild(semVenc);
+        }
+        
+        // Ações
+        const acoes = document.createElement('div');
+        acoes.className = 'contrato-acoes';
+        
+        const btnVer = document.createElement('button');
+        btnVer.className = 'btn btn-xs';
+        btnVer.textContent = 'Ver';
+        btnVer.onclick = () => verDetalhesContrato(contrato.id);
+        
+        const btnEditar = document.createElement('button');
+        btnEditar.className = 'btn btn-xs';
+        btnEditar.textContent = 'Editar';
+        btnEditar.onclick = () => editarContrato(contrato.id);
+        
+        acoes.appendChild(btnVer);
+        acoes.appendChild(btnEditar);
+        
+        if (contrato.status === 'ativo') {
+            const btnCancelar = document.createElement('button');
+            btnCancelar.className = 'btn btn-xs btn-danger';
+            btnCancelar.textContent = 'Cancelar';
+            btnCancelar.onclick = () => cancelarContrato(contrato.id);
+            acoes.appendChild(btnCancelar);
+        }
+        
+        item.appendChild(info);
+        item.appendChild(detalhes);
+        item.appendChild(datas);
+        item.appendChild(acoes);
+        container.appendChild(item);
+    });
 }
 
 // Filtrar contratos

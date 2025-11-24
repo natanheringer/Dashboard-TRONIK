@@ -136,25 +136,70 @@ function renderizarTarefas() {
     }
     
     if (!tarefasData || tarefasData.length === 0) {
-        container.innerHTML = '<p style="text-align: center; color: #64748b; padding: 2rem;">Nenhuma tarefa pendente</p>';
+        const emptyMsg = document.createElement('p');
+        emptyMsg.style.textAlign = 'center';
+        emptyMsg.style.color = '#64748b';
+        emptyMsg.style.padding = '2rem';
+        emptyMsg.textContent = 'Nenhuma tarefa pendente';
+        container.textContent = '';
+        container.appendChild(emptyMsg);
         return;
     }
     
-    container.innerHTML = tarefasData.map(tarefa => `
-        <div class="tarefa-item ${tarefa.atrasada ? 'atrasada' : ''}">
-            <div class="tarefa-info">
-                <strong>${tarefa.titulo}</strong>
-                <span class="tarefa-prioridade prioridade-${tarefa.prioridade}">${tarefa.prioridade}</span>
-            </div>
-            <div class="tarefa-detalhes">
-                ${tarefa.data_vencimento ? `<span>Vence: ${formatarData(tarefa.data_vencimento)}</span>` : ''}
-                ${tarefa.cliente ? `<span>Cliente: ${tarefa.cliente}</span>` : ''}
-            </div>
-            <div class="tarefa-acoes">
-                <button class="btn btn-xs btn-primario" onclick="concluirTarefa(${tarefa.id})">Concluir</button>
-            </div>
-        </div>
-    `).join('');
+    // Limpar container de forma segura
+    container.textContent = '';
+    
+    // Criar elementos de forma segura
+    tarefasData.forEach(tarefa => {
+        const item = document.createElement('div');
+        item.className = `tarefa-item ${tarefa.atrasada ? 'atrasada' : ''}`;
+        
+        // Info
+        const info = document.createElement('div');
+        info.className = 'tarefa-info';
+        
+        const strong = document.createElement('strong');
+        strong.textContent = tarefa.titulo || 'Sem título';
+        
+        const prioridadeSpan = document.createElement('span');
+        prioridadeSpan.className = `tarefa-prioridade prioridade-${tarefa.prioridade || 'media'}`;
+        prioridadeSpan.textContent = tarefa.prioridade || 'media';
+        
+        info.appendChild(strong);
+        info.appendChild(prioridadeSpan);
+        
+        // Detalhes
+        const detalhes = document.createElement('div');
+        detalhes.className = 'tarefa-detalhes';
+        
+        if (tarefa.data_vencimento) {
+            const vencSpan = document.createElement('span');
+            vencSpan.textContent = `Vence: ${formatarData(tarefa.data_vencimento)}`;
+            detalhes.appendChild(vencSpan);
+        }
+        
+        if (tarefa.cliente) {
+            const clienteSpan = document.createElement('span');
+            clienteSpan.textContent = `Cliente: ${tarefa.cliente}`;
+            detalhes.appendChild(clienteSpan);
+        }
+        
+        // Ações
+        const acoes = document.createElement('div');
+        acoes.className = 'tarefa-acoes';
+        
+        const btnConcluir = document.createElement('button');
+        btnConcluir.className = 'btn btn-xs btn-primario';
+        btnConcluir.textContent = 'Concluir';
+        btnConcluir.onclick = () => concluirTarefa(tarefa.id);
+        
+        acoes.appendChild(btnConcluir);
+        
+        item.appendChild(info);
+        item.appendChild(detalhes);
+        item.appendChild(acoes);
+        container.appendChild(item);
+    });
 }
 
 // Renderizar funil

@@ -30,7 +30,11 @@ def listar_coletas():
     db = get_db()
     try:
         # Parâmetros de paginação
-        pagina = request.args.get('pagina', type=int, default=1)
+        pagina, por_pagina = validar_paginacao(
+            request.args.get('pagina', type=int),
+            request.args.get('por_pagina', type=int)
+        )
+        # pagina = request.args.get('pagina', type=int, default=1)
         por_pagina = request.args.get('por_pagina', type=int, default=50)
         
         # Filtros
@@ -77,13 +81,21 @@ def obter_historico():
         data_filtro = request.args.get('data')
         
         # Parâmetros de paginação com validação
-        pagina = request.args.get('pagina', type=int, default=1)
+        pagina, por_pagina = validar_paginacao(
+            request.args.get('pagina', type=int),
+            request.args.get('por_pagina', type=int)
+        )
+        # pagina = request.args.get('pagina', type=int, default=1)
         if pagina < 1:
             pagina = 1
         if pagina > 1000:  # Limite máximo de páginas
             pagina = 1000
         
-        por_pagina = request.args.get('por_pagina', type=int, default=50)
+        pagina, por_pagina = validar_paginacao(
+            request.args.get('pagina', type=int),
+            request.args.get('por_pagina', type=int)
+        )
+        # por_pagina = request.args.get('por_pagina', type=int, default=50)
         if por_pagina < 1:
             por_pagina = 1
         if por_pagina > 500:  # Limite máximo de itens por página
@@ -125,8 +137,16 @@ def criar_coleta_endpoint():
     """Endpoint para criar uma nova coleta"""
     db = get_db()
     try:
+        from banco_dados.utils.validacao import (
+            validar_dados_requisicao, sanitizar_dados_entrada
+        )
+        
         dados = request.get_json()
-        validar_requisicao_json(dados)
+        dados = validar_dados_requisicao(dados)
+        
+        # Sanitizar dados de entrada
+        campos_string = ['tipo_operacao', 'observacoes']
+        dados = sanitizar_dados_entrada(dados, campos_string)
         
         # Validar dados
         erros = validar_dados_coleta(dados, criar=True, db=db)

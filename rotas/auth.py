@@ -66,7 +66,8 @@ def login():
             ).first()
             
             if not usuario or not usuario.verificar_senha(senha):
-                logger.warning(f"Tentativa de login falhada para: {username}")
+                # Logar tentativa sem expor informações sensíveis
+                logger.warning(f"Tentativa de login falhada para username: {username[:3]}***")
                 if request.is_json:
                     return jsonify({"erro": "Credenciais inválidas"}), 401
                 flash("Credenciais inválidas", "error")

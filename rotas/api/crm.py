@@ -10,6 +10,7 @@ from banco_dados.services.crm_service import CRMService
 from banco_dados.modelos import Pipeline, Interacao, Tarefa
 from banco_dados.utils.db_session import get_db_session
 from banco_dados.utils.logger import obter_logger
+from rotas.api import decorators
 from datetime import datetime
 
 logger = obter_logger(__name__)
@@ -19,6 +20,7 @@ crm_bp = Blueprint('crm_api', __name__, url_prefix='/crm')
 
 @crm_bp.route('/pipeline', methods=['GET'])
 @login_required
+@decorators.rate_limit("30 per minute")
 def listar_pipeline():
     """
     GET /api/crm/pipeline
@@ -67,6 +69,7 @@ def listar_pipeline():
 
 @crm_bp.route('/pipeline', methods=['POST'])
 @login_required
+@decorators.rate_limit("10 per minute")
 def criar_pipeline():
     """
     POST /api/crm/pipeline
@@ -87,18 +90,23 @@ def criar_pipeline():
     }
     """
     try:
-        dados = request.get_json()
-        if not dados:
-            return jsonify({'erro': 'Dados não fornecidos'}), 400
+        from banco_dados.utils.validacao import (
+            validar_dados_requisicao, validar_data_iso, sanitizar_dados_entrada
+        )
         
-        # Converter data_proxima_acao se fornecida
+        dados = request.get_json()
+        dados = validar_dados_requisicao(dados)
+        
+        # Sanitizar dados de entrada
+        campos_string = ['proxima_acao', 'origem', 'tipo_servico', 'observacoes', 'descricao_inicial', 'status']
+        dados = sanitizar_dados_entrada(dados, campos_string)
+        
+        # Converter data_proxima_acao se fornecida (usando validação padronizada)
         if 'data_proxima_acao' in dados and dados['data_proxima_acao']:
             try:
-                dados['data_proxima_acao'] = datetime.fromisoformat(
-                    dados['data_proxima_acao'].replace('Z', '+00:00')
-                )
-            except (ValueError, AttributeError):
-                return jsonify({'erro': 'Formato de data inválido (use ISO 8601)'}), 400
+                dados['data_proxima_acao'] = validar_data_iso(dados['data_proxima_acao'], 'data_proxima_acao')
+            except Exception as e:
+                return jsonify({'erro': str(e)}), 400
         
         usuario_id = current_user.id if current_user.is_authenticated else None
         pipeline = CRMService.criar_pipeline(dados, usuario_id)
@@ -116,6 +124,7 @@ def criar_pipeline():
 
 @crm_bp.route('/pipeline/<int:pipeline_id>', methods=['GET'])
 @login_required
+@decorators.rate_limit("30 per minute")
 def obter_pipeline(pipeline_id):
     """GET /api/crm/pipeline/<id> - Obtém detalhes de um pipeline"""
     db = get_db_session()
@@ -149,6 +158,7 @@ def obter_pipeline(pipeline_id):
 
 @crm_bp.route('/pipeline/<int:pipeline_id>/status', methods=['PUT'])
 @login_required
+@decorators.rate_limit("20 per minute")
 def atualizar_status_pipeline(pipeline_id):
     """
     PUT /api/crm/pipeline/<id>/status
@@ -162,9 +172,20 @@ def atualizar_status_pipeline(pipeline_id):
     }
     """
     try:
+        from banco_dados.utils.validacao import (
+            validar_dados_requisicao, validar_enum, sanitizar_dados_entrada
+        )
+        
         dados = request.get_json()
-        if not dados:
-            return jsonify({'erro': 'Dados não fornecidos'}), 400
+        dados = validar_dados_requisicao(dados, ['status'])
+        
+        # Sanitizar dados de entrada
+        campos_string = ['status', 'motivo_perda']
+        dados = sanitizar_dados_entrada(dados, campos_string)
+        
+        # Validar status
+        status_permitidos = ['lead', 'contato_inicial', 'proposta_enviada', 'negociacao', 'fechado', 'perdido']
+        validar_enum(dados.get('status'), status_permitidos, 'status')
         
         novo_status = dados.get('status')
         if not novo_status:
@@ -186,6 +207,7 @@ def atualizar_status_pipeline(pipeline_id):
 
 @crm_bp.route('/pipeline/<int:pipeline_id>/interacoes', methods=['POST'])
 @login_required
+@decorators.rate_limit("20 per minute")
 def registrar_interacao(pipeline_id):
     """
     POST /api/crm/pipeline/<id>/interacoes
@@ -201,15 +223,27 @@ def registrar_interacao(pipeline_id):
     }
     """
     try:
+        from banco_dados.utils.validacao import (
+            validar_dados_requisicao, validar_obrigatorio, validar_enum,
+            validar_tamanho_string, sanitizar_dados_entrada
+        )
+        
         dados = request.get_json()
-        if not dados:
-            return jsonify({'erro': 'Dados não fornecidos'}), 400
+        dados = validar_dados_requisicao(dados, ['tipo', 'descricao'])
+        
+        # Sanitizar dados de entrada
+        campos_string = ['tipo', 'descricao', 'resultado']
+        dados = sanitizar_dados_entrada(dados, campos_string)
+        
+        # Validações específicas
+        validar_tamanho_string(dados.get('descricao'), min_len=1, max_len=1000, nome_campo='descricao')
+        
+        # Validar tipo de interação
+        tipos_permitidos = ['ligacao', 'email', 'reuniao', 'whatsapp', 'outro']
+        validar_enum(dados.get('tipo'), tipos_permitidos, 'tipo')
         
         tipo = dados.get('tipo')
         descricao = dados.get('descricao')
-        
-        if not tipo or not descricao:
-            return jsonify({'erro': 'Tipo e descrição são obrigatórios'}), 400
         
         usuario_id = current_user.id if current_user.is_authenticated else None
         interacao = CRMService.registrar_interacao(
@@ -232,6 +266,7 @@ def registrar_interacao(pipeline_id):
 
 @crm_bp.route('/funil', methods=['GET'])
 @login_required
+@decorators.rate_limit("30 per minute")
 def get_funil_vendas():
     """GET /api/crm/funil - Retorna dados do funil de vendas"""
     try:
@@ -244,6 +279,7 @@ def get_funil_vendas():
 
 @crm_bp.route('/estatisticas', methods=['GET'])
 @login_required
+@decorators.rate_limit("30 per minute")
 def get_estatisticas():
     """GET /api/crm/estatisticas - Retorna estatísticas gerais do CRM"""
     try:
@@ -256,6 +292,7 @@ def get_estatisticas():
 
 @crm_bp.route('/tarefas', methods=['GET'])
 @login_required
+@decorators.rate_limit("30 per minute")
 def listar_tarefas():
     """
     GET /api/crm/tarefas
@@ -287,6 +324,7 @@ def listar_tarefas():
 
 @crm_bp.route('/tarefas', methods=['POST'])
 @login_required
+@decorators.rate_limit("10 per minute")
 def criar_tarefa():
     """
     POST /api/crm/tarefas
@@ -303,21 +341,28 @@ def criar_tarefa():
     }
     """
     try:
+        from banco_dados.utils.validacao import (
+            validar_dados_requisicao, validar_tipo_campo,
+            validar_tamanho_string, validar_data_iso, sanitizar_dados_entrada
+        )
+        
         dados = request.get_json()
-        if not dados:
-            return jsonify({'erro': 'Dados não fornecidos'}), 400
+        dados = validar_dados_requisicao(dados, ['titulo'])
         
-        if 'titulo' not in dados or not dados['titulo']:
-            return jsonify({'erro': 'Título é obrigatório'}), 400
+        # Sanitizar dados de entrada
+        campos_string = ['titulo', 'descricao', 'prioridade']
+        dados = sanitizar_dados_entrada(dados, campos_string)
         
-        # Converter data_vencimento se fornecida
+        # Validações específicas
+        validar_tipo_campo(dados.get('titulo'), str, 'titulo')
+        validar_tamanho_string(dados.get('titulo'), min_len=1, max_len=200, nome_campo='titulo')
+        
+        # Converter data_vencimento se fornecida (usando validação padronizada)
         if 'data_vencimento' in dados and dados['data_vencimento']:
             try:
-                dados['data_vencimento'] = datetime.fromisoformat(
-                    dados['data_vencimento'].replace('Z', '+00:00')
-                )
-            except (ValueError, AttributeError):
-                return jsonify({'erro': 'Formato de data inválido (use ISO 8601)'}), 400
+                dados['data_vencimento'] = validar_data_iso(dados['data_vencimento'], 'data_vencimento')
+            except Exception as e:
+                return jsonify({'erro': str(e)}), 400
         
         usuario_id = current_user.id if current_user.is_authenticated else None
         tarefa = CRMService.criar_tarefa(dados, usuario_id)
@@ -333,6 +378,7 @@ def criar_tarefa():
 
 @crm_bp.route('/tarefas/<int:tarefa_id>/concluir', methods=['POST'])
 @login_required
+@decorators.rate_limit("20 per minute")
 def concluir_tarefa(tarefa_id):
     """POST /api/crm/tarefas/<id>/concluir - Marca tarefa como concluída"""
     try:
