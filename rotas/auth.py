@@ -137,88 +137,23 @@ def logout():
 
 @auth_bp.route('/registro', methods=['GET', 'POST'])
 def registro():
-    """Página e endpoint de registro (apenas para admins criar usuários)"""
-    # Em produção, pode querer desabilitar registro público
-    if request.method == 'GET':
-        return render_template('registro.html')
+    """
+    Página e endpoint de registro - DESABILITADO POR SEGURANÇA
     
-    # POST - Processar registro
-    try:
-        dados = request.get_json() if request.is_json else request.form
-        
-        username = sanitizar_string(dados.get('username', ''))
-        email = sanitizar_string(dados.get('email', ''))
-        senha = dados.get('senha', '')
-        nome_completo = sanitizar_string(dados.get('nome_completo', ''))
-        
-        # Validações
-        valido, erro = validar_username(username)
-        if not valido:
-            if request.is_json:
-                return jsonify({"erro": erro}), 400
-            flash(erro, "error")
-            return render_template('registro.html')
-        
-        if not validar_email(email):
-            if request.is_json:
-                return jsonify({"erro": "Email inválido"}), 400
-            flash("Email inválido", "error")
-            return render_template('registro.html')
-        
-        valido, erro = validar_senha(senha)
-        if not valido:
-            if request.is_json:
-                return jsonify({"erro": erro}), 400
-            flash(erro, "error")
-            return render_template('registro.html')
-        
-        db = get_db()
-        try:
-            # Verificar se username ou email já existem
-            usuario_existente = db.query(Usuario).filter(
-                (Usuario.username == username) | (Usuario.email == email)
-            ).first()
-            
-            if usuario_existente:
-                if request.is_json:
-                    return jsonify({"erro": "Username ou email já cadastrado"}), 400
-                flash("Username ou email já cadastrado", "error")
-                return render_template('registro.html')
-            
-            # Criar novo usuário
-            novo_usuario = Usuario(
-                username=username,
-                email=email,
-                nome_completo=nome_completo or None,
-                ativo=True,
-                admin=False  # Por padrão, não é admin
-            )
-            novo_usuario.set_senha(senha)
-            
-            db.add(novo_usuario)
-            db.commit()
-            db.refresh(novo_usuario)
-            
-            logger.info(f"Novo usuário registrado: {username}")
-            
-            if request.is_json:
-                return jsonify({
-                    "mensagem": "Usuário registrado com sucesso",
-                    "usuario_id": novo_usuario.id
-                }), 201
-            
-            flash("Registro realizado com sucesso! Faça login.", "success")
-            return redirect(url_for('auth.login'))
-            
-        finally:
-            db.close()
-            
-    except Exception as e:
-        logger.error(f"Erro no registro: {str(e)}")
-        if request.is_json:
-            return jsonify({"erro": "Erro ao processar registro"}), 500
-        flash("Erro ao processar registro. Tente novamente.", "error")
-        return render_template('registro.html')
+    Registro público foi desabilitado por segurança.
+    Para criar novos usuários ou alterar senhas, use:
+    - scripts/alterar_senha_usuarios.py
+    - Ou crie manualmente via banco de dados
+    """
+    logger.warning(f"Tentativa de acesso ao registro público bloqueada de {request.remote_addr}")
+    
+    if request.is_json:
+        return jsonify({
+            "erro": "Registro público desabilitado por segurança. Entre em contato com o administrador."
+        }), 403
+    
+    flash("Registro público desabilitado por segurança. Entre em contato com o administrador.", "error")
+    return redirect(url_for('auth.login'))
 
 
 @auth_bp.route('/usuario/atual', methods=['GET'])
