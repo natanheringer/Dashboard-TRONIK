@@ -83,6 +83,11 @@ reportlab==4.0.7
 # Biblioteca para gerar relatórios em PDF
 # Usado para exportação de relatórios financeiros e de coletas
 
+# WebSocket para atualizações em tempo real
+Flask-SocketIO==5.3.6
+# Sistema de WebSocket para atualizações em tempo real
+# Permite notificações push e atualizações sem polling
+
 # ========================================
 # DEPENDÊNCIAS DE DESENVOLVIMENTO (OPCIONAL)
 # ========================================
