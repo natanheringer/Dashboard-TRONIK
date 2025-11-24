@@ -10,7 +10,7 @@ import os
 from datetime import datetime, timedelta
 sys.path.insert(0, os.path.abspath(os.path.join(os.path.dirname(__file__), '..')))
 
-from banco_dados.modelos import Coleta, Lixeira, Parceiro, TipoMaterial, TipoColetor, Usuario
+from banco_dados.modelos import Coleta, Coletor, Parceiro, TipoMaterial, TipoColetor, Usuario
 from banco_dados.utils import utc_now_naive
 
 
@@ -22,12 +22,17 @@ class TestListarColetas:
         response = client.get('/api/coletas')
         assert response.status_code == 200
         data = response.get_json()
-        assert isinstance(data, list)
-        assert len(data) == 0
+        # Ajustar para formato paginado
+        if isinstance(data, dict) and 'dados' in data:
+            assert isinstance(data['dados'], list)
+            assert len(data['dados']) == 0
+        else:
+            assert isinstance(data, list)
+            assert len(data) == 0
     
     def test_listar_coletas_with_data(self, client, db_session):
         """Testa listar coletas com dados"""
-        # Criar lixeira, parceiro e tipo coletor
+        # Criar coletor, parceiro e tipo coletor
         tipo_material = db_session.query(TipoMaterial).first()
         if not tipo_material:
             tipo_material = TipoMaterial(nome='Material Teste')
@@ -38,7 +43,7 @@ class TestListarColetas:
         db_session.add(parceiro)
         db_session.flush()
         
-        lixeira = Lixeira(
+        coletor = Coletor(
             localizacao='Teste Localização',
             nivel_preenchimento=50.0,
             status='OK',
@@ -47,7 +52,7 @@ class TestListarColetas:
             parceiro_id=parceiro.id,
             tipo_material_id=tipo_material.id
         )
-        db_session.add(lixeira)
+        db_session.add(coletor)
         db_session.flush()
         
         tipo_coletor = db_session.query(TipoColetor).first()
@@ -58,7 +63,7 @@ class TestListarColetas:
         
         # Criar coleta
         coleta = Coleta(
-            lixeira_id=lixeira.id,
+            coletor_id=coletor.id,
             data_hora=utc_now_naive(),
             volume_estimado=100.0,
             tipo_operacao='Avulsa',
@@ -75,20 +80,25 @@ class TestListarColetas:
         response = client.get('/api/coletas')
         assert response.status_code == 200
         data = response.get_json()
-        assert len(data) == 1
-        assert data[0]['volume_estimado'] == 100.0
-        assert data[0]['tipo_operacao'] == 'Avulsa'
+        # Ajustar para formato paginado
+        if isinstance(data, dict) and 'dados' in data:
+            coletas = data['dados']
+        else:
+            coletas = data
+        assert len(coletas) == 1
+        assert coletas[0]['volume_estimado'] == 100.0
+        assert coletas[0]['tipo_operacao'] == 'Avulsa'
     
     def test_listar_coletas_filter_by_lixeira(self, client, db_session):
-        """Testa filtrar coletas por lixeira"""
-        # Criar duas lixeiras
+        """Testa filtrar coletas por coletor"""
+        # Criar duas coletores
         tipo_material = db_session.query(TipoMaterial).first()
         parceiro = Parceiro(nome='Parceiro Teste')
         db_session.add(parceiro)
         db_session.flush()
         
-        lixeira1 = Lixeira(
-            localizacao='Lixeira 1',
+        lixeira1 = Coletor(
+            localizacao='Coletor 1',
             nivel_preenchimento=50.0,
             status='OK',
             parceiro_id=parceiro.id,
@@ -97,8 +107,8 @@ class TestListarColetas:
         db_session.add(lixeira1)
         db_session.flush()
         
-        lixeira2 = Lixeira(
-            localizacao='Lixeira 2',
+        lixeira2 = Coletor(
+            localizacao='Coletor 2',
             nivel_preenchimento=60.0,
             status='OK',
             parceiro_id=parceiro.id,
@@ -109,9 +119,9 @@ class TestListarColetas:
         
         tipo_coletor = db_session.query(TipoColetor).first()
         
-        # Criar coletas para cada lixeira
+        # Criar coletas para cada coletor
         coleta1 = Coleta(
-            lixeira_id=lixeira1.id,
+            coletor_id=lixeira1.id,
             data_hora=utc_now_naive(),
             volume_estimado=100.0,
             tipo_coletor_id=tipo_coletor.id if tipo_coletor else None
@@ -119,7 +129,7 @@ class TestListarColetas:
         db_session.add(coleta1)
         
         coleta2 = Coleta(
-            lixeira_id=lixeira2.id,
+            coletor_id=lixeira2.id,
             data_hora=utc_now_naive(),
             volume_estimado=200.0,
             tipo_coletor_id=tipo_coletor.id if tipo_coletor else None
@@ -127,29 +137,34 @@ class TestListarColetas:
         db_session.add(coleta2)
         db_session.commit()
         
-        # Filtrar por lixeira 1
-        response = client.get(f'/api/coletas?lixeira_id={lixeira1.id}')
+        # Filtrar por coletor 1
+        response = client.get(f'/api/coletas?coletor_id={lixeira1.id}')
         assert response.status_code == 200
         data = response.get_json()
-        assert len(data) == 1
-        assert data[0]['lixeira_id'] == lixeira1.id
+        # Ajustar para formato paginado
+        if isinstance(data, dict) and 'dados' in data:
+            coletas = data['dados']
+        else:
+            coletas = data
+        assert len(coletas) == 1
+        assert coletas[0]['coletor_id'] == lixeira1.id
     
     def test_listar_coletas_filter_by_date(self, client, db_session):
         """Testa filtrar coletas por data"""
-        # Criar lixeira
+        # Criar coletor
         tipo_material = db_session.query(TipoMaterial).first()
         parceiro = Parceiro(nome='Parceiro Teste')
         db_session.add(parceiro)
         db_session.flush()
         
-        lixeira = Lixeira(
+        coletor = Coletor(
             localizacao='Teste',
             nivel_preenchimento=50.0,
             status='OK',
             parceiro_id=parceiro.id,
             tipo_material_id=tipo_material.id if tipo_material else None
         )
-        db_session.add(lixeira)
+        db_session.add(coletor)
         db_session.flush()
         
         tipo_coletor = db_session.query(TipoColetor).first()
@@ -157,7 +172,7 @@ class TestListarColetas:
         # Criar coleta com data específica
         data_especifica = datetime(2025, 11, 20, 10, 0, 0)
         coleta = Coleta(
-            lixeira_id=lixeira.id,
+            coletor_id=coletor.id,
             data_hora=data_especifica,
             volume_estimado=100.0,
             tipo_coletor_id=tipo_coletor.id if tipo_coletor else None
@@ -198,27 +213,27 @@ class TestCriarColeta:
             'senha': 'TestPass123!'
         })
         
-        # Criar lixeira, parceiro e tipo coletor
+        # Criar coletor, parceiro e tipo coletor
         tipo_material = db_session.query(TipoMaterial).first()
         parceiro = Parceiro(nome='Parceiro Teste')
         db_session.add(parceiro)
         db_session.flush()
         
-        lixeira = Lixeira(
+        coletor = Coletor(
             localizacao='Teste Localização',
             nivel_preenchimento=50.0,
             status='OK',
             parceiro_id=parceiro.id,
             tipo_material_id=tipo_material.id if tipo_material else None
         )
-        db_session.add(lixeira)
+        db_session.add(coletor)
         db_session.flush()
         
         tipo_coletor = db_session.query(TipoColetor).first()
         
         # Criar coleta (data_hora é obrigatório na validação)
         dados_coleta = {
-            'lixeira_id': lixeira.id,
+            'coletor_id': coletor.id,
             'data_hora': utc_now_naive().isoformat(),
             'volume_estimado': 100.0,
             'tipo_operacao': 'Avulsa',
@@ -241,7 +256,7 @@ class TestCriarColeta:
         assert data['volume_estimado'] == 100.0
     
     def test_criar_coleta_missing_lixeira_id(self, client, db_session):
-        """Testa criação de coleta sem lixeira_id"""
+        """Testa criação de coleta sem coletor_id"""
         # Fazer login
         usuario = Usuario(
             username='testuser2',
@@ -258,7 +273,7 @@ class TestCriarColeta:
             'senha': 'TestPass123!'
         })
         
-        # Tentar criar sem lixeira_id
+        # Tentar criar sem coletor_id
         response = client.post('/api/coleta', json={
             'volume_estimado': 100.0
         })
@@ -267,7 +282,7 @@ class TestCriarColeta:
         assert 'erro' in data
     
     def test_criar_coleta_invalid_lixeira_id(self, client, db_session):
-        """Testa criação de coleta com lixeira_id inexistente"""
+        """Testa criação de coleta com coletor_id inexistente"""
         # Fazer login
         usuario = Usuario(
             username='testuser3',
@@ -284,9 +299,9 @@ class TestCriarColeta:
             'senha': 'TestPass123!'
         })
         
-        # Tentar criar com lixeira_id inexistente (validação retorna 400, não 404)
+        # Tentar criar com coletor_id inexistente (validação retorna 400, não 404)
         response = client.post('/api/coleta', json={
-            'lixeira_id': 99999,
+            'coletor_id': 99999,
             'data_hora': utc_now_naive().isoformat(),
             'volume_estimado': 100.0
         })
@@ -304,31 +319,36 @@ class TestHistorico:
         response = client.get('/api/historico')
         assert response.status_code == 200
         data = response.get_json()
-        assert isinstance(data, list)
-        assert len(data) == 0
+        # Ajustar para formato paginado
+        if isinstance(data, dict) and 'dados' in data:
+            assert isinstance(data['dados'], list)
+            assert len(data['dados']) == 0
+        else:
+            assert isinstance(data, list)
+            assert len(data) == 0
     
     def test_obter_historico_with_data(self, client, db_session):
         """Testa obter histórico com dados"""
-        # Criar lixeira e coleta
+        # Criar coletor e coleta
         tipo_material = db_session.query(TipoMaterial).first()
         parceiro = Parceiro(nome='Parceiro Teste')
         db_session.add(parceiro)
         db_session.flush()
         
-        lixeira = Lixeira(
+        coletor = Coletor(
             localizacao='Teste',
             nivel_preenchimento=50.0,
             status='OK',
             parceiro_id=parceiro.id,
             tipo_material_id=tipo_material.id if tipo_material else None
         )
-        db_session.add(lixeira)
+        db_session.add(coletor)
         db_session.flush()
         
         tipo_coletor = db_session.query(TipoColetor).first()
         
         coleta = Coleta(
-            lixeira_id=lixeira.id,
+            coletor_id=coletor.id,
             data_hora=utc_now_naive(),
             volume_estimado=100.0,
             tipo_coletor_id=tipo_coletor.id if tipo_coletor else None
@@ -344,20 +364,20 @@ class TestHistorico:
     
     def test_obter_historico_filter_by_date(self, client, db_session):
         """Testa filtrar histórico por data"""
-        # Criar lixeira
+        # Criar coletor
         tipo_material = db_session.query(TipoMaterial).first()
         parceiro = Parceiro(nome='Parceiro Teste')
         db_session.add(parceiro)
         db_session.flush()
         
-        lixeira = Lixeira(
+        coletor = Coletor(
             localizacao='Teste',
             nivel_preenchimento=50.0,
             status='OK',
             parceiro_id=parceiro.id,
             tipo_material_id=tipo_material.id if tipo_material else None
         )
-        db_session.add(lixeira)
+        db_session.add(coletor)
         db_session.flush()
         
         tipo_coletor = db_session.query(TipoColetor).first()
@@ -365,7 +385,7 @@ class TestHistorico:
         # Criar coleta com data específica
         data_especifica = datetime(2025, 11, 20, 10, 0, 0)
         coleta = Coleta(
-            lixeira_id=lixeira.id,
+            coletor_id=coletor.id,
             data_hora=data_especifica,
             volume_estimado=100.0,
             tipo_coletor_id=tipo_coletor.id if tipo_coletor else None

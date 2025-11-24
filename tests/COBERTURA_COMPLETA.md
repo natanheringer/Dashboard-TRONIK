@@ -30,11 +30,11 @@
 - ✅ `GET /auth/usuario/atual` - Usuário atual (requer auth, sucesso, admin)
 
 ### API de Lixeiras
-- ✅ `GET /api/lixeiras` - Listar todas (vazia, com dados)
-- ✅ `GET /api/lixeira/<id>` - Obter específica (sucesso, não encontrada)
-- ✅ `POST /api/lixeira` - Criar (sucesso, validações, auth, geocodificação automática)
-- ✅ `PUT /api/lixeira/<id>` - Atualizar (sucesso, parcial, inválido, coordenadas)
-- ✅ `DELETE /api/lixeira/<id>` - Deletar (requer admin, não encontrada, sucesso, cascade)
+- ✅ `GET /api/coletores` - Listar todas (vazia, com dados)
+- ✅ `GET /api/coletor/<id>` - Obter específica (sucesso, não encontrada)
+- ✅ `POST /api/coletor` - Criar (sucesso, validações, auth, geocodificação automática)
+- ✅ `PUT /api/coletor/<id>` - Atualizar (sucesso, parcial, inválido, coordenadas)
+- ✅ `DELETE /api/coletor/<id>` - Deletar (requer admin, não encontrada, sucesso, cascade)
 
 ### API de Coletas
 - ✅ `GET /api/coletas` - Listar todas (vazia, com dados, filtros)
@@ -46,7 +46,7 @@
 - ✅ `GET /api/relatorios` - Relatórios (vazio, com dados, filtros, cálculos)
 
 ### Geocodificação
-- ✅ `POST /api/lixeira/<id>/geocodificar` - Geocodificar manual (auth, não encontrada, sucesso, falha)
+- ✅ `POST /api/coletor/<id>/geocodificar` - Geocodificar manual (auth, não encontrada, sucesso, falha)
 - ✅ Geocodificação automática (criação, atualização)
 - ✅ Função de geocodificação (vazio, sucesso, não encontrado)
 
@@ -56,7 +56,7 @@
 - ✅ `GET /api/tipos/material` - Tipos de material
 - ✅ `GET /api/tipos/sensor` - Tipos de sensor
 - ✅ `GET /api/tipos/coletor` - Tipos de coletor
-- ✅ `POST /api/lixeiras/simular-niveis` - Simular níveis (auth, sucesso, parâmetros customizados)
+- ✅ `POST /api/coletores/simular-niveis` - Simular níveis (auth, sucesso, parâmetros customizados)
 
 ---
 
@@ -98,7 +98,7 @@
 
 ### ✅ Funcionalidades Core
 - [x] Autenticação completa
-- [x] CRUD de lixeiras
+- [x] CRUD de coletores
 - [x] CRUD de coletas
 - [x] Validações de dados
 - [x] Geocodificação (manual e automática)
@@ -138,7 +138,7 @@ pytest
 
 # Testes específicos
 pytest tests/test_auth.py
-pytest tests/test_api_lixeiras.py
+pytest tests/test_api_coletores.py
 pytest tests/test_api_coletas.py
 pytest tests/test_validacoes.py
 pytest tests/test_api_atualizacao_exclusao.py  # ⚠️ SEGURO - usa banco isolado
@@ -172,11 +172,11 @@ pytest -x
 ## 📋 Checklist de Cobertura
 
 ### Endpoints da API
-- [x] GET /api/lixeiras
-- [x] GET /api/lixeira/<id>
-- [x] POST /api/lixeira
-- [x] PUT /api/lixeira/<id>
-- [x] DELETE /api/lixeira/<id>
+- [x] GET /api/coletores
+- [x] GET /api/coletor/<id>
+- [x] POST /api/coletor
+- [x] PUT /api/coletor/<id>
+- [x] DELETE /api/coletor/<id>
 - [x] GET /api/coletas
 - [x] GET /api/historico
 - [x] POST /api/coleta
@@ -187,8 +187,8 @@ pytest -x
 - [x] GET /api/tipos/material
 - [x] GET /api/tipos/sensor
 - [x] GET /api/tipos/coletor
-- [x] POST /api/lixeira/<id>/geocodificar
-- [x] POST /api/lixeiras/simular-niveis
+- [x] POST /api/coletor/<id>/geocodificar
+- [x] POST /api/coletores/simular-niveis
 
 ### Endpoints de Autenticação
 - [x] POST /auth/login

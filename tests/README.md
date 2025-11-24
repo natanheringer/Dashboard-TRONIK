@@ -9,7 +9,7 @@ tests/
 ├── __init__.py              # Pacote de testes
 ├── conftest.py              # Configuração compartilhada do pytest
 ├── test_auth.py             # Testes de autenticação
-├── test_api_lixeiras.py     # Testes da API de lixeiras
+├── test_api_coletores.py     # Testes da API de coletores
 └── README.md                # Este arquivo
 ```
 
@@ -34,7 +34,7 @@ pytest
 pytest tests/test_auth.py
 
 # Apenas testes da API
-pytest tests/test_api_lixeiras.py
+pytest tests/test_api_coletores.py
 
 # Teste específico
 pytest tests/test_auth.py::TestLogin::test_login_success_json
@@ -69,7 +69,7 @@ pytest -x
 - `client`: Cliente Flask para requisições HTTP
 - `auth_headers`: Headers de autenticação para usuário comum
 - `admin_headers`: Headers de autenticação para admin
-- `sample_lixeira_data`: Dados de exemplo para criar lixeiras
+- `sample_lixeira_data`: Dados de exemplo para criar coletores
 
 ### Exemplo de Teste
 
@@ -109,7 +109,7 @@ def test_exemplo(client, db_session):
 
 ## Próximos Passos
 
-1. Adicionar testes de atualização e exclusão de lixeiras
+1. Adicionar testes de atualização e exclusão de coletores
 2. Adicionar testes de coletas
 3. Adicionar testes de validação
 4. Adicionar testes de geocodificação
