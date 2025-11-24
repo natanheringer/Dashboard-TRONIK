@@ -3,7 +3,7 @@ Rotas da API - Dashboard-TRONIK
 ==============================
 
 Endpoints da API REST para comunicação com o frontend.
-Gerencia todas as operações CRUD das lixeiras.
+Gerencia todas as operações CRUD das coletores.
 """
 
 from flask import Blueprint, jsonify, request
@@ -12,7 +12,7 @@ from flask_limiter import Limiter
 from flask_limiter.util import get_remote_address
 from sqlalchemy.orm import scoped_session, joinedload
 from banco_dados.modelos import (
-    Lixeira, Sensor, Coleta, Parceiro, TipoMaterial, TipoSensor, TipoColetor, Notificacao
+    Coletor, Sensor, Coleta, Parceiro, TipoMaterial, TipoSensor, TipoColetor, Notificacao
 )
 from banco_dados.seguranca import (
     validar_coordenadas, validar_nivel_preenchimento, sanitizar_string,
@@ -65,25 +65,25 @@ def get_db():
         Session = sessionmaker(bind=engine)
         return Session()
 
-# Função para converter Lixeira para dict
-def lixeira_para_dict(lixeira):
-    """Converte um objeto Lixeira para dicionário com novos campos"""
+# Função para converter Coletor para dict
+def coletor_para_dict(coletor):
+    """Converte um objeto Coletor para dicionário com novos campos"""
     return {
-        "id": lixeira.id,
-        "localizacao": lixeira.localizacao,
-        "nivel_preenchimento": lixeira.nivel_preenchimento,
-        "status": lixeira.status,
-        "ultima_coleta": lixeira.ultima_coleta.isoformat() if lixeira.ultima_coleta else None,
-        "latitude": lixeira.latitude,
-        "longitude": lixeira.longitude,
+        "id": coletor.id,
+        "localizacao": coletor.localizacao,
+        "nivel_preenchimento": coletor.nivel_preenchimento,
+        "status": coletor.status,
+        "ultima_coleta": coletor.ultima_coleta.isoformat() if coletor.ultima_coleta else None,
+        "latitude": coletor.latitude,
+        "longitude": coletor.longitude,
         "parceiro": {
-            "id": lixeira.parceiro.id,
-            "nome": lixeira.parceiro.nome
-        } if lixeira.parceiro else None,
+            "id": coletor.parceiro.id,
+            "nome": coletor.parceiro.nome
+        } if coletor.parceiro else None,
         "tipo_material": {
-            "id": lixeira.tipo_material.id,
-            "nome": lixeira.tipo_material.nome
-        } if lixeira.tipo_material else None
+            "id": coletor.tipo_material.id,
+            "nome": coletor.tipo_material.nome
+        } if coletor.tipo_material else None
     }
 
 # Função para converter Coleta para dict
@@ -91,7 +91,7 @@ def coleta_para_dict(coleta):
     """Converte um objeto Coleta para dicionário com todos os campos do CSV"""
     return {
         "id": coleta.id,
-        "lixeira_id": coleta.lixeira_id,
+        "coletor_id": coleta.coletor_id,
         "data_hora": coleta.data_hora.isoformat() if coleta.data_hora else None,
         "volume_estimado": coleta.volume_estimado,
         "tipo_operacao": coleta.tipo_operacao,
@@ -107,10 +107,10 @@ def coleta_para_dict(coleta):
             "id": coleta.parceiro.id,
             "nome": coleta.parceiro.nome
         } if coleta.parceiro else None,
-        "lixeira": {
-            "id": coleta.lixeira.id,
-            "localizacao": coleta.lixeira.localizacao
-        } if coleta.lixeira else None
+        "coletor": {
+            "id": coleta.coletor.id,
+            "localizacao": coleta.coletor.localizacao
+        } if coleta.coletor else None
     }
 
 # Função para converter Sensor para dict
@@ -118,22 +118,22 @@ def sensor_para_dict(sensor):
     """Converte um objeto Sensor para dicionário"""
     return {
         "id": sensor.id,
-        "lixeira_id": sensor.lixeira_id,
+        "coletor_id": sensor.coletor_id,
         "bateria": sensor.bateria,
         "ultimo_ping": sensor.ultimo_ping.isoformat() if sensor.ultimo_ping else None,
         "tipo_sensor": {
             "id": sensor.tipo_sensor.id,
             "nome": sensor.tipo_sensor.nome
         } if sensor.tipo_sensor else None,
-        "lixeira": {
-            "id": sensor.lixeira.id,
-            "localizacao": sensor.lixeira.localizacao
-        } if sensor.lixeira else None
+        "coletor": {
+            "id": sensor.coletor.id,
+            "localizacao": sensor.coletor.localizacao
+        } if sensor.coletor else None
     }
 
-# Função de validação de dados da lixeira
+# Função de validação de dados da coletor
 def validar_lixeira(dados, criar=True, db=None):
-    """Valida dados da lixeira com novos campos"""
+    """Valida dados da coletor com novos campos"""
     erros = []
     
     if criar:
@@ -181,14 +181,14 @@ def validar_coleta(dados, criar=True, db=None):
     erros = []
     
     if criar:
-        if 'lixeira_id' not in dados or not dados['lixeira_id']:
-            erros.append("Campo 'lixeira_id' é obrigatório")
+        if 'coletor_id' not in dados or not dados['coletor_id']:
+            erros.append("Campo 'coletor_id' é obrigatório")
         else:
-            # Validar que lixeira existe
+            # Validar que coletor existe
             if db:
-                lixeira = db.query(Lixeira).filter(Lixeira.id == dados['lixeira_id']).first()
-                if not lixeira:
-                    erros.append("Lixeira não encontrada")
+                coletor = db.query(Coletor).filter(Coletor.id == dados['coletor_id']).first()
+                if not coletor:
+                    erros.append("Coletor não encontrada")
         
         if 'data_hora' not in dados or not dados['data_hora']:
             erros.append("Campo 'data_hora' é obrigatório")
@@ -237,14 +237,14 @@ def validar_sensor(dados, criar=True, db=None):
     erros = []
     
     if criar:
-        if 'lixeira_id' not in dados or dados['lixeira_id'] is None:
-            erros.append("Campo 'lixeira_id' é obrigatório")
+        if 'coletor_id' not in dados or dados['coletor_id'] is None:
+            erros.append("Campo 'coletor_id' é obrigatório")
     
-    # Validar lixeira_id existe
-    if 'lixeira_id' in dados and dados['lixeira_id'] is not None and db:
-        lixeira = db.query(Lixeira).filter(Lixeira.id == dados['lixeira_id']).first()
-        if not lixeira:
-            erros.append("Lixeira não encontrada")
+    # Validar coletor_id existe
+    if 'coletor_id' in dados and dados['coletor_id'] is not None and db:
+        coletor = db.query(Coletor).filter(Coletor.id == dados['coletor_id']).first()
+        if not coletor:
+            erros.append("Coletor não encontrada")
     
     # Validar tipo_sensor_id (se fornecido)
     if 'tipo_sensor_id' in dados and dados['tipo_sensor_id'] is not None and db:
@@ -264,15 +264,15 @@ def validar_sensor(dados, criar=True, db=None):
 # ENDPOINTS GET
 # ============================================================
 
-@api_bp.route('/lixeiras', methods=['GET'])
+@api_bp.route('/coletores', methods=['GET'])
 def listar_lixeiras():
-    """Endpoint para obter todas as lixeiras com filtros opcionais"""
+    """Endpoint para obter todas as coletores com filtros opcionais"""
     db = get_db()
     try:
         # Carregar relacionamentos (eager loading)
-        query = db.query(Lixeira).options(
-            joinedload(Lixeira.parceiro),
-            joinedload(Lixeira.tipo_material)
+        query = db.query(Coletor).options(
+            joinedload(Coletor.parceiro),
+            joinedload(Coletor.tipo_material)
         )
         
         # Filtros opcionais
@@ -281,38 +281,38 @@ def listar_lixeiras():
         status = request.args.get('status')
         
         if parceiro_id:
-            query = query.filter(Lixeira.parceiro_id == parceiro_id)
+            query = query.filter(Coletor.parceiro_id == parceiro_id)
         if tipo_material_id:
-            query = query.filter(Lixeira.tipo_material_id == tipo_material_id)
+            query = query.filter(Coletor.tipo_material_id == tipo_material_id)
         if status:
-            query = query.filter(Lixeira.status == status)
+            query = query.filter(Coletor.status == status)
         
-        lixeiras = query.all()
-        resultado = [lixeira_para_dict(l) for l in lixeiras]
+        coletores = query.all()
+        resultado = [coletor_para_dict(l) for l in coletores]
         return jsonify(resultado)
     except Exception as e:
-        logger.error(f"Erro ao listar lixeiras: {e}")
+        logger.error(f"Erro ao listar coletores: {e}")
         return jsonify({"erro": str(e)}), 500
     finally:
         db.close()
 
-@api_bp.route('/lixeira/<int:lixeira_id>', methods=['GET'])
-def obter_lixeira(lixeira_id):
-    """Endpoint para obter uma lixeira específica"""
+@api_bp.route('/coletor/<int:coletor_id>', methods=['GET'])
+def obter_lixeira(coletor_id):
+    """Endpoint para obter uma coletor específica"""
     db = get_db()
     try:
         # Carregar relacionamentos (eager loading)
-        lixeira = db.query(Lixeira).options(
-            joinedload(Lixeira.parceiro),
-            joinedload(Lixeira.tipo_material)
-        ).filter(Lixeira.id == lixeira_id).first()
+        coletor = db.query(Coletor).options(
+            joinedload(Coletor.parceiro),
+            joinedload(Coletor.tipo_material)
+        ).filter(Coletor.id == coletor_id).first()
         
-        if lixeira:
-            return jsonify(lixeira_para_dict(lixeira))
+        if coletor:
+            return jsonify(coletor_para_dict(coletor))
         else:
-            return jsonify({"erro": "Lixeira não encontrada"}), 404
+            return jsonify({"erro": "Coletor não encontrada"}), 404
     except Exception as e:
-        logger.error(f"Erro ao obter lixeira {lixeira_id}: {e}")
+        logger.error(f"Erro ao obter coletor {coletor_id}: {e}")
         return jsonify({"erro": str(e)}), 500
     finally:
         db.close()
@@ -335,20 +335,20 @@ def listar_coletas():
     try:
         # Carregar relacionamentos (eager loading)
         query = db.query(Coleta).options(
-            joinedload(Coleta.lixeira),
+            joinedload(Coleta.coletor),
             joinedload(Coleta.parceiro),
             joinedload(Coleta.tipo_coletor)
         )
         
         # Filtros opcionais
-        lixeira_id = request.args.get('lixeira_id', type=int)
+        coletor_id = request.args.get('coletor_id', type=int)
         parceiro_id = request.args.get('parceiro_id', type=int)
         tipo_operacao = request.args.get('tipo_operacao')
         data_inicio = request.args.get('data_inicio')
         data_fim = request.args.get('data_fim')
         
-        if lixeira_id:
-            query = query.filter(Coleta.lixeira_id == lixeira_id)
+        if coletor_id:
+            query = query.filter(Coleta.coletor_id == coletor_id)
         if parceiro_id:
             query = query.filter(Coleta.parceiro_id == parceiro_id)
         if tipo_operacao:
@@ -390,7 +390,7 @@ def obter_historico():
         data_filtro = request.args.get('data')
         
         query = db.query(Coleta).options(
-            joinedload(Coleta.lixeira),
+            joinedload(Coleta.coletor),
             joinedload(Coleta.parceiro),
             joinedload(Coleta.tipo_coletor)
         )
@@ -424,14 +424,14 @@ def obter_estatisticas():
     """Endpoint para obter estatísticas gerais"""
     db = get_db()
     try:
-        lixeiras = db.query(Lixeira).all()
+        coletores = db.query(Coletor).all()
         coletas = db.query(Coleta).all()
         
-        total_lixeiras = len(lixeiras)
-        lixeiras_alerta = len([l for l in lixeiras if l.nivel_preenchimento > 80])
+        total_lixeiras = len(coletores)
+        lixeiras_alerta = len([l for l in coletores if l.nivel_preenchimento > 80])
         
         if total_lixeiras > 0:
-            nivel_medio = sum(l.nivel_preenchimento for l in lixeiras) / total_lixeiras
+            nivel_medio = sum(l.nivel_preenchimento for l in coletores) / total_lixeiras
         else:
             nivel_medio = 0.0
         
@@ -455,11 +455,11 @@ def obter_estatisticas():
 # ENDPOINTS POST, PUT, DELETE
 # ============================================================
 
-@api_bp.route('/lixeira', methods=['POST'])
+@api_bp.route('/coletor', methods=['POST'])
 @login_required
 @limiter.limit("10 per minute")
 def criar_lixeira():
-    """Endpoint para criar uma nova lixeira"""
+    """Endpoint para criar uma nova coletor"""
     db = get_db()
     try:
         dados = request.get_json()
@@ -500,8 +500,8 @@ def criar_lixeira():
         if not valido:
             return jsonify({"erro": erro}), 400
         
-        # Criar nova lixeira
-        nova_lixeira = Lixeira(
+        # Criar nova coletor
+        nova_lixeira = Coletor(
             localizacao=dados['localizacao'],
             nivel_preenchimento=float(nivel),
             status=dados.get('status', 'OK'),
@@ -530,12 +530,12 @@ def criar_lixeira():
                     nova_lixeira.longitude = resultado['longitude']
                     db.commit()
                     db.refresh(nova_lixeira)
-                    logger.info(f"Coordenadas geocodificadas automaticamente para lixeira {nova_lixeira.id}")
+                    logger.info(f"Coordenadas geocodificadas automaticamente para coletor {nova_lixeira.id}")
             except Exception as e:
                 # Não falhar a criação se geocodificação falhar
-                logger.warning(f"Geocodificação automática falhou para lixeira {nova_lixeira.id}: {e}")
+                logger.warning(f"Geocodificação automática falhou para coletor {nova_lixeira.id}: {e}")
         
-        return jsonify(lixeira_para_dict(nova_lixeira)), 201
+        return jsonify(coletor_para_dict(nova_lixeira)), 201
         
     except Exception as e:
         db.rollback()
@@ -543,17 +543,17 @@ def criar_lixeira():
     finally:
         db.close()
 
-@api_bp.route('/lixeira/<int:lixeira_id>', methods=['PUT'])
+@api_bp.route('/coletor/<int:coletor_id>', methods=['PUT'])
 @login_required
 @limiter.limit("20 per minute")
-def atualizar_lixeira(lixeira_id):
-    """Endpoint para atualizar uma lixeira"""
+def atualizar_lixeira(coletor_id):
+    """Endpoint para atualizar uma coletor"""
     db = get_db()
     try:
-        lixeira = db.query(Lixeira).filter(Lixeira.id == lixeira_id).first()
+        coletor = db.query(Coletor).filter(Coletor.id == coletor_id).first()
         
-        if not lixeira:
-            return jsonify({"erro": "Lixeira não encontrada"}), 404
+        if not coletor:
+            return jsonify({"erro": "Coletor não encontrada"}), 404
         
         dados = request.get_json()
         
@@ -567,42 +567,42 @@ def atualizar_lixeira(lixeira_id):
         
         # Verificar se localização mudou (para geocodificação automática)
         localizacao_mudou = False
-        localizacao_anterior = lixeira.localizacao
+        localizacao_anterior = coletor.localizacao
         
         # Atualizar campos
         if 'localizacao' in dados:
             nova_localizacao = sanitizar_string(dados['localizacao'], max_length=150)
-            if nova_localizacao != lixeira.localizacao:
+            if nova_localizacao != coletor.localizacao:
                 localizacao_mudou = True
-            lixeira.localizacao = nova_localizacao
+            coletor.localizacao = nova_localizacao
         
         if 'nivel_preenchimento' in dados:
-            lixeira.nivel_preenchimento = float(dados['nivel_preenchimento'])
+            coletor.nivel_preenchimento = float(dados['nivel_preenchimento'])
         
         if 'status' in dados:
-            lixeira.status = dados['status']
+            coletor.status = dados['status']
         
         if 'ultima_coleta' in dados and dados['ultima_coleta']:
             try:
-                lixeira.ultima_coleta = datetime.fromisoformat(dados['ultima_coleta'].replace('Z', '+00:00'))
+                coletor.ultima_coleta = datetime.fromisoformat(dados['ultima_coleta'].replace('Z', '+00:00'))
             except:
                 pass
         
         # Se coordenadas foram fornecidas explicitamente, usar elas
         coordenadas_fornecidas = False
         if 'latitude' in dados:
-            lixeira.latitude = dados['latitude'] if dados['latitude'] is not None else None
+            coletor.latitude = dados['latitude'] if dados['latitude'] is not None else None
             coordenadas_fornecidas = True
         
         if 'longitude' in dados:
-            lixeira.longitude = dados['longitude'] if dados['longitude'] is not None else None
+            coletor.longitude = dados['longitude'] if dados['longitude'] is not None else None
             coordenadas_fornecidas = True
         
         if 'parceiro_id' in dados:
-            lixeira.parceiro_id = dados['parceiro_id'] if dados['parceiro_id'] is not None else None
+            coletor.parceiro_id = dados['parceiro_id'] if dados['parceiro_id'] is not None else None
         
         if 'tipo_material_id' in dados:
-            lixeira.tipo_material_id = dados['tipo_material_id'] if dados['tipo_material_id'] is not None else None
+            coletor.tipo_material_id = dados['tipo_material_id'] if dados['tipo_material_id'] is not None else None
         
         db.commit()
         
@@ -611,30 +611,30 @@ def atualizar_lixeira(lixeira_id):
         # 2. Não tem coordenadas E coordenadas não foram fornecidas explicitamente
         if not coordenadas_fornecidas:
             precisa_geocodificar = (
-                (localizacao_mudou and (not lixeira.latitude or not lixeira.longitude)) or
-                (not lixeira.latitude or not lixeira.longitude)
+                (localizacao_mudou and (not coletor.latitude or not coletor.longitude)) or
+                (not coletor.latitude or not coletor.longitude)
             )
             
             if precisa_geocodificar:
                 try:
                     from banco_dados.geocodificacao import geocodificar_endereco
                     resultado = geocodificar_endereco(
-                        lixeira.localizacao,
+                        coletor.localizacao,
                         cidade="Brasília",
                         estado="DF"
                     )
                     if resultado:
-                        lixeira.latitude = resultado['latitude']
-                        lixeira.longitude = resultado['longitude']
+                        coletor.latitude = resultado['latitude']
+                        coletor.longitude = resultado['longitude']
                         db.commit()
-                        logger.info(f"Coordenadas geocodificadas automaticamente para lixeira {lixeira.id}")
+                        logger.info(f"Coordenadas geocodificadas automaticamente para coletor {coletor.id}")
                 except Exception as e:
                     # Não falhar a atualização se geocodificação falhar
-                    logger.warning(f"Geocodificação automática falhou para lixeira {lixeira.id}: {e}")
+                    logger.warning(f"Geocodificação automática falhou para coletor {coletor.id}: {e}")
         
-        db.refresh(lixeira)
+        db.refresh(coletor)
         
-        return jsonify(lixeira_para_dict(lixeira))
+        return jsonify(coletor_para_dict(coletor))
         
     except Exception as e:
         db.rollback()
@@ -642,22 +642,22 @@ def atualizar_lixeira(lixeira_id):
     finally:
         db.close()
 
-@api_bp.route('/lixeira/<int:lixeira_id>', methods=['DELETE'])
+@api_bp.route('/coletor/<int:coletor_id>', methods=['DELETE'])
 @admin_required
 @limiter.limit("5 per minute")
-def deletar_lixeira(lixeira_id):
-    """Endpoint para deletar uma lixeira"""
+def deletar_lixeira(coletor_id):
+    """Endpoint para deletar uma coletor"""
     db = get_db()
     try:
-        lixeira = db.query(Lixeira).filter(Lixeira.id == lixeira_id).first()
+        coletor = db.query(Coletor).filter(Coletor.id == coletor_id).first()
         
-        if not lixeira:
-            return jsonify({"erro": "Lixeira não encontrada"}), 404
+        if not coletor:
+            return jsonify({"erro": "Coletor não encontrada"}), 404
         
-        db.delete(lixeira)
+        db.delete(coletor)
         db.commit()
         
-        return jsonify({"mensagem": "Lixeira deletada com sucesso"}), 200
+        return jsonify({"mensagem": "Coletor deletada com sucesso"}), 200
         
     except Exception as e:
         db.rollback()
@@ -678,7 +678,7 @@ def obter_relatorios():
         
         # Query base com eager loading
         query = db.query(Coleta).options(
-            joinedload(Coleta.lixeira),
+            joinedload(Coleta.coletor),
             joinedload(Coleta.parceiro),
             joinedload(Coleta.tipo_coletor)
         )
@@ -729,25 +729,25 @@ def obter_relatorios():
             (c.volume_estimado or 0) * (c.lucro_por_kg or 0) for c in coletas
         ) or 0.0
         
-        # Agrupar por lixeira
+        # Agrupar por coletor
         coletas_por_lixeira = {}
         for coleta in coletas:
-            lixeira_id = coleta.lixeira_id
-            if lixeira_id not in coletas_por_lixeira:
-                coletas_por_lixeira[lixeira_id] = {
-                    "lixeira_id": lixeira_id,
+            coletor_id = coleta.coletor_id
+            if coletor_id not in coletas_por_lixeira:
+                coletas_por_lixeira[coletor_id] = {
+                    "coletor_id": coletor_id,
                     "total_coletas": 0,
                     "volume_total": 0.0,
                     "km_total": 0.0,
                     "lucro_total": 0.0
                 }
-            coletas_por_lixeira[lixeira_id]["total_coletas"] += 1
+            coletas_por_lixeira[coletor_id]["total_coletas"] += 1
             if coleta.volume_estimado:
-                coletas_por_lixeira[lixeira_id]["volume_total"] += coleta.volume_estimado
+                coletas_por_lixeira[coletor_id]["volume_total"] += coleta.volume_estimado
             if coleta.km_percorrido:
-                coletas_por_lixeira[lixeira_id]["km_total"] += coleta.km_percorrido
+                coletas_por_lixeira[coletor_id]["km_total"] += coleta.km_percorrido
             if coleta.volume_estimado and coleta.lucro_por_kg:
-                coletas_por_lixeira[lixeira_id]["lucro_total"] += coleta.volume_estimado * coleta.lucro_por_kg
+                coletas_por_lixeira[coletor_id]["lucro_total"] += coleta.volume_estimado * coleta.lucro_por_kg
         
         # Agrupar por parceiro
         coletas_por_parceiro = {}
@@ -816,7 +816,7 @@ def exportar_relatorio_pdf():
         
         # Query base (mesma lógica do endpoint de relatórios)
         query = db.query(Coleta).options(
-            joinedload(Coleta.lixeira),
+            joinedload(Coleta.coletor),
             joinedload(Coleta.parceiro),
             joinedload(Coleta.tipo_coletor)
         )
@@ -921,12 +921,12 @@ def exportar_relatorio_pdf():
             story.append(Spacer(1, 0.1*inch))
             
             # Cabeçalho da tabela
-            detalhes_data = [['Data', 'Lixeira', 'Volume (kg)', 'KM', 'Lucro (R$)']]
+            detalhes_data = [['Data', 'Coletor', 'Volume (kg)', 'KM', 'Lucro (R$)']]
             
             # Adicionar até 50 coletas
             for coleta in coletas[:50]:
                 data_str = coleta.data_hora.strftime('%d/%m/%Y %H:%M') if coleta.data_hora else 'N/A'
-                lixeira_nome = coleta.lixeira.localizacao if coleta.lixeira else 'N/A'
+                lixeira_nome = coleta.coletor.localizacao if coleta.coletor else 'N/A'
                 volume = f'{coleta.volume_estimado:.2f}' if coleta.volume_estimado else '0.00'
                 km = f'{coleta.km_percorrido:.2f}' if coleta.km_percorrido else '0.00'
                 lucro = f'{(coleta.volume_estimado or 0) * (coleta.lucro_por_kg or 0):.2f}'
@@ -998,19 +998,19 @@ def listar_parceiros():
     finally:
         db.close()
 
-@api_bp.route('/lixeira/<int:lixeira_id>/geocodificar', methods=['POST'])
+@api_bp.route('/coletor/<int:coletor_id>/geocodificar', methods=['POST'])
 @login_required
 @limiter.limit("10 per minute")
-def geocodificar_lixeira_endpoint(lixeira_id):
-    """Endpoint para geocodificar uma lixeira manualmente"""
+def geocodificar_lixeira_endpoint(coletor_id):
+    """Endpoint para geocodificar uma coletor manualmente"""
     db = get_db()
     try:
         from banco_dados.geocodificacao import geocodificar_lixeira
         
-        lixeira = db.query(Lixeira).filter(Lixeira.id == lixeira_id).first()
+        coletor = db.query(Coletor).filter(Coletor.id == coletor_id).first()
         
-        if not lixeira:
-            return jsonify({"erro": "Lixeira não encontrada"}), 404
+        if not coletor:
+            return jsonify({"erro": "Coletor não encontrada"}), 404
         
         # Obter parâmetros opcionais
         dados = request.get_json() or {}
@@ -1021,23 +1021,23 @@ def geocodificar_lixeira_endpoint(lixeira_id):
         # Geocodificar
         sucesso, mensagem = geocodificar_lixeira(
             db,
-            lixeira_id,
+            coletor_id,
             cidade=cidade,
             estado=estado,
             forcar_atualizacao=forcar
         )
         
         if sucesso:
-            db.refresh(lixeira)
+            db.refresh(coletor)
             return jsonify({
                 "mensagem": mensagem,
-                "lixeira": lixeira_para_dict(lixeira)
+                "coletor": coletor_para_dict(coletor)
             }), 200
         else:
             return jsonify({"erro": mensagem}), 400
             
     except Exception as e:
-        logger.error(f"Erro ao geocodificar lixeira {lixeira_id}: {e}")
+        logger.error(f"Erro ao geocodificar coletor {coletor_id}: {e}")
         return jsonify({"erro": str(e)}), 500
     finally:
         db.close()
@@ -1110,18 +1110,18 @@ def listar_sensores():
     try:
         # Carregar relacionamentos (eager loading)
         query = db.query(Sensor).options(
-            joinedload(Sensor.lixeira),
+            joinedload(Sensor.coletor),
             joinedload(Sensor.tipo_sensor)
         )
         
         # Filtros opcionais
-        lixeira_id = request.args.get('lixeira_id', type=int)
+        coletor_id = request.args.get('coletor_id', type=int)
         tipo_sensor_id = request.args.get('tipo_sensor_id', type=int)
         bateria_min = request.args.get('bateria_min', type=float)
         bateria_max = request.args.get('bateria_max', type=float)
         
-        if lixeira_id:
-            query = query.filter(Sensor.lixeira_id == lixeira_id)
+        if coletor_id:
+            query = query.filter(Sensor.coletor_id == coletor_id)
         if tipo_sensor_id:
             query = query.filter(Sensor.tipo_sensor_id == tipo_sensor_id)
         if bateria_min is not None:
@@ -1144,7 +1144,7 @@ def obter_sensor(sensor_id):
     db = get_db()
     try:
         sensor = db.query(Sensor).options(
-            joinedload(Sensor.lixeira),
+            joinedload(Sensor.coletor),
             joinedload(Sensor.tipo_sensor)
         ).filter(Sensor.id == sensor_id).first()
         
@@ -1177,7 +1177,7 @@ def criar_sensor():
         
         # Criar novo sensor
         novo_sensor = Sensor(
-            lixeira_id=dados['lixeira_id'],
+            coletor_id=dados['coletor_id'],
             tipo_sensor_id=dados.get('tipo_sensor_id'),
             bateria=dados.get('bateria', 100.0),
             ultimo_ping=utc_now_naive()
@@ -1190,7 +1190,7 @@ def criar_sensor():
         # Carregar relacionamentos
         db.refresh(novo_sensor)
         novo_sensor = db.query(Sensor).options(
-            joinedload(Sensor.lixeira),
+            joinedload(Sensor.coletor),
             joinedload(Sensor.tipo_sensor)
         ).filter(Sensor.id == novo_sensor.id).first()
         
@@ -1224,8 +1224,8 @@ def atualizar_sensor(sensor_id):
             return jsonify({"erro": "Erros de validação", "detalhes": erros}), 400
         
         # Atualizar campos
-        if 'lixeira_id' in dados:
-            sensor.lixeira_id = dados['lixeira_id']
+        if 'coletor_id' in dados:
+            sensor.coletor_id = dados['coletor_id']
         if 'tipo_sensor_id' in dados:
             sensor.tipo_sensor_id = dados['tipo_sensor_id']
         if 'bateria' in dados:
@@ -1241,7 +1241,7 @@ def atualizar_sensor(sensor_id):
         
         # Carregar relacionamentos
         sensor = db.query(Sensor).options(
-            joinedload(Sensor.lixeira),
+            joinedload(Sensor.coletor),
             joinedload(Sensor.tipo_sensor)
         ).filter(Sensor.id == sensor_id).first()
         
@@ -1309,7 +1309,7 @@ def criar_coleta():
         
         # Criar nova coleta
         nova_coleta = Coleta(
-            lixeira_id=dados['lixeira_id'],
+            coletor_id=dados['coletor_id'],
             data_hora=data_hora,
             volume_estimado=dados.get('volume_estimado'),
             tipo_operacao=dados.get('tipo_operacao'),
@@ -1338,12 +1338,12 @@ def criar_coleta():
 # ENDPOINTS DE SIMULAÇÃO
 # ============================================================
 
-@api_bp.route('/lixeiras/simular-niveis', methods=['POST'])
+@api_bp.route('/coletores/simular-niveis', methods=['POST'])
 @login_required
 @limiter.limit("10 per minute")
 def simular_niveis():
-    """Endpoint para simular alterações nos níveis das lixeiras.
-    Ajusta aleatoriamente o nível de preenchimento de todas as lixeiras,
+    """Endpoint para simular alterações nos níveis das coletores.
+    Ajusta aleatoriamente o nível de preenchimento de todas as coletores,
     dentro de um intervalo seguro, mantendo valores entre 0 e 100.
     """
     db = get_db()
@@ -1353,10 +1353,10 @@ def simular_niveis():
         delta_max = float(params.get('delta_max', 10))  # padrão: até +10/-5
         reduzir_max = float(params.get('reduzir_max', 5))
 
-        lixeiras = db.query(Lixeira).all()
+        coletores = db.query(Coletor).all()
         atualizadas = []
         agora = utc_now_naive()
-        for l in lixeiras:
+        for l in coletores:
             # Delta positivo maior que negativo para simular enchimento gradual
             delta = random.uniform(-reduzir_max, delta_max)
             novo_nivel = max(0.0, min(100.0, (l.nivel_preenchimento or 0.0) + delta))
@@ -1369,7 +1369,7 @@ def simular_niveis():
         return jsonify({
             "mensagem": "Níveis simulados com sucesso",
             "total_atualizadas": len(atualizadas),
-            "lixeiras": [lixeira_para_dict(l) for l in atualizadas]
+            "coletores": [coletor_para_dict(l) for l in atualizadas]
         })
     except Exception as e:
         db.rollback()
@@ -1388,7 +1388,7 @@ def listar_notificacoes():
     db = get_db()
     try:
         query = db.query(Notificacao).options(
-            joinedload(Notificacao.lixeira),
+            joinedload(Notificacao.coletor),
             joinedload(Notificacao.sensor)
         )
         
@@ -1396,7 +1396,7 @@ def listar_notificacoes():
         tipo = request.args.get('tipo')
         enviada = request.args.get('enviada')
         lida = request.args.get('lida')
-        lixeira_id = request.args.get('lixeira_id', type=int)
+        coletor_id = request.args.get('coletor_id', type=int)
         
         if tipo:
             query = query.filter(Notificacao.tipo == tipo)
@@ -1406,8 +1406,8 @@ def listar_notificacoes():
         if lida is not None:
             lida_bool = lida.lower() == 'true'
             query = query.filter(Notificacao.lida == lida_bool)
-        if lixeira_id:
-            query = query.filter(Notificacao.lixeira_id == lixeira_id)
+        if coletor_id:
+            query = query.filter(Notificacao.coletor_id == coletor_id)
         
         # Ordenar por data (mais recentes primeiro)
         query = query.order_by(Notificacao.criada_em.desc())
@@ -1426,10 +1426,10 @@ def listar_notificacoes():
             "lida": n.lida if hasattr(n, 'lida') else False,
             "lida_em": n.lida_em.isoformat() if hasattr(n, 'lida_em') and n.lida_em else None,
             "criada_em": n.criada_em.isoformat() if n.criada_em else None,
-            "lixeira": {
-                "id": n.lixeira.id,
-                "localizacao": n.lixeira.localizacao
-            } if n.lixeira else None,
+            "coletor": {
+                "id": n.coletor.id,
+                "localizacao": n.coletor.localizacao
+            } if n.coletor else None,
             "sensor": {
                 "id": n.sensor.id,
                 "bateria": n.sensor.bateria
