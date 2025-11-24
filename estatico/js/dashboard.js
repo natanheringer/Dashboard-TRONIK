@@ -6,7 +6,7 @@ Gerencia a interação com a interface e comunicação com a API.
 */
 
 // Variáveis globais
-let todasLixeiras = [];
+let todosColetores = [];
 let estatisticas = {};
 let intervaloAtualizacao = null;
 let intervaloSimulacao = null;
@@ -33,11 +33,11 @@ let websocketListenersConfigurados = false;
 // Função para determinar status da coletor
 function determinarStatus(coletor) {
     const nivel = coletor.nivel_preenchimento || 0;
-    const statusLixeira = coletor.status || 'ativo';
+    const statusColetor = coletor.status || 'ativo';
     
     if (nivel >= 95) return { tipo: 'alert', texto: 'Crítico' };
     if (nivel >= 80) return { tipo: 'warning', texto: 'Atenção' };
-    if (statusLixeira === 'manutencao') return { tipo: 'warning', texto: 'Manutenção' };
+    if (statusColetor === 'manutencao') return { tipo: 'warning', texto: 'Manutenção' };
     return { tipo: 'ok', texto: 'Normal' };
 }
 
@@ -100,7 +100,7 @@ function formatarDistancia(distancia) {
 }
 
 // Função para criar card de coletor
-function criarCardLixeira(coletor) {
+function criarCardColetor(coletor) {
     const status = determinarStatus(coletor);
     const nivel = Math.round(coletor.nivel_preenchimento || 0);
     
@@ -150,7 +150,7 @@ function criarCardLixeira(coletor) {
 }
 
 // Função para renderizar grid de coletores
-function renderizarGridLixeiras(lixeirasFiltradas) {
+function renderizarGridColetores(coletoresFiltrados) {
     const grid = document.getElementById('bins-grid');
     if (!grid) {
         console.warn('Elemento bins-grid não encontrado');
@@ -159,13 +159,13 @@ function renderizarGridLixeiras(lixeirasFiltradas) {
     
     grid.innerHTML = '';
     
-    if (!Array.isArray(lixeirasFiltradas) || lixeirasFiltradas.length === 0) {
+    if (!Array.isArray(coletoresFiltrados) || coletoresFiltrados.length === 0) {
         grid.innerHTML = '<div class="loading-message">Nenhuma coletor encontrada</div>';
         return;
     }
     
-    lixeirasFiltradas.forEach(coletor => {
-        const card = criarCardLixeira(coletor);
+    coletoresFiltrados.forEach(coletor => {
+        const card = criarCardColetor(coletor);
         // Adicionar event listener ao botão de detalhes
         const btnDetalhes = card.querySelector('.bin-action');
         if (btnDetalhes) {
@@ -184,9 +184,9 @@ function atualizarEstatisticas(dados) {
     const statAlertas = document.getElementById('stat-alertas');
     const statColetasHoje = document.getElementById('stat-coletas-hoje');
     
-    if (statTotal) statTotal.textContent = dados.total_lixeiras || 0;
+    if (statTotal) statTotal.textContent = dados.total_coletores || 0;
     if (statNivelMedio) statNivelMedio.textContent = `${dados.nivel_medio || 0}%`;
-    if (statAlertas) statAlertas.textContent = dados.lixeiras_alerta || 0;
+    if (statAlertas) statAlertas.textContent = dados.coletores_alerta || 0;
     if (statColetasHoje) statColetasHoje.textContent = dados.coletas_hoje || 0;
 }
 
@@ -196,12 +196,12 @@ function atualizarAlertas() {
     const alertTitle = document.getElementById('alert-title');
     const alertMessage = document.getElementById('alert-message');
     
-    const lixeirasAlerta = todasLixeiras.filter(l => l.nivel_preenchimento >= 80);
+    const coletoresAlerta = todosColetores.filter(c => c.nivel_preenchimento >= 80);
     
-    if (lixeirasAlerta.length > 0) {
-        alertTitle.textContent = `${lixeirasAlerta.length} coletor(s) precisam de atenção urgente`;
-        const ids = lixeirasAlerta.map(l => `#L${String(l.id).padStart(3, '0')}`).join(', ');
-        alertMessage.textContent = `Lixeiras ${ids} estão acima de 80% de capacidade`;
+    if (coletoresAlerta.length > 0) {
+        alertTitle.textContent = `${coletoresAlerta.length} coletor(s) precisam de atenção urgente`;
+        const ids = coletoresAlerta.map(c => `#L${String(c.id).padStart(3, '0')}`).join(', ');
+        alertMessage.textContent = `Coletores ${ids} estão acima de 80% de capacidade`;
         alertasBar.style.display = 'flex';
     } else {
         alertasBar.style.display = 'none';
@@ -210,15 +210,15 @@ function atualizarAlertas() {
 
 // Função para aplicar filtros
 function aplicarFiltros() {
-    let lixeirasFiltradas = [...todasLixeiras];
+    let coletoresFiltrados = [...todosColetores];
     
     // Filtro por status
     if (filtros.status) {
-        lixeirasFiltradas = lixeirasFiltradas.filter(l => {
-            const status = determinarStatus(l);
+        coletoresFiltrados = coletoresFiltrados.filter(c => {
+            const status = determinarStatus(c);
             if (filtros.status === 'ativo') return status.tipo === 'ok';
             if (filtros.status === 'alerta') return status.tipo === 'warning' || status.tipo === 'alert';
-            if (filtros.status === 'manutencao') return l.status === 'manutencao';
+            if (filtros.status === 'manutencao') return c.status === 'manutencao';
             return true;
         });
     }
@@ -226,15 +226,15 @@ function aplicarFiltros() {
     // Filtro por busca
     if (filtros.busca) {
         const busca = filtros.busca.toLowerCase();
-        lixeirasFiltradas = lixeirasFiltradas.filter(l => {
-            const id = `L${String(l.id).padStart(3, '0')}`.toLowerCase();
-            const localizacao = (l.localizacao || '').toLowerCase();
+        coletoresFiltrados = coletoresFiltrados.filter(c => {
+            const id = `L${String(c.id).padStart(3, '0')}`.toLowerCase();
+            const localizacao = (c.localizacao || '').toLowerCase();
             return id.includes(busca) || localizacao.includes(busca);
         });
     }
 
     // Ordenação
-    lixeirasFiltradas.sort((a, b) => {
+    coletoresFiltrados.sort((a, b) => {
         const nivelA = a.nivel_preenchimento || 0;
         const nivelB = b.nivel_preenchimento || 0;
         const nomeA = (a.localizacao || '').toLowerCase();
@@ -260,7 +260,7 @@ function aplicarFiltros() {
         }
     });
     
-    renderizarGridLixeiras(lixeirasFiltradas);
+    renderizarGridColetores(coletoresFiltrados);
 }
 
 // Função para carregar dados
@@ -284,7 +284,7 @@ async function carregarDados() {
         
         // Carregar coletores e estatísticas em paralelo (usar allSettled para não falhar tudo se uma falhar)
         const results = await Promise.allSettled([
-            obterTodasLixeiras(),
+            obterTodosColetores(),
             obterEstatisticas()
         ]);
         
@@ -298,7 +298,7 @@ async function carregarDados() {
             console.error('Erro ao carregar estatísticas:', results[1].reason);
         }
         
-        todasLixeiras = coletores;
+        todosColetores = coletores;
         atualizarEstatisticas(stats);
         atualizarAlertas();
         aplicarFiltros();
@@ -424,7 +424,7 @@ async function carregarHistorico() {
         // Mostrar todas as coletas (ou limitar a 50 se houver muitas)
         const coletasLimitadas = historicoOrdenado.length > 50 ? historicoOrdenado.slice(0, 50) : historicoOrdenado;
         tbody.innerHTML = coletasLimitadas.map(coleta => {
-            const coletor = todasLixeiras.find(l => l.id === coleta.coletor_id) || coleta.coletor;
+            const coletor = todosColetores.find(c => c.id === coleta.coletor_id) || coleta.coletor;
             const data = coleta.data_hora ? new Date(coleta.data_hora) : null;
             const hora = data ? data.toLocaleTimeString('pt-BR', { hour: '2-digit', minute: '2-digit' }) : 'N/A';
             const dataFormatada = data ? data.toLocaleDateString('pt-BR') : 'N/A';
@@ -468,10 +468,10 @@ function ordenarHistorico(coletas, coluna, direcao) {
                 valorB = b.coletor_id || 0;
                 break;
             case 'local':
-                const lixeiraA = todasLixeiras.find(l => l.id === a.coletor_id) || a.coletor;
-                const lixeiraB = todasLixeiras.find(l => l.id === b.coletor_id) || b.coletor;
-                valorA = (lixeiraA ? (lixeiraA.localizacao || '') : '').toLowerCase();
-                valorB = (lixeiraB ? (lixeiraB.localizacao || '') : '').toLowerCase();
+                const coletorA = todosColetores.find(c => c.id === a.coletor_id) || a.coletor;
+                const coletorB = todosColetores.find(c => c.id === b.coletor_id) || b.coletor;
+                valorA = (coletorA ? (coletorA.localizacao || '') : '').toLowerCase();
+                valorB = (coletorB ? (coletorB.localizacao || '') : '').toLowerCase();
                 break;
             case 'hora':
                 valorA = a.data_hora ? new Date(a.data_hora).getTime() : 0;
@@ -580,8 +580,8 @@ function renderizarHistoricoOrdenado() {
     };
     
     tbody.innerHTML = coletasLimitadas.map(coleta => {
-        const coletor = Array.isArray(todasLixeiras) ? todasLixeiras.find(l => l && l.id === coleta.coletor_id) : null;
-        const lixeiraObj = coletor || coleta.coletor;
+        const coletor = Array.isArray(todosColetores) ? todosColetores.find(c => c && c.id === coleta.coletor_id) : null;
+        const coletorObj = coletor || coleta.coletor;
         const data = coleta.data_hora ? new Date(coleta.data_hora) : null;
         const hora = data ? data.toLocaleTimeString('pt-BR', { hour: '2-digit', minute: '2-digit' }) : 'N/A';
         const dataFormatada = data ? data.toLocaleDateString('pt-BR') : 'N/A';
@@ -589,7 +589,7 @@ function renderizarHistoricoOrdenado() {
         const km = coleta.km_percorrido ? Math.round(coleta.km_percorrido * 10) / 10 : 'N/A';
         const parceiroNome = coleta.parceiro ? escapeHtml(coleta.parceiro.nome) : 'N/A';
         const tipoOperacao = escapeHtml(coleta.tipo_operacao || 'N/A');
-        const localizacao = lixeiraObj ? escapeHtml(lixeiraObj.localizacao || 'N/A') : 'N/A';
+        const localizacao = coletorObj ? escapeHtml(coletorObj.localizacao || 'N/A') : 'N/A';
         
         return `
             <tr>
@@ -609,7 +609,7 @@ function renderizarHistoricoOrdenado() {
 // Função para ver detalhes
 async function verDetalhes(id) {
     try {
-        const coletor = await obterLixeira(id);
+        const coletor = await obterColetor(id);
         let historico = await obterHistorico();
         
         // Garantir que historico é um array
@@ -617,7 +617,7 @@ async function verDetalhes(id) {
             historico = historico && historico.dados ? historico.dados : [];
         }
         
-        const historicoLixeira = historico.filter(c => c.coletor_id === id).slice(0, 5);
+        const historicoColetor = historico.filter(c => c.coletor_id === id).slice(0, 5);
         
         const status = determinarStatus(coletor);
         const nivel = Math.round(coletor.nivel_preenchimento || 0);
@@ -750,7 +750,7 @@ async function verDetalhes(id) {
                 </div>
             </div>
             
-            ${historicoLixeira.length > 0 ? `
+            ${historicoColetor.length > 0 ? `
             <div class="modal-detail-card">
                 <h3 style="font-size: 14px; font-weight: 600; margin-bottom: 10px; color: #2c3e50;">Últimas Coletas</h3>
                 <table style="width: 100%; font-size: 12px;">
@@ -765,7 +765,7 @@ async function verDetalhes(id) {
                         </tr>
                     </thead>
                     <tbody>
-                        ${historicoLixeira.map(coleta => {
+                        ${historicoColetor.map(coleta => {
                             const data = coleta.data_hora ? new Date(coleta.data_hora) : null;
                             const km = coleta.km_percorrido ? Math.round(coleta.km_percorrido * 10) / 10 : 'N/A';
                             const parceiro = coleta.parceiro ? coleta.parceiro.nome : 'N/A';
@@ -946,7 +946,7 @@ async function verDetalhes(id) {
             btnSalvar.disabled = true;
             btnSalvar.textContent = 'Salvando...';
             try {
-                await atualizarLixeira(id, dadosAtualizacao);
+                await atualizarColetor(id, dadosAtualizacao);
                 feedback.textContent = 'Coletor atualizada com sucesso!';
                 feedback.style.display = 'block';
                 feedback.style.color = '#27ae60';
@@ -986,7 +986,7 @@ function fecharModal() {
 function exportarCSV() {
     try {
         // Preparar dados
-        const coletores = todasLixeiras.map(l => {
+        const coletores = todosColetores.map(c => {
             const status = determinarStatus(l);
             return {
                 'ID': `L${String(l.id).padStart(3, '0')}`,
@@ -1024,7 +1024,7 @@ function exportarCSV() {
         const url = URL.createObjectURL(blob);
         
         link.setAttribute('href', url);
-        link.setAttribute('download', `lixeiras_${new Date().toISOString().split('T')[0]}.csv`);
+        link.setAttribute('download', `coletores_${new Date().toISOString().split('T')[0]}.csv`);
         link.style.visibility = 'hidden';
         
         document.body.appendChild(link);
@@ -1042,7 +1042,7 @@ function exportarCSV() {
  * Atualiza a lista de coletores no grid
  * Reaplica filtros e renderiza novamente
  */
-function atualizarListaLixeiras() {
+function atualizarListaColetores() {
     // Verificar se estamos na página do dashboard
     const binsGrid = document.getElementById('bins-grid');
     if (!binsGrid) {
@@ -1067,26 +1067,26 @@ function configurarWebSocketListeners() {
     }
     
     // Listener para atualização de coletor
-    const handlerLixeira = function(event) {
+    const handlerColetor = function(event) {
         const coletor = event.detail;
         // Atualizar coletor na lista local
-        const index = todasLixeiras.findIndex(l => l.id === coletor.id);
+        const index = todosColetores.findIndex(c => c.id === coletor.id);
         if (index !== -1) {
-            todasLixeiras[index] = coletor;
-            atualizarListaLixeiras();
+            todosColetores[index] = coletor;
+            atualizarListaColetores();
         } else {
             // Nova coletor - recarregar dados
             carregarDados();
         }
     };
-    window.addEventListener('websocket:lixeira_atualizada', handlerLixeira);
-    eventListeners.push({ type: 'websocket:lixeira_atualizada', handler: handlerLixeira });
+    window.addEventListener('websocket:coletor_atualizado', handlerColetor);
+    eventListeners.push({ type: 'websocket:coletor_atualizado', handler: handlerColetor });
     
-    // Listener para nova coletor criada
-    const handlerLixeiraCriada = function(event) {
+    // Listener para novo coletor criado
+    const handlerColetorCriado = function(event) {
         const coletor = event.detail;
-        todasLixeiras.push(coletor);
-        atualizarListaLixeiras();
+        todosColetores.push(coletor);
+        atualizarListaColetores();
         // Recarregar estatísticas
         obterEstatisticas()
             .then(atualizarEstatisticas)
@@ -1094,8 +1094,8 @@ function configurarWebSocketListeners() {
                 console.error('Erro ao recarregar estatísticas:', error);
             });
     };
-    window.addEventListener('websocket:lixeira_criada', handlerLixeiraCriada);
-    eventListeners.push({ type: 'websocket:lixeira_criada', handler: handlerLixeiraCriada });
+    window.addEventListener('websocket:coletor_criado', handlerColetorCriado);
+    eventListeners.push({ type: 'websocket:coletor_criado', handler: handlerColetorCriado });
     
     // Listener para atualização de estatísticas
     const handlerEstatisticas = function(event) {

@@ -37,7 +37,7 @@ function configurarEventListeners() {
     // Filtros
     const filterTipo = document.getElementById('filter-tipo');
     const filterEnviada = document.getElementById('filter-enviada');
-    const filterLixeira = document.getElementById('filter-coletor');
+    const filterColetor = document.getElementById('filter-coletor');
     const btnLimparFiltros = document.getElementById('btn-limpar-filtros');
     
     if (filterTipo) {
@@ -46,8 +46,8 @@ function configurarEventListeners() {
     if (filterEnviada) {
         filterEnviada.addEventListener('change', aplicarFiltros);
     }
-    if (filterLixeira) {
-        filterLixeira.addEventListener('input', debounce(aplicarFiltros, 500));
+        if (filterColetor) {
+            filterColetor.addEventListener('input', debounce(aplicarFiltros, 500));
     }
     
     // Filtro de lidas
@@ -120,10 +120,10 @@ function exibirNotificacoes(notifs) {
         if (!notif || !notif.id) {
             return '';
         }
-        const tipoIcon = notif.tipo === 'lixeira_cheia' 
+        const tipoIcon = notif.tipo === 'coletor_cheio' 
             ? '<img src="/static/icons/alert_icon.png" alt="Coletor" class="notificacao-icon-img">' 
             : '<img src="/static/icons/alert_icon.png" alt="Bateria" class="notificacao-icon-img">';
-        const tipoLabel = notif.tipo === 'lixeira_cheia' ? 'Coletor Cheia' : 'Bateria Baixa';
+        const tipoLabel = notif.tipo === 'coletor_cheio' ? 'Coletor Cheio' : 'Bateria Baixa';
         const enviadaClass = notif.enviada ? 'enviada' : 'pendente';
         const lidaClass = notif.lida ? 'lida' : 'nao-lida';
         const enviadaBadge = notif.enviada 
@@ -224,7 +224,7 @@ function aplicarFiltros() {
     const filterTipo = document.getElementById('filter-tipo');
     const filterEnviada = document.getElementById('filter-enviada');
     const filterLida = document.getElementById('filter-lida');
-    const filterLixeira = document.getElementById('filter-coletor');
+    const filterColetor = document.getElementById('filter-coletor');
     
     filtrosAtivos = {};
     
@@ -237,8 +237,8 @@ function aplicarFiltros() {
     if (filterLida && filterLida.value) {
         filtrosAtivos.lida = filterLida.value;
     }
-    if (filterLixeira && filterLixeira.value) {
-        filtrosAtivos.coletor_id = parseInt(filterLixeira.value);
+        if (filterColetor && filterColetor.value) {
+            filtrosAtivos.coletor_id = parseInt(filterColetor.value);
     }
     
     carregarNotificacoes();
@@ -251,12 +251,12 @@ function limparFiltros() {
     const filterTipo = document.getElementById('filter-tipo');
     const filterEnviada = document.getElementById('filter-enviada');
     const filterLida = document.getElementById('filter-lida');
-    const filterLixeira = document.getElementById('filter-coletor');
+    const filterColetor = document.getElementById('filter-coletor');
     
     if (filterTipo) filterTipo.value = '';
     if (filterEnviada) filterEnviada.value = '';
     if (filterLida) filterLida.value = '';
-    if (filterLixeira) filterLixeira.value = '';
+        if (filterColetor) filterColetor.value = '';
     
     filtrosAtivos = {};
     carregarNotificacoes();
@@ -280,7 +280,7 @@ async function processarAlertasHandler() {
         const resultado = await processarAlertas();
         
         alert(`Alertas processados com sucesso!\n\n` +
-              `Lixeiras alertadas: ${resultado.estatisticas.lixeiras_alertadas}\n` +
+              `Coletores alertados: ${resultado.estatisticas.coletores_alertados}\n` +
               `Sensores alertados: ${resultado.estatisticas.sensores_alertados}\n` +
               `Emails enviados: ${resultado.estatisticas.emails_enviados}`);
         

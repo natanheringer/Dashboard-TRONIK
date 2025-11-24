@@ -15,18 +15,18 @@ let distribOrdem = 'desc';          // 'asc' ou 'desc'
 
 // Guarda os últimos dados usados para poder redesenhar o gráfico
 let ultimoRelatorioDistribuicao = {
-    coletasPorLixeira: [],
+    coletasPorColetor: [],
     coletores: []
 };
 
 // Variável global para armazenar dados do relatório atual
 let dadosRelatorioAtual = null;
 
-function processarDadosDistribuicao(coletasPorLixeira, coletores, ordem = 'desc') {
+function processarDadosDistribuicao(coletasPorColetor, coletores, ordem = 'desc') {
     // Validar inputs
-    if (!Array.isArray(coletasPorLixeira)) {
-        console.warn('coletasPorLixeira não é um array');
-        coletasPorLixeira = [];
+    if (!Array.isArray(coletasPorColetor)) {
+        console.warn('coletasPorColetor não é um array');
+        coletasPorColetor = [];
     }
     if (!Array.isArray(coletores)) {
         console.warn('coletores não é um array');
@@ -36,9 +36,9 @@ function processarDadosDistribuicao(coletasPorLixeira, coletores, ordem = 'desc'
     // Agrupar por região (usando parte do nome da localização)
     const regioes = {};
     
-    coletasPorLixeira.forEach(item => {
+    coletasPorColetor.forEach(item => {
         if (!item || !item.coletor_id) return;
-        const coletor = coletores.find(l => l && l.id === item.coletor_id);
+        const coletor = coletores.find(c => c && c.id === item.coletor_id);
         if (coletor && coletor.localizacao) {
             // Extrair região do nome (ex: "Asa Norte" de "Asa Norte - Bloco A")
             const localizacaoStr = String(coletor.localizacao);
@@ -297,20 +297,20 @@ function processarDadosEvolucao(coletas) {
 }
 
 // Função para processar dados de distribuição por região
-function processarDadosDistribuicaoRegiao(coletasPorLixeira, coletores) {
+function processarDadosDistribuicaoRegiao(coletasPorColetor, coletores) {
     // Agrupar por região (usando parte do nome da localização)
     const regioes = {};
     
-    if (!Array.isArray(coletasPorLixeira)) {
-        coletasPorLixeira = [];
+    if (!Array.isArray(coletasPorColetor)) {
+        coletasPorColetor = [];
     }
     if (!Array.isArray(coletores)) {
         coletores = [];
     }
     
-    coletasPorLixeira.forEach(item => {
+    coletasPorColetor.forEach(item => {
         if (!item || !item.coletor_id) return;
-        const coletor = coletores.find(l => l && l.id === item.coletor_id);
+        const coletor = coletores.find(c => c && c.id === item.coletor_id);
         if (coletor && coletor.localizacao) {
             // Extrair região do nome (ex: "Asa Norte" de "Asa Norte - Bloco A")
             const regiao = String(coletor.localizacao).split(' - ')[0] || 'Outros';
@@ -420,7 +420,7 @@ function atualizarGraficoEvolucao(dados) {
 }
 
 // Função para criar/atualizar gráfico de distribuição
-function atualizarGraficoDistribuicao(coletasPorLixeira, coletores) {
+function atualizarGraficoDistribuicao(coletasPorColetor, coletores) {
     const ctx = document.getElementById('chart-distribuicao');
     
     if (!ctx) {
@@ -434,12 +434,12 @@ function atualizarGraficoDistribuicao(coletasPorLixeira, coletores) {
 
     // Guarda os dados pra reutilizar quando mudar orientação/ordem
     ultimoRelatorioDistribuicao = {
-        coletasPorLixeira: coletasPorLixeira || [],
+        coletasPorColetor: coletasPorColetor || [],
         coletores: coletores || []
     };
     
     const processed = processarDadosDistribuicao(
-        ultimoRelatorioDistribuicao.coletasPorLixeira,
+        ultimoRelatorioDistribuicao.coletasPorColetor,
         ultimoRelatorioDistribuicao.coletores,
         distribOrdem // usa o estado global de ordenação
     );
@@ -755,9 +755,9 @@ async function carregarRelatorio() {
         // Carregar coletores para gráfico de distribuição
         let coletores = [];
         try {
-            coletores = await obterTodasLixeiras();
+            coletores = await obterTodosColetores();
             if (!Array.isArray(coletores)) {
-                console.warn('Lixeiras não é um array, convertendo...');
+                console.warn('Coletores não é um array, convertendo...');
                 coletores = coletores && coletores.dados ? coletores.dados : [];
             }
         } catch (error) {
@@ -794,8 +794,8 @@ async function carregarRelatorio() {
         atualizarGraficoFinanceiro(relatorio.detalhes || []);
         
         // Gráfico de distribuição só se houver coletas por coletor
-        if (relatorio.resumo && relatorio.resumo.coletas_por_lixeira) {
-            atualizarGraficoDistribuicao(relatorio.resumo.coletas_por_lixeira, coletores);
+        if (relatorio.resumo && relatorio.resumo.coletas_por_coletor) {
+            atualizarGraficoDistribuicao(relatorio.resumo.coletas_por_coletor, coletores);
         } else {
             atualizarGraficoDistribuicao([], coletores);
         }
@@ -819,7 +819,7 @@ async function carregarRelatorio() {
         } else {
             tbody.innerHTML = relatorio.detalhes.map(coleta => {
                 const data = coleta.data_hora ? new Date(coleta.data_hora) : null;
-                const lixeiraNome = coleta.coletor ? escapeHtml(coleta.coletor.localizacao || `Coletor ${coleta.coletor_id}`) : `Coletor ${coleta.coletor_id}`;
+                const coletorNome = coleta.coletor ? escapeHtml(coleta.coletor.localizacao || `Coletor ${coleta.coletor_id}`) : `Coletor ${coleta.coletor_id}`;
                 const volume = coleta.volume_estimado ? Math.round(coleta.volume_estimado) : 0;
                 const km = coleta.km_percorrido ? Math.round(coleta.km_percorrido * 10) / 10 : 'N/A';
                 const parceiroNome = coleta.parceiro ? escapeHtml(coleta.parceiro.nome) : 'N/A';
@@ -844,7 +844,7 @@ async function carregarRelatorio() {
                     <tr>
                         <td>${data ? data.toLocaleString('pt-BR') : 'N/A'}</td>
                         <td>#L${String(coleta.coletor_id).padStart(3, '0')}</td>
-                        <td>${lixeiraNome}</td>
+                        <td>${coletorNome}</td>
                         <td>${volume}KG</td>
                         <td>${km}${typeof km === 'number' ? 'km' : ''}</td>
                         <td>${parceiroNome}</td>
@@ -858,8 +858,8 @@ async function carregarRelatorio() {
         // Atualizar top coletores
         const topList = document.getElementById('top-coletores');
         if (topList) {
-            if (relatorio.resumo.coletas_por_lixeira && relatorio.resumo.coletas_por_lixeira.length > 0) {
-                const top = relatorio.resumo.coletas_por_lixeira
+            if (relatorio.resumo.coletas_por_coletor && relatorio.resumo.coletas_por_coletor.length > 0) {
+                const top = relatorio.resumo.coletas_por_coletor
                     .sort((a, b) => b.total_coletas - a.total_coletas)
                     .slice(0, 5);
                 
@@ -895,13 +895,13 @@ async function carregarRelatorio() {
         
         if (resumoAtencao) {
             // Pontos de atenção
-            const lixeirasComProblemas = relatorio.resumo.coletas_por_lixeira 
-                ? relatorio.resumo.coletas_por_lixeira.filter(l => l.total_coletas > 10).length 
+            const coletoresComProblemas = relatorio.resumo.coletas_por_coletor 
+                ? relatorio.resumo.coletas_por_coletor.filter(c => c.total_coletas > 10).length 
                 : 0;
             
-            if (lixeirasComProblemas > 0) {
+            if (coletoresComProblemas > 0) {
                 resumoAtencao.textContent = 
-                    `${lixeirasComProblemas} coletor(s) com alto número de coletas no período. Verifique necessidade de otimização de rotas.`;
+                    `${coletoresComProblemas} coletor(s) com alto número de coletas no período. Verifique necessidade de otimização de rotas.`;
             } else {
                 resumoAtencao.textContent = 
                     'Nenhum ponto de atenção crítico no período selecionado.';
@@ -948,9 +948,9 @@ document.addEventListener('DOMContentLoaded', function () {
 
     function redesenharGraficoDistribuicaoSePossivel() {
         if (ultimoRelatorioDistribuicao.coletores.length > 0 ||
-            ultimoRelatorioDistribuicao.coletasPorLixeira.length > 0) {
+            ultimoRelatorioDistribuicao.coletasPorColetor.length > 0) {
             atualizarGraficoDistribuicao(
-                ultimoRelatorioDistribuicao.coletasPorLixeira,
+                ultimoRelatorioDistribuicao.coletasPorColetor,
                 ultimoRelatorioDistribuicao.coletores
             );
         }
@@ -1025,7 +1025,7 @@ function exportarColetasCSV() {
         coletas.forEach(coleta => {
             const data = coleta.data_hora ? new Date(coleta.data_hora) : null;
             const dataFormatada = data ? data.toLocaleString('pt-BR') : 'N/A';
-            const lixeiraNome = coleta.coletor ? coleta.coletor.localizacao : 'N/A';
+            const coletorNome = coleta.coletor ? coleta.coletor.localizacao : 'N/A';
             const parceiroNome = coleta.parceiro ? coleta.parceiro.nome : 'N/A';
             const tipoColetorNome = coleta.tipo_coletor ? coleta.tipo_coletor.nome : 'N/A';
             const volume = coleta.volume_estimado || 0;
@@ -1049,7 +1049,7 @@ function exportarColetasCSV() {
                 coleta.id || '',
                 dataFormatada,
                 coleta.coletor_id || '',
-                `"${lixeiraNome}"`,
+                `"${coletorNome}"`,
                 volume.toFixed(2),
                 km.toFixed(1),
                 coleta.tipo_operacao || '',
