@@ -12,11 +12,11 @@
     <div class="mapa-page-header">
         <h1 class="mapa-page-title">Localização das Lixeiras</h1>
         <div class="mapa-page-controls">
-            <button class="btn-controle-mapa" id="btn-ajustar-zoom" title="Ajustar zoom para todas as lixeiras">
-                🔍 Ajustar Zoom
+            <button class="btn-controle-mapa" id="btn-ajustar-zoom" title="Ajustar zoom para todas as coletores">
+                <img src="{{ url_for('static', filename='icons/alvo_icon.png') }}" alt="Zoom" class="btn-icon"> Ajustar Zoom
             </button>
             <button class="btn-controle-mapa" id="btn-atualizar-mapa" title="Atualizar mapa">
-                ↻ Atualizar
+                <img src="{{ url_for('static', filename='icons/refresh_icon.png') }}" alt="Atualizar" class="btn-icon"> Atualizar
             </button>
         </div>
     </div>
@@ -41,7 +41,7 @@
         </div>
         <div class="filter-group">
             <label for="filter-busca-mapa">Buscar:</label>
-            <input type="text" class="filter-input" id="filter-busca-mapa" placeholder="Nome da lixeira...">
+            <input type="text" class="filter-input" id="filter-busca-mapa" placeholder="Nome da coletor...">
         </div>
         <div class="filter-group">
             <label for="filter-distancia-mapa">Distância da Sede:</label>
@@ -65,7 +65,7 @@
 
     <!-- Container do mapa -->
     <div class="mapa-container-full">
-        <div id="mapa-lixeiras">
+        <div id="mapa-coletores">
             <div class="mapa-carregando">
                 <div class="spinner"></div>
                 <p>Carregando mapa...</p>
@@ -100,10 +100,49 @@
         </div>
     </div>
 </div>
+
+<!-- Modal de Detalhes (mesmo da página principal) -->
+<div class="modal-overlay" id="modal-overlay" style="display: none;">
+    <div class="modal-container">
+        <div class="modal-header">
+            <h2 id="modal-title">Detalhes da Coletor</h2>
+            <button class="modal-close" id="modal-close">&times;</button>
+        </div>
+        <div class="modal-body" id="modal-body">
+            <!-- Conteúdo será preenchido via JavaScript -->
+        </div>
+    </div>
+</div>
 {% endblock %}
 
 {% block extra_js %}
-<script src="{{ url_for('static', filename='js/mapa.js') }}"></script>
-<script src="{{ url_for('static', filename='js/mapa-page.js') }}"></script>
+<script src="{{ url_for('static', filename='js/mapa.js') }}?v={{ cache_version }}"></script>
+<script src="{{ url_for('static', filename='js/mapa-page.js') }}?v={{ cache_version }}"></script>
+<!-- dashboard.js já é carregado no base.html, não precisa carregar novamente -->
+<script>
+    // Inicializar modal na página do mapa
+    document.addEventListener('DOMContentLoaded', function() {
+        // Fechar modal
+        const modalClose = document.getElementById('modal-close');
+        if (modalClose) {
+            modalClose.addEventListener('click', function() {
+                const modalOverlay = document.getElementById('modal-overlay');
+                if (modalOverlay) {
+                    modalOverlay.style.display = 'none';
+                }
+            });
+        }
+        
+        // Fechar modal ao clicar fora
+        const modalOverlay = document.getElementById('modal-overlay');
+        if (modalOverlay) {
+            modalOverlay.addEventListener('click', function(e) {
+                if (e.target.id === 'modal-overlay') {
+                    modalOverlay.style.display = 'none';
+                }
+            });
+        }
+    });
+</script>
 {% endblock %}
 

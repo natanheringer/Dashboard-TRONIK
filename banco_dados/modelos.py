@@ -11,12 +11,12 @@ Modelos implementados:
 - TipoMaterial: Tipos de material coletado
 - TipoSensor: Tipos de sensores
 - TipoColetor: Tipos de coletores
-- Lixeira: Lixeiras inteligentes com sensores
-- Sensor: Sensores associados a lixeiras
+- Coletor: Coletores inteligentes com sensores
+- Sensor: Sensores associados a coletores
 - Coleta: Histórico de coletas realizadas
 """
 
-from sqlalchemy import Column, Integer, String, Float, DateTime, ForeignKey, Boolean
+from sqlalchemy import Column, Integer, String, Float, DateTime, ForeignKey, Boolean, Index
 from sqlalchemy.orm import relationship, declarative_base
 from datetime import datetime
 from werkzeug.security import generate_password_hash, check_password_hash
@@ -55,6 +55,41 @@ class Usuario(Base, UserMixin):
 
 
 # ----------------------------------------------------------
+# TABELA: Preferências de Layout do Usuário
+# ----------------------------------------------------------
+class PreferenciaLayout(Base):
+    """Preferências de layout do dashboard comercial por usuário"""
+    __tablename__ = "preferencias_layout"
+    __table_args__ = (
+        Index('idx_pref_usuario', 'usuario_id'),
+    )
+
+    id = Column(Integer, primary_key=True, autoincrement=True)
+    usuario_id = Column(Integer, ForeignKey("usuarios.id"), nullable=False, unique=True, index=True)
+    
+    # Ordem dos containers (JSON string com array de IDs)
+    ordem_containers = Column(String(2000))  # JSON: ["kpi-meta", "resumo-financeiro", ...]
+    
+    criado_em = Column(DateTime, default=utc_now_naive)
+    atualizado_em = Column(DateTime, default=utc_now_naive, onupdate=utc_now_naive)
+    
+    # Relacionamento
+    usuario = relationship("Usuario", backref="preferencia_layout")
+    
+    def to_dict(self):
+        import json
+        return {
+            'id': self.id,
+            'usuario_id': self.usuario_id,
+            'ordem_containers': json.loads(self.ordem_containers) if self.ordem_containers else [],
+            'atualizado_em': self.atualizado_em.isoformat() if self.atualizado_em else None
+        }
+    
+    def __repr__(self):
+        return f"<PreferenciaLayout(id={self.id}, usuario_id={self.usuario_id})>"
+
+
+# ----------------------------------------------------------
 # TABELA: Parceiros
 # ----------------------------------------------------------
 class Parceiro(Base):
@@ -66,7 +101,7 @@ class Parceiro(Base):
     criado_em = Column(DateTime, default=utc_now_naive)
 
     # Relacionamentos
-    lixeiras = relationship("Lixeira", back_populates="parceiro")
+    coletores = relationship("Coletor", back_populates="parceiro")
     coletas = relationship("Coleta", back_populates="parceiro")
 
     def __repr__(self):
@@ -83,7 +118,7 @@ class TipoMaterial(Base):
     nome = Column(String(100), unique=True, nullable=False, index=True)
 
     # Relacionamentos
-    lixeiras = relationship("Lixeira", back_populates="tipo_material")
+    coletores = relationship("Coletor", back_populates="tipo_material")
 
     def __repr__(self):
         return f"<TipoMaterial(id={self.id}, nome='{self.nome}')>"
@@ -122,10 +157,16 @@ class TipoColetor(Base):
 
 
 # ----------------------------------------------------------
-# TABELA: Lixeiras
+# TABELA: Coletores
 # ----------------------------------------------------------
-class Lixeira(Base):
-    __tablename__ = "lixeiras"
+class Coletor(Base):
+    __tablename__ = "coletores"
+    __table_args__ = (
+        Index('idx_coletor_status', 'status'),
+        Index('idx_coletor_parceiro', 'parceiro_id'),
+        Index('idx_coletor_tipo_material', 'tipo_material_id'),
+        Index('idx_coletor_nivel', 'nivel_preenchimento'),
+    )
 
     id = Column(Integer, primary_key=True, autoincrement=True)
     localizacao = Column(String(150), nullable=False)
@@ -140,13 +181,13 @@ class Lixeira(Base):
     tipo_material_id = Column(Integer, ForeignKey("tipo_material.id"), nullable=True, index=True)
 
     # Relacionamentos
-    parceiro = relationship("Parceiro", back_populates="lixeiras")
-    tipo_material = relationship("TipoMaterial", back_populates="lixeiras")
-    sensores = relationship("Sensor", back_populates="lixeira", cascade="all, delete-orphan")
-    coletas = relationship("Coleta", back_populates="lixeira", cascade="all, delete-orphan")
+    parceiro = relationship("Parceiro", back_populates="coletores")
+    tipo_material = relationship("TipoMaterial", back_populates="coletores")
+    sensores = relationship("Sensor", back_populates="coletor", cascade="all, delete-orphan")
+    coletas = relationship("Coleta", back_populates="coletor", cascade="all, delete-orphan")
 
     def __repr__(self):
-        return f"<Lixeira(id={self.id}, local='{self.localizacao}', nivel={self.nivel_preenchimento}%)>"
+        return f"<Coletor(id={self.id}, local='{self.localizacao}', nivel={self.nivel_preenchimento}%)>"
 
 
 # ----------------------------------------------------------
@@ -156,13 +197,13 @@ class Sensor(Base):
     __tablename__ = "sensores"
 
     id = Column(Integer, primary_key=True, autoincrement=True)
-    lixeira_id = Column(Integer, ForeignKey("lixeiras.id"), nullable=False, index=True)
+    coletor_id = Column(Integer, ForeignKey("coletores.id"), nullable=False, index=True)
     tipo_sensor_id = Column(Integer, ForeignKey("tipo_sensor.id"), nullable=True, index=True)
     bateria = Column(Float, default=100.0)
     ultimo_ping = Column(DateTime, default=utc_now_naive)
 
     # Relacionamentos
-    lixeira = relationship("Lixeira", back_populates="sensores")
+    coletor = relationship("Coletor", back_populates="sensores")
     tipo_sensor = relationship("TipoSensor", back_populates="sensores")
 
     def __repr__(self):
@@ -177,7 +218,7 @@ class Coleta(Base):
     __tablename__ = "coletas"
 
     id = Column(Integer, primary_key=True, autoincrement=True)
-    lixeira_id = Column(Integer, ForeignKey("lixeiras.id"), nullable=False, index=True)
+    coletor_id = Column(Integer, ForeignKey("coletores.id"), nullable=False, index=True)
     data_hora = Column(DateTime, default=utc_now_naive, index=True)
     volume_estimado = Column(Float)  # Mantido para compatibilidade
     
@@ -191,13 +232,13 @@ class Coleta(Base):
     parceiro_id = Column(Integer, ForeignKey("parceiros.id"), nullable=True, index=True)
 
     # Relacionamentos
-    lixeira = relationship("Lixeira", back_populates="coletas")
+    coletor = relationship("Coletor", back_populates="coletas")
     tipo_coletor = relationship("TipoColetor", back_populates="coletas")
     parceiro = relationship("Parceiro", back_populates="coletas")
 
     def __repr__(self):
         parceiro_nome = self.parceiro.nome if self.parceiro else "N/A"
-        return f"<Coleta(id={self.id}, lixeira_id={self.lixeira_id}, data={self.data_hora}, parceiro='{parceiro_nome}')>"
+        return f"<Coleta(id={self.id}, coletor_id={self.coletor_id}, data={self.data_hora}, parceiro='{parceiro_nome}')>"
 
 
 # ----------------------------------------------------------
@@ -205,12 +246,19 @@ class Coleta(Base):
 # ----------------------------------------------------------
 class Notificacao(Base):
     __tablename__ = "notificacoes"
+    __table_args__ = (
+        Index('idx_notificacao_tipo', 'tipo'),
+        Index('idx_notificacao_coletor', 'coletor_id'),
+        Index('idx_notificacao_enviada', 'enviada'),
+        Index('idx_notificacao_lida', 'lida'),
+        Index('idx_notificacao_criada_em', 'criada_em'),
+    )
 
     id = Column(Integer, primary_key=True, autoincrement=True)
     tipo = Column(String(50), nullable=False)  # 'lixeira_cheia', 'bateria_baixa', etc.
     titulo = Column(String(200), nullable=False)
     mensagem = Column(String(500), nullable=False)
-    lixeira_id = Column(Integer, ForeignKey("lixeiras.id"), nullable=True, index=True)
+    coletor_id = Column(Integer, ForeignKey("coletores.id"), nullable=True, index=True)
     sensor_id = Column(Integer, ForeignKey("sensores.id"), nullable=True, index=True)
     enviada = Column(Boolean, default=False)
     enviada_em = Column(DateTime, nullable=True)
@@ -219,8 +267,381 @@ class Notificacao(Base):
     criada_em = Column(DateTime, default=utc_now_naive)
 
     # Relacionamentos
-    lixeira = relationship("Lixeira", backref="notificacoes")
+    coletor = relationship("Coletor", backref="notificacoes")
     sensor = relationship("Sensor", backref="notificacoes")
 
     def __repr__(self):
         return f"<Notificacao(id={self.id}, tipo='{self.tipo}', enviada={self.enviada})>"
+
+
+# ----------------------------------------------------------
+# TABELA: Meta Comercial
+# ----------------------------------------------------------
+class MetaComercial(Base):
+    """Meta de faturamento mensal"""
+    __tablename__ = "metas_comerciais"
+    __table_args__ = (
+        Index('idx_meta_mes_ano', 'mes', 'ano'),
+    )
+
+    id = Column(Integer, primary_key=True, autoincrement=True)
+    mes = Column(Integer, nullable=False)  # 1-12
+    ano = Column(Integer, nullable=False)
+    valor_meta = Column(Float, nullable=False, default=12000.00)
+    valor_realizado = Column(Float, default=0.0)
+    percentual_atingido = Column(Float, default=0.0)
+    status = Column(String(20), default='em_andamento')  # 'em_andamento', 'atingida', 'nao_atingida'
+    observacoes = Column(String(500))
+    criado_em = Column(DateTime, default=utc_now_naive)
+    atualizado_em = Column(DateTime, default=utc_now_naive, onupdate=utc_now_naive)
+
+    def to_dict(self):
+        # Usar getattr com fallback para evitar erros quando objeto está desanexado
+        try:
+            return {
+                'id': getattr(self, 'id', None),
+                'mes': getattr(self, 'mes', None),
+                'ano': getattr(self, 'ano', None),
+                'valor_meta': getattr(self, 'valor_meta', 0.0),
+                'valor_realizado': getattr(self, 'valor_realizado', 0.0),
+                'percentual_atingido': getattr(self, 'percentual_atingido', 0.0),
+                'status': getattr(self, 'status', 'em_andamento'),
+                'observacoes': getattr(self, 'observacoes', None),
+                'criado_em': self.criado_em.isoformat() if getattr(self, 'criado_em', None) else None,
+                'atualizado_em': self.atualizado_em.isoformat() if getattr(self, 'atualizado_em', None) else None
+            }
+        except Exception:
+            # Fallback: usar __dict__ se houver problema
+            return {
+                'id': self.__dict__.get('id'),
+                'mes': self.__dict__.get('mes'),
+                'ano': self.__dict__.get('ano'),
+                'valor_meta': self.__dict__.get('valor_meta', 0.0),
+                'valor_realizado': self.__dict__.get('valor_realizado', 0.0),
+                'percentual_atingido': self.__dict__.get('percentual_atingido', 0.0),
+                'status': self.__dict__.get('status', 'em_andamento'),
+                'observacoes': self.__dict__.get('observacoes'),
+                'criado_em': self.__dict__.get('criado_em').isoformat() if self.__dict__.get('criado_em') else None,
+                'atualizado_em': self.__dict__.get('atualizado_em').isoformat() if self.__dict__.get('atualizado_em') else None
+            }
+
+    def __repr__(self):
+        return f"<MetaComercial(id={self.id}, {self.mes}/{self.ano}, meta=R${self.valor_meta:.2f}, realizado={self.percentual_atingido:.1f}%)>"
+
+
+# ----------------------------------------------------------
+# TABELA: Pipeline (CRM)
+# ----------------------------------------------------------
+class Pipeline(Base):
+    """Pipeline de vendas/CRM"""
+    __tablename__ = "pipeline"
+    __table_args__ = (
+        Index('idx_pipeline_status', 'status'),
+        Index('idx_pipeline_coletor', 'coletor_id'),
+        Index('idx_pipeline_responsavel', 'responsavel_id'),
+        Index('idx_pipeline_data_acao', 'data_proxima_acao'),
+    )
+
+    id = Column(Integer, primary_key=True, autoincrement=True)
+    coletor_id = Column(Integer, ForeignKey("coletores.id"), nullable=True, index=True)  # Nullable para leads sem coletor
+    status = Column(String(50), nullable=False, default='lead', index=True)
+    # Status: 'lead', 'contato_inicial', 'proposta_enviada', 'negociacao', 'fechado', 'perdido'
+    
+    valor_estimado = Column(Float, default=0.0)
+    probabilidade = Column(Integer, default=10)  # 0-100%
+    
+    proxima_acao = Column(String(200))
+    data_proxima_acao = Column(DateTime, index=True)
+    responsavel_id = Column(Integer, ForeignKey("usuarios.id"), nullable=True, index=True)
+    
+    origem = Column(String(100))  # 'indicacao', 'site', 'rede_social', 'evento', etc
+    tipo_servico = Column(String(100))  # 'coleta', 'palestra', 'oficina', 'contrato'
+    
+    observacoes = Column(String(1000))
+    motivo_perda = Column(String(200))  # Preenchido se status='perdido'
+    
+    criado_em = Column(DateTime, default=utc_now_naive)
+    atualizado_em = Column(DateTime, default=utc_now_naive, onupdate=utc_now_naive)
+    fechado_em = Column(DateTime)
+    
+    # Relacionamentos
+    coletor = relationship("Coletor", backref="pipeline_items")
+    responsavel = relationship("Usuario", backref="pipeline_responsavel")
+    interacoes = relationship("Interacao", back_populates="pipeline", cascade="all, delete-orphan", lazy="dynamic")
+    tarefas = relationship("Tarefa", back_populates="pipeline", cascade="all, delete-orphan")
+    
+    def to_dict(self):
+        from datetime import datetime
+        from banco_dados.serializers import coletor_para_dict
+        
+        # Tentar obter coletor serializado (com tratamento para objetos detached)
+        coletor_dict = None
+        if self.coletor_id:
+            try:
+                # Verificar se o objeto está anexado à sessão
+                from sqlalchemy.orm import object_session
+                session = object_session(self)
+                
+                if session and hasattr(self, 'coletor') and self.coletor is not None:
+                    # Objeto está na sessão, pode serializar
+                    try:
+                        coletor_dict = coletor_para_dict(self.coletor)
+                    except Exception:
+                        # Fallback: dados básicos
+                        coletor_dict = {
+                            'id': self.coletor_id,
+                            'localizacao': getattr(self.coletor, 'localizacao', None)
+                        }
+                else:
+                    # Objeto não está na sessão ou não foi carregado, usar apenas ID
+                    coletor_dict = {'id': self.coletor_id}
+            except Exception as e:
+                # Fallback final: apenas ID
+                coletor_dict = {'id': self.coletor_id}
+        
+        # Tentar obter última interação
+        ultima_interacao = None
+        try:
+            if self.interacoes and self.interacoes.first():
+                ultima = self.interacoes.order_by(Interacao.data.desc()).first()
+                if ultima:
+                    ultima_interacao = ultima.to_dict()
+        except Exception:
+            pass  # Ignorar erro ao acessar interações
+        
+        return {
+            'id': self.id,
+            'coletor': coletor_dict,
+            'coletor_id': self.coletor_id,
+            'status': self.status,
+            'valor_estimado': self.valor_estimado,
+            'probabilidade': self.probabilidade,
+            'proxima_acao': self.proxima_acao,
+            'data_proxima_acao': self.data_proxima_acao.isoformat() if self.data_proxima_acao else None,
+            'responsavel': self.responsavel.nome_completo if self.responsavel else None,
+            'responsavel_id': self.responsavel_id,
+            'origem': self.origem,
+            'tipo_servico': self.tipo_servico,
+            'observacoes': self.observacoes,
+            'motivo_perda': self.motivo_perda,
+            'criado_em': self.criado_em.isoformat() if self.criado_em else None,
+            'atualizado_em': self.atualizado_em.isoformat() if self.atualizado_em else None,
+            'fechado_em': self.fechado_em.isoformat() if self.fechado_em else None,
+            'dias_no_pipeline': (datetime.now() - self.criado_em).days if self.criado_em else 0,
+            'ultima_interacao': ultima_interacao
+        }
+
+    def __repr__(self):
+        return f"<Pipeline(id={self.id}, status='{self.status}', valor=R${self.valor_estimado:.2f}, prob={self.probabilidade}%)>"
+
+
+# ----------------------------------------------------------
+# TABELA: Interações (CRM)
+# ----------------------------------------------------------
+class Interacao(Base):
+    """Registro de interações com cliente"""
+    __tablename__ = "interacoes"
+    __table_args__ = (
+        Index('idx_interacao_pipeline', 'pipeline_id'),
+        Index('idx_interacao_data', 'data'),
+        Index('idx_interacao_tipo', 'tipo'),
+    )
+
+    id = Column(Integer, primary_key=True, autoincrement=True)
+    pipeline_id = Column(Integer, ForeignKey("pipeline.id"), nullable=False, index=True)
+    tipo = Column(String(50), nullable=False, index=True)
+    # Tipo: 'ligacao', 'email', 'whatsapp', 'reuniao', 'visita', 'proposta', 'outro'
+    
+    descricao = Column(String(1000), nullable=False)
+    resultado = Column(String(100))  # 'positivo', 'neutro', 'negativo'
+    
+    data = Column(DateTime, default=utc_now_naive, index=True)
+    duracao_minutos = Column(Integer)
+    
+    usuario_id = Column(Integer, ForeignKey("usuarios.id"), nullable=True)
+    usuario = relationship("Usuario", backref="interacoes")
+    
+    # Anexos podem ser armazenados como JSON (lista de URLs)
+    anexos = Column(String(500))  # JSON string com lista de URLs
+    
+    criado_em = Column(DateTime, default=utc_now_naive)
+    
+    # Relacionamentos
+    pipeline = relationship("Pipeline", back_populates="interacoes")
+    
+    def to_dict(self):
+        return {
+            'id': self.id,
+            'pipeline_id': self.pipeline_id,
+            'tipo': self.tipo,
+            'descricao': self.descricao,
+            'resultado': self.resultado,
+            'data': self.data.isoformat() if self.data else None,
+            'duracao_minutos': self.duracao_minutos,
+            'usuario': self.usuario.nome_completo if self.usuario else None,
+            'usuario_id': self.usuario_id,
+            'anexos': self.anexos,
+            'criado_em': self.criado_em.isoformat() if self.criado_em else None
+        }
+
+    def __repr__(self):
+        return f"<Interacao(id={self.id}, tipo='{self.tipo}', pipeline_id={self.pipeline_id})>"
+
+
+# ----------------------------------------------------------
+# TABELA: Tarefas
+# ----------------------------------------------------------
+class Tarefa(Base):
+    """Tarefas e lembretes"""
+    __tablename__ = "tarefas"
+    __table_args__ = (
+        Index('idx_tarefa_status', 'status'),
+        Index('idx_tarefa_usuario', 'usuario_id'),
+        Index('idx_tarefa_vencimento', 'data_vencimento'),
+        Index('idx_tarefa_prioridade', 'prioridade'),
+    )
+
+    id = Column(Integer, primary_key=True, autoincrement=True)
+    titulo = Column(String(200), nullable=False)
+    descricao = Column(String(1000))
+    
+    pipeline_id = Column(Integer, ForeignKey("pipeline.id"), nullable=True)
+    usuario_id = Column(Integer, ForeignKey("usuarios.id"), nullable=False, index=True)
+    
+    status = Column(String(20), default='pendente', index=True)  # 'pendente', 'concluida', 'cancelada'
+    prioridade = Column(String(20), default='media', index=True)  # 'baixa', 'media', 'alta', 'urgente'
+    
+    data_vencimento = Column(DateTime, index=True)
+    concluida_em = Column(DateTime)
+    
+    criado_em = Column(DateTime, default=utc_now_naive)
+    atualizado_em = Column(DateTime, default=utc_now_naive, onupdate=utc_now_naive)
+    
+    # Relacionamentos
+    pipeline = relationship("Pipeline", back_populates="tarefas")
+    usuario = relationship("Usuario", backref="tarefas")
+    
+    def to_dict(self):
+        from datetime import datetime
+        from sqlalchemy.orm import object_session
+        hoje = datetime.now()
+        
+        # Obter cliente de forma segura (tratando objetos detached)
+        cliente = None
+        if self.pipeline_id:
+            try:
+                session = object_session(self)
+                if session and hasattr(self, 'pipeline') and self.pipeline:
+                    try:
+                        if hasattr(self.pipeline, 'coletor') and self.pipeline.coletor:
+                            cliente = self.pipeline.coletor.localizacao
+                    except Exception:
+                        # Objeto detached, usar apenas ID
+                        pass
+            except Exception:
+                pass
+        
+        # Obter usuário de forma segura
+        usuario_nome = None
+        try:
+            session = object_session(self)
+            if session and hasattr(self, 'usuario') and self.usuario:
+                try:
+                    usuario_nome = self.usuario.nome_completo
+                except Exception:
+                    # Objeto detached
+                    pass
+        except Exception:
+            pass
+        
+        return {
+            'id': self.id,
+            'titulo': self.titulo,
+            'descricao': self.descricao,
+            'pipeline_id': self.pipeline_id,
+            'cliente': cliente,
+            'usuario': usuario_nome,
+            'usuario_id': self.usuario_id,
+            'status': self.status,
+            'prioridade': self.prioridade,
+            'data_vencimento': self.data_vencimento.isoformat() if self.data_vencimento else None,
+            'concluida_em': self.concluida_em.isoformat() if self.concluida_em else None,
+            'atrasada': self.data_vencimento < hoje if self.data_vencimento and self.status == 'pendente' else False,
+            'criado_em': self.criado_em.isoformat() if self.criado_em else None
+        }
+
+    def __repr__(self):
+        return f"<Tarefa(id={self.id}, titulo='{self.titulo}', status='{self.status}')>"
+
+
+# ----------------------------------------------------------
+# TABELA: Contratos Recorrentes
+# ----------------------------------------------------------
+class ContratoRecorrente(Base):
+    """Contratos de coleta recorrente"""
+    __tablename__ = "contratos_recorrentes"
+    __table_args__ = (
+        Index('idx_contrato_coletor', 'coletor_id'),
+        Index('idx_contrato_status', 'status'),
+        Index('idx_contrato_vencimento', 'data_vencimento'),
+    )
+
+    id = Column(Integer, primary_key=True, autoincrement=True)
+    coletor_id = Column(Integer, ForeignKey("coletores.id"), nullable=False, index=True)
+    parceiro_id = Column(Integer, ForeignKey("parceiros.id"), nullable=True)
+    
+    titulo = Column(String(200), nullable=False)
+    descricao = Column(String(1000))
+    
+    valor_mensal = Column(Float, nullable=False)
+    frequencia_coleta = Column(String(50), default='mensal')  # 'semanal', 'quinzenal', 'mensal', 'bimestral'
+    dia_coleta = Column(Integer)  # Dia do mês (1-31) ou dia da semana (1-7) dependendo da frequência
+    
+    data_inicio = Column(DateTime, nullable=False)
+    data_vencimento = Column(DateTime)
+    status = Column(String(20), default='ativo', index=True)  # 'ativo', 'pausado', 'cancelado', 'vencido'
+    
+    observacoes = Column(String(1000))
+    criado_em = Column(DateTime, default=utc_now_naive)
+    atualizado_em = Column(DateTime, default=utc_now_naive, onupdate=utc_now_naive)
+    
+    # Relacionamentos
+    coletor = relationship("Coletor", backref="contratos")
+    parceiro = relationship("Parceiro", backref="contratos")
+    
+    def to_dict(self):
+        from banco_dados.serializers import coletor_para_dict
+        
+        # Tentar obter coletor serializado
+        coletor_dict = None
+        if self.coletor:
+            try:
+                coletor_dict = coletor_para_dict(self.coletor)
+            except Exception:
+                # Fallback se não conseguir serializar
+                coletor_dict = {
+                    'id': self.coletor.id,
+                    'localizacao': self.coletor.localizacao
+                }
+        
+        return {
+            'id': self.id,
+            'coletor': coletor_dict,
+            'coletor_id': self.coletor_id,
+            'parceiro': self.parceiro.nome if self.parceiro else None,
+            'parceiro_id': self.parceiro_id,
+            'titulo': self.titulo,
+            'descricao': self.descricao,
+            'valor_mensal': self.valor_mensal,
+            'frequencia_coleta': self.frequencia_coleta,
+            'dia_coleta': self.dia_coleta,
+            'data_inicio': self.data_inicio.isoformat() if self.data_inicio else None,
+            'data_vencimento': self.data_vencimento.isoformat() if self.data_vencimento else None,
+            'status': self.status,
+            'observacoes': self.observacoes,
+            'criado_em': self.criado_em.isoformat() if self.criado_em else None,
+            'atualizado_em': self.atualizado_em.isoformat() if self.atualizado_em else None
+        }
+
+    def __repr__(self):
+        return f"<ContratoRecorrente(id={self.id}, coletor_id={self.coletor_id}, valor=R${self.valor_mensal:.2f}/mês, status='{self.status}')>"

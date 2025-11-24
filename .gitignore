@@ -34,6 +34,10 @@ tronik.db
 *.csv
 BaseTronik*.csv
 **/BaseTronik*.csv
+lixeiras_para_geocodificar.csv
+dados_precificacao/
+**/dados_precificacao/
+db_tronik/*.csv
 
 # === Logs / Execução ===
 *.log
@@ -57,10 +61,49 @@ htmlcov/
 .DS_Store
 Thumbs.db
 
+# === Dados Sensíveis de Negócio ===
+# Planilhas e dados de precificação
+*.xlsx
+*.xls
+*.zip
+PRECIFICAÇÃO*.xlsx
+PRECIFICAÇÃO*.zip
+**/PRECIFICAÇÃO*
+
+# Documentação com dados sensíveis
+DOCUMENTACAO_PRECIFICACAO.md
+ANALISE_IMPORTACAO_PRECIFICACAO.md
+CHANGELOG_PRECIFICACAO.md
+RESUMO_IMPORTACAO_PRECIFICACAO.md
+COORDENADAS_COMPLETAS.md
+analise_precificacao/
+
+# Scripts temporários de migração/importação
+substituir_lixeira_por_coletor.py
+banco_dados/migrar_banco_raiz.py
+banco_dados/migrar_lixeira_para_coletor.py
+banco_dados/importar_precificacao.py
+banco_dados/listar_*.py
+banco_dados/validar_*.py
+banco_dados/corrigir_*.py
+banco_dados/atualizar_coletas.py
+banco_dados/geocodificacao_avancada.py
+banco_dados/utils.py.backup
+scripts/analisar_precificacao.py
+scripts/extrair_precificacao.py
+
+# Arquivos temporários e de análise
+-20
+jcn*
+
 # === Backups temporários ===
 *.bak
 *.swp
 *.swo
 backup/
+*.db.backup
+*.db.backup.*
+tronik.db.backup*
+banco_dados/tronik.db.backup*
 
 

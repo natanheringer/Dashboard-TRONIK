@@ -47,7 +47,7 @@ Estilos específicos para a página configuracoes.html
     padding-bottom: 10px;
 }
 
-.form-lixeira {
+.form-coletor {
     width: 100%;
 }
 
@@ -142,12 +142,12 @@ Estilos específicos para a página configuracoes.html
     border: 1px solid #f5c6cb;
 }
 
-.lista-lixeiras {
+.lista-coletores {
     display: grid;
     gap: 15px;
 }
 
-.lixeira-item {
+.coletor-item {
     display: flex;
     justify-content: space-between;
     align-items: center;
@@ -157,22 +157,22 @@ Estilos específicos para a página configuracoes.html
     border-left: 4px solid #27ae60;
 }
 
-.lixeira-info {
+.coletor-info {
     flex: 1;
 }
 
-.lixeira-id {
+.coletor-id {
     font-weight: 600;
     color: #27ae60;
     margin-bottom: 5px;
 }
 
-.lixeira-local {
+.coletor-local {
     color: #666;
     font-size: 14px;
 }
 
-.lixeira-acoes {
+.coletor-acoes {
     display: flex;
     gap: 10px;
 }
@@ -297,12 +297,12 @@ Estilos específicos para a página configuracoes.html
         grid-template-columns: 1fr;
     }
     
-    .lixeira-item {
+    .coletor-item {
         flex-direction: column;
         align-items: flex-start;
     }
     
-    .lixeira-acoes {
+    .coletor-acoes {
         width: 100%;
         margin-top: 10px;
     }

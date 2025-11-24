@@ -32,6 +32,12 @@ Intercepta e traduz as instruções do Leaflet Routing Machine
                         texto += ' (' + distancia + ')';
                     }
                     
+                    // Formatar o texto ANTES de retornar (adicionar quebras onde necessário)
+                    // Isso ajuda a prevenir o problema de texto sem espaços
+                    texto = texto.replace(/([a-záàâãéèêíïóôõöúçñA-Z])(\d+\.?\d*\s*(?:km|m|min))/g, '$1 $2');
+                    texto = texto.replace(/(\d+\.?\d*\s*(?:km|m|min)),\s*(\d+\.?\d*\s*(?:km|m|min))/g, '$1\n$2');
+                    texto = texto.replace(/\((\d+\.?\d*\s*(?:km|m|min))\)\s*\1/g, '($1)');
+                    
                     return texto;
                 },
                 
@@ -71,16 +77,25 @@ Intercepta e traduz as instruções do Leaflet Routing Machine
             const control = originalControl.call(this, options);
             
             // Interceptar eventos para traduzir instruções após renderização
+            // IMPORTANTE: Executar ANTES da formatação para não sobrescrever HTML formatado
             control.on('routeselected', function(e) {
                 setTimeout(function() {
                     traduzirInstrucoesNoDOM();
-                }, 100);
+                    // Após traduzir, chamar formatação se disponível
+                    if (typeof formatarInstrucoesRota === 'function') {
+                        setTimeout(() => formatarInstrucoesRota(), 50);
+                    }
+                }, 50); // Delay menor para executar antes da formatação
             });
             
             control.on('routesfound', function(e) {
                 setTimeout(function() {
                     traduzirInstrucoesNoDOM();
-                }, 100);
+                    // Após traduzir, chamar formatação se disponível
+                    if (typeof formatarInstrucoesRota === 'function') {
+                        setTimeout(() => formatarInstrucoesRota(), 50);
+                    }
+                }, 50); // Delay menor para executar antes da formatação
             });
             
             return control;
@@ -97,7 +112,31 @@ Intercepta e traduz as instruções do Leaflet Routing Machine
             const elementos = document.querySelectorAll('.leaflet-routing-instruction-text, .leaflet-routing-alt');
             
             elementos.forEach(function(el) {
-                if (el.textContent && typeof traduzirInstrucao === 'function') {
+                if (!el || !el.textContent) return;
+                
+                // Verificar se o elemento já tem HTML formatado (nossa formatação)
+                const temHTMLFormatado = el.innerHTML.includes('<br>') || 
+                                       el.innerHTML.includes('<span class="instrucao-');
+                
+                // Se já tem HTML formatado, NÃO sobrescrever com textContent
+                // Isso preserva a formatação que foi aplicada por formatarInstrucoesRota()
+                if (temHTMLFormatado) {
+                    // Apenas traduzir o texto dentro dos spans, preservando a estrutura HTML
+                    const spans = el.querySelectorAll('span.instrucao-texto');
+                    spans.forEach(function(span) {
+                        if (span.textContent && typeof traduzirInstrucao === 'function') {
+                            const textoOriginal = span.textContent.trim();
+                            const textoTraduzido = traduzirInstrucao(textoOriginal);
+                            if (textoTraduzido !== textoOriginal) {
+                                span.textContent = textoTraduzido;
+                            }
+                        }
+                    });
+                    return; // Não processar mais este elemento
+                }
+                
+                // Se não tem HTML formatado, traduzir normalmente
+                if (typeof traduzirInstrucao === 'function') {
                     const textoOriginal = el.textContent.trim();
                     const textoTraduzido = traduzirInstrucao(textoOriginal);
                     if (textoTraduzido !== textoOriginal) {

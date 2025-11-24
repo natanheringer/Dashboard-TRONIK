@@ -1,0 +1,144 @@
+{% extends "base.html" %}
+
+{% block title %}Dashboard-TRONIK - Contratos{% endblock %}
+
+{% block extra_css %}
+<link rel="stylesheet" href="{{ url_for('static', filename='css/contratos.css') }}">
+{% endblock %}
+
+{% block content %}
+<div class="contratos-container">
+    <!-- Header -->
+    <div class="contratos-header">
+        <h1><img src="{{ url_for('static', filename='icons/contract_icon.png') }}" alt="Contratos" class="header-icon"> Contratos Recorrentes</h1>
+        <div class="header-actions">
+            <button class="btn btn-secundario" onclick="atualizarContratos()" id="btn-atualizar-contratos">
+                <img src="{{ url_for('static', filename='icons/refresh_icon.png') }}" alt="Atualizar" class="btn-icon"> Atualizar
+            </button>
+            <button class="btn btn-primario" onclick="abrirModalNovoContrato()">
+                + Novo Contrato
+            </button>
+        </div>
+    </div>
+
+    <!-- KPIs -->
+    <div class="kpis-grid">
+        <div class="kpi-card">
+            <h3>Receita Mensal</h3>
+            <p class="kpi-valor" id="kpi-receita-mensal">R$ 0,00</p>
+            <p class="kpi-descricao">Contratos ativos</p>
+        </div>
+        <div class="kpi-card">
+            <h3>Total de Contratos</h3>
+            <p class="kpi-valor" id="kpi-total-contratos">0</p>
+            <p class="kpi-descricao" id="kpi-total-desc">Contratos cadastrados</p>
+        </div>
+        <div class="kpi-card">
+            <h3>Contratos Vencendo</h3>
+            <p class="kpi-valor" id="kpi-vencendo">0</p>
+            <p class="kpi-descricao">Próximos 30 dias</p>
+        </div>
+    </div>
+
+    <!-- Filtros -->
+    <div class="filtros-section">
+        <div class="card">
+            <div class="card-header">
+                <h3>Filtros</h3>
+            </div>
+            <div class="card-body">
+                <div class="filtros-grid">
+                    <div class="filter-group">
+                        <label for="filtro-status-contrato">Status</label>
+                        <select id="filtro-status-contrato" onchange="filtrarContratos()">
+                            <option value="">Todos</option>
+                            <option value="ativo">Ativo</option>
+                            <option value="pausado">Pausado</option>
+                            <option value="cancelado">Cancelado</option>
+                            <option value="vencido">Vencido</option>
+                        </select>
+                    </div>
+                    <div class="filter-group">
+                        <label for="filtro-coletor-contrato">Coletor/Cliente</label>
+                        <input type="number" id="filtro-coletor-contrato" placeholder="ID da coletor" onchange="filtrarContratos()">
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Lista de Contratos -->
+    <div class="contratos-section">
+        <div class="card">
+            <div class="card-header">
+                <h3><img src="{{ url_for('static', filename='icons/contract_icon.png') }}" alt="Lista" class="section-icon"> Lista de Contratos</h3>
+            </div>
+            <div class="card-body">
+                <div id="contratos-container">
+                    <p style="text-align: center; color: #64748b; padding: 2rem;">Carregando...</p>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+
+<!-- Modal Novo Contrato -->
+<div class="modal" id="modal-novo-contrato">
+    <div class="modal-content">
+        <div class="modal-header">
+            <h2>Novo Contrato Recorrente</h2>
+            <button class="modal-close" onclick="fecharModalNovoContrato()">×</button>
+        </div>
+        <form id="form-novo-contrato" onsubmit="criarContrato(event)">
+            <div class="form-group">
+                <label for="coletor-id-contrato">Coletor/Cliente *</label>
+                <select id="coletor-id-contrato" name="coletor_id" required>
+                    <option value="">Selecione um coletor...</option>
+                </select>
+            </div>
+            <div class="form-group">
+                <label for="titulo-contrato">Título *</label>
+                <input type="text" id="titulo-contrato" name="titulo" required>
+            </div>
+            <div class="form-group">
+                <label for="valor-mensal-contrato">Valor Mensal (R$) *</label>
+                <input type="number" id="valor-mensal-contrato" name="valor_mensal" step="0.01" min="0" required>
+            </div>
+            <div class="form-group">
+                <label for="frequencia-contrato">Frequência de Coleta</label>
+                <select id="frequencia-contrato" name="frequencia_coleta">
+                    <option value="semanal">Semanal</option>
+                    <option value="quinzenal">Quinzenal</option>
+                    <option value="mensal" selected>Mensal</option>
+                    <option value="bimestral">Bimestral</option>
+                </select>
+            </div>
+            <div class="form-group">
+                <label for="dia-coleta-contrato">Dia da Coleta</label>
+                <input type="number" id="dia-coleta-contrato" name="dia_coleta" min="1" max="31" placeholder="Dia do mês (1-31)">
+            </div>
+            <div class="form-group">
+                <label for="data-inicio-contrato">Data de Início *</label>
+                <input type="date" id="data-inicio-contrato" name="data_inicio" required>
+            </div>
+            <div class="form-group">
+                <label for="data-vencimento-contrato">Data de Vencimento (opcional)</label>
+                <input type="date" id="data-vencimento-contrato" name="data_vencimento">
+            </div>
+            <div class="form-group">
+                <label for="observacoes-contrato">Observações</label>
+                <textarea id="observacoes-contrato" name="observacoes" rows="3"></textarea>
+            </div>
+            <div class="form-actions">
+                <button type="button" class="btn btn-secundario" onclick="fecharModalNovoContrato()">Cancelar</button>
+                <button type="submit" class="btn btn-primario">Criar</button>
+            </div>
+        </form>
+    </div>
+</div>
+{% endblock %}
+
+{% block extra_js %}
+<script src="{{ url_for('static', filename='js/contratos.js') }}"></script>
+{% endblock %}
+

@@ -2,14 +2,14 @@
 JavaScript da Página de Mapa - Dashboard-TRONIK
 ===============================================
 Gerencia a página dedicada de mapa.
-Carrega lixeiras e atualiza o mapa.
+Carrega coletores e atualiza o mapa.
 */
 
 let todasLixeirasMapa = [];
 let mapaInicializado = false;
 
 /**
- * Carrega todas as lixeiras e atualiza o mapa
+ * Carrega todas as coletores e atualiza o mapa
  */
 async function carregarLixeirasNoMapa() {
     try {
@@ -19,11 +19,11 @@ async function carregarLixeirasNoMapa() {
             return;
         }
 
-        const lixeiras = await obterTodasLixeiras();
-        todasLixeirasMapa = lixeiras;
+        const coletores = await obterTodasLixeiras();
+        todasLixeirasMapa = coletores;
         
         // Aplicar filtros
-        const lixeirasFiltradas = aplicarFiltrosMapa(lixeiras);
+        const lixeirasFiltradas = aplicarFiltrosMapa(coletores);
         
         // Atualizar mapa
         if (typeof window.MapaTronik !== 'undefined' && window.MapaTronik.atualizarMarcadores) {
@@ -32,25 +32,25 @@ async function carregarLixeirasNoMapa() {
             console.warn('MapaTronik.atualizarMarcadores não disponível');
         }
     } catch (error) {
-        console.error('Erro ao carregar lixeiras:', error);
+        console.error('Erro ao carregar coletores:', error);
     }
 }
 
 /**
- * Aplica filtros às lixeiras
+ * Aplica filtros às coletores
  */
-function aplicarFiltrosMapa(lixeiras) {
+function aplicarFiltrosMapa(coletores) {
     const statusFiltro = document.getElementById('filter-status-mapa')?.value || '';
     const parceiroFiltro = document.getElementById('filter-parceiro-mapa')?.value || '';
     const buscaFiltro = document.getElementById('filter-busca-mapa')?.value.toLowerCase() || '';
     const distanciaFiltro = document.getElementById('filter-distancia-mapa')?.value || 'todas';
     const ordenarDistancia = document.getElementById('ordenar-distancia-mapa')?.value || '';
 
-    let lixeirasFiltradas = lixeiras.filter(lixeira => {
+    let lixeirasFiltradas = coletores.filter(coletor => {
         // Filtro de status
         if (statusFiltro) {
-            const nivel = lixeira.nivel_preenchimento || 0;
-            const status = lixeira.status || 'OK';
+            const nivel = coletor.nivel_preenchimento || 0;
+            const status = coletor.status || 'OK';
             
             if (statusFiltro === 'normal' && (nivel >= 80 || status !== 'OK')) return false;
             if (statusFiltro === 'atencao' && (nivel < 80 || nivel >= 95)) return false;
@@ -60,14 +60,14 @@ function aplicarFiltrosMapa(lixeiras) {
 
         // Filtro de parceiro
         if (parceiroFiltro) {
-            const parceiroId = lixeira.parceiro?.id || null;
+            const parceiroId = coletor.parceiro?.id || null;
             if (parceiroId !== parseInt(parceiroFiltro)) return false;
         }
 
         // Filtro de busca
         if (buscaFiltro) {
-            const localizacao = (lixeira.localizacao || '').toLowerCase();
-            const id = `#L${String(lixeira.id).padStart(3, '0')}`.toLowerCase();
+            const localizacao = (coletor.localizacao || '').toLowerCase();
+            const id = `#L${String(coletor.id).padStart(3, '0')}`.toLowerCase();
             if (!localizacao.includes(buscaFiltro) && !id.includes(buscaFiltro)) {
                 return false;
             }
@@ -129,7 +129,7 @@ async function carregarParceirosFiltro() {
  */
 async function inicializarPaginaMapa() {
     // Verificar se estamos na página de mapa
-    const mapaContainer = document.getElementById('mapa-lixeiras');
+    const mapaContainer = document.getElementById('mapa-coletores');
     if (!mapaContainer) return;
 
     // Aguardar o carregamento do módulo MapaTronik
@@ -157,7 +157,7 @@ async function inicializarPaginaMapa() {
                 carregando.remove();
             }
 
-            window.MapaTronik.inicializar('mapa-lixeiras', {
+            window.MapaTronik.inicializar('mapa-coletores', {
                 lat: -15.7942,  // Brasília
                 lon: -47.8822,
                 zoom: 11
@@ -200,7 +200,7 @@ async function inicializarPaginaMapa() {
     // Carregar parceiros
     await carregarParceirosFiltro();
 
-    // Carregar lixeiras
+    // Carregar coletores
     await carregarLixeirasNoMapa();
 
     // Event listeners
@@ -259,5 +259,19 @@ async function inicializarPaginaMapa() {
 
 
 // Inicializar quando a página carregar
-document.addEventListener('DOMContentLoaded', inicializarPaginaMapa);
+document.addEventListener('DOMContentLoaded', function() {
+    inicializarPaginaMapa();
+    
+    // Garantir que verDetalhes está disponível globalmente
+    // Se dashboard.js não estiver carregado, criar uma versão básica
+    if (typeof window.verDetalhes !== 'function') {
+        console.warn('verDetalhes não encontrado, aguardando dashboard.js...');
+        // Aguardar um pouco para ver se dashboard.js carrega
+        setTimeout(() => {
+            if (typeof window.verDetalhes !== 'function') {
+                console.error('verDetalhes ainda não está disponível após aguardar');
+            }
+        }, 1000);
+    }
+});
 

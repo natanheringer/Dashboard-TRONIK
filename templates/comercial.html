@@ -1,0 +1,301 @@
+{% extends "base.html" %}
+
+{% block title %}Dashboard-TRONIK - Comercial{% endblock %}
+
+{% block extra_css %}
+<link rel="stylesheet" href="{{ url_for('static', filename='css/comercial.css') }}">
+{% endblock %}
+
+{% block content %}
+<div class="comercial-container">
+    <!-- Header -->
+    <div class="comercial-header">
+        <h1><img src="{{ url_for('static', filename='icons/grafico_icon.png') }}" alt="Dashboard" class="header-icon"> Dashboard Comercial</h1>
+        <div class="header-actions">
+            <select id="seletor-periodo" class="select-periodo" onchange="alterarPeriodo()">
+                <option value="atual">Mês Atual</option>
+                <option value="anterior">Mês Anterior</option>
+                <option value="ultimos3">Últimos 3 Meses</option>
+                <option value="ultimos6">Últimos 6 Meses</option>
+                <option value="todos">Todos os Períodos</option>
+            </select>
+            <button class="btn btn-secundario" onclick="resetarLayout()" id="btn-reset-layout" title="Resetar Layout">
+                <img src="{{ url_for('static', filename='icons/refresh_icon.png') }}" alt="Reset" class="btn-icon"> Reset Layout
+            </button>
+            <button class="btn btn-secundario" onclick="atualizarDados()" id="btn-atualizar-comercial">
+                <img src="{{ url_for('static', filename='icons/refresh_icon.png') }}" alt="Atualizar" class="btn-icon"> Atualizar
+            </button>
+            <button class="btn btn-primario" onclick="configurarMeta()">
+                <img src="{{ url_for('static', filename='icons/configuracao_icon.png') }}" alt="Configurar" class="btn-icon"> Configurar Meta
+            </button>
+        </div>
+    </div>
+
+    <!-- KPIs Grid -->
+    <div class="kpis-grid" id="kpis-grid">
+        <!-- Meta Circular -->
+        <div class="kpi-card kpi-meta" data-container-id="kpi-meta">
+            <h3>Meta do Mês</h3>
+            <div class="circular-chart">
+                <svg class="circular-svg" viewBox="0 0 120 120">
+                    <circle cx="60" cy="60" r="54" fill="none" stroke="#e2e8f0" stroke-width="12"/>
+                    <circle cx="60" cy="60" r="54" fill="none" stroke="#22c55e" stroke-width="12"
+                            stroke-dasharray="339.292" stroke-dashoffset="0" id="circle-progress"/>
+                    <text x="60" y="60" text-anchor="middle" dominant-baseline="middle" class="percentual-texto" id="percentual-text">0%</text>
+                </svg>
+            </div>
+            <div class="meta-detalhes">
+                <p class="meta-valor" id="meta-valor">R$ 0,00</p>
+                <p class="meta-total" id="meta-total">de R$ 0,00</p>
+                <span class="status-badge" id="status-badge">em_andamento</span>
+            </div>
+        </div>
+
+        <!-- Faturamento Atual -->
+        <div class="kpi-card" data-container-id="kpi-faturamento">
+            <h3>Faturamento Atual</h3>
+            <p class="kpi-valor" id="kpi-faturamento">R$ 0,00</p>
+            <p class="kpi-descricao" id="kpi-faturamento-desc">Este mês</p>
+        </div>
+
+        <!-- Falta para Meta -->
+        <div class="kpi-card" data-container-id="kpi-falta">
+            <h3>Falta para Meta</h3>
+            <p class="kpi-valor" id="kpi-falta">R$ 0,00</p>
+            <p class="kpi-descricao" id="kpi-falta-desc">Restante</p>
+        </div>
+
+        <!-- Valor Agendado -->
+        <div class="kpi-card" data-container-id="kpi-agendado">
+            <h3>Valor Agendado</h3>
+            <p class="kpi-valor" id="kpi-agendado">R$ 0,00</p>
+            <p class="kpi-descricao">Próximos 7 dias</p>
+        </div>
+
+        <!-- Projeção Fim de Mês -->
+        <div class="kpi-card" data-container-id="kpi-projecao">
+            <h3>Projeção Fim de Mês</h3>
+            <p class="kpi-valor" id="kpi-projecao">R$ 0,00</p>
+            <p class="kpi-descricao" id="kpi-projecao-desc">Baseado no ritmo atual</p>
+        </div>
+
+        <!-- Lucro Médio por Coleta -->
+        <div class="kpi-card" data-container-id="kpi-lucro-medio">
+            <h3>Lucro Médio/Coleta</h3>
+            <p class="kpi-valor" id="kpi-lucro-medio">R$ 0,00</p>
+            <p class="kpi-descricao">Por coleta realizada</p>
+        </div>
+
+        <!-- Rentabilidade -->
+        <div class="kpi-card" data-container-id="kpi-rentabilidade">
+            <h3>Rentabilidade</h3>
+            <p class="kpi-valor" id="kpi-rentabilidade">0%</p>
+            <p class="kpi-descricao" id="kpi-rentabilidade-desc">Margem de lucro</p>
+        </div>
+
+        <!-- Ticket Médio -->
+        <div class="kpi-card" data-container-id="kpi-ticket-medio">
+            <h3>Ticket Médio</h3>
+            <p class="kpi-valor" id="kpi-ticket-medio">R$ 0,00</p>
+            <p class="kpi-descricao">Valor médio por coleta</p>
+        </div>
+    </div>
+
+    <!-- Resumo Financeiro -->
+    <div class="card resumo-financeiro" data-container-id="resumo-financeiro">
+        <div class="card-header">
+            <h3><img src="{{ url_for('static', filename='icons/dinheiro_icon.png') }}" alt="Financeiro" class="section-icon"> Resumo Financeiro</h3>
+        </div>
+        <div class="card-body">
+            <div class="resumo-grid">
+                <div class="resumo-item receita">
+                    <span class="resumo-label">Receita Total</span>
+                    <span class="resumo-valor" id="resumo-receita">R$ 0,00</span>
+                </div>
+                <div class="resumo-item custo">
+                    <span class="resumo-label">Custo Total</span>
+                    <span class="resumo-valor" id="resumo-custo">R$ 0,00</span>
+                </div>
+                <div class="resumo-item lucro">
+                    <span class="resumo-label">Lucro Líquido</span>
+                    <span class="resumo-valor" id="resumo-lucro">R$ 0,00</span>
+                </div>
+                <div class="resumo-item margem">
+                    <span class="resumo-label">Margem de Lucro</span>
+                    <span class="resumo-valor" id="resumo-margem">0%</span>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Comparação com Mês Anterior -->
+    <div class="card comparacao-mes" id="card-comparacao" data-container-id="comparacao-mes" style="display: none;">
+        <div class="card-header">
+            <h3><img src="{{ url_for('static', filename='icons/grafico_icon.png') }}" alt="Comparação" class="section-icon"> Comparação com Mês Anterior</h3>
+        </div>
+        <div class="card-body">
+            <div id="comparacao-container">
+                <p style="text-align: center; color: #64748b; padding: 1rem;">Carregando comparação...</p>
+            </div>
+        </div>
+    </div>
+
+    <!-- Grid Principal -->
+    <div class="comercial-grid" id="comercial-grid">
+        <!-- Coluna Esquerda -->
+        <div>
+            <!-- Próximas Coletas -->
+            <div class="card" data-container-id="proximas-coletas">
+                <div class="card-header">
+                    <h3><img src="{{ url_for('static', filename='icons/calendar.png') }}" alt="Coletas" class="section-icon"> Próximas Coletas</h3>
+                    <button class="btn btn-xs btn-primario" onclick="agendarColeta()">
+                        + Agendar
+                    </button>
+                </div>
+                <div class="card-body">
+                    <div id="proximas-coletas">
+                        <p style="text-align: center; color: #64748b; padding: 2rem;">Carregando...</p>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Clientes Inativos -->
+            <div class="card" data-container-id="clientes-inativos">
+                <div class="card-header">
+                    <h3><img src="{{ url_for('static', filename='icons/alert_icon.png') }}" alt="Inativos" class="section-icon"> Clientes Inativos</h3>
+                    <span class="badge" id="badge-inativos">0</span>
+                </div>
+                <div class="card-body">
+                    <div id="clientes-inativos">
+                        <p style="text-align: center; color: #64748b; padding: 2rem;">Nenhum cliente inativo</p>
+                    </div>
+                    <button class="btn btn-secundario btn-block" onclick="verTodosInativos()" style="margin-top: 1rem;">
+                        Ver Todos
+                    </button>
+                </div>
+            </div>
+
+            <!-- Sugestões -->
+            <div class="card" data-container-id="sugestoes">
+                <div class="card-header">
+                    <h3>💡 Sugestões para Atingir Meta</h3>
+                </div>
+                <div class="card-body">
+                    <div id="sugestoes-container">
+                        <p style="text-align: center; color: #64748b; padding: 2rem;">Carregando sugestões...</p>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <!-- Coluna Direita -->
+        <div>
+            <!-- Alertas -->
+            <div class="card" data-container-id="alertas">
+                <div class="card-header">
+                    <h3>🚨 Alertas</h3>
+                </div>
+                <div class="card-body">
+                    <div id="alertas-container">
+                        <p style="text-align: center; color: #64748b; padding: 2rem;">Nenhum alerta</p>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Gráfico de Evolução -->
+            <div class="card" data-container-id="grafico-evolucao">
+                <div class="card-header">
+                    <h3><img src="{{ url_for('static', filename='icons/grafico_icon.png') }}" alt="Evolução" class="section-icon"> Evolução Mensal</h3>
+                </div>
+                <div class="card-body">
+                    <div class="chart-container">
+                        <canvas id="grafico-evolucao"></canvas>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Gráfico de Lucro por Parceiro -->
+            <div class="card" data-container-id="grafico-parceiros">
+                <div class="card-header">
+                    <h3>💼 Lucro por Parceiro</h3>
+                    <select id="filtro-parceiro-grafico" class="select-filtro" onchange="filtrarParceiroGrafico()">
+                        <option value="">Todos os Parceiros</option>
+                    </select>
+                </div>
+                <div class="card-body">
+                    <div class="chart-container">
+                        <canvas id="grafico-parceiros"></canvas>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Tabela de Análise por Parceiro -->
+            <div class="card" data-container-id="tabela-parceiros">
+                <div class="card-header">
+                    <h3><img src="{{ url_for('static', filename='icons/prancheta_icon.png') }}" alt="Análise" class="section-icon"> Análise por Parceiro</h3>
+                    <select id="filtro-parceiro-tabela" class="select-filtro" onchange="filtrarParceiroTabela()">
+                        <option value="">Todos os Parceiros</option>
+                    </select>
+                </div>
+                <div class="card-body">
+                    <div class="table-container">
+                        <table class="tabela-parceiros" id="tabela-parceiros">
+                            <thead>
+                                <tr>
+                                    <th>Parceiro</th>
+                                    <th>Coletas</th>
+                                    <th>Volume (kg)</th>
+                                    <th>Receita</th>
+                                    <th>Custo</th>
+                                    <th>Lucro</th>
+                                    <th>Margem</th>
+                                </tr>
+                            </thead>
+                            <tbody id="tbody-parceiros">
+                                <tr>
+                                    <td colspan="7" style="text-align: center; color: #64748b; padding: 2rem;">
+                                        Carregando...
+                                    </td>
+                                </tr>
+                            </tbody>
+                        </table>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+
+<!-- Modal de Configuração de Meta -->
+<div class="modal" id="modal-meta" style="display: none;">
+    <div class="modal-content">
+        <div class="modal-header">
+            <h2>Configurar Meta Mensal</h2>
+            <button class="modal-close" onclick="fecharModalMeta()">×</button>
+        </div>
+        <form id="form-meta" onsubmit="salvarMeta(event)">
+            <div class="form-group">
+                <label for="valor-meta-input">Valor da Meta (R$)</label>
+                <input type="number" id="valor-meta-input" name="valor_meta" step="0.01" min="0" required>
+            </div>
+            <div class="form-group">
+                <label for="observacoes-input">Observações</label>
+                <textarea id="observacoes-input" name="observacoes" rows="3"></textarea>
+            </div>
+            <div class="form-actions">
+                <button type="button" class="btn btn-secundario" onclick="fecharModalMeta()">Cancelar</button>
+                <button type="submit" class="btn btn-primario">Salvar</button>
+            </div>
+        </form>
+    </div>
+</div>
+{% endblock %}
+
+{% block extra_js %}
+<!-- Chart.js CDN -->
+<script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.0/dist/chart.umd.min.js"></script>
+<!-- SortableJS para drag and drop -->
+<script src="https://cdn.jsdelivr.net/npm/sortablejs@1.15.0/Sortable.min.js"></script>
+<script src="{{ url_for('static', filename='js/comercial.js') }}"></script>
+{% endblock %}
+
