@@ -35,11 +35,11 @@ def obter_estatisticas():
             coletas = db.query(Coleta).all()
             sensores = db.query(Sensor).all()
             
-            total_lixeiras = len(coletores)
-            lixeiras_alerta = len([l for l in coletores if l.nivel_preenchimento > 80])
+            total_coletores = len(coletores)
+            coletores_alerta = len([l for l in coletores if l.nivel_preenchimento > 80])
             
-            if total_lixeiras > 0:
-                nivel_medio = sum(l.nivel_preenchimento for l in coletores) / total_lixeiras
+            if total_coletores > 0:
+                nivel_medio = sum(l.nivel_preenchimento for l in coletores) / total_coletores
             else:
                 nivel_medio = 0.0
             
@@ -50,8 +50,8 @@ def obter_estatisticas():
             sensores_bateria_baixa = len([s for s in sensores if s.bateria < 20])
             
             return {
-                "total_lixeiras": total_lixeiras,
-                "lixeiras_alerta": lixeiras_alerta,
+                "total_coletores": total_coletores,
+                "coletores_alerta": coletores_alerta,
                 "nivel_medio": round(nivel_medio, 1),
                 "coletas_hoje": coletas_hoje,
                 "sensores_ativos": sensores_ativos,
@@ -190,7 +190,7 @@ def simular_niveis():
         if not dados.get('coletores'):
             return jsonify({"erro": "Lista de coletores não pode estar vazia"}), 400
         
-        lixeiras_atualizadas = []
+        coletores_atualizados = []
         
         for item in dados['coletores']:
             # Validar estrutura do item
@@ -227,7 +227,7 @@ def simular_niveis():
                 else:
                     coletor.status = "OK"
                 
-                lixeiras_atualizadas.append({
+                coletores_atualizados.append({
                     "id": coletor.id,
                     "nivel_preenchimento": coletor.nivel_preenchimento,
                     "status": coletor.status
@@ -240,8 +240,8 @@ def simular_niveis():
         cache.invalidar('estatisticas')
         
         return jsonify({
-            "mensagem": f"{len(lixeiras_atualizadas)} coletor(s) atualizada(s)",
-            "coletores": lixeiras_atualizadas
+            "mensagem": f"{len(coletores_atualizados)} coletor(s) atualizada(s)",
+            "coletores": coletores_atualizados
         })
     except Exception as e:
         db.rollback()
