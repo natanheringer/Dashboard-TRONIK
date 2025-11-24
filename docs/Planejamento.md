@@ -2,12 +2,12 @@
 
 ## 1. Backlog do Produto (Priorizado com cliente)
 
-1. Visualizar grid de lixeiras com nível e status
+1. Visualizar grid de coletores com nível e status
 2. Exibir alertas quando nível >80%
-3. API REST para listar lixeiras (mock)
+3. API REST para listar coletores (mock)
 4. Relatório básico de coletas/níveis por período
 5. Atualização periódica dos dados (polling)
-6. CRUD básico de lixeiras (criar/editar/remover)
+6. CRUD básico de coletores (criar/editar/remover)
 7. Interface responsiva (desktop e mobile básico)
 8. Histórico de níveis (visual simples)
 9. Exportar CSV dos dados listados
@@ -20,23 +20,23 @@
 
 ## 3. Histórias de Usuário e Critérios de Aceitação
 
-### US-01: Visualizar grid de lixeiras
-Como Supervisor, quero ver um grid com lixeiras e seus níveis para priorizar coletas.
+### US-01: Visualizar grid de coletores
+Como Supervisor, quero ver um grid com coletores e seus níveis para priorizar coletas.
 - Critérios de Aceitação:
-  - Exibir nome/ID da lixeira, nível (%), status (OK/Alerta).
+  - Exibir nome/ID da coletor, nível (%), status (OK/Alerta).
   - Ordenar por nível decrescente.
   - Exibir pelo menos 10 itens com dados mock.
 
 ### US-02: Exibir alertas >80%
-Como Supervisor, quero ver destaque visual para lixeiras acima de 80% para agir rapidamente.
+Como Supervisor, quero ver destaque visual para coletores acima de 80% para agir rapidamente.
 - Critérios de Aceitação:
   - Cards >80% com cor/ícone de alerta.
   - Filtro para mostrar apenas em alerta.
 
-### US-03: Listar lixeiras via API
-Como Frontend, quero consumir um endpoint para obter as lixeiras para manter o dashboard atualizado.
+### US-03: Listar coletores via API
+Como Frontend, quero consumir um endpoint para obter as coletores para manter o dashboard atualizado.
 - Critérios de Aceitação:
-  - Endpoint GET `/api/lixeiras` retorna lista mock com nível e status.
+  - Endpoint GET `/api/coletores` retorna lista mock com nível e status.
   - Resposta JSON válida, HTTP 200.
 
 ### US-04: Relatório básico por período
@@ -51,8 +51,8 @@ Como Supervisor, quero que o dashboard atualize automaticamente a cada X segundo
   - Atualização sem recarregar a página.
   - Intervalo configurável (ex.: 10–30s).
 
-### US-06: CRUD de lixeiras
-Como Administrador, quero criar/editar/remover lixeiras para manter o cadastro atualizado.
+### US-06: CRUD de coletores
+Como Administrador, quero criar/editar/remover coletores para manter o cadastro atualizado.
 - Critérios de Aceitação:
   - Endpoints POST/PUT/DELETE com validação mínima.
   - Feedback de sucesso/erro no frontend.
@@ -67,7 +67,7 @@ Como Usuário, quero usar o dashboard no celular com layout adaptado para leitur
 Como Analista, quero visualizar histórico de níveis para identificar tendências.
 - Critérios de Aceitação:
   - Tabela/linha do tempo simples.
-  - Filtro por lixeira.
+  - Filtro por coletor.
 
 ### US-09: Exportar CSV
 Como Gestor, quero exportar os dados exibidos para análise externa.

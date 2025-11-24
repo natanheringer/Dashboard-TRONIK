@@ -29,10 +29,10 @@
 ### 3. Rate Limiting (Flask-Limiter)
 - ✅ Rate limiting global: 200/dia, 50/hora
 - ✅ Rate limiting específico por endpoint:
-  - POST /api/lixeira: 10/minuto
-  - PUT /api/lixeira/:id: 20/minuto
-  - DELETE /api/lixeira/:id: 5/minuto (apenas admin)
-  - POST /api/lixeiras/simular-niveis: 10/minuto
+  - POST /api/coletor: 10/minuto
+  - PUT /api/coletor/:id: 20/minuto
+  - DELETE /api/coletor/:id: 5/minuto (apenas admin)
+  - POST /api/coletores/simular-niveis: 10/minuto
 - ✅ Tratamento de erro 429 (Too Many Requests)
 
 **Arquivos:**
@@ -149,7 +149,7 @@ pip install -r requirements.txt
 ### 3. Inicializar Banco de Dados
 
 O banco será criado automaticamente na primeira execução, incluindo:
-- Tabelas (lixeiras, sensores, coletas, usuarios)
+- Tabelas (coletores, sensores, coletas, usuarios)
 - Dados mock (se disponível)
 - Usuário admin padrão
 
@@ -168,8 +168,8 @@ python app.py
 ## 🛡️ Níveis de Proteção
 
 ### Público (Sem autenticação)
-- GET /api/lixeiras (listar)
-- GET /api/lixeira/:id (detalhes)
+- GET /api/coletores (listar)
+- GET /api/coletor/:id (detalhes)
 - GET /api/estatisticas
 - GET /api/historico
 - GET /api/configuracoes
@@ -177,12 +177,12 @@ python app.py
 
 ### Autenticado (Login requerido)
 - Todas as páginas do dashboard
-- POST /api/lixeira (criar)
-- PUT /api/lixeira/:id (atualizar)
-- POST /api/lixeiras/simular-niveis
+- POST /api/coletor (criar)
+- PUT /api/coletor/:id (atualizar)
+- POST /api/coletores/simular-niveis
 
 ### Admin (Apenas administradores)
-- DELETE /api/lixeira/:id (deletar)
+- DELETE /api/coletor/:id (deletar)
 
 ## 🔒 Boas Práticas Implementadas
 

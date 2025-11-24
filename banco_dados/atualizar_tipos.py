@@ -1,5 +1,5 @@
 """
-Script para atualizar tipos de lixeiras no banco de dados
+Script para atualizar tipos de coletores no banco de dados
 ==========================================================
 Atualiza todos os tipos para "residuos eletronicos"
 """
@@ -12,10 +12,10 @@ sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 
 from sqlalchemy import create_engine
 from sqlalchemy.orm import sessionmaker
-from banco_dados.modelos import Lixeira
+from banco_dados.modelos import Coletor
 
 def atualizar_tipos_lixeiras():
-    """Atualiza todos os tipos de lixeiras para 'residuos eletronicos'"""
+    """Atualiza todos os tipos de coletores para 'residuos eletronicos'"""
     # Caminho do banco (na raiz do projeto)
     projeto_root = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
     caminho_db = os.path.join(projeto_root, 'tronik.db')
@@ -32,25 +32,25 @@ def atualizar_tipos_lixeiras():
     session = Session()
     
     try:
-        # Buscar todas as lixeiras
-        lixeiras = session.query(Lixeira).all()
+        # Buscar todas as coletores
+        coletores = session.query(Coletor).all()
         
-        print(f"Encontradas {len(lixeiras)} lixeiras")
+        print(f"Encontradas {len(coletores)} coletores")
         
         # Atualizar tipos
         atualizadas = 0
-        for lixeira in lixeiras:
-            if lixeira.tipo and lixeira.tipo != "residuos eletronicos":
-                lixeira.tipo = "residuos eletronicos"
+        for coletor in coletores:
+            if coletor.tipo and coletor.tipo != "residuos eletronicos":
+                coletor.tipo = "residuos eletronicos"
                 atualizadas += 1
-                print(f"Atualizada lixeira ID {lixeira.id}: {lixeira.localizacao}")
-            elif not lixeira.tipo:
-                lixeira.tipo = "residuos eletronicos"
+                print(f"Atualizada coletor ID {coletor.id}: {coletor.localizacao}")
+            elif not coletor.tipo:
+                coletor.tipo = "residuos eletronicos"
                 atualizadas += 1
-                print(f"Atualizada lixeira ID {lixeira.id}: {lixeira.localizacao} (sem tipo)")
+                print(f"Atualizada coletor ID {coletor.id}: {coletor.localizacao} (sem tipo)")
         
         session.commit()
-        print(f"\nTotal de lixeiras atualizadas: {atualizadas}")
+        print(f"\nTotal de coletores atualizadas: {atualizadas}")
         print("Atualização concluída com sucesso!")
         
     except Exception as e:

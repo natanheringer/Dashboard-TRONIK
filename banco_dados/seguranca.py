@@ -271,7 +271,7 @@ def validar_tipo_operacao(tipo: str) -> Tuple[bool, Optional[str]]:
     
     Args:
         tipo: Tipo de operação a validar
-        
+    
     Returns:
         Tupla (é_válido, mensagem_erro)
     """
@@ -283,4 +283,84 @@ def validar_tipo_operacao(tipo: str) -> Tuple[bool, Optional[str]]:
         return False, "Tipo de operação deve ser 'Avulsa' ou 'Campanha'"
     
     return True, None
+
+
+def validar_meta_comercial(dados: dict) -> list:
+    """
+    Valida dados de uma meta comercial.
+    
+    Args:
+        dados: Dicionário com dados da meta
+        
+    Returns:
+        Lista de erros (vazia se válido)
+    """
+    erros = []
+    
+    if 'valor_meta' in dados:
+        try:
+            valor = float(dados['valor_meta'])
+            if valor < 0:
+                erros.append("Valor da meta deve ser positivo")
+            if valor > 1000000:  # Limite razoável
+                erros.append("Valor da meta muito alto (máximo: R$ 1.000.000)")
+        except (ValueError, TypeError):
+            erros.append("Valor da meta deve ser um número válido")
+    
+    if 'mes' in dados:
+        mes = dados['mes']
+        if not isinstance(mes, int) or mes < 1 or mes > 12:
+            erros.append("Mês deve ser um número entre 1 e 12")
+    
+    if 'ano' in dados:
+        ano = dados['ano']
+        if not isinstance(ano, int) or ano < 2020 or ano > 2100:
+            erros.append("Ano deve ser um número válido (2020-2100)")
+    
+    if 'observacoes' in dados and dados['observacoes']:
+        if len(dados['observacoes']) > 500:
+            erros.append("Observações muito longas (máximo: 500 caracteres)")
+    
+    return erros
+
+
+def validar_sensor(dados: dict, criar: bool = True, db=None) -> list:
+    """
+    Valida dados de um sensor.
+    
+    Args:
+        dados: Dicionário com dados do sensor
+        criar: Se True, valida campos obrigatórios para criação
+        db: Sessão do banco de dados (opcional, para validar relacionamentos)
+    
+    Returns:
+        Lista de erros (vazia se válido)
+    """
+    from banco_dados.modelos import Coletor, TipoSensor
+    
+    erros = []
+    
+    if criar:
+        if 'coletor_id' not in dados or not dados['coletor_id']:
+            erros.append("Campo 'coletor_id' é obrigatório")
+        else:
+            # Validar que coletor existe
+            if db:
+                coletor = db.query(Coletor).filter(Coletor.id == dados['coletor_id']).first()
+                if not coletor:
+                    erros.append("Coletor não encontrada")
+    
+    # Validar bateria
+    if 'bateria' in dados and dados['bateria'] is not None:
+        valido, erro = validar_bateria(dados['bateria'])
+        if not valido:
+            erros.append(erro)
+    
+    # Validar tipo_sensor_id (se fornecido)
+    if 'tipo_sensor_id' in dados and dados['tipo_sensor_id'] is not None and db:
+        tipo_sensor = db.query(TipoSensor).filter(TipoSensor.id == dados['tipo_sensor_id']).first()
+        if not tipo_sensor:
+            erros.append("Tipo de sensor não encontrado")
+    
+    return erros
 

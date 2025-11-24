@@ -10,7 +10,7 @@ from datetime import datetime
 from flask import current_app
 from flask_mail import Mail, Message
 from sqlalchemy.orm import Session
-from banco_dados.modelos import Lixeira, Sensor, Notificacao, Usuario
+from banco_dados.modelos import Coletor, Sensor, Notificacao, Usuario
 from banco_dados.utils import utc_now_naive
 
 logger = logging.getLogger(__name__)
@@ -19,7 +19,7 @@ logger = logging.getLogger(__name__)
 mail = Mail()
 
 # Configurações de alertas
-NIVEL_ALERTA_LIXEIRA = 80.0  # Lixeira > 80% = alerta
+NIVEL_ALERTA_LIXEIRA = 80.0  # Coletor > 80% = alerta
 NIVEL_ALERTA_BATERIA = 20.0  # Bateria < 20% = alerta
 
 
@@ -31,41 +31,41 @@ def inicializar_mail(app):
 
 def verificar_alertas_lixeiras(db: Session) -> List[Dict]:
     """
-    Verifica lixeiras que precisam de alerta (nível > 80%).
+    Verifica coletores que precisam de alerta (nível > 80%).
     
     Returns:
-        Lista de dicionários com informações das lixeiras que precisam de alerta
+        Lista de dicionários com informações das coletores que precisam de alerta
     """
     alertas = []
     
     try:
-        lixeiras = db.query(Lixeira).filter(
-            Lixeira.nivel_preenchimento > NIVEL_ALERTA_LIXEIRA,
-            Lixeira.status != "QUEBRADA"
+        coletores = db.query(Coletor).filter(
+            Coletor.nivel_preenchimento > NIVEL_ALERTA_LIXEIRA,
+            Coletor.status != "QUEBRADA"
         ).all()
         
-        for lixeira in lixeiras:
+        for coletor in coletores:
             # Verificar se já existe notificação recente (últimas 24h)
             from datetime import timedelta
             limite_tempo = utc_now_naive() - timedelta(hours=24)
             
             notificacao_recente = db.query(Notificacao).filter(
-                Notificacao.lixeira_id == lixeira.id,
+                Notificacao.coletor_id == coletor.id,
                 Notificacao.tipo == 'lixeira_cheia',
                 Notificacao.criada_em >= limite_tempo
             ).first()
             
             if not notificacao_recente:
                 alertas.append({
-                    'lixeira_id': lixeira.id,
-                    'localizacao': lixeira.localizacao,
-                    'nivel': lixeira.nivel_preenchimento,
-                    'status': lixeira.status
+                    'coletor_id': coletor.id,
+                    'localizacao': coletor.localizacao,
+                    'nivel': coletor.nivel_preenchimento,
+                    'status': coletor.status
                 })
         
         return alertas
     except Exception as e:
-        logger.error(f"Erro ao verificar alertas de lixeiras: {e}")
+        logger.error(f"Erro ao verificar alertas de coletores: {e}")
         return []
 
 
@@ -95,11 +95,11 @@ def verificar_alertas_sensores(db: Session) -> List[Dict]:
             ).first()
             
             if not notificacao_recente:
-                lixeira = db.query(Lixeira).filter(Lixeira.id == sensor.lixeira_id).first()
+                coletor = db.query(Coletor).filter(Coletor.id == sensor.coletor_id).first()
                 alertas.append({
                     'sensor_id': sensor.id,
-                    'lixeira_id': sensor.lixeira_id,
-                    'localizacao': lixeira.localizacao if lixeira else 'N/A',
+                    'coletor_id': sensor.coletor_id,
+                    'localizacao': coletor.localizacao if coletor else 'N/A',
                     'bateria': sensor.bateria
                 })
         
@@ -114,7 +114,7 @@ def criar_notificacao(
     tipo: str,
     titulo: str,
     mensagem: str,
-    lixeira_id: Optional[int] = None,
+    coletor_id: Optional[int] = None,
     sensor_id: Optional[int] = None
 ) -> Notificacao:
     """
@@ -125,7 +125,7 @@ def criar_notificacao(
         tipo: Tipo da notificação ('lixeira_cheia', 'bateria_baixa', etc.)
         titulo: Título da notificação
         mensagem: Mensagem da notificação
-        lixeira_id: ID da lixeira relacionada (opcional)
+        coletor_id: ID da coletor relacionada (opcional)
         sensor_id: ID do sensor relacionado (opcional)
     
     Returns:
@@ -135,7 +135,7 @@ def criar_notificacao(
         tipo=tipo,
         titulo=titulo,
         mensagem=mensagem,
-        lixeira_id=lixeira_id,
+        coletor_id=coletor_id,
         sensor_id=sensor_id,
         enviada=False
     )
@@ -145,6 +145,15 @@ def criar_notificacao(
     db.refresh(notificacao)
     
     logger.info(f"Notificação criada: {tipo} - {titulo}")
+    
+    # Emitir atualização via WebSocket
+    try:
+        from rotas.websocket import emitir_nova_notificacao
+        from banco_dados.serializers import notificacao_para_dict
+        emitir_nova_notificacao(notificacao_para_dict(notificacao))
+    except Exception as e:
+        logger.warning(f"Erro ao emitir notificação via WebSocket: {e}")
+    
     return notificacao
 
 
@@ -186,6 +195,39 @@ def enviar_email_notificacao(
         return False
 
 
+def enviar_email_com_retry(destinatarios: List[str], assunto: str, corpo_html: str, corpo_texto: Optional[str] = None, max_tentativas: int = 3) -> bool:
+    """
+    Envia um email com retry automático em caso de falha.
+    Usado para emails críticos (notificações de alertas).
+    
+    Args:
+        destinatarios: Lista de endereços de email
+        assunto: Assunto do email
+        corpo_html: Corpo do email em HTML
+        corpo_texto: Corpo do email em texto plano (opcional)
+        max_tentativas: Número máximo de tentativas (padrão: 3)
+    
+    Returns:
+        True se enviado com sucesso, False caso contrário
+    """
+    import time
+    
+    for tentativa in range(max_tentativas):
+        try:
+            if enviar_email_notificacao(destinatarios, assunto, corpo_html, corpo_texto):
+                return True
+        except Exception as e:
+            logger.warning(f"Tentativa {tentativa + 1}/{max_tentativas} de envio de email falhou: {e}")
+            if tentativa < max_tentativas - 1:
+                # Backoff exponencial: 2s, 4s, 8s...
+                delay = 2 ** tentativa
+                time.sleep(delay)
+            else:
+                logger.error(f"Falha ao enviar email após {max_tentativas} tentativas: {assunto}")
+    
+    return False
+
+
 def processar_alertas(db: Session) -> Dict[str, int]:
     """
     Processa todos os alertas e envia notificações.
@@ -201,7 +243,7 @@ def processar_alertas(db: Session) -> Dict[str, int]:
     }
     
     try:
-        # Verificar alertas de lixeiras
+        # Verificar alertas de coletores
         alertas_lixeiras = verificar_alertas_lixeiras(db)
         for alerta in alertas_lixeiras:
             try:
@@ -209,9 +251,9 @@ def processar_alertas(db: Session) -> Dict[str, int]:
                 notificacao = criar_notificacao(
                     db=db,
                     tipo='lixeira_cheia',
-                    titulo=f"Lixeira #{alerta['lixeira_id']} - Nível Alto",
-                    mensagem=f"A lixeira em {alerta['localizacao']} está com {alerta['nivel']:.1f}% de preenchimento.",
-                    lixeira_id=alerta['lixeira_id']
+                    titulo=f"Coletor #{alerta['coletor_id']} - Nível Alto",
+                    mensagem=f"A coletor em {alerta['localizacao']} está com {alerta['nivel']:.1f}% de preenchimento.",
+                    coletor_id=alerta['coletor_id']
                 )
                 
                 # Obter emails de admins
@@ -227,8 +269,8 @@ def processar_alertas(db: Session) -> Dict[str, int]:
                         corpo_html = f"""
                         <html>
                         <body style="font-family: Arial, sans-serif; line-height: 1.6; color: #333;">
-                            <h2 style="color: #27ae60;">⚠️ Alerta: Lixeira com Nível Alto</h2>
-                            <p><strong>Lixeira:</strong> #{alerta['lixeira_id']} - {alerta['localizacao']}</p>
+                            <h2 style="color: #27ae60;">⚠️ Alerta: Coletor com Nível Alto</h2>
+                            <p><strong>Coletor:</strong> #{alerta['coletor_id']} - {alerta['localizacao']}</p>
                             <p><strong>Nível de Preenchimento:</strong> {alerta['nivel']:.1f}%</p>
                             <p><strong>Status:</strong> {alerta['status']}</p>
                             <p style="margin-top: 20px; color: #666; font-size: 12px;">
@@ -238,7 +280,7 @@ def processar_alertas(db: Session) -> Dict[str, int]:
                         </html>
                         """
                         
-                        if enviar_email_notificacao(emails, notificacao.titulo, corpo_html):
+                        if enviar_email_com_retry(emails, notificacao.titulo, corpo_html):
                             notificacao.enviada = True
                             notificacao.enviada_em = utc_now_naive()
                             db.commit()
@@ -246,7 +288,7 @@ def processar_alertas(db: Session) -> Dict[str, int]:
                 
                 stats['lixeiras_alertadas'] += 1
             except Exception as e:
-                logger.error(f"Erro ao processar alerta de lixeira {alerta['lixeira_id']}: {e}")
+                logger.error(f"Erro ao processar alerta de coletor {alerta['coletor_id']}: {e}")
                 stats['erros'] += 1
         
         # Verificar alertas de sensores
@@ -258,9 +300,9 @@ def processar_alertas(db: Session) -> Dict[str, int]:
                     db=db,
                     tipo='bateria_baixa',
                     titulo=f"Sensor #{alerta['sensor_id']} - Bateria Baixa",
-                    mensagem=f"O sensor da lixeira em {alerta['localizacao']} está com {alerta['bateria']:.1f}% de bateria.",
+                    mensagem=f"O sensor da coletor em {alerta['localizacao']} está com {alerta['bateria']:.1f}% de bateria.",
                     sensor_id=alerta['sensor_id'],
-                    lixeira_id=alerta['lixeira_id']
+                    coletor_id=alerta['coletor_id']
                 )
                 
                 # Obter emails de admins
@@ -278,7 +320,7 @@ def processar_alertas(db: Session) -> Dict[str, int]:
                         <body style="font-family: Arial, sans-serif; line-height: 1.6; color: #333;">
                             <h2 style="color: #f39c12;">🔋 Alerta: Bateria Baixa</h2>
                             <p><strong>Sensor:</strong> #{alerta['sensor_id']}</p>
-                            <p><strong>Lixeira:</strong> #{alerta['lixeira_id']} - {alerta['localizacao']}</p>
+                            <p><strong>Coletor:</strong> #{alerta['coletor_id']} - {alerta['localizacao']}</p>
                             <p><strong>Nível de Bateria:</strong> {alerta['bateria']:.1f}%</p>
                             <p style="margin-top: 20px; color: #666; font-size: 12px;">
                                 Dashboard-TRONIK - Sistema de Monitoramento
@@ -287,7 +329,7 @@ def processar_alertas(db: Session) -> Dict[str, int]:
                         </html>
                         """
                         
-                        if enviar_email_notificacao(emails, notificacao.titulo, corpo_html):
+                        if enviar_email_com_retry(emails, notificacao.titulo, corpo_html):
                             notificacao.enviada = True
                             notificacao.enviada_em = utc_now_naive()
                             db.commit()

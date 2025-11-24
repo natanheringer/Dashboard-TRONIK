@@ -2,12 +2,12 @@
 """
 Script de Geocodificação em Lote - Dashboard-TRONIK
 ===================================================
-Script para geocodificar todas as lixeiras que não possuem coordenadas.
+Script para geocodificar todas as coletores que não possuem coordenadas.
 
 Uso:
-    python banco_dados/geocodificar_lixeiras.py
-    python banco_dados/geocodificar_lixeiras.py --limite 10
-    python banco_dados/geocodificar_lixeiras.py --forcar
+    python banco_dados/geocodificar_coletores.py
+    python banco_dados/geocodificar_coletores.py --limite 10
+    python banco_dados/geocodificar_coletores.py --forcar
 """
 
 import sys
@@ -21,7 +21,7 @@ sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 from sqlalchemy import create_engine
 from sqlalchemy.orm import sessionmaker
 from banco_dados.geocodificacao import geocodificar_lixeiras_em_lote
-from banco_dados.modelos import Lixeira
+from banco_dados.modelos import Coletor
 
 # Configurar logging
 logging.basicConfig(
@@ -34,13 +34,13 @@ logger = logging.getLogger(__name__)
 
 def main():
     parser = argparse.ArgumentParser(
-        description='Geocodifica lixeiras sem coordenadas usando Nominatim'
+        description='Geocodifica coletores sem coordenadas usando Nominatim'
     )
     parser.add_argument(
         '--limite',
         type=int,
         default=None,
-        help='Número máximo de lixeiras a processar (padrão: todas)'
+        help='Número máximo de coletores a processar (padrão: todas)'
     )
     parser.add_argument(
         '--forcar',
@@ -74,36 +74,36 @@ def main():
     session = Session()
     
     try:
-        # Contar lixeiras sem coordenadas
-        total_sem_coords = session.query(Lixeira).filter(
-            (Lixeira.latitude.is_(None)) | (Lixeira.longitude.is_(None))
+        # Contar coletores sem coordenadas
+        total_sem_coords = session.query(Coletor).filter(
+            (Coletor.latitude.is_(None)) | (Coletor.longitude.is_(None))
         ).count()
         
-        total_com_coords = session.query(Lixeira).filter(
-            Lixeira.latitude.isnot(None),
-            Lixeira.longitude.isnot(None)
+        total_com_coords = session.query(Coletor).filter(
+            Coletor.latitude.isnot(None),
+            Coletor.longitude.isnot(None)
         ).count()
         
-        total_geral = session.query(Lixeira).count()
+        total_geral = session.query(Coletor).count()
         
         print("=" * 60)
         print("GEOCODIFICAÇÃO DE LIXEIRAS")
         print("=" * 60)
-        print(f"Total de lixeiras: {total_geral}")
+        print(f"Total de coletores: {total_geral}")
         print(f"Com coordenadas: {total_com_coords}")
         print(f"Sem coordenadas: {total_sem_coords}")
         print("=" * 60)
         
         if total_sem_coords == 0 and not args.forcar:
-            print("✅ Todas as lixeiras já possuem coordenadas!")
+            print("✅ Todas as coletores já possuem coordenadas!")
             return
         
         if args.limite:
-            print(f"⚠️  Processando apenas {args.limite} lixeiras (limite definido)")
+            print(f"⚠️  Processando apenas {args.limite} coletores (limite definido)")
         
         # Confirmar execução
         if not args.forcar:
-            resposta = input(f"\nDeseja geocodificar {total_sem_coords if not args.limite else args.limite} lixeira(s)? (s/N): ")
+            resposta = input(f"\nDeseja geocodificar {total_sem_coords if not args.limite else args.limite} coletor(s)? (s/N): ")
             if resposta.lower() != 's':
                 print("Operação cancelada.")
                 return
@@ -133,8 +133,8 @@ def main():
             print(f"\n⚠️  Erros encontrados: {len(stats['erros'])}")
             print("\nPrimeiros 5 erros:")
             for erro in stats['erros'][:5]:
-                if 'lixeira_id' in erro:
-                    print(f"  - Lixeira {erro['lixeira_id']} ({erro['localizacao']}): {erro['erro']}")
+                if 'coletor_id' in erro:
+                    print(f"  - Coletor {erro['coletor_id']} ({erro['localizacao']}): {erro['erro']}")
                 else:
                     print(f"  - {erro.get('erro_geral', erro)}")
         

@@ -9,7 +9,7 @@
 ## 3.2 Wireframe de baixa fidelidade (descrição)
 - Página principal (Dashboard):
   - Cabeçalho com título e filtros (status, região, busca)
-  - Grid de cards das lixeiras: nome/ID, nível (%), status (cor)
+  - Grid de cards das coletores: nome/ID, nível (%), status (cor)
   - Barra lateral/rodapé com estatísticas agregadas (média, em alerta)
   - Botões: Atualizar, Exportar CSV (futuro)
 - Relatórios:
@@ -25,23 +25,23 @@ Sugestão de ferramentas para mockup: Figma ou Lucidchart.
 
 ### Módulos
 - `app.py`: inicializa Flask, registra blueprints (`rotas/paginas.py`, `rotas/api.py`), configura CORS.
-- `rotas/api.py`: endpoints `/api/lixeiras` e CRUD (mock inicialmente).
+- `rotas/api.py`: endpoints `/api/coletores` e CRUD (mock inicialmente).
 - `rotas/paginas.py`: páginas `index`, `relatorios` etc.
 - `banco_dados/`: modelos (futuro com SQLAlchemy) e inicialização.
 - `templates/` e `estatico/`: UI, estilos e scripts.
 
 ### Endpoints (propostos)
-- GET `/api/lixeiras`: lista lixeiras com nível e status
-- GET `/api/lixeira/<id>`: detalha uma lixeira
-- POST `/api/lixeira`: cria
-- PUT `/api/lixeira/<id>`: atualiza
-- DELETE `/api/lixeira/<id>`: remove
+- GET `/api/coletores`: lista coletores com nível e status
+- GET `/api/coletor/<id>`: detalha uma coletor
+- POST `/api/coletor`: cria
+- PUT `/api/coletor/<id>`: atualiza
+- DELETE `/api/coletor/<id>`: remove
 - GET `/api/relatorios`: dados agregados (mock)
 
 ### Modelo de Dados (proposto)
-- Lixeira: id, nome, localizacao, nivel_percentual, status, atualizado_em
-- Sensor: id, lixeira_id, tipo (ultrassonico), bateria, ultimo_ping
-- Coleta: id, lixeira_id, data_hora, volume_estimado
+- Coletor: id, nome, localizacao, nivel_percentual, status, atualizado_em
+- Sensor: id, coletor_id, tipo (ultrassonico), bateria, ultimo_ping
+- Coleta: id, coletor_id, data_hora, volume_estimado
 
 ### Decisões Técnicas
 - MVP com mock JSON para reduzir dependências.

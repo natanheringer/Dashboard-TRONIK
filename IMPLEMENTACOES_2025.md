@@ -14,13 +14,13 @@
      - `tipo`: Tipo da notificação (lixeira_cheia, bateria_baixa)
      - `titulo`: Título da notificação
      - `mensagem`: Mensagem detalhada
-     - `lixeira_id`, `sensor_id`: Relacionamentos
+     - `coletor_id`, `sensor_id`: Relacionamentos
      - `enviada`: Status de envio
      - `enviada_em`, `criada_em`: Timestamps
 
 2. **Módulo de Notificações** (`banco_dados/notificacoes.py`)
    - `inicializar_mail()`: Inicializa Flask-Mail
-   - `verificar_alertas_lixeiras()`: Verifica lixeiras > 80%
+   - `verificar_alertas_lixeiras()`: Verifica coletores > 80%
    - `verificar_alertas_sensores()`: Verifica sensores com bateria < 20%
    - `criar_notificacao()`: Cria notificação no banco
    - `enviar_email_notificacao()`: Envia email via Flask-Mail
@@ -113,7 +113,7 @@ docker-compose down
 
 1. **Clusters de Marcadores** (Leaflet.markercluster)
    - Agrupamento automático de marcadores próximos
-   - Melhor performance com muitas lixeiras
+   - Melhor performance com muitas coletores
    - Zoom automático ao clicar em cluster
    - Configuração otimizada
 
@@ -132,8 +132,8 @@ docker-compose down
 
 ```javascript
 // Calcular rota otimizada
-const lixeiras = [...]; // Array de lixeiras
-const rota = MapaTronik.calcularRotaOtimizada(lixeiras, {lat: -15.7942, lon: -47.8822});
+const coletores = [...]; // Array de coletores
+const rota = MapaTronik.calcularRotaOtimizada(coletores, {lat: -15.7942, lon: -47.8822});
 
 // Adicionar rota ao mapa
 MapaTronik.adicionarRota(rota);
@@ -204,7 +204,7 @@ MapaTronik.removerRota();
 
 - [x] Modelo de Notificação no banco
 - [x] Módulo de notificações (Flask-Mail)
-- [x] Verificação de alertas (lixeira > 80%, bateria < 20%)
+- [x] Verificação de alertas (coletor > 80%, bateria < 20%)
 - [x] Envio de emails
 - [x] Endpoints API de notificações
 - [x] Script CLI para processar alertas
