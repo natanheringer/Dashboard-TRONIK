@@ -427,11 +427,11 @@ def obter_estatisticas():
         coletores = db.query(Coletor).all()
         coletas = db.query(Coleta).all()
         
-        total_lixeiras = len(coletores)
-        lixeiras_alerta = len([l for l in coletores if l.nivel_preenchimento > 80])
+        total_coletores = len(coletores)
+        coletores_alerta = len([l for l in coletores if l.nivel_preenchimento > 80])
         
-        if total_lixeiras > 0:
-            nivel_medio = sum(l.nivel_preenchimento for l in coletores) / total_lixeiras
+        if total_coletores > 0:
+            nivel_medio = sum(l.nivel_preenchimento for l in coletores) / total_coletores
         else:
             nivel_medio = 0.0
         
@@ -439,8 +439,8 @@ def obter_estatisticas():
         coletas_hoje = len([c for c in coletas if c.data_hora and c.data_hora.date() == hoje])
         
         estatisticas = {
-            "total_lixeiras": total_lixeiras,
-            "lixeiras_alerta": lixeiras_alerta,
+            "total_coletores": total_coletores,
+            "coletores_alerta": coletores_alerta,
             "nivel_medio": round(nivel_medio, 1),
             "coletas_hoje": coletas_hoje
         }
@@ -730,24 +730,24 @@ def obter_relatorios():
         ) or 0.0
         
         # Agrupar por coletor
-        coletas_por_lixeira = {}
+        coletas_por_coletor = {}
         for coleta in coletas:
             coletor_id = coleta.coletor_id
-            if coletor_id not in coletas_por_lixeira:
-                coletas_por_lixeira[coletor_id] = {
+            if coletor_id not in coletas_por_coletor:
+                coletas_por_coletor[coletor_id] = {
                     "coletor_id": coletor_id,
                     "total_coletas": 0,
                     "volume_total": 0.0,
                     "km_total": 0.0,
                     "lucro_total": 0.0
                 }
-            coletas_por_lixeira[coletor_id]["total_coletas"] += 1
+            coletas_por_coletor[coletor_id]["total_coletas"] += 1
             if coleta.volume_estimado:
-                coletas_por_lixeira[coletor_id]["volume_total"] += coleta.volume_estimado
+                coletas_por_coletor[coletor_id]["volume_total"] += coleta.volume_estimado
             if coleta.km_percorrido:
-                coletas_por_lixeira[coletor_id]["km_total"] += coleta.km_percorrido
+                coletas_por_coletor[coletor_id]["km_total"] += coleta.km_percorrido
             if coleta.volume_estimado and coleta.lucro_por_kg:
-                coletas_por_lixeira[coletor_id]["lucro_total"] += coleta.volume_estimado * coleta.lucro_por_kg
+                coletas_por_coletor[coletor_id]["lucro_total"] += coleta.volume_estimado * coleta.lucro_por_kg
         
         # Agrupar por parceiro
         coletas_por_parceiro = {}
@@ -780,7 +780,7 @@ def obter_relatorios():
                 "custo_combustivel_total": round(custo_combustivel_total, 2),
                 "lucro_total": round(lucro_total, 2),
                 "lucro_medio_por_coleta": round(lucro_total / total_coletas, 2) if total_coletas > 0 else 0.0,
-                "coletas_por_lixeira": list(coletas_por_lixeira.values()),
+                "coletas_por_coletor": list(coletas_por_coletor.values()),
                 "coletas_por_parceiro": list(coletas_por_parceiro.values())
             },
             "detalhes": [coleta_para_dict(c) for c in coletas]

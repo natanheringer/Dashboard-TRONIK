@@ -199,9 +199,9 @@ def calcular_metricas_financeiras(coletas: List[Coleta]) -> Dict:
     }
 
 
-def agrupar_coletas_por_lixeira(coletas: List[Coleta]) -> List[Dict]:
+def agrupar_coletas_por_coletor(coletas: List[Coleta]) -> List[Dict]:
     """Agrupa coletas por coletor e calcula totais"""
-    coletas_por_lixeira = {}
+    coletas_por_coletor = {}
     
     if not coletas or not isinstance(coletas, list):
         return []
@@ -210,8 +210,8 @@ def agrupar_coletas_por_lixeira(coletas: List[Coleta]) -> List[Dict]:
         if not coleta or not hasattr(coleta, 'coletor_id'):
             continue
         coletor_id = coleta.coletor_id
-        if coletor_id not in coletas_por_lixeira:
-            coletas_por_lixeira[coletor_id] = {
+        if coletor_id not in coletas_por_coletor:
+            coletas_por_coletor[coletor_id] = {
                 "coletor_id": coletor_id,
                 "total_coletas": 0,
                 "volume_total": 0.0,
@@ -219,19 +219,19 @@ def agrupar_coletas_por_lixeira(coletas: List[Coleta]) -> List[Dict]:
                 "lucro_total": 0.0
             }
         
-        coletas_por_lixeira[coletor_id]["total_coletas"] += 1
+        coletas_por_coletor[coletor_id]["total_coletas"] += 1
         if coleta.volume_estimado is not None:
             try:
                 volume = float(coleta.volume_estimado)
                 if not math.isnan(volume) and math.isfinite(volume) and volume >= 0:
-                    coletas_por_lixeira[coletor_id]["volume_total"] += volume
+                    coletas_por_coletor[coletor_id]["volume_total"] += volume
             except (ValueError, TypeError):
                 pass
         if coleta.km_percorrido is not None:
             try:
                 km = float(coleta.km_percorrido)
                 if not math.isnan(km) and math.isfinite(km) and km >= 0:
-                    coletas_por_lixeira[coletor_id]["km_total"] += km
+                    coletas_por_coletor[coletor_id]["km_total"] += km
             except (ValueError, TypeError):
                 pass
         # Calcular lucro líquido usando novo cálculo (bruto - custos)
@@ -243,11 +243,11 @@ def agrupar_coletas_por_lixeira(coletas: List[Coleta]) -> List[Dict]:
                 if not math.isnan(volume) and math.isfinite(volume) and volume > 0:
                     lucro = calcular_lucro_liquido_total(volume, km, preco)
                     if not math.isnan(lucro) and math.isfinite(lucro):
-                        coletas_por_lixeira[coletor_id]["lucro_total"] += lucro
+                        coletas_por_coletor[coletor_id]["lucro_total"] += lucro
             except (ValueError, TypeError):
                 pass
     
-    return list(coletas_por_lixeira.values())
+    return list(coletas_por_coletor.values())
 
 
 def agrupar_coletas_por_parceiro(coletas: List[Coleta]) -> List[Dict]:
@@ -361,7 +361,7 @@ def gerar_relatorio(
     metricas = calcular_metricas_financeiras(coletas)
     
     # Agrupar dados
-    coletas_por_lixeira = agrupar_coletas_por_lixeira(coletas)
+    coletas_por_coletor = agrupar_coletas_por_coletor(coletas)
     coletas_por_parceiro = agrupar_coletas_por_parceiro(coletas)
     
     # Serializar detalhes
@@ -374,7 +374,7 @@ def gerar_relatorio(
         },
         "resumo": {
             **metricas,
-            "coletas_por_lixeira": coletas_por_lixeira,
+            "coletas_por_coletor": coletas_por_coletor,
             "coletas_por_parceiro": coletas_por_parceiro
         },
         "detalhes": detalhes,

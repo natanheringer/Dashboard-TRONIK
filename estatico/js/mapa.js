@@ -266,9 +266,9 @@ function atualizarMarcadores(coletoresArray) {
 
     // Filtrar coletores com coordenadas válidas
     const coletoresComCoordenadas = coletores.filter(c => {
-        if (!l) return false;
-        const lat = parseFloat(l.latitude);
-        const lon = parseFloat(l.longitude);
+        if (!c) return false;
+        const lat = parseFloat(c.latitude);
+        const lon = parseFloat(c.longitude);
         return !isNaN(lat) && !isNaN(lon) && 
                isFinite(lat) && isFinite(lon) &&
                lat >= -90 && lat <= 90 &&
