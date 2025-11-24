@@ -95,8 +95,9 @@ gunicorn==21.2.0
 
 # Driver PostgreSQL para SQLAlchemy
 # Usando psycopg (psycopg3) que suporta Python 3.13
-psycopg[binary]==3.2.0
+psycopg[binary]==3.2.13
 # psycopg3 é a versão moderna que suporta Python 3.13
+# Versão 3.2.13 é a mais recente estável
 # Alternativa: psycopg2-binary==2.9.9 (requer Python 3.12 ou inferior)
 
 # ========================================
