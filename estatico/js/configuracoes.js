@@ -199,7 +199,9 @@ async function criarNovaColeta() {
 async function carregarListaLixeiras() {
     try {
         const coletores = await obterTodasLixeiras();
-        exibirListaLixeiras(coletores);
+        // Garantir que seja um array
+        const coletoresArray = Array.isArray(coletores) ? coletores : [];
+        exibirListaLixeiras(coletoresArray);
     } catch (error) {
         console.error('Erro ao carregar coletores:', error);
         const container = document.getElementById('lista-coletores');
@@ -255,6 +257,17 @@ function formatarDistancia(distancia) {
 function exibirListaLixeiras(coletores) {
     const container = document.getElementById('lista-coletores');
     if (!container) return;
+    
+    // Garantir que seja um array
+    if (!Array.isArray(coletores)) {
+        console.error('coletores não é um array:', coletores);
+        const errorMsg = document.createElement('div');
+        errorMsg.className = 'loading-message';
+        errorMsg.textContent = 'Erro: dados inválidos recebidos';
+        container.textContent = '';
+        container.appendChild(errorMsg);
+        return;
+    }
     
     if (coletores.length === 0) {
         const emptyMsg = document.createElement('div');

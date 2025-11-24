@@ -228,9 +228,29 @@ if DATABASE_URL.startswith('postgresql://') or DATABASE_URL.startswith('postgres
         # Adicionar driver psycopg explicitamente
         db_url = DATABASE_URL.replace('postgresql://', 'postgresql+psycopg://')
         db_url = db_url.replace('postgres://', 'postgresql+psycopg://')
-        engine = create_engine(db_url, echo=False)
     else:
-        engine = create_engine(DATABASE_URL, echo=False)
+        db_url = DATABASE_URL
+    
+    # Configurações de pool e SSL para PostgreSQL
+    # Verificar se a URL já tem parâmetros SSL
+    connect_args = {
+        'connect_timeout': 10,  # Timeout de conexão de 10 segundos
+    }
+    
+    # Se for URL externa (não internal), usar SSL
+    if 'internal' not in db_url.lower() and 'localhost' not in db_url.lower():
+        connect_args['sslmode'] = 'require'  # Exigir SSL para conexões externas
+    
+    engine = create_engine(
+        db_url,
+        echo=False,
+        pool_size=5,  # Número de conexões no pool
+        max_overflow=10,  # Máximo de conexões extras
+        pool_pre_ping=True,  # Verificar conexões antes de usar (resolve problemas SSL/timeout)
+        pool_recycle=1800,  # Reciclar conexões após 30 minutos (evita problemas SSL)
+        pool_reset_on_return='commit',  # Resetar transações ao retornar conexão ao pool
+        connect_args=connect_args
+    )
 else:
     engine = create_engine(DATABASE_URL, echo=False)
 SessionLocal = scoped_session(sessionmaker(bind=engine))

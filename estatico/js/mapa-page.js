@@ -20,10 +20,12 @@ async function carregarLixeirasNoMapa() {
         }
 
         const coletores = await obterTodasLixeiras();
-        todasLixeirasMapa = coletores;
+        // Garantir que seja um array
+        const coletoresArray = Array.isArray(coletores) ? coletores : [];
+        todasLixeirasMapa = coletoresArray;
         
         // Aplicar filtros
-        const lixeirasFiltradas = aplicarFiltrosMapa(coletores);
+        const lixeirasFiltradas = aplicarFiltrosMapa(coletoresArray);
         
         // Atualizar mapa
         if (typeof window.MapaTronik !== 'undefined' && window.MapaTronik.atualizarMarcadores) {
