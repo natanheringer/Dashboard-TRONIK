@@ -2,7 +2,7 @@
 
 ## Sobre o Projeto
 
-O Dashboard-TRONIK é um sistema de monitoramento de coletores inteligentes que permite visualizar em tempo real o nível de preenchimento e status de cada lixeira equipada com sensores ultrassônicos.
+O Dashboard-TRONIK é um sistema de monitoramento de coletores inteligentes que permite visualizar em tempo real o nível de preenchimento e status de cada coletor equipada com sensores ultrassônicos.
 
 ## Objetivo
 
@@ -10,10 +10,13 @@ Desenvolver uma solução web completa para monitoramento de coletores, permitin
 
 ## Stack Tecnológico
 
-- **Frontend:** HTML5 + CSS3 + JavaScript (vanilla)
-- **Backend:** Python Flask
-- **Banco de Dados:** SQLite
-- **Comunicação:** REST API + polling simples
+- **Frontend:** HTML5 + CSS3 + JavaScript (ES6+, vanilla) + Leaflet.js + Chart.js
+- **Backend:** Python 3.11+ + Flask 2.3.3 + SQLAlchemy 2.0+
+- **Banco de Dados:** SQLite (desenvolvimento) / PostgreSQL/MySQL (produção)
+- **Comunicação:** REST API + WebSocket (Flask-SocketIO)
+- **Mapas:** Leaflet.js + Leaflet Routing Machine + OpenStreetMap + algoritmos A* e Dijkstra(fallback) 
+- **Notificações:** Flask-Mail + APScheduler
+- **Testes:** Pytest (120+ testes automatizados)
 
 ## Estrutura do Projeto
 
@@ -22,23 +25,76 @@ dashboard-tronik/
 ├── app.py                    # Aplicação Flask principal
 ├── requirements.txt          # Dependências Python
 ├── banco_dados/             # Configuração e modelos do banco
-│   ├── modelos.py           # Modelos de dados (Lixeira, Sensor)
-│   └── inicializar.py       # Setup inicial do banco de dados
+│   ├── modelos.py           # Modelos de dados (Coletor, Sensor, Pipeline, etc.)
+│   ├── inicializar.py       # Setup inicial do banco de dados
+│   ├── services/            # Camada de serviços (lógica de negócio)
+│   │   ├── coletor_service.py
+│   │   ├── coleta_service.py
+│   │   ├── comercial_service.py
+│   │   ├── crm_service.py
+│   │   ├── contrato_service.py
+│   │   └── relatorio_service.py
+│   ├── utils/              # Utilitários
+│   │   ├── datetime_utils.py
+│   │   ├── logger.py
+│   │   ├── erros.py
+│   │   └── cache.py
+│   ├── serializers.py      # Serialização de modelos
+│   ├── geocodificacao.py   # Geocodificação de endereços
+│   └── notificacoes.py     # Sistema de notificações
 ├── estatico/                # Arquivos estáticos (CSS, JS, imagens)
 │   ├── css/
 │   │   └── estilo.css       # Estilos do dashboard
 │   ├── js/
 │   │   ├── dashboard.js     # Lógica principal do dashboard
-│   │   └── api.js           # Comunicação com backend
+│   │   ├── api.js           # Comunicação com backend
+│   │   ├── comercial.js     # Lógica do dashboard comercial
+│   │   ├── crm.js           # Lógica do CRM
+│   │   ├── mapa.js          # Módulo de mapas
+│   │   ├── mapa-page.js     # Lógica da página de mapa
+│   │   ├── relatorios.js    # Lógica de relatórios
+│   │   ├── configuracoes.js # Lógica de configurações
+│   │   ├── notificacoes.js  # Lógica de notificações
+│   │   ├── routing/         # Sistema de roteamento modular
+│   │   └── utils/           # Utilitários frontend
 │   └── imagens/             # Imagens e ícones
 ├── templates/               # Templates HTML
-│   ├── index.html           # Página principal do dashboard
-│   └── base.html            # Template base
-├── rotas/                   # Definição de rotas
-│   ├── api.py               # Endpoints da API REST
-│   └── paginas.py           # Rotas das páginas web
-└── dados/                   # Dados de exemplo e mock
-    └── sensores_mock.json   # Dados mock dos sensores
+│   ├── base.html            # Template base
+│   ├── index.html           # Dashboard principal
+│   ├── comercial.html       # Dashboard comercial
+│   ├── crm.html             # Página CRM
+│   ├── contratos.html       # Página de contratos
+│   ├── mapa.html            # Página de mapa
+│   ├── relatorios.html      # Página de relatórios
+│   ├── configuracoes.html   # Página de configurações
+│   ├── notificacoes.html    # Página de notificações
+│   ├── login.html           # Página de login
+│   ├── registro.html        # Página de registro
+│   └── sobre.html           # Página sobre
+├── rotas/                   # Definição de rotas (Blueprints)
+│   ├── api/                 # API REST modularizada
+│   │   ├── coletores.py     # Endpoints de coletores
+│   │   ├── coletas.py       # Endpoints de coletas
+│   │   ├── sensores.py      # Endpoints de sensores
+│   │   ├── notificacoes.py  # Endpoints de notificações
+│   │   ├── relatorios.py    # Endpoints de relatórios
+│   │   ├── comercial.py     # Endpoints comerciais
+│   │   ├── crm.py           # Endpoints de CRM
+│   │   ├── contratos.py     # Endpoints de contratos
+│   │   └── auxiliares.py    # Endpoints auxiliares
+│   ├── auth.py              # Rotas de autenticação
+│   ├── paginas.py           # Rotas das páginas web
+│   └── websocket.py         # WebSocket para tempo real
+├── tests/                   # Testes automatizados (120+ testes)
+│   ├── conftest.py          # Configuração e fixtures
+│   ├── test_api_*.py        # Testes de API
+│   ├── test_auth.py         # Testes de autenticação
+│   └── test_*.py            # Outros testes
+├── scripts/                 # Scripts auxiliares
+│   └── processar_alertas.py # Processar alertas manualmente
+└── deploy/                  # Configurações de deploy
+    ├── dashboard-tronik.service
+    └── nginx/               # Configuração Nginx
 ```
 
 ## Como Começar
@@ -82,14 +138,22 @@ A equipe deve se auto-organizar baseada nos interesses e habilidades de cada mem
 4. Comece com tarefas simples
 5. Colabore com outros membros conforme necessário
 
-## Funcionalidades Planejadas
+## Funcionalidades Implementadas
 
-- [ ] Dashboard visual com grid de lixeiras
-- [ ] API REST para CRUD de sensores
-- [ ] Simulação de mudança de nível em tempo real
-- [ ] Sistema de alertas (nível > 80%)
-- [ ] Relatórios básicos de coletas
-- [ ] Interface responsiva para mobile
+- [x] ✅ Dashboard visual com grid de coletores
+- [x] ✅ API REST completa para CRUD de coletores e sensores
+- [x] ✅ Simulação de mudança de nível em tempo real
+- [x] ✅ Sistema de alertas (nível > 80%, bateria < 20%)
+- [x] ✅ Relatórios financeiros e operacionais completos
+- [x] ✅ Interface responsiva para mobile, tablet e desktop
+- [x] ✅ **Dashboard Comercial** com KPIs e análises
+- [x] ✅ **Sistema CRM** completo com funil de vendas
+- [x] ✅ **Gestão de Contratos** recorrentes
+- [x] ✅ Mapa interativo com rotas otimizadas
+- [x] ✅ Geocodificação automática de endereços
+- [x] ✅ Notificações automáticas por email
+- [x] ✅ WebSocket para atualizações em tempo real
+- [x] ✅ Testes automatizados (120+ testes)
 
 ## Desenvolvimento
 
