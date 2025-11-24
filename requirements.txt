@@ -88,6 +88,16 @@ Flask-SocketIO==5.3.6
 # Sistema de WebSocket para atualizações em tempo real
 # Permite notificações push e atualizações sem polling
 
+# Servidor WSGI para produção
+gunicorn==21.2.0
+# Servidor WSGI HTTP para produção
+# Necessário para deploy em Render.com, Heroku, etc.
+
+# Driver PostgreSQL para SQLAlchemy
+psycopg2-binary==2.9.9
+# Driver PostgreSQL necessário para usar PostgreSQL
+# psycopg2-binary é a versão pré-compilada (mais fácil de instalar)
+
 # ========================================
 # DEPENDÊNCIAS DE DESENVOLVIMENTO (OPCIONAL)
 # ========================================

@@ -1,0 +1,65 @@
+# Render.com Configuration - Dashboard-TRONIK
+# ===========================================
+# Este arquivo configura o deploy automático no Render.com
+# 
+# Para usar:
+# 1. Conecte seu repositório GitHub ao Render.com
+# 2. Render detectará automaticamente este arquivo
+# 3. Configure as variáveis de ambiente no painel do Render
+
+services:
+  # Web Service (Flask App)
+  - type: web
+    name: dashboard-tronik
+    env: python
+    plan: starter  # ou free, starter, standard, pro
+    buildCommand: pip install -r requirements.txt
+    startCommand: gunicorn --bind 0.0.0.0:$PORT --workers 2 --threads 4 --timeout 60 --access-logfile - --error-logfile - app:app
+    envVars:
+      # OBRIGATÓRIAS
+      - key: SECRET_KEY
+        sync: false  # Configure manualmente no painel do Render
+      - key: FLASK_ENV
+        value: production
+      - key: DATABASE_URL
+        fromDatabase:
+          name: tronik-db
+          property: connectionString
+      # Nota: DATABASE_URL será preenchida automaticamente pelo Render
+      # quando você criar o banco PostgreSQL e vinculá-lo ao serviço
+      - key: CORS_ORIGINS
+        value: https://dashboard-tronik.onrender.com  # Ajuste para seu domínio
+      
+      # ADMIN
+      - key: ADMIN_USERNAME
+        value: admin
+      - key: ADMIN_EMAIL
+        sync: false  # Configure manualmente
+      - key: ADMIN_PASSWORD
+        sync: false  # Configure manualmente
+      
+      # OPCIONAIS
+      - key: RATELIMIT_ENABLED
+        value: "true"
+      - key: SESSION_COOKIE_SECURE
+        value: "true"
+      - key: SESSION_COOKIE_HTTPONLY
+        value: "true"
+      - key: SESSION_COOKIE_SAMESITE
+        value: "Lax"
+      - key: LOG_LEVEL
+        value: INFO
+      - key: AGENDAMENTO_ENABLED
+        value: "false"
+      - key: DEBUG
+        value: "false"
+    
+    healthCheckPath: /api/configuracoes
+
+  # PostgreSQL Database (Opcional - recomendado para produção)
+  - type: pgsql
+    name: tronik-db
+    plan: starter  # ou free, starter, standard
+    databaseName: tronik
+    databaseUser: tronik_user
+

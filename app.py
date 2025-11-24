@@ -228,11 +228,15 @@ app.config['DATABASE_SESSION'] = SessionLocal
 
 # Criar/atualizar banco e tabelas
 # Base.metadata.create_all() cria apenas tabelas que não existem, então é seguro chamar sempre
-db_exists = os.path.exists('tronik.db')
-if not db_exists:
-    logger.info("Banco de dados não encontrado. Criando...")
+# Verificar se é SQLite (para log) ou PostgreSQL
+if DATABASE_URL.startswith('sqlite'):
+    db_exists = os.path.exists(DATABASE_URL.replace('sqlite:///', ''))
+    if not db_exists:
+        logger.info("Banco de dados SQLite não encontrado. Criando...")
+    else:
+        logger.info("Banco de dados SQLite encontrado. Verificando/atualizando tabelas...")
 else:
-    logger.info("Banco de dados encontrado. Verificando/atualizando tabelas...")
+    logger.info("Conectando ao PostgreSQL. Verificando/atualizando tabelas...")
 
 # Sempre criar todas as tabelas (SQLAlchemy só cria as que não existem)
 Base.metadata.create_all(engine)
