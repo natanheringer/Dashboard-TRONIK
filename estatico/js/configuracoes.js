@@ -18,15 +18,15 @@ document.addEventListener('DOMContentLoaded', async function() {
     await carregarDropdownsColeta();
     await carregarDropdownsSensor();
     
-    carregarListaLixeiras();
+    carregarListaColetores();
     carregarListaSensores();
     
     // Event listener para o formulário de coletor
-    const formLixeira = document.getElementById('form-nova-coletor');
-    if (formLixeira) {
-        formLixeira.addEventListener('submit', async function(e) {
+    const formColetor = document.getElementById('form-nova-coletor');
+    if (formColetor) {
+        formColetor.addEventListener('submit', async function(e) {
             e.preventDefault();
-            await criarNovaLixeira();
+            await criarNovoColetor();
         });
     }
     
@@ -95,19 +95,19 @@ async function carregarDropdowns() {
 async function carregarDropdownsColeta() {
     try {
         const [coletores, tiposColetor, parceiros] = await Promise.all([
-            obterTodasLixeiras().catch(() => []),
+            obterTodosColetores().catch(() => []),
             obterTiposColetor().catch(() => []),
             obterParceiros().catch(() => [])
         ]);
         
         // Popular dropdown de coletores
-        const selectLixeira = document.getElementById('coleta-coletor-id');
-        if (selectLixeira) {
+        const selectColetor = document.getElementById('coleta-coletor-id');
+        if (selectColetor) {
             coletores.forEach(coletor => {
                 const option = document.createElement('option');
                 option.value = coletor.id;
                 option.textContent = `#L${String(coletor.id).padStart(3, '0')} - ${coletor.localizacao || 'Sem localização'}`;
-                selectLixeira.appendChild(option);
+                selectColetor.appendChild(option);
             });
         }
         
@@ -196,12 +196,12 @@ async function criarNovaColeta() {
 }
 
 // Função para carregar lista de coletores
-async function carregarListaLixeiras() {
+async function carregarListaColetores() {
     try {
-        const coletores = await obterTodasLixeiras();
+        const coletores = await obterTodosColetores();
         // Garantir que seja um array
         const coletoresArray = Array.isArray(coletores) ? coletores : [];
-        exibirListaLixeiras(coletoresArray);
+        exibirListaColetores(coletoresArray);
     } catch (error) {
         console.error('Erro ao carregar coletores:', error);
         const container = document.getElementById('lista-coletores');
@@ -254,7 +254,7 @@ function formatarDistancia(distancia) {
 }
 
 // Função para exibir lista de coletores
-function exibirListaLixeiras(coletores) {
+function exibirListaColetores(coletores) {
     const container = document.getElementById('lista-coletores');
     if (!container) return;
     
@@ -306,14 +306,14 @@ function exibirListaLixeiras(coletores) {
     // Adicionar event listeners aos botões de deletar
     container.querySelectorAll('.btn-delete').forEach(btn => {
         btn.addEventListener('click', function() {
-            const lixeiraId = parseInt(this.getAttribute('data-coletor-id'));
-            deletarLixeiraConfig(lixeiraId);
+            const coletorId = parseInt(this.getAttribute('data-coletor-id'));
+            deletarColetorConfig(coletorId);
         });
     });
 }
 
-// Função para criar nova coletor
-async function criarNovaLixeira() {
+// Função para criar novo coletor
+async function criarNovoColetor() {
     const form = document.getElementById('form-nova-coletor');
     const mensagem = document.getElementById('form-mensagem');
     if (!form || !mensagem) return;
@@ -367,13 +367,13 @@ async function criarNovaLixeira() {
             btnSubmit.textContent = 'Adicionando...';
         }
         
-        const novaLixeira = await criarLixeira(dados);
+        const novoColetor = await criarColetor(dados);
         
-        mostrarMensagem(`Coletor #L${String(novaLixeira.id).padStart(3, '0')} criada com sucesso!`, 'success');
+        mostrarMensagem(`Coletor #L${String(novoColetor.id).padStart(3, '0')} criado com sucesso!`, 'success');
         form.reset();
         
         // Recarregar lista
-        await carregarListaLixeiras();
+        await carregarListaColetores();
         
         // Atualizar dropdown de coletores no formulário de coleta
         await carregarDropdownsColeta();
@@ -408,16 +408,16 @@ function mostrarMensagem(texto, tipo) {
 }
 
 // Função para deletar coletor (com confirmação melhorada)
-async function deletarLixeiraConfig(id) {
+async function deletarColetorConfig(id) {
     if (!confirm(`Tem certeza que deseja excluir a coletor #L${String(id).padStart(3, '0')}?\n\nEsta ação não pode ser desfeita e também excluirá todos os sensores e coletas associados.`)) {
         return;
     }
     
     try {
         mostrarLoading('Deletando coletor...');
-        await deletarLixeira(id);
+        await deletarColetor(id);
         mostrarMensagem('Coletor deletada com sucesso!', 'success');
-        await carregarListaLixeiras();
+        await carregarListaColetores();
         await carregarListaSensores();
         
         // Atualizar dropdowns
@@ -439,23 +439,23 @@ async function deletarLixeiraConfig(id) {
 async function carregarDropdownsSensor() {
     try {
         const [coletores, tiposSensor] = await Promise.all([
-            obterTodasLixeiras().catch(() => []),
+            obterTodosColetores().catch(() => []),
             obterTiposSensor().catch(() => [])
         ]);
         
         // Popular dropdown de coletores
-        const selectLixeira = document.getElementById('sensor-coletor-id');
-        if (selectLixeira) {
+        const selectColetor = document.getElementById('sensor-coletor-id');
+        if (selectColetor) {
             // Limpar opções existentes (exceto a primeira)
-            while (selectLixeira.children.length > 1) {
-                selectLixeira.removeChild(selectLixeira.lastChild);
+            while (selectColetor.children.length > 1) {
+                selectColetor.removeChild(selectColetor.lastChild);
             }
             
             coletores.forEach(coletor => {
                 const option = document.createElement('option');
                 option.value = coletor.id;
                 option.textContent = `#L${String(coletor.id).padStart(3, '0')} - ${coletor.localizacao || 'Sem localização'}`;
-                selectLixeira.appendChild(option);
+                selectColetor.appendChild(option);
             });
         }
         

@@ -85,13 +85,13 @@ const WebSocketClient = (function() {
             });
             
             // Eventos de atualização
-            socket.on('lixeira_atualizada', function(data) {
+            socket.on('coletor_atualizado', function(data) {
                 if (window.Logger) {
                     window.Logger.debug('Coletor atualizada via WebSocket:', data);
                 }
                 
                 if (window.dispatchEvent) {
-                    window.dispatchEvent(new CustomEvent('websocket:lixeira_atualizada', {
+                    window.dispatchEvent(new CustomEvent('websocket:coletor_atualizado', {
                         detail: data
                     }));
                 }
@@ -160,7 +160,7 @@ const WebSocketClient = (function() {
     function inscreverEmAtualizacoes() {
         if (!socket || !conectado) return;
         
-        socket.emit('subscribe_lixeiras');
+        socket.emit('subscribe_coletores');
         socket.emit('subscribe_sensores');
         socket.emit('subscribe_notificacoes');
         

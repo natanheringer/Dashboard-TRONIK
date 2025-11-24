@@ -5,31 +5,31 @@ Gerencia a página dedicada de mapa.
 Carrega coletores e atualiza o mapa.
 */
 
-let todasLixeirasMapa = [];
+let todosColetoresMapa = [];
 let mapaInicializado = false;
 
 /**
  * Carrega todas as coletores e atualiza o mapa
  */
-async function carregarLixeirasNoMapa() {
+async function carregarColetoresNoMapa() {
     try {
-        // Verificar se a função obterTodasLixeiras está disponível
-        if (typeof obterTodasLixeiras !== 'function') {
-            console.error('Função obterTodasLixeiras não encontrada. Verifique se api.js está carregado.');
+        // Verificar se a função obterTodosColetores está disponível
+        if (typeof obterTodosColetores !== 'function') {
+            console.error('Função obterTodosColetores não encontrada. Verifique se api.js está carregado.');
             return;
         }
 
-        const coletores = await obterTodasLixeiras();
+        const coletores = await obterTodosColetores();
         // Garantir que seja um array
         const coletoresArray = Array.isArray(coletores) ? coletores : [];
-        todasLixeirasMapa = coletoresArray;
+        todosColetoresMapa = coletoresArray;
         
         // Aplicar filtros
-        const lixeirasFiltradas = aplicarFiltrosMapa(coletoresArray);
+        const coletoresFiltrados = aplicarFiltrosMapa(coletoresArray);
         
         // Atualizar mapa
         if (typeof window.MapaTronik !== 'undefined' && window.MapaTronik.atualizarMarcadores) {
-            window.MapaTronik.atualizarMarcadores(lixeirasFiltradas);
+            window.MapaTronik.atualizarMarcadores(coletoresFiltrados);
         } else {
             console.warn('MapaTronik.atualizarMarcadores não disponível');
         }
@@ -48,7 +48,7 @@ function aplicarFiltrosMapa(coletores) {
     const distanciaFiltro = document.getElementById('filter-distancia-mapa')?.value || 'todas';
     const ordenarDistancia = document.getElementById('ordenar-distancia-mapa')?.value || '';
 
-    let lixeirasFiltradas = coletores.filter(coletor => {
+    let coletoresFiltrados = coletores.filter(coletor => {
         // Filtro de status
         if (statusFiltro) {
             const nivel = coletor.nivel_preenchimento || 0;
@@ -80,16 +80,16 @@ function aplicarFiltrosMapa(coletores) {
 
     // Aplicar filtro de distância (usando função do mapa.js)
     if (typeof filtrarPorDistancia === 'function') {
-        lixeirasFiltradas = filtrarPorDistancia(lixeirasFiltradas, distanciaFiltro);
+        coletoresFiltrados = filtrarPorDistancia(coletoresFiltrados, distanciaFiltro);
     }
 
     // Aplicar ordenação por distância
     if (ordenarDistancia && typeof ordenarPorDistancia === 'function') {
         const ordem = ordenarDistancia === 'proxima' ? 'asc' : 'desc';
-        lixeirasFiltradas = ordenarPorDistancia(lixeirasFiltradas, ordem);
+        coletoresFiltrados = ordenarPorDistancia(coletoresFiltrados, ordem);
     }
 
-    return lixeirasFiltradas;
+    return coletoresFiltrados;
 }
 
 /**
@@ -203,7 +203,7 @@ async function inicializarPaginaMapa() {
     await carregarParceirosFiltro();
 
     // Carregar coletores
-    await carregarLixeirasNoMapa();
+    await carregarColetoresNoMapa();
 
     // Event listeners
     const btnAjustarZoom = document.getElementById('btn-ajustar-zoom');
@@ -218,7 +218,7 @@ async function inicializarPaginaMapa() {
     const btnAtualizar = document.getElementById('btn-atualizar-mapa');
     if (btnAtualizar) {
         btnAtualizar.addEventListener('click', () => {
-            carregarLixeirasNoMapa();
+            carregarColetoresNoMapa();
         });
     }
 
@@ -226,35 +226,35 @@ async function inicializarPaginaMapa() {
     const filterStatus = document.getElementById('filter-status-mapa');
     if (filterStatus) {
         filterStatus.addEventListener('change', () => {
-            carregarLixeirasNoMapa();
+            carregarColetoresNoMapa();
         });
     }
 
     const filterParceiro = document.getElementById('filter-parceiro-mapa');
     if (filterParceiro) {
         filterParceiro.addEventListener('change', () => {
-            carregarLixeirasNoMapa();
+            carregarColetoresNoMapa();
         });
     }
 
     const filterBusca = document.getElementById('filter-busca-mapa');
     if (filterBusca) {
         filterBusca.addEventListener('input', () => {
-            carregarLixeirasNoMapa();
+            carregarColetoresNoMapa();
         });
     }
 
     const filterDistancia = document.getElementById('filter-distancia-mapa');
     if (filterDistancia) {
         filterDistancia.addEventListener('change', () => {
-            carregarLixeirasNoMapa();
+            carregarColetoresNoMapa();
         });
     }
 
     const ordenarDistancia = document.getElementById('ordenar-distancia-mapa');
     if (ordenarDistancia) {
         ordenarDistancia.addEventListener('change', () => {
-            carregarLixeirasNoMapa();
+            carregarColetoresNoMapa();
         });
     }
 }

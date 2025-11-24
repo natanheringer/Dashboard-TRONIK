@@ -123,7 +123,7 @@ function criarIconeMarcador(cor) {
  * Adiciona marcador de coletor no mapa
  * @param {Object} coletor - Objeto coletor com latitude e longitude
  */
-function adicionarMarcadorLixeira(coletor) {
+function adicionarMarcadorColetor(coletor) {
     if (!mapa) {
         console.warn('Mapa não inicializado');
         return;
@@ -138,7 +138,7 @@ function adicionarMarcadorLixeira(coletor) {
     const icone = criarIconeMarcador(cor);
 
     // Criar popup com informações
-    const popupContent = criarPopupLixeira(coletor);
+    const popupContent = criarPopupColetor(coletor);
 
     // Criar marcador
     const marcador = L.marker(
@@ -168,7 +168,7 @@ function adicionarMarcadorLixeira(coletor) {
  * @param {Object} coletor - Objeto coletor
  * @returns {string} HTML do popup
  */
-function criarPopupLixeira(coletor) {
+function criarPopupColetor(coletor) {
     const nivel = coletor.nivel_preenchimento || 0;
     const statusTexto = determinarStatusTexto(coletor);
     const parceiro = coletor.parceiro ? coletor.parceiro.nome : 'N/A';
@@ -253,19 +253,19 @@ function formatarData(dataISO) {
 
 /**
  * Atualiza todos os marcadores no mapa
- * @param {Array} lixeirasArray - Array de coletores
+ * @param {Array} coletoresArray - Array de coletores
  */
-function atualizarMarcadores(lixeirasArray) {
+function atualizarMarcadores(coletoresArray) {
     if (!mapa) return;
 
     // Armazenar coletores globalmente
-    coletores = Array.isArray(lixeirasArray) ? lixeirasArray : [];
+    coletores = Array.isArray(coletoresArray) ? coletoresArray : [];
 
     // Limpar marcadores existentes
     limparMarcadores();
 
     // Filtrar coletores com coordenadas válidas
-    const lixeirasComCoordenadas = coletores.filter(l => {
+    const coletoresComCoordenadas = coletores.filter(c => {
         if (!l) return false;
         const lat = parseFloat(l.latitude);
         const lon = parseFloat(l.longitude);
@@ -275,18 +275,18 @@ function atualizarMarcadores(lixeirasArray) {
                lon >= -180 && lon <= 180;
     });
 
-    if (lixeirasComCoordenadas.length === 0) {
+    if (coletoresComCoordenadas.length === 0) {
         mostrarMensagemSemCoordenadas();
         return;
     }
 
     // Adicionar novos marcadores
-    lixeirasComCoordenadas.forEach(coletor => {
-        adicionarMarcadorLixeira(coletor);
+    coletoresComCoordenadas.forEach(coletor => {
+        adicionarMarcadorColetor(coletor);
     });
 
     // Ajustar zoom para mostrar todos os marcadores
-    if (lixeirasComCoordenadas.length > 0) {
+    if (coletoresComCoordenadas.length > 0) {
         setTimeout(() => ajustarZoomMarcadores(), 100);
     } else {
         mostrarMensagemSemCoordenadas();
@@ -400,12 +400,12 @@ function mostrarMensagemSemCoordenadas() {
 
 /**
  * Destaca uma coletor específica no mapa
- * @param {number} lixeiraId - ID da coletor
+ * @param {number} coletorId - ID do coletor
  */
-function destacarLixeira(lixeiraId) {
-    if (!mapa || !marcadores || !marcadores[lixeiraId]) return;
+function destacarColetor(coletorId) {
+    if (!mapa || !marcadores || !marcadores[coletorId]) return;
 
-    const marcador = marcadores[lixeiraId];
+    const marcador = marcadores[coletorId];
     if (!marcador || typeof marcador.getLatLng !== 'function') return;
     
     try {
@@ -425,7 +425,7 @@ function destacarLixeira(lixeiraId) {
  * Atualiza cor do marcador baseado em mudanças na coletor
  * @param {Object} coletor - Objeto coletor atualizado
  */
-function atualizarMarcadorLixeira(coletor) {
+function atualizarMarcadorColetor(coletor) {
     if (!coletor || !coletor.id || !marcadores || !marcadores[coletor.id]) return;
 
     const marcador = marcadores[coletor.id];
@@ -439,7 +439,7 @@ function atualizarMarcadorLixeira(coletor) {
         }
         
         // Atualizar popup
-        const novoPopup = criarPopupLixeira(coletor);
+        const novoPopup = criarPopupColetor(coletor);
         if (novoPopup && typeof marcador.setPopupContent === 'function') {
             marcador.setPopupContent(novoPopup);
         }
@@ -491,21 +491,21 @@ function calcularRotaOtimizada(coletores, pontoInicial = null) {
     if (!coletores || coletores.length === 0) return [];
     
     // Filtrar coletores com coordenadas válidas
-    const lixeirasValidas = coletores.filter(l => 
+    const coletoresValidos = coletores.filter(c => 
         l.latitude && l.longitude && 
         !isNaN(parseFloat(l.latitude)) && 
         !isNaN(parseFloat(l.longitude))
     );
     
-    if (lixeirasValidas.length === 0) return [];
+    if (coletoresValidos.length === 0) return [];
     
     // Se há apenas uma coletor, retornar direto
-    if (lixeirasValidas.length === 1) {
-        return [[parseFloat(lixeirasValidas[0].latitude), parseFloat(lixeirasValidas[0].longitude)]];
+    if (coletoresValidos.length === 1) {
+        return [[parseFloat(coletoresValidos[0].latitude), parseFloat(coletoresValidos[0].longitude)]];
     }
     
     // Converter para array de coordenadas
-    const pontos = lixeirasValidas.map(l => ({
+    const pontos = coletoresValidos.map(c => ({
         id: l.id,
         lat: parseFloat(l.latitude),
         lon: parseFloat(l.longitude),
@@ -1746,16 +1746,16 @@ function formatarInstrucoesRota() {
 
 /**
  * Calcula rota da sede até uma coletor específica
- * @param {number} lixeiraId - ID da coletor de destino
+ * @param {number} coletorId - ID do coletor de destino
  */
-function calcularRotaSede(lixeiraId) {
+function calcularRotaSede(coletorId) {
     if (!coletores || !coletores.length) {
         console.warn('Nenhuma coletor disponível');
         alert('Nenhuma coletor disponível no mapa');
         return;
     }
     
-    const coletor = coletores.find(l => l.id === lixeiraId);
+    const coletor = coletores.find(c => c.id === coletorId);
     if (!coletor || !coletor.latitude || !coletor.longitude) {
         alert('Coletor não encontrada ou sem coordenadas');
         return;
@@ -1841,21 +1841,21 @@ function calcularRotaSede(lixeiraId) {
         });
     }
     
-    console.log(`Rota calculada: ${SEDE_TRONIK.nome} -> Coletor #${lixeiraId}`);
+    console.log(`Rota calculada: ${SEDE_TRONIK.nome} -> Coletor #${coletorId}`);
 }
 
 /**
  * Filtra coletores por distância da sede
- * @param {Array} lixeirasList - Lista de coletores
+ * @param {Array} coletoresList - Lista de coletores
  * @param {string} filtroDistancia - Filtro de distância ('todas', 'ate-10', '10-20', '20-50', 'mais-50')
  * @returns {Array} Lista filtrada
  */
-function filtrarPorDistancia(lixeirasList, filtroDistancia = 'todas') {
+function filtrarPorDistancia(coletoresList, filtroDistancia = 'todas') {
     if (filtroDistancia === 'todas') {
-        return lixeirasList;
+        return coletoresList;
     }
     
-    return lixeirasList.filter(coletor => {
+    return coletoresList.filter(coletor => {
         const distancia = calcularDistanciaSede(coletor);
         if (distancia === null) {
             return false; // Excluir coletores sem coordenadas
@@ -1878,19 +1878,19 @@ function filtrarPorDistancia(lixeirasList, filtroDistancia = 'todas') {
 
 /**
  * Ordena coletores por distância da sede
- * @param {Array} lixeirasList - Lista de coletores
+ * @param {Array} coletoresList - Lista de coletores
  * @param {string} ordem - 'asc' (mais próxima primeiro) ou 'desc' (mais distante primeiro)
  * @returns {Array} Lista ordenada
  */
-function ordenarPorDistancia(lixeirasList, ordem = 'asc') {
-    const lixeirasComDistancia = lixeirasList.map(coletor => ({
+function ordenarPorDistancia(coletoresList, ordem = 'asc') {
+    const coletoresComDistancia = coletoresList.map(coletor => ({
         coletor,
         distancia: calcularDistanciaSede(coletor)
     }));
     
     // Separar coletores com e sem coordenadas
-    const comCoordenadas = lixeirasComDistancia.filter(item => item.distancia !== null);
-    const semCoordenadas = lixeirasComDistancia.filter(item => item.distancia === null);
+    const comCoordenadas = coletoresComDistancia.filter(item => item.distancia !== null);
+    const semCoordenadas = coletoresComDistancia.filter(item => item.distancia === null);
     
     // Ordenar por distância
     comCoordenadas.sort((a, b) => {
@@ -1987,8 +1987,8 @@ if (typeof window !== 'undefined') {
         adicionarRota: adicionarRota,
         removerRota: removerRota,
         adicionarMarcadorSede: adicionarMarcadorSede,
-        destacarLixeira: destacarLixeira,
-        atualizarMarcador: atualizarMarcadorLixeira,
+        destacarColetor: destacarColetor,
+        atualizarMarcador: atualizarMarcadorColetor,
         limpar: limparMarcadores,
         ajustarZoomMarcadores: ajustarZoomMarcadores,
         exportar: exportarMapa,

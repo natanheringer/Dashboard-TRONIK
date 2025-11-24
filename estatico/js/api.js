@@ -111,8 +111,8 @@ async function fazerRequisicaoComCache(endpoint, ttl = 5 * 60 * 1000) {
     }
 }
 
-// Função para obter todas as coletores (com cache)
-async function obterTodasLixeiras() {
+// Função para obter todos os coletores (com cache)
+async function obterTodosColetores() {
     try {
         const resultado = await fazerRequisicaoComCache('/coletores', 2 * 60 * 1000); // Cache de 2 minutos
         // Ajustar para formato paginado (se aplicável)
@@ -127,13 +127,13 @@ async function obterTodasLixeiras() {
     }
 }
 
-// Função para obter coletor específica
-async function obterLixeira(id) {
+// Função para obter coletor específico
+async function obterColetor(id) {
     return await fazerRequisicao(`/coletor/${id}`);
 }
 
-// Função para criar nova coletor
-async function criarLixeira(dados) {
+// Função para criar novo coletor
+async function criarColetor(dados) {
     return await fazerRequisicao('/coletor', {
         method: 'POST',
         body: JSON.stringify(dados)
@@ -141,7 +141,7 @@ async function criarLixeira(dados) {
 }
 
 // Função para atualizar coletor
-async function atualizarLixeira(id, dados) {
+async function atualizarColetor(id, dados) {
     return await fazerRequisicao(`/coletor/${id}`, {
         method: 'PUT',
         body: JSON.stringify(dados)
@@ -149,7 +149,7 @@ async function atualizarLixeira(id, dados) {
 }
 
 // Função para deletar coletor
-async function deletarLixeira(id) {
+async function deletarColetor(id) {
     return await fazerRequisicao(`/coletor/${id}`, {
         method: 'DELETE'
     });
@@ -340,11 +340,17 @@ async function obterStatusAgendamento() {
 // Exportar funções (para uso em outros scripts)
 if (typeof module !== 'undefined' && module.exports) {
     module.exports = {
-        obterTodasLixeiras,
-        obterLixeira,
-        criarLixeira,
-        atualizarLixeira,
-        deletarLixeira,
+        obterTodosColetores,
+        obterColetor,
+        criarColetor,
+        atualizarColetor,
+        deletarColetor,
+        // Compatibilidade: manter funções antigas por enquanto
+        obterTodasLixeiras: obterTodosColetores,
+        obterLixeira: obterColetor,
+        criarLixeira: criarColetor,
+        atualizarLixeira: atualizarColetor,
+        deletarLixeira: deletarColetor,
         obterEstatisticas,
         obterHistorico,
         obterColetas,
