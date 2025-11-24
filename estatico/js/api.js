@@ -3,70 +3,156 @@ API JavaScript - Dashboard-TRONIK
 ================================
 Funções para comunicação com o backend.
 Gerencia todas as requisições HTTP para a API.
+Usa sistema de retry automático e cache.
 */
 
 // Configuração base da API
 const API_BASE_URL = '/api';
 
-// Função auxiliar para fazer requisições
+// Função auxiliar para fazer requisições com retry automático
 async function fazerRequisicao(endpoint, options = {}) {
-    try {
-        const response = await fetch(`${API_BASE_URL}${endpoint}`, {
-            headers: {
-                'Content-Type': 'application/json',
-                ...options.headers
-            },
-            ...options
-        });
-        
-        if (!response.ok) {
-            const erro = await response.json().catch(() => ({ erro: 'Erro desconhecido' }));
-            throw new Error(erro.erro || `Erro HTTP: ${response.status}`);
+    // Timeout de 30 segundos
+    const TIMEOUT_MS = 30000;
+    const controller = new AbortController();
+    const timeoutId = setTimeout(() => controller.abort(), TIMEOUT_MS);
+    
+    // Usar retry automático se disponível
+    if (window.Retry && window.Retry.executarComRetry) {
+        try {
+            return await window.Retry.executarComRetry(
+                async () => {
+                    const response = await fetch(`${API_BASE_URL}${endpoint}`, {
+                        headers: {
+                            'Content-Type': 'application/json',
+                            ...options.headers
+                        },
+                        signal: controller.signal,
+                        ...options
+                    });
+                    
+                    clearTimeout(timeoutId);
+                    
+                    if (!response.ok) {
+                        const erro = await response.json().catch(() => ({ erro: 'Erro desconhecido' }));
+                        const errorObj = new Error(erro.erro || `Erro HTTP: ${response.status}`);
+                        errorObj.status = response.status;
+                        throw errorObj;
+                    }
+                    
+                    return await response.json();
+                },
+                {
+                    maxTentativas: 3,
+                    delayInicial: 1000,
+                    deveTentar: (erro) => window.Retry.deveRetentarErroRede(erro)
+                }
+            );
+        } catch (error) {
+            clearTimeout(timeoutId);
+            if (error.name === 'AbortError') {
+                const timeoutError = new Error('Requisição expirou (timeout de 30s)');
+                timeoutError.name = 'TimeoutError';
+                throw timeoutError;
+            }
+            throw error;
         }
-        
-        return await response.json();
-    } catch (error) {
-        console.error('Erro na requisição:', error);
-        throw error;
+    } else {
+        // Fallback sem retry
+        try {
+            const response = await fetch(`${API_BASE_URL}${endpoint}`, {
+                headers: {
+                    'Content-Type': 'application/json',
+                    ...options.headers
+                },
+                signal: controller.signal,
+                ...options
+            });
+            
+            clearTimeout(timeoutId);
+            
+            if (!response.ok) {
+                const erro = await response.json().catch(() => ({ erro: 'Erro desconhecido' }));
+                throw new Error(erro.erro || `Erro HTTP: ${response.status}`);
+            }
+            
+            return await response.json();
+        } catch (error) {
+            clearTimeout(timeoutId);
+            if (error.name === 'AbortError') {
+                const timeoutError = new Error('Requisição expirou (timeout de 30s)');
+                timeoutError.name = 'TimeoutError';
+                if (window.Logger) {
+                    window.Logger.error('Timeout na requisição:', timeoutError);
+                } else {
+                    console.error('Timeout na requisição:', timeoutError);
+                }
+                throw timeoutError;
+            }
+            if (window.Logger) {
+                window.Logger.error('Erro na requisição:', error);
+            } else {
+                console.error('Erro na requisição:', error);
+            }
+            throw error;
+        }
     }
 }
 
-// Função para obter todas as lixeiras
+// Função auxiliar para requisições GET com cache
+async function fazerRequisicaoComCache(endpoint, ttl = 5 * 60 * 1000) {
+    if (window.CacheFrontend) {
+        return await window.CacheFrontend.obterOuCalcular(
+            `api:${endpoint}`,
+            () => fazerRequisicao(endpoint),
+            ttl
+        );
+    } else {
+        return await fazerRequisicao(endpoint);
+    }
+}
+
+// Função para obter todas as coletores (com cache)
 async function obterTodasLixeiras() {
-    return await fazerRequisicao('/lixeiras');
+    const resultado = await fazerRequisicaoComCache('/coletores', 2 * 60 * 1000); // Cache de 2 minutos
+    // Ajustar para formato paginado (se aplicável)
+    if (resultado && resultado.dados) {
+        return resultado.dados;
+    }
+    // Se não for formato paginado, retornar direto (compatibilidade)
+    return Array.isArray(resultado) ? resultado : [];
 }
 
-// Função para obter lixeira específica
+// Função para obter coletor específica
 async function obterLixeira(id) {
-    return await fazerRequisicao(`/lixeira/${id}`);
+    return await fazerRequisicao(`/coletor/${id}`);
 }
 
-// Função para criar nova lixeira
+// Função para criar nova coletor
 async function criarLixeira(dados) {
-    return await fazerRequisicao('/lixeira', {
+    return await fazerRequisicao('/coletor', {
         method: 'POST',
         body: JSON.stringify(dados)
     });
 }
 
-// Função para atualizar lixeira
+// Função para atualizar coletor
 async function atualizarLixeira(id, dados) {
-    return await fazerRequisicao(`/lixeira/${id}`, {
+    return await fazerRequisicao(`/coletor/${id}`, {
         method: 'PUT',
         body: JSON.stringify(dados)
     });
 }
 
-// Função para deletar lixeira
+// Função para deletar coletor
 async function deletarLixeira(id) {
-    return await fazerRequisicao(`/lixeira/${id}`, {
+    return await fazerRequisicao(`/coletor/${id}`, {
         method: 'DELETE'
     });
 }
 
-// Função para obter estatísticas
+// Função para obter estatísticas (com cache)
 async function obterEstatisticas() {
-    return await fazerRequisicao('/estatisticas');
+    return await fazerRequisicaoComCache('/estatisticas', 5 * 60 * 1000); // Cache de 5 minutos
 }
 
 // Função para obter histórico de coletas
@@ -75,7 +161,13 @@ async function obterHistorico(dataFiltro = null) {
     if (dataFiltro) {
         url += '?data=' + encodeURIComponent(dataFiltro);
     }
-    return await fazerRequisicao(url);
+    const resposta = await fazerRequisicao(url);
+    // Se a resposta for paginada, extrair o array de dados
+    if (resposta && typeof resposta === 'object' && 'dados' in resposta) {
+        return resposta.dados;
+    }
+    // Se for array direto (compatibilidade com versão antiga)
+    return Array.isArray(resposta) ? resposta : [];
 }
 
 // Função para obter coletas (novo endpoint com filtros)
@@ -83,7 +175,7 @@ async function obterColetas(filtros = {}) {
     let url = '/coletas';
     const params = new URLSearchParams();
     
-    if (filtros.lixeira_id) params.append('lixeira_id', filtros.lixeira_id);
+    if (filtros.coletor_id) params.append('coletor_id', filtros.coletor_id);
     if (filtros.parceiro_id) params.append('parceiro_id', filtros.parceiro_id);
     if (filtros.tipo_operacao) params.append('tipo_operacao', filtros.tipo_operacao);
     if (filtros.data_inicio) params.append('data_inicio', filtros.data_inicio);
@@ -146,9 +238,9 @@ async function obterRelatorios(dataInicio = null, dataFim = null, parceiroId = n
     return await fazerRequisicao(url);
 }
 
-// Função para simular níveis das lixeiras
+// Função para simular níveis das coletores
 async function simularNiveis({ delta_max = 10, reduzir_max = 5 } = {}) {
-    return await fazerRequisicao('/lixeiras/simular-niveis', {
+    return await fazerRequisicao('/coletores/simular-niveis', {
         method: 'POST',
         body: JSON.stringify({ delta_max, reduzir_max })
     });
@@ -163,7 +255,7 @@ async function obterTodosSensores(filtros = {}) {
     let url = '/sensores';
     const params = new URLSearchParams();
     
-    if (filtros.lixeira_id) params.append('lixeira_id', filtros.lixeira_id);
+    if (filtros.coletor_id) params.append('coletor_id', filtros.coletor_id);
     if (filtros.tipo_sensor_id) params.append('tipo_sensor_id', filtros.tipo_sensor_id);
     if (filtros.bateria_min) params.append('bateria_min', filtros.bateria_min);
     if (filtros.bateria_max) params.append('bateria_max', filtros.bateria_max);
@@ -210,7 +302,7 @@ async function obterNotificacoes(filtros = {}) {
     
     if (filtros.tipo) params.append('tipo', filtros.tipo);
     if (filtros.enviada !== undefined) params.append('enviada', filtros.enviada);
-    if (filtros.lixeira_id) params.append('lixeira_id', filtros.lixeira_id);
+    if (filtros.coletor_id) params.append('coletor_id', filtros.coletor_id);
     if (filtros.limite) params.append('limite', filtros.limite);
     
     if (params.toString()) {

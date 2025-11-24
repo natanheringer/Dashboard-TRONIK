@@ -3,6 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <link rel="icon" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'><text y='.9em' font-size='90'>♻️</text></svg>">
     <title>{% block title %}Dashboard-TRONIK{% endblock %}</title>
     <link rel="stylesheet" href="{{ url_for('static', filename='css/estilo.css') }}">
     <link rel="stylesheet" href="{{ url_for('static', filename='css/menu-mobile.css') }}">
@@ -39,8 +40,10 @@
             <!-- Menu Principal (sempre visível) -->
             <nav class="nav-links nav-main" role="navigation" aria-label="Menu principal">
                 <a href="{{ url_for('paginas.index') }}" class="nav-link" aria-label="Ir para o dashboard">Dashboard</a>
-                <a href="{{ url_for('paginas.mapa') }}" class="nav-link" aria-label="Ir para o mapa de lixeiras">Mapa</a>
+                <a href="{{ url_for('paginas.mapa') }}" class="nav-link" aria-label="Ir para o mapa de coletores">Mapa</a>
                 <a href="{{ url_for('paginas.relatorios') }}" class="nav-link" aria-label="Ir para os relatórios">Relatórios</a>
+                <a href="{{ url_for('paginas.comercial') }}" class="nav-link" aria-label="Ir para o dashboard comercial">Comercial</a>
+                <a href="{{ url_for('paginas.crm') }}" class="nav-link" aria-label="Ir para o CRM">CRM</a>
             </nav>
             <!-- Menu Secundário (no hambúrguer) -->
             <nav class="nav-menu-mobile" id="nav-menu-mobile">
@@ -49,15 +52,24 @@
                     <button class="menu-close" id="menu-close" aria-label="Fechar menu">×</button>
                 </div>
                 <div class="menu-mobile-links" role="menu">
+                    <a href="{{ url_for('paginas.comercial') }}" class="menu-mobile-link" role="menuitem" aria-label="Ir para dashboard comercial">
+                        <img src="{{ url_for('static', filename='icons/grafico_icon.png') }}" alt="Comercial" class="menu-icon"> Comercial
+                    </a>
+                    <a href="{{ url_for('paginas.crm') }}" class="menu-mobile-link" role="menuitem" aria-label="Ir para CRM">
+                        <img src="{{ url_for('static', filename='icons/people_icon.png') }}" alt="CRM" class="menu-icon"> CRM
+                    </a>
+                    <a href="{{ url_for('paginas.contratos') }}" class="menu-mobile-link" role="menuitem" aria-label="Ir para contratos">
+                        <img src="{{ url_for('static', filename='icons/contract_icon.png') }}" alt="Contratos" class="menu-icon"> Contratos
+                    </a>
                     <a href="{{ url_for('paginas.configuracoes') }}" class="menu-mobile-link" role="menuitem" aria-label="Ir para configurações">
-                        ⚙️ Configurações
+                        <img src="{{ url_for('static', filename='icons/configuracao_icon.png') }}" alt="Configurações" class="menu-icon"> Configurações
                     </a>
                     <a href="{{ url_for('paginas.notificacoes') }}" class="menu-mobile-link" role="menuitem" aria-label="Ir para notificações">
-                        🔔 Notificações
+                        <img src="{{ url_for('static', filename='icons/alert_icon.png') }}" alt="Notificações" class="menu-icon"> Notificações
                         <span class="notification-badge" id="notification-badge-mobile" style="display: none;" aria-label="Notificações pendentes">0</span>
                     </a>
                     <a href="{{ url_for('paginas.sobre') }}" class="menu-mobile-link" role="menuitem" aria-label="Ir para página sobre">
-                        ℹ️ Sobre
+                        <img src="{{ url_for('static', filename='icons/sobre_icon.png') }}" alt="Sobre" class="menu-icon"> Sobre
                     </a>
                 </div>
             </nav>
@@ -85,7 +97,7 @@
                 </div>
                 <div class="header-buttons-compact">
                     <button class="btn-atualizar btn-compact" id="btn-atualizar" title="Atualizar">
-                        ↻
+                        <img src="{{ url_for('static', filename='icons/refresh_icon.png') }}" alt="Atualizar" class="btn-compact-icon">
                     </button>
                     <button class="btn-atualizar btn-compact" id="btn-simular" title="Simular Níveis">
                         ▶
@@ -117,19 +129,38 @@
     <script src="https://cdn.jsdelivr.net/npm/leaflet-routing-machine@3.2.12/dist/leaflet-routing-machine.min.js"
             crossorigin=""></script>
     <!-- Localização Português para Leaflet Routing Machine -->
-    <script src="{{ url_for('static', filename='js/routing-pt.js') }}"></script>
+    <script src="{{ url_for('static', filename='js/routing-pt.js') }}?v={{ cache_version }}"></script>
     <!-- Módulos de Roteamento -->
-    <script src="{{ url_for('static', filename='js/routing/algoritmos.js') }}"></script>
-    <script src="{{ url_for('static', filename='js/routing/heuristicas.js') }}"></script>
-    <script src="{{ url_for('static', filename='js/routing/cache.js') }}"></script>
-    <script src="{{ url_for('static', filename='js/routing/osm.js') }}"></script>
-    <script src="{{ url_for('static', filename='js/routing/suavizacao.js') }}"></script>
-    <script src="{{ url_for('static', filename='js/routing/aprendizado.js') }}"></script>
-    <script src="{{ url_for('static', filename='js/routing/otimizacao.js') }}"></script>
-    <script src="{{ url_for('static', filename='js/routing/router.js') }}"></script>
-    <script src="{{ url_for('static', filename='js/api.js') }}"></script>
-    <script src="{{ url_for('static', filename='js/menu.js') }}"></script>
-    <script src="{{ url_for('static', filename='js/dashboard.js') }}"></script>
+    <script src="{{ url_for('static', filename='js/routing/algoritmos.js') }}?v={{ cache_version }}"></script>
+    <script src="{{ url_for('static', filename='js/routing/heuristicas.js') }}?v={{ cache_version }}"></script>
+    <script src="{{ url_for('static', filename='js/routing/cache.js') }}?v={{ cache_version }}"></script>
+    <script src="{{ url_for('static', filename='js/routing/osm.js') }}?v={{ cache_version }}"></script>
+    <script src="{{ url_for('static', filename='js/routing/suavizacao.js') }}?v={{ cache_version }}"></script>
+    <script src="{{ url_for('static', filename='js/routing/aprendizado.js') }}?v={{ cache_version }}"></script>
+    <script src="{{ url_for('static', filename='js/routing/otimizacao.js') }}?v={{ cache_version }}"></script>
+    <script src="{{ url_for('static', filename='js/routing/router.js') }}?v={{ cache_version }}"></script>
+    <!-- Módulos do Mapa -->
+    <script src="{{ url_for('static', filename='js/mapa/core.js') }}?v={{ cache_version }}"></script>
+    <script src="{{ url_for('static', filename='js/mapa/exportacao.js') }}?v={{ cache_version }}"></script>
+    <!-- Socket.IO para WebSocket -->
+    <script src="https://cdn.socket.io/4.5.4/socket.io.min.js" crossorigin="anonymous"></script>
+    <!-- Utilitários (devem ser carregados antes de api.js) -->
+    <script src="{{ url_for('static', filename='js/utils/logger.js') }}?v={{ cache_version }}"></script>
+    <script src="{{ url_for('static', filename='js/utils/retry.js') }}?v={{ cache_version }}"></script>
+    <script src="{{ url_for('static', filename='js/utils/cache.js') }}?v={{ cache_version }}"></script>
+    <script src="{{ url_for('static', filename='js/utils/formatacao.js') }}?v={{ cache_version }}"></script>
+    <script src="{{ url_for('static', filename='js/utils/websocket.js') }}?v={{ cache_version }}"></script>
+    <script src="{{ url_for('static', filename='js/api.js') }}?v={{ cache_version }}"></script>
+    <script src="{{ url_for('static', filename='js/menu.js') }}?v={{ cache_version }}"></script>
+    <script src="{{ url_for('static', filename='js/dashboard.js') }}?v={{ cache_version }}"></script>
+    <script>
+        // Inicializar WebSocket quando a página carregar
+        document.addEventListener('DOMContentLoaded', function() {
+            if (window.WebSocketClient) {
+                window.WebSocketClient.conectar();
+            }
+        });
+    </script>
     {% block extra_js %}{% endblock %}
 </body>
 </html>

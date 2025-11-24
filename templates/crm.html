@@ -1,0 +1,285 @@
+{% extends "base.html" %}
+
+{% block title %}Dashboard-TRONIK - CRM{% endblock %}
+
+{% block extra_css %}
+<link rel="stylesheet" href="{{ url_for('static', filename='css/crm.css') }}">
+{% endblock %}
+
+{% block content %}
+<div class="crm-container">
+    <!-- Header -->
+    <div class="crm-header">
+        <div class="header-title">
+            <h1><img src="{{ url_for('static', filename='icons/people_icon.png') }}" alt="CRM" class="header-icon"> CRM - Pipeline de Vendas</h1>
+            <p class="header-subtitle">Gerencie seus leads e oportunidades de negócio</p>
+        </div>
+        <div class="header-actions">
+            <button class="btn btn-secundario" onclick="atualizarPipeline()" id="btn-atualizar-crm">
+                <img src="{{ url_for('static', filename='icons/refresh_icon.png') }}" alt="Atualizar" class="btn-icon"> Atualizar
+            </button>
+            <button class="btn btn-primario" onclick="abrirModalNovoPipeline()">
+                + Novo Lead
+            </button>
+        </div>
+    </div>
+
+    <!-- KPIs -->
+    <div class="crm-kpis" id="crm-kpis">
+        <div class="kpi-card">
+            <div class="kpi-icon"><img src="{{ url_for('static', filename='icons/grafico_icon.png') }}" alt="Pipelines" class="kpi-icon-img"></div>
+            <div class="kpi-content">
+                <div class="kpi-label">Pipelines Ativos</div>
+                <div class="kpi-value" id="kpi-ativos">-</div>
+            </div>
+        </div>
+        <div class="kpi-card">
+            <div class="kpi-icon"><img src="{{ url_for('static', filename='icons/dinheiro_icon.png') }}" alt="Valor" class="kpi-icon-img"></div>
+            <div class="kpi-content">
+                <div class="kpi-label">Valor em Pipeline</div>
+                <div class="kpi-value" id="kpi-valor-pipeline">-</div>
+            </div>
+        </div>
+        <div class="kpi-card">
+            <div class="kpi-icon"><img src="{{ url_for('static', filename='icons/check_icon.png') }}" alt="Fechados" class="kpi-icon-img"></div>
+            <div class="kpi-content">
+                <div class="kpi-label">Fechados no Mês</div>
+                <div class="kpi-value" id="kpi-fechados-mes">-</div>
+            </div>
+        </div>
+        <div class="kpi-card">
+            <div class="kpi-icon"><img src="{{ url_for('static', filename='icons/prancheta_icon.png') }}" alt="Tarefas" class="kpi-icon-img"></div>
+            <div class="kpi-content">
+                <div class="kpi-label">Tarefas Pendentes</div>
+                <div class="kpi-value" id="kpi-tarefas">-</div>
+            </div>
+        </div>
+        <div class="kpi-card">
+            <div class="kpi-icon"><img src="{{ url_for('static', filename='icons/alert_icon.png') }}" alt="Atrasadas" class="kpi-icon-img"></div>
+            <div class="kpi-content">
+                <div class="kpi-label">Tarefas Atrasadas</div>
+                <div class="kpi-value kpi-alerta" id="kpi-atrasadas">-</div>
+            </div>
+        </div>
+        <div class="kpi-card">
+            <div class="kpi-icon"><img src="{{ url_for('static', filename='icons/calendar.png') }}" alt="Ações" class="kpi-icon-img"></div>
+            <div class="kpi-content">
+                <div class="kpi-label">Próximas Ações</div>
+                <div class="kpi-value" id="kpi-proximas">-</div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Funil de Vendas -->
+    <div class="funil-section">
+        <div class="section-header">
+            <h2><img src="{{ url_for('static', filename='icons/alvo_icon.png') }}" alt="Funil" class="section-icon"> Funil de Vendas</h2>
+            <div class="section-actions">
+                <input type="text" id="busca-pipeline" class="input-busca" placeholder="Buscar pipeline..." onkeyup="filtrarPipeline()">
+            </div>
+        </div>
+        <div class="funil-grid" id="funil-grid">
+            <div class="funil-coluna">
+                <div class="funil-header">
+                    <span>Lead</span>
+                    <span class="funil-count" id="count-lead">0</span>
+                </div>
+                <div class="funil-valor-total" id="valor-lead">R$ 0,00</div>
+                <div class="funil-items" id="funil-lead"></div>
+            </div>
+            <div class="funil-coluna">
+                <div class="funil-header">
+                    <span>Contato Inicial</span>
+                    <span class="funil-count" id="count-contato">0</span>
+                </div>
+                <div class="funil-valor-total" id="valor-contato">R$ 0,00</div>
+                <div class="funil-items" id="funil-contato"></div>
+            </div>
+            <div class="funil-coluna">
+                <div class="funil-header">
+                    <span>Proposta Enviada</span>
+                    <span class="funil-count" id="count-proposta">0</span>
+                </div>
+                <div class="funil-valor-total" id="valor-proposta">R$ 0,00</div>
+                <div class="funil-items" id="funil-proposta"></div>
+            </div>
+            <div class="funil-coluna">
+                <div class="funil-header">
+                    <span>Negociação</span>
+                    <span class="funil-count" id="count-negociacao">0</span>
+                </div>
+                <div class="funil-valor-total" id="valor-negociacao">R$ 0,00</div>
+                <div class="funil-items" id="funil-negociacao"></div>
+            </div>
+            <div class="funil-coluna">
+                <div class="funil-header">
+                    <span>Fechado</span>
+                    <span class="funil-count" id="count-fechado">0</span>
+                </div>
+                <div class="funil-valor-total" id="valor-fechado">R$ 0,00</div>
+                <div class="funil-items" id="funil-fechado"></div>
+            </div>
+        </div>
+    </div>
+
+
+    <!-- Grid Principal -->
+    <div class="crm-grid">
+        <!-- Tarefas Pendentes -->
+        <div class="tarefas-section">
+            <div class="card">
+                <div class="card-header">
+                    <h3><img src="{{ url_for('static', filename='icons/prancheta_icon.png') }}" alt="Tarefas" class="section-icon"> Tarefas Pendentes</h3>
+                    <button class="btn btn-xs btn-primario" onclick="abrirModalNovaTarefa()">
+                        + Nova Tarefa
+                    </button>
+                </div>
+                <div class="card-body">
+                    <div id="tarefas-container">
+                        <p style="text-align: center; color: #64748b; padding: 2rem;">Carregando...</p>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <!-- Pipeline Detalhado -->
+        <div class="pipeline-section">
+            <div class="card">
+                <div class="card-header">
+                    <h3><img src="{{ url_for('static', filename='icons/grafico_icon.png') }}" alt="Pipeline" class="section-icon"> Pipeline Detalhado</h3>
+                    <div class="filtros-pipeline">
+                        <select id="filtro-status" onchange="filtrarPipeline()">
+                            <option value="">Todos os Status</option>
+                            <option value="lead">Lead</option>
+                            <option value="contato_inicial">Contato Inicial</option>
+                            <option value="proposta_enviada">Proposta Enviada</option>
+                            <option value="negociacao">Negociação</option>
+                            <option value="fechado">Fechado</option>
+                            <option value="perdido">Perdido</option>
+                        </select>
+                    </div>
+                </div>
+                <div class="card-body">
+                    <div id="pipeline-container">
+                        <p style="text-align: center; color: #64748b; padding: 2rem;">Carregando...</p>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+
+<!-- Modal Novo Pipeline -->
+<div class="modal" id="modal-novo-pipeline" style="display: none;">
+    <div class="modal-content">
+        <div class="modal-header">
+            <h2>Novo Lead/Pipeline</h2>
+            <button class="modal-close" onclick="fecharModalNovoPipeline()">×</button>
+        </div>
+        <form id="form-novo-pipeline" onsubmit="criarPipeline(event)">
+            <div class="form-row">
+                <div class="form-group">
+                    <label for="coletor-id">Coletor/Cliente (opcional)</label>
+                    <input type="number" id="coletor-id" name="coletor_id" placeholder="ID da coletor">
+                </div>
+                <div class="form-group">
+                    <label for="status-pipeline">Status</label>
+                    <select id="status-pipeline" name="status" required>
+                        <option value="lead">Lead</option>
+                        <option value="contato_inicial">Contato Inicial</option>
+                        <option value="proposta_enviada">Proposta Enviada</option>
+                        <option value="negociacao">Negociação</option>
+                    </select>
+                </div>
+            </div>
+            <div class="form-row">
+                <div class="form-group">
+                    <label for="valor-estimado">Valor Estimado (R$)</label>
+                    <input type="number" id="valor-estimado" name="valor_estimado" step="0.01" min="0" placeholder="0.00">
+                </div>
+                <div class="form-group">
+                    <label for="origem-pipeline">Origem</label>
+                    <select id="origem-pipeline" name="origem">
+                        <option value="indicacao">Indicação</option>
+                        <option value="site">Site</option>
+                        <option value="rede_social">Rede Social</option>
+                        <option value="evento">Evento</option>
+                        <option value="outro">Outro</option>
+                    </select>
+                </div>
+            </div>
+            <div class="form-row">
+                <div class="form-group">
+                    <label for="proxima-acao">Próxima Ação</label>
+                    <input type="text" id="proxima-acao" name="proxima_acao" placeholder="Ex: Ligar para cliente">
+                </div>
+                <div class="form-group">
+                    <label for="data-proxima-acao">Data da Próxima Ação</label>
+                    <input type="datetime-local" id="data-proxima-acao" name="data_proxima_acao">
+                </div>
+            </div>
+            <div class="form-group">
+                <label for="tipo-servico">Tipo de Serviço</label>
+                <select id="tipo-servico" name="tipo_servico">
+                    <option value="coleta">Coleta</option>
+                    <option value="palestra">Palestra</option>
+                    <option value="oficina">Oficina</option>
+                    <option value="contrato">Contrato</option>
+                </select>
+            </div>
+            <div class="form-group">
+                <label for="observacoes-pipeline">Observações</label>
+                <textarea id="observacoes-pipeline" name="observacoes" rows="3" placeholder="Adicione observações relevantes..."></textarea>
+            </div>
+            <div class="form-actions">
+                <button type="button" class="btn btn-secundario" onclick="fecharModalNovoPipeline()">Cancelar</button>
+                <button type="submit" class="btn btn-primario">Criar</button>
+            </div>
+        </form>
+    </div>
+</div>
+
+<!-- Modal Nova Tarefa -->
+<div class="modal" id="modal-nova-tarefa" style="display: none;">
+    <div class="modal-content">
+        <div class="modal-header">
+            <h2>Nova Tarefa</h2>
+            <button class="modal-close" onclick="fecharModalNovaTarefa()">×</button>
+        </div>
+        <form id="form-nova-tarefa" onsubmit="criarTarefa(event)">
+            <div class="form-group">
+                <label for="titulo-tarefa">Título</label>
+                <input type="text" id="titulo-tarefa" name="titulo" required>
+            </div>
+            <div class="form-group">
+                <label for="descricao-tarefa">Descrição</label>
+                <textarea id="descricao-tarefa" name="descricao" rows="3"></textarea>
+            </div>
+            <div class="form-group">
+                <label for="prioridade-tarefa">Prioridade</label>
+                <select id="prioridade-tarefa" name="prioridade">
+                    <option value="baixa">Baixa</option>
+                    <option value="media" selected>Média</option>
+                    <option value="alta">Alta</option>
+                    <option value="urgente">Urgente</option>
+                </select>
+            </div>
+            <div class="form-group">
+                <label for="data-vencimento-tarefa">Data de Vencimento</label>
+                <input type="datetime-local" id="data-vencimento-tarefa" name="data_vencimento">
+            </div>
+            <div class="form-actions">
+                <button type="button" class="btn btn-secundario" onclick="fecharModalNovaTarefa()">Cancelar</button>
+                <button type="submit" class="btn btn-primario">Criar</button>
+            </div>
+        </form>
+    </div>
+</div>
+{% endblock %}
+
+{% block extra_js %}
+<!-- Chart.js para gráficos -->
+<script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.0/dist/chart.umd.min.js"></script>
+<script src="{{ url_for('static', filename='js/crm.js') }}"></script>
+{% endblock %}
+

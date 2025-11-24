@@ -175,10 +175,21 @@ body {
     gap: 5px;
 }
 
+.btn-compact-icon {
+    width: 14px;
+    height: 14px;
+    object-fit: contain;
+    vertical-align: middle;
+    display: block;
+}
+
 .btn-compact {
     padding: 6px 10px !important;
     font-size: 14px !important;
     min-width: auto !important;
+    display: flex;
+    align-items: center;
+    justify-content: center;
 }
 
 .status-text {
@@ -316,6 +327,30 @@ body {
 
 /* Permitir scroll na página de mapa */
 .main-container:has(> .mapa-page-container) {
+    overflow-y: auto !important;
+    overflow-x: hidden !important;
+    height: auto !important;
+    min-height: calc(100vh - 56px);
+}
+
+/* Permitir scroll na página comercial */
+.main-container:has(> .comercial-container) {
+    overflow-y: auto !important;
+    overflow-x: hidden !important;
+    height: auto !important;
+    min-height: calc(100vh - 56px);
+}
+
+/* Permitir scroll na página CRM */
+.main-container:has(> .crm-container) {
+    overflow-y: auto !important;
+    overflow-x: hidden !important;
+    height: auto !important;
+    min-height: calc(100vh - 56px);
+}
+
+/* Permitir scroll na página de contratos */
+.main-container:has(> .contratos-container) {
     overflow-y: auto !important;
     overflow-x: hidden !important;
     height: auto !important;

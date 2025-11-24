@@ -1,10 +1,10 @@
 /*
 JavaScript da Página de Configurações - Dashboard-TRONIK
 ========================================================
-Gerencia formulários de lixeiras e coletas.
+Gerencia formulários de coletores e coletas.
 */
 
-// Carregar lista de lixeiras ao carregar a página
+// Carregar lista de coletores ao carregar a página
 document.addEventListener('DOMContentLoaded', async function() {
     // Permitir scroll na página de configurações
     const mainContainer = document.querySelector('.main-container');
@@ -21,8 +21,8 @@ document.addEventListener('DOMContentLoaded', async function() {
     carregarListaLixeiras();
     carregarListaSensores();
     
-    // Event listener para o formulário de lixeira
-    const formLixeira = document.getElementById('form-nova-lixeira');
+    // Event listener para o formulário de coletor
+    const formLixeira = document.getElementById('form-nova-coletor');
     if (formLixeira) {
         formLixeira.addEventListener('submit', async function(e) {
             e.preventDefault();
@@ -94,19 +94,19 @@ async function carregarDropdowns() {
 // Função para carregar dropdowns do formulário de coleta
 async function carregarDropdownsColeta() {
     try {
-        const [lixeiras, tiposColetor, parceiros] = await Promise.all([
+        const [coletores, tiposColetor, parceiros] = await Promise.all([
             obterTodasLixeiras().catch(() => []),
             obterTiposColetor().catch(() => []),
             obterParceiros().catch(() => [])
         ]);
         
-        // Popular dropdown de lixeiras
-        const selectLixeira = document.getElementById('coleta-lixeira-id');
+        // Popular dropdown de coletores
+        const selectLixeira = document.getElementById('coleta-coletor-id');
         if (selectLixeira) {
-            lixeiras.forEach(lixeira => {
+            coletores.forEach(coletor => {
                 const option = document.createElement('option');
-                option.value = lixeira.id;
-                option.textContent = `#L${String(lixeira.id).padStart(3, '0')} - ${lixeira.localizacao || 'Sem localização'}`;
+                option.value = coletor.id;
+                option.textContent = `#L${String(coletor.id).padStart(3, '0')} - ${coletor.localizacao || 'Sem localização'}`;
                 selectLixeira.appendChild(option);
             });
         }
@@ -152,7 +152,7 @@ async function criarNovaColeta() {
         
         const formData = new FormData(form);
         const dados = {
-            lixeira_id: parseInt(formData.get('lixeira_id')),
+            coletor_id: parseInt(formData.get('coletor_id')),
             data_hora: formData.get('data_hora') + ':00',
             volume_estimado: formData.get('volume_estimado') ? parseFloat(formData.get('volume_estimado')) : null,
             tipo_operacao: formData.get('tipo_operacao') || null,
@@ -195,23 +195,23 @@ async function criarNovaColeta() {
     }
 }
 
-// Função para carregar lista de lixeiras
+// Função para carregar lista de coletores
 async function carregarListaLixeiras() {
     try {
-        const lixeiras = await obterTodasLixeiras();
-        exibirListaLixeiras(lixeiras);
+        const coletores = await obterTodasLixeiras();
+        exibirListaLixeiras(coletores);
     } catch (error) {
-        console.error('Erro ao carregar lixeiras:', error);
-        const container = document.getElementById('lista-lixeiras');
+        console.error('Erro ao carregar coletores:', error);
+        const container = document.getElementById('lista-coletores');
         if (container) {
-            container.innerHTML = '<div class="loading-message">Erro ao carregar lixeiras</div>';
+            container.innerHTML = '<div class="loading-message">Erro ao carregar coletores</div>';
         }
     }
 }
 
 // Função para calcular distância da sede (Haversine)
-function calcularDistanciaSede(lixeira) {
-    if (!lixeira || !lixeira.latitude || !lixeira.longitude) {
+function calcularDistanciaSede(coletor) {
+    if (!coletor || !coletor.latitude || !coletor.longitude) {
         return null;
     }
     
@@ -220,8 +220,8 @@ function calcularDistanciaSede(lixeira) {
         lon: -48.076158282355806
     };
     
-    const lat = parseFloat(lixeira.latitude);
-    const lon = parseFloat(lixeira.longitude);
+    const lat = parseFloat(coletor.latitude);
+    const lon = parseFloat(coletor.longitude);
     
     if (isNaN(lat) || isNaN(lon)) {
         return null;
@@ -251,32 +251,32 @@ function formatarDistancia(distancia) {
     return `${distancia.toFixed(1)}km`;
 }
 
-// Função para exibir lista de lixeiras
-function exibirListaLixeiras(lixeiras) {
-    const container = document.getElementById('lista-lixeiras');
+// Função para exibir lista de coletores
+function exibirListaLixeiras(coletores) {
+    const container = document.getElementById('lista-coletores');
     if (!container) return;
     
-    if (lixeiras.length === 0) {
-        container.innerHTML = '<div class="loading-message">Nenhuma lixeira cadastrada</div>';
+    if (coletores.length === 0) {
+        container.innerHTML = '<div class="loading-message">Nenhuma coletor cadastrada</div>';
         return;
     }
     
-    container.innerHTML = lixeiras.map(lixeira => {
-        const tipoMaterial = lixeira.tipo_material ? lixeira.tipo_material.nome : 'Não especificado';
-        const parceiro = lixeira.parceiro ? lixeira.parceiro.nome : 'N/A';
-        const distanciaSede = calcularDistanciaSede(lixeira);
+    container.innerHTML = coletores.map(coletor => {
+        const tipoMaterial = coletor.tipo_material ? coletor.tipo_material.nome : 'Não especificado';
+        const parceiro = coletor.parceiro ? coletor.parceiro.nome : 'N/A';
+        const distanciaSede = calcularDistanciaSede(coletor);
         const distanciaFormatada = formatarDistancia(distanciaSede);
         return `
-        <div class="lixeira-item">
-            <div class="lixeira-info">
-                <div class="lixeira-id">#L${String(lixeira.id).padStart(3, '0')}</div>
-                <div class="lixeira-local">${lixeira.localizacao || 'Sem localização'}</div>
+        <div class="coletor-item">
+            <div class="coletor-info">
+                <div class="coletor-id">#L${String(coletor.id).padStart(3, '0')}</div>
+                <div class="coletor-local">${coletor.localizacao || 'Sem localização'}</div>
                 <div style="font-size: 12px; color: #7f8c8d; margin-top: 4px;">
                     ${tipoMaterial}${parceiro !== 'N/A' ? ` | ${parceiro}` : ''}${distanciaSede !== null ? ` | 📍 ${distanciaFormatada} da sede` : ''}
                 </div>
             </div>
-            <div class="lixeira-acoes">
-                <button class="btn-delete" data-lixeira-id="${lixeira.id}">Excluir</button>
+            <div class="coletor-acoes">
+                <button class="btn-delete" data-coletor-id="${coletor.id}">Excluir</button>
             </div>
         </div>
     `;
@@ -285,15 +285,15 @@ function exibirListaLixeiras(lixeiras) {
     // Adicionar event listeners aos botões de deletar
     container.querySelectorAll('.btn-delete').forEach(btn => {
         btn.addEventListener('click', function() {
-            const lixeiraId = parseInt(this.getAttribute('data-lixeira-id'));
+            const lixeiraId = parseInt(this.getAttribute('data-coletor-id'));
             deletarLixeiraConfig(lixeiraId);
         });
     });
 }
 
-// Função para criar nova lixeira
+// Função para criar nova coletor
 async function criarNovaLixeira() {
-    const form = document.getElementById('form-nova-lixeira');
+    const form = document.getElementById('form-nova-coletor');
     const mensagem = document.getElementById('form-mensagem');
     if (!form || !mensagem) return;
     
@@ -319,11 +319,9 @@ async function criarNovaLixeira() {
     }
     
     // Adicionar coordenadas se fornecidas
-    const lat = document.getElementById('latitude').value;
-    const lon = document.getElementById('longitude').value;
-    if (lat && lon) {
-        dados.latitude = parseFloat(lat);
-        dados.longitude = parseFloat(lon);
+    if (latEl && lonEl && latEl.value && lonEl.value) {
+        dados.latitude = parseFloat(latEl.value);
+        dados.longitude = parseFloat(lonEl.value);
     }
     
     // Validar
@@ -350,23 +348,23 @@ async function criarNovaLixeira() {
         
         const novaLixeira = await criarLixeira(dados);
         
-        mostrarMensagem(`Lixeira #L${String(novaLixeira.id).padStart(3, '0')} criada com sucesso!`, 'success');
+        mostrarMensagem(`Coletor #L${String(novaLixeira.id).padStart(3, '0')} criada com sucesso!`, 'success');
         form.reset();
         
         // Recarregar lista
         await carregarListaLixeiras();
         
-        // Atualizar dropdown de lixeiras no formulário de coleta
+        // Atualizar dropdown de coletores no formulário de coleta
         await carregarDropdownsColeta();
         
     } catch (error) {
-        console.error('Erro ao criar lixeira:', error);
-        mostrarMensagem('Erro ao criar lixeira: ' + (error.message || 'Erro desconhecido'), 'error');
+        console.error('Erro ao criar coletor:', error);
+        mostrarMensagem('Erro ao criar coletor: ' + (error.message || 'Erro desconhecido'), 'error');
     }
     finally {
         if (btnSubmit) {
             btnSubmit.disabled = false;
-            btnSubmit.textContent = 'Adicionar Lixeira';
+            btnSubmit.textContent = 'Adicionar Coletor';
         }
     }
 }
@@ -388,16 +386,16 @@ function mostrarMensagem(texto, tipo) {
     }
 }
 
-// Função para deletar lixeira (com confirmação melhorada)
+// Função para deletar coletor (com confirmação melhorada)
 async function deletarLixeiraConfig(id) {
-    if (!confirm(`⚠️ Tem certeza que deseja excluir a lixeira #L${String(id).padStart(3, '0')}?\n\nEsta ação não pode ser desfeita e também excluirá todos os sensores e coletas associados.`)) {
+    if (!confirm(`Tem certeza que deseja excluir a coletor #L${String(id).padStart(3, '0')}?\n\nEsta ação não pode ser desfeita e também excluirá todos os sensores e coletas associados.`)) {
         return;
     }
     
     try {
-        mostrarLoading('Deletando lixeira...');
+        mostrarLoading('Deletando coletor...');
         await deletarLixeira(id);
-        mostrarMensagem('Lixeira deletada com sucesso!', 'success');
+        mostrarMensagem('Coletor deletada com sucesso!', 'success');
         await carregarListaLixeiras();
         await carregarListaSensores();
         
@@ -405,8 +403,8 @@ async function deletarLixeiraConfig(id) {
         await carregarDropdownsColeta();
         await carregarDropdownsSensor();
     } catch (error) {
-        console.error('Erro ao deletar lixeira:', error);
-        mostrarMensagem('Erro ao deletar lixeira: ' + (error.message || 'Erro desconhecido'), 'error');
+        console.error('Erro ao deletar coletor:', error);
+        mostrarMensagem('Erro ao deletar coletor: ' + (error.message || 'Erro desconhecido'), 'error');
     } finally {
         esconderLoading();
     }
@@ -419,23 +417,23 @@ async function deletarLixeiraConfig(id) {
 // Função para carregar dropdowns do formulário de sensor
 async function carregarDropdownsSensor() {
     try {
-        const [lixeiras, tiposSensor] = await Promise.all([
+        const [coletores, tiposSensor] = await Promise.all([
             obterTodasLixeiras().catch(() => []),
             obterTiposSensor().catch(() => [])
         ]);
         
-        // Popular dropdown de lixeiras
-        const selectLixeira = document.getElementById('sensor-lixeira-id');
+        // Popular dropdown de coletores
+        const selectLixeira = document.getElementById('sensor-coletor-id');
         if (selectLixeira) {
             // Limpar opções existentes (exceto a primeira)
             while (selectLixeira.children.length > 1) {
                 selectLixeira.removeChild(selectLixeira.lastChild);
             }
             
-            lixeiras.forEach(lixeira => {
+            coletores.forEach(coletor => {
                 const option = document.createElement('option');
-                option.value = lixeira.id;
-                option.textContent = `#L${String(lixeira.id).padStart(3, '0')} - ${lixeira.localizacao || 'Sem localização'}`;
+                option.value = coletor.id;
+                option.textContent = `#L${String(coletor.id).padStart(3, '0')} - ${coletor.localizacao || 'Sem localização'}`;
                 selectLixeira.appendChild(option);
             });
         }
@@ -470,7 +468,7 @@ async function criarNovoSensor() {
         
         const formData = new FormData(form);
         const dados = {
-            lixeira_id: parseInt(formData.get('lixeira_id')),
+            coletor_id: parseInt(formData.get('coletor_id')),
             bateria: formData.get('bateria') ? parseFloat(formData.get('bateria')) : 100.0
         };
         
@@ -532,20 +530,20 @@ function exibirListaSensores(sensores) {
     
     container.innerHTML = sensores.map(sensor => {
         const tipoSensor = sensor.tipo_sensor ? sensor.tipo_sensor.nome : 'Não especificado';
-        const lixeira = sensor.lixeira ? sensor.lixeira.localizacao : 'N/A';
+        const coletor = sensor.coletor ? sensor.coletor.localizacao : 'N/A';
         const bateriaClass = sensor.bateria < 20 ? 'bateria-baixa' : sensor.bateria < 50 ? 'bateria-media' : 'bateria-ok';
         const ultimoPing = sensor.ultimo_ping ? new Date(sensor.ultimo_ping).toLocaleString('pt-BR') : 'N/A';
         
         return `
-        <div class="lixeira-item">
-            <div class="lixeira-info">
-                <div class="lixeira-id">Sensor #${String(sensor.id).padStart(3, '0')}</div>
-                <div class="lixeira-local">Lixeira: ${lixeira}</div>
+        <div class="coletor-item">
+            <div class="coletor-info">
+                <div class="coletor-id">Sensor #${String(sensor.id).padStart(3, '0')}</div>
+                <div class="coletor-local">Coletor: ${coletor}</div>
                 <div style="font-size: 12px; color: #7f8c8d; margin-top: 4px;">
                     ${tipoSensor} | Bateria: <span class="${bateriaClass}">${sensor.bateria.toFixed(1)}%</span> | Último ping: ${ultimoPing}
                 </div>
             </div>
-            <div class="lixeira-acoes">
+            <div class="coletor-acoes">
                 <button class="btn-delete" data-sensor-id="${sensor.id}">Excluir</button>
             </div>
         </div>
@@ -563,7 +561,7 @@ function exibirListaSensores(sensores) {
 
 // Função para deletar sensor (com confirmação)
 async function deletarSensorConfig(id) {
-    if (!confirm(`⚠️ Tem certeza que deseja excluir o sensor #${String(id).padStart(3, '0')}?\n\nEsta ação não pode ser desfeita.`)) {
+    if (!confirm(`Tem certeza que deseja excluir o sensor #${String(id).padStart(3, '0')}?\n\nEsta ação não pode ser desfeita.`)) {
         return;
     }
     

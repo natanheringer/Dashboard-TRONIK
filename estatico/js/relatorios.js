@@ -16,25 +16,40 @@ let distribOrdem = 'desc';          // 'asc' ou 'desc'
 // Guarda os últimos dados usados para poder redesenhar o gráfico
 let ultimoRelatorioDistribuicao = {
     coletasPorLixeira: [],
-    lixeiras: []
+    coletores: []
 };
 
 // Variável global para armazenar dados do relatório atual
 let dadosRelatorioAtual = null;
 
-function processarDadosDistribuicao(coletasPorLixeira, lixeiras, ordem = 'desc') {
+function processarDadosDistribuicao(coletasPorLixeira, coletores, ordem = 'desc') {
+    // Validar inputs
+    if (!Array.isArray(coletasPorLixeira)) {
+        console.warn('coletasPorLixeira não é um array');
+        coletasPorLixeira = [];
+    }
+    if (!Array.isArray(coletores)) {
+        console.warn('coletores não é um array');
+        coletores = [];
+    }
+    
     // Agrupar por região (usando parte do nome da localização)
     const regioes = {};
     
     coletasPorLixeira.forEach(item => {
-        const lixeira = lixeiras.find(l => l.id === item.lixeira_id);
-        if (lixeira) {
+        if (!item || !item.coletor_id) return;
+        const coletor = coletores.find(l => l && l.id === item.coletor_id);
+        if (coletor && coletor.localizacao) {
             // Extrair região do nome (ex: "Asa Norte" de "Asa Norte - Bloco A")
-            const regiao = lixeira.localizacao.split(' - ')[0] || 'Outros';
+            const localizacaoStr = String(coletor.localizacao);
+            const regiao = localizacaoStr.split(' - ')[0] || 'Outros';
             if (!regioes[regiao]) {
                 regioes[regiao] = 0;
             }
-            regioes[regiao] += item.total_coletas;
+            const totalColetas = item.total_coletas || 0;
+            if (typeof totalColetas === 'number' && !isNaN(totalColetas) && isFinite(totalColetas)) {
+                regioes[regiao] += totalColetas;
+            }
         }
     });
 
@@ -234,22 +249,45 @@ function processarDadosEvolucao(coletas) {
     // Agrupar coletas por data
     const coletasPorData = {};
     
+    if (!Array.isArray(coletas)) {
+        coletas = [];
+    }
+    
     coletas.forEach(coleta => {
-        const data = coleta.data_hora ? new Date(coleta.data_hora) : null;
-        if (!data) return;
-        const dataStr = data.toLocaleDateString('pt-BR', { day: '2-digit', month: '2-digit' });
-        
-        if (!coletasPorData[dataStr]) {
-            coletasPorData[dataStr] = 0;
+        if (!coleta || !coleta.data_hora) return;
+        try {
+            const data = new Date(coleta.data_hora);
+            if (isNaN(data.getTime())) return;
+            const dataStr = data.toLocaleDateString('pt-BR', { day: '2-digit', month: '2-digit' });
+            
+            if (!coletasPorData[dataStr]) {
+                coletasPorData[dataStr] = 0;
+            }
+            coletasPorData[dataStr]++;
+        } catch (e) {
+            console.warn('Erro ao processar data da coleta:', e);
         }
-        coletasPorData[dataStr]++;
     });
     
     // Ordenar por data
     const datas = Object.keys(coletasPorData).sort((a, b) => {
-        const [diaA, mesA] = a.split('/');
-        const [diaB, mesB] = b.split('/');
-        return new Date(2024, mesA - 1, diaA) - new Date(2024, mesB - 1, diaB);
+        try {
+            const [diaA, mesA] = a.split('/');
+            const [diaB, mesB] = b.split('/');
+            const mesANum = parseInt(mesA, 10);
+            const mesBNum = parseInt(mesB, 10);
+            const diaANum = parseInt(diaA, 10);
+            const diaBNum = parseInt(diaB, 10);
+            
+            if (isNaN(mesANum) || isNaN(mesBNum) || isNaN(diaANum) || isNaN(diaBNum)) {
+                return 0;
+            }
+            
+            return new Date(2024, mesANum - 1, diaANum) - new Date(2024, mesBNum - 1, diaBNum);
+        } catch (e) {
+            console.warn('Erro ao ordenar datas:', e);
+            return 0;
+        }
     });
     
     return {
@@ -259,19 +297,30 @@ function processarDadosEvolucao(coletas) {
 }
 
 // Função para processar dados de distribuição por região
-function processarDadosDistribuicaoRegiao(coletasPorLixeira, lixeiras) {
+function processarDadosDistribuicaoRegiao(coletasPorLixeira, coletores) {
     // Agrupar por região (usando parte do nome da localização)
     const regioes = {};
     
+    if (!Array.isArray(coletasPorLixeira)) {
+        coletasPorLixeira = [];
+    }
+    if (!Array.isArray(coletores)) {
+        coletores = [];
+    }
+    
     coletasPorLixeira.forEach(item => {
-        const lixeira = lixeiras.find(l => l.id === item.lixeira_id);
-        if (lixeira) {
+        if (!item || !item.coletor_id) return;
+        const coletor = coletores.find(l => l && l.id === item.coletor_id);
+        if (coletor && coletor.localizacao) {
             // Extrair região do nome (ex: "Asa Norte" de "Asa Norte - Bloco A")
-            const regiao = lixeira.localizacao.split(' - ')[0] || 'Outros';
+            const regiao = String(coletor.localizacao).split(' - ')[0] || 'Outros';
             if (!regioes[regiao]) {
                 regioes[regiao] = 0;
             }
-            regioes[regiao] += item.total_coletas;
+            const totalColetas = item.total_coletas || 0;
+            if (typeof totalColetas === 'number' && !isNaN(totalColetas) && isFinite(totalColetas)) {
+                regioes[regiao] += totalColetas;
+            }
         }
     });
     
@@ -285,11 +334,22 @@ function processarDadosDistribuicaoRegiao(coletasPorLixeira, lixeiras) {
 function processarDadosHorarios(coletas) {
     const horarios = Array(24).fill(0);
     
+    if (!Array.isArray(coletas)) {
+        coletas = [];
+    }
+    
     coletas.forEach(coleta => {
-        const data = coleta.data_hora ? new Date(coleta.data_hora) : null;
-        if (!data) return;
-        const hora = data.getHours();
-        horarios[hora]++;
+        if (!coleta || !coleta.data_hora) return;
+        try {
+            const data = new Date(coleta.data_hora);
+            if (isNaN(data.getTime())) return;
+            const hora = data.getHours();
+            if (hora >= 0 && hora < 24) {
+                horarios[hora]++;
+            }
+        } catch (e) {
+            console.warn('Erro ao processar hora da coleta:', e);
+        }
     });
     
     return {
@@ -360,7 +420,7 @@ function atualizarGraficoEvolucao(dados) {
 }
 
 // Função para criar/atualizar gráfico de distribuição
-function atualizarGraficoDistribuicao(coletasPorLixeira, lixeiras) {
+function atualizarGraficoDistribuicao(coletasPorLixeira, coletores) {
     const ctx = document.getElementById('chart-distribuicao');
     
     if (!ctx) {
@@ -375,12 +435,12 @@ function atualizarGraficoDistribuicao(coletasPorLixeira, lixeiras) {
     // Guarda os dados pra reutilizar quando mudar orientação/ordem
     ultimoRelatorioDistribuicao = {
         coletasPorLixeira: coletasPorLixeira || [],
-        lixeiras: lixeiras || []
+        coletores: coletores || []
     };
     
     const processed = processarDadosDistribuicao(
         ultimoRelatorioDistribuicao.coletasPorLixeira,
-        ultimoRelatorioDistribuicao.lixeiras,
+        ultimoRelatorioDistribuicao.coletores,
         distribOrdem // usa o estado global de ordenação
     );
     
@@ -463,16 +523,22 @@ function processarDadosFinanceiros(coletas) {
         }
         
         const volume = coleta.volume_estimado || 0;
-        const lucroPorKg = coleta.lucro_por_kg || 0;
         const km = coleta.km_percorrido || 0;
         const precoCombustivel = coleta.preco_combustivel || 0;
         
         // Cálculo correto do custo: (KM / consumo_km_por_litro) * preco_combustivel
         // Consumo padrão: 4 km/L (deve corresponder ao backend)
         const CONSUMO_KM_POR_LITRO = 4.0;
+        const LUCRO_BRUTO_POR_KG = 1.0; // R$ 1,00 por kg (valor bruto fixo)
+        
+        // Calcular custo de combustível
         const custoCombustivel = (km / CONSUMO_KM_POR_LITRO) * precoCombustivel;
         
-        dadosPorData[dataStr].lucro += volume * lucroPorKg;
+        // Calcular lucro líquido: (lucro bruto por kg * volume) - custo combustível
+        const lucroBruto = volume * LUCRO_BRUTO_POR_KG;
+        const lucroLiquido = lucroBruto - custoCombustivel;
+        
+        dadosPorData[dataStr].lucro += lucroLiquido;
         dadosPorData[dataStr].custo += custoCombustivel;
     });
     
@@ -642,15 +708,43 @@ function atualizarGraficoHorarios(coletas) {
 
 async function carregarRelatorio() {
     try {
-        const dataInicio = document.getElementById('data-inicio').value;
-        const dataFim = document.getElementById('data-fim').value;
-        const parceiroId = document.getElementById('filtro-parceiro').value || null;
-        const tipoOperacao = document.getElementById('filtro-tipo-operacao').value || null;
+        // Validar elementos DOM antes de acessar
+        const dataInicioEl = document.getElementById('data-inicio');
+        const dataFimEl = document.getElementById('data-fim');
+        const parceiroEl = document.getElementById('filtro-parceiro');
+        const tipoOperacaoEl = document.getElementById('filtro-tipo-operacao');
+        
+        if (!dataInicioEl || !dataFimEl || !parceiroEl || !tipoOperacaoEl) {
+            console.error('Elementos de filtro não encontrados');
+            return;
+        }
+        
+        const dataInicio = dataInicioEl.value;
+        const dataFim = dataFimEl.value;
+        const parceiroId = parceiroEl.value || null;
+        const tipoOperacao = tipoOperacaoEl.value || null;
         
         // Debug: verificar filtros sendo enviados
         console.log('Carregando relatório:', { dataInicio, dataFim, parceiroId, tipoOperacao });
         
-        const relatorio = await obterRelatorios(dataInicio, dataFim, parceiroId, tipoOperacao);
+        let relatorio = await obterRelatorios(dataInicio, dataFim, parceiroId, tipoOperacao);
+        
+        // Ajustar para formato paginado (se aplicável)
+        if (relatorio && relatorio.detalhes && Array.isArray(relatorio.detalhes)) {
+            // Já está no formato correto
+        } else if (relatorio && relatorio.dados) {
+            // Formato paginado - ajustar estrutura
+            relatorio = {
+                ...relatorio,
+                detalhes: relatorio.dados || [],
+                resumo: relatorio.resumo || {}
+            };
+        }
+        
+        // Garantir que detalhes é um array
+        if (!relatorio.detalhes || !Array.isArray(relatorio.detalhes)) {
+            relatorio.detalhes = [];
+        }
         
         // Armazenar dados para exportação
         dadosRelatorioAtual = relatorio;
@@ -658,8 +752,18 @@ async function carregarRelatorio() {
         // Debug: verificar quantas coletas foram retornadas
         console.log('Coletas retornadas:', relatorio.detalhes.length);
         
-        // Carregar lixeiras para gráfico de distribuição
-        const lixeiras = await obterTodasLixeiras();
+        // Carregar coletores para gráfico de distribuição
+        let coletores = [];
+        try {
+            coletores = await obterTodasLixeiras();
+            if (!Array.isArray(coletores)) {
+                console.warn('Lixeiras não é um array, convertendo...');
+                coletores = coletores && coletores.dados ? coletores.dados : [];
+            }
+        } catch (error) {
+            console.error('Erro ao carregar coletores:', error);
+            coletores = [];
+        }
         
         // Atualizar KPIs (usando os novos IDs)
         const kpiTotalColetas = document.getElementById('kpi-total-coletas');
@@ -689,35 +793,61 @@ async function carregarRelatorio() {
         atualizarGraficoHorarios(relatorio.detalhes || []);
         atualizarGraficoFinanceiro(relatorio.detalhes || []);
         
-        // Gráfico de distribuição só se houver coletas por lixeira
+        // Gráfico de distribuição só se houver coletas por coletor
         if (relatorio.resumo && relatorio.resumo.coletas_por_lixeira) {
-            atualizarGraficoDistribuicao(relatorio.resumo.coletas_por_lixeira, lixeiras);
+            atualizarGraficoDistribuicao(relatorio.resumo.coletas_por_lixeira, coletores);
         } else {
-            atualizarGraficoDistribuicao([], lixeiras);
+            atualizarGraficoDistribuicao([], coletores);
         }
         
         // Atualizar tabela
         const tbody = document.getElementById('relatorio-tbody');
+        if (!tbody) {
+            console.error('Elemento relatorio-tbody não encontrado');
+            return;
+        }
+        
+        // Sanitizar função
+        const escapeHtml = window.Formatacao && window.Formatacao.escapeHtml ? window.Formatacao.escapeHtml : (text) => {
+            const div = document.createElement('div');
+            div.textContent = text;
+            return div.innerHTML;
+        };
+        
         if (relatorio.detalhes.length === 0) {
             tbody.innerHTML = '<tr><td colspan="8" style="text-align: center;">Nenhuma coleta no período</td></tr>';
         } else {
             tbody.innerHTML = relatorio.detalhes.map(coleta => {
                 const data = coleta.data_hora ? new Date(coleta.data_hora) : null;
-                const lixeiraNome = coleta.lixeira ? coleta.lixeira.localizacao : `Lixeira ${coleta.lixeira_id}`;
+                const lixeiraNome = coleta.coletor ? escapeHtml(coleta.coletor.localizacao || `Coletor ${coleta.coletor_id}`) : `Coletor ${coleta.coletor_id}`;
                 const volume = coleta.volume_estimado ? Math.round(coleta.volume_estimado) : 0;
                 const km = coleta.km_percorrido ? Math.round(coleta.km_percorrido * 10) / 10 : 'N/A';
-                const parceiro = coleta.parceiro ? coleta.parceiro.nome : 'N/A';
-                const tipoOperacao = coleta.tipo_operacao || 'N/A';
-                const lucro = coleta.lucro_por_kg ? `R$ ${coleta.lucro_por_kg.toFixed(2)}` : 'N/A';
+                const parceiroNome = coleta.parceiro ? escapeHtml(coleta.parceiro.nome) : 'N/A';
+                const tipoOperacao = escapeHtml(coleta.tipo_operacao || 'N/A');
+                // Calcular lucro líquido por kg (bruto R$ 1,00 - custos)
+                const LUCRO_BRUTO_POR_KG_FIXO = 1.0;
+                const CONSUMO_KM_POR_LITRO_FIXO = 4.0;
+                const volCalc = coleta.volume_estimado || 0;
+                const kmCalc = typeof km === 'number' ? km : (coleta.km_percorrido || 0);
+                const precoCalc = coleta.preco_combustivel || 0;
+                let lucroLiquidoPorKg = 0;
+                if (volCalc > 0 && kmCalc > 0) {
+                    const custoCombustivel = (kmCalc / CONSUMO_KM_POR_LITRO_FIXO) * precoCalc;
+                    const custoPorKg = custoCombustivel / volCalc;
+                    lucroLiquidoPorKg = LUCRO_BRUTO_POR_KG_FIXO - custoPorKg;
+                } else if (volCalc > 0) {
+                    lucroLiquidoPorKg = LUCRO_BRUTO_POR_KG_FIXO; // Sem custos se não houver km
+                }
+                const lucro = `R$ ${lucroLiquidoPorKg.toFixed(2)}`;
                 
                 return `
                     <tr>
                         <td>${data ? data.toLocaleString('pt-BR') : 'N/A'}</td>
-                        <td>#L${String(coleta.lixeira_id).padStart(3, '0')}</td>
+                        <td>#L${String(coleta.coletor_id).padStart(3, '0')}</td>
                         <td>${lixeiraNome}</td>
                         <td>${volume}KG</td>
                         <td>${km}${typeof km === 'number' ? 'km' : ''}</td>
-                        <td>${parceiro}</td>
+                        <td>${parceiroNome}</td>
                         <td>${tipoOperacao}</td>
                         <td>${lucro}</td>
                     </tr>
@@ -725,8 +855,8 @@ async function carregarRelatorio() {
             }).join('');
         }
         
-        // Atualizar top lixeiras
-        const topList = document.getElementById('top-lixeiras');
+        // Atualizar top coletores
+        const topList = document.getElementById('top-coletores');
         if (topList) {
             if (relatorio.resumo.coletas_por_lixeira && relatorio.resumo.coletas_por_lixeira.length > 0) {
                 const top = relatorio.resumo.coletas_por_lixeira
@@ -734,11 +864,11 @@ async function carregarRelatorio() {
                     .slice(0, 5);
                 
                 topList.innerHTML = top.map(item => {
-                    const lixeira = lixeiras.find(l => l.id === item.lixeira_id);
-                    const nome = lixeira ? lixeira.localizacao : `Lixeira ${item.lixeira_id}`;
+                    const coletor = coletores.find(l => l.id === item.coletor_id);
+                    const nome = coletor ? coletor.localizacao : `Coletor ${item.coletor_id}`;
                     return `
                         <div class="top-item">
-                            <span class="top-name">#L${String(item.lixeira_id).padStart(3, '0')} - ${nome}</span>
+                            <span class="top-name">#L${String(item.coletor_id).padStart(3, '0')} - ${nome}</span>
                             <span class="top-value">${item.total_coletas} coletas</span>
                         </div>
                     `;
@@ -771,7 +901,7 @@ async function carregarRelatorio() {
             
             if (lixeirasComProblemas > 0) {
                 resumoAtencao.textContent = 
-                    `${lixeirasComProblemas} lixeira(s) com alto número de coletas no período. Verifique necessidade de otimização de rotas.`;
+                    `${lixeirasComProblemas} coletor(s) com alto número de coletas no período. Verifique necessidade de otimização de rotas.`;
             } else {
                 resumoAtencao.textContent = 
                     'Nenhum ponto de atenção crítico no período selecionado.';
@@ -782,7 +912,7 @@ async function carregarRelatorio() {
             // Recomendações
             if (relatorio.resumo.total_coletas > 50) {
                 resumoRecomendacoes.textContent = 
-                    'Aumentar frequência nas lixeiras críticas. Implementar coletas preventivas nos horários de pico.';
+                    'Aumentar frequência nas coletores críticas. Implementar coletas preventivas nos horários de pico.';
             } else if (relatorio.resumo.total_coletas > 0) {
                 resumoRecomendacoes.textContent = 
                     'Monitorar padrões de coleta para identificar horários de pico e otimizar rotas.';
@@ -817,11 +947,11 @@ document.addEventListener('DOMContentLoaded', function () {
     }
 
     function redesenharGraficoDistribuicaoSePossivel() {
-        if (ultimoRelatorioDistribuicao.lixeiras.length > 0 ||
+        if (ultimoRelatorioDistribuicao.coletores.length > 0 ||
             ultimoRelatorioDistribuicao.coletasPorLixeira.length > 0) {
             atualizarGraficoDistribuicao(
                 ultimoRelatorioDistribuicao.coletasPorLixeira,
-                ultimoRelatorioDistribuicao.lixeiras
+                ultimoRelatorioDistribuicao.coletores
             );
         }
     }
@@ -876,7 +1006,7 @@ function exportarColetasCSV() {
         const headers = [
             'ID',
             'Data/Hora',
-            'Lixeira ID',
+            'Coletor ID',
             'Localização',
             'Volume (KG)',
             'KM Percorrido',
@@ -895,23 +1025,30 @@ function exportarColetasCSV() {
         coletas.forEach(coleta => {
             const data = coleta.data_hora ? new Date(coleta.data_hora) : null;
             const dataFormatada = data ? data.toLocaleString('pt-BR') : 'N/A';
-            const lixeiraNome = coleta.lixeira ? coleta.lixeira.localizacao : 'N/A';
+            const lixeiraNome = coleta.coletor ? coleta.coletor.localizacao : 'N/A';
             const parceiroNome = coleta.parceiro ? coleta.parceiro.nome : 'N/A';
             const tipoColetorNome = coleta.tipo_coletor ? coleta.tipo_coletor.nome : 'N/A';
             const volume = coleta.volume_estimado || 0;
             const km = coleta.km_percorrido || 0;
             const precoCombustivel = coleta.preco_combustivel || 0;
-            const lucroPorKg = coleta.lucro_por_kg || 0;
-            const lucroTotal = volume * lucroPorKg;
             // Cálculo correto do custo: (KM / consumo_km_por_litro) * preco_combustivel
             const CONSUMO_KM_POR_LITRO = 4.0;
+            const LUCRO_BRUTO_POR_KG = 1.0; // R$ 1,00 por kg (valor bruto fixo)
             const custoCombustivel = (km / CONSUMO_KM_POR_LITRO) * precoCombustivel;
+            // Calcular lucro líquido por kg e total
+            let lucroPorKg = 0;
+            let lucroTotal = 0;
+            if (volume > 0) {
+                const custoPorKg = custoCombustivel / volume;
+                lucroPorKg = LUCRO_BRUTO_POR_KG - custoPorKg;
+                lucroTotal = volume * lucroPorKg;
+            }
             const emissaoMTR = coleta.emissao_mtr ? 'SIM' : 'NÃO';
             
             const row = [
                 coleta.id || '',
                 dataFormatada,
-                coleta.lixeira_id || '',
+                coleta.coletor_id || '',
                 `"${lixeiraNome}"`,
                 volume.toFixed(2),
                 km.toFixed(1),

@@ -13,10 +13,10 @@
         <h1 class="notificacoes-title">Notificações</h1>
         <div class="notificacoes-actions">
             <button class="btn-primary" id="btn-processar-alertas" title="Processar alertas e enviar notificações" aria-label="Processar alertas e enviar notificações por email">
-                🔔 Processar Alertas
+                <img src="{{ url_for('static', filename='icons/alert_icon.png') }}" alt="Processar" class="btn-icon"> Processar Alertas
             </button>
             <button class="btn-secondary" id="btn-atualizar" title="Atualizar lista" aria-label="Atualizar lista de notificações">
-                ↻ Atualizar
+                <img src="{{ url_for('static', filename='icons/refresh_icon.png') }}" alt="Atualizar" class="btn-icon"> Atualizar
             </button>
         </div>
     </div>
@@ -27,7 +27,7 @@
             <label for="filter-tipo" aria-label="Filtrar por tipo de notificação">Tipo:</label>
             <select class="filter-select" id="filter-tipo" aria-label="Selecione o tipo de notificação">
                 <option value="">Todos</option>
-                <option value="lixeira_cheia">Lixeira Cheia</option>
+                <option value="lixeira_cheia">Coletor Cheia</option>
                 <option value="bateria_baixa">Bateria Baixa</option>
             </select>
         </div>
@@ -48,8 +48,8 @@
             </select>
         </div>
         <div class="filter-group">
-            <label for="filter-lixeira" aria-label="Filtrar por ID da lixeira">Lixeira:</label>
-            <input type="number" class="filter-input" id="filter-lixeira" placeholder="ID da lixeira..." aria-label="Digite o ID da lixeira">
+            <label for="filter-coletor" aria-label="Filtrar por ID da coletor">Coletor:</label>
+            <input type="number" class="filter-input" id="filter-coletor" placeholder="ID da coletor..." aria-label="Digite o ID da coletor">
         </div>
         <button class="btn-secondary" id="btn-limpar-filtros" aria-label="Limpar todos os filtros">Limpar Filtros</button>
     </div>

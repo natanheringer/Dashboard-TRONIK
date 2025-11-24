@@ -4,6 +4,23 @@ Estilos do Mapa - Dashboard-TRONIK
 Estilos específicos para visualização de mapa com Leaflet.
 */
 
+/* Ícones */
+.btn-icon {
+    width: 18px;
+    height: 18px;
+    object-fit: contain;
+    vertical-align: middle;
+    margin-right: 0.5rem;
+}
+
+.inline-icon {
+    width: 16px;
+    height: 16px;
+    object-fit: contain;
+    vertical-align: middle;
+    margin-right: 0.25rem;
+}
+
 /* Container do mapa (página dedicada) */
 .mapa-page-container {
     width: 100%;
@@ -83,7 +100,7 @@ Estilos específicos para visualização de mapa com Leaflet.
     position: relative;
 }
 
-.mapa-container-full #mapa-lixeiras {
+.mapa-container-full #mapa-coletores {
     width: 100%;
     height: 100%;
     min-height: 500px;
@@ -146,7 +163,7 @@ Estilos específicos para visualização de mapa com Leaflet.
     position: relative;
 }
 
-.mapa-container #mapa-lixeiras {
+.mapa-container #mapa-coletores {
     width: 100%;
     height: 100%;
     min-height: 400px;
@@ -199,16 +216,16 @@ Estilos específicos para visualização de mapa com Leaflet.
 }
 
 /* Popup customizado */
-.popup-lixeira .leaflet-popup-content-wrapper {
+.popup-coletor .leaflet-popup-content-wrapper {
     border-radius: 8px;
     box-shadow: 0 4px 12px rgba(0, 0, 0, 0.15);
 }
 
-.popup-lixeira-content {
+.popup-coletor-content {
     padding: 8px;
 }
 
-.popup-lixeira-content h3 {
+.popup-coletor-content h3 {
     margin: 0 0 12px 0;
     font-size: 16px;
     font-weight: 600;
@@ -296,7 +313,7 @@ Estilos específicos para visualização de mapa com Leaflet.
 }
 
 /* Marcador customizado */
-.marcador-lixeira {
+.marcador-coletor {
     background: transparent;
     border: none;
 }
@@ -423,7 +440,7 @@ Estilos específicos para visualização de mapa com Leaflet.
         min-height: 400px;
     }
 
-    .mapa-container-full #mapa-lixeiras {
+    .mapa-container-full #mapa-coletores {
         min-height: 400px;
     }
 
@@ -479,7 +496,7 @@ Estilos específicos para visualização de mapa com Leaflet.
         min-height: 350px;
     }
 
-    .mapa-container-full #mapa-lixeiras {
+    .mapa-container-full #mapa-coletores {
         min-height: 350px;
     }
 }
@@ -506,5 +523,197 @@ Estilos específicos para visualização de mapa com Leaflet.
 
 .leaflet-control-zoom a:hover {
     background-color: #f8f9fa;
+}
+
+/* Estilos para Leaflet Routing Machine - Formatação das Instruções */
+.leaflet-routing-container {
+    background: white;
+    border-radius: 8px;
+    box-shadow: 0 4px 12px rgba(0, 0, 0, 0.15);
+    max-width: 400px;
+    max-height: 600px;
+    overflow-y: auto;
+    font-family: inherit;
+}
+
+.leaflet-routing-container h2 {
+    font-size: 16px;
+    font-weight: 600;
+    color: #333;
+    margin: 0;
+    padding: 12px 16px;
+    border-bottom: 2px solid #e0e0e0;
+    background-color: #f8f9fa;
+    border-radius: 8px 8px 0 0;
+}
+
+.leaflet-routing-alt {
+    padding: 0;
+    margin: 0;
+    list-style: none;
+}
+
+.leaflet-routing-alt-minimized {
+    display: none;
+}
+
+.leaflet-routing-instruction {
+    padding: 12px 16px;
+    border-bottom: 1px solid #e0e0e0;
+    display: flex;
+    align-items: flex-start;
+    gap: 12px;
+    transition: background-color 0.2s;
+}
+
+.leaflet-routing-instruction:hover {
+    background-color: #f8f9fa;
+}
+
+.leaflet-routing-instruction:last-child {
+    border-bottom: none;
+}
+
+.leaflet-routing-icon {
+    flex-shrink: 0;
+    width: 24px;
+    height: 24px;
+    margin-top: 2px;
+}
+
+.leaflet-routing-instruction-text {
+    flex: 1;
+    font-size: 14px;
+    line-height: 1.6;
+    color: #333;
+    word-wrap: break-word;
+    white-space: normal;
+    display: block;
+}
+
+.leaflet-routing-instruction-text strong {
+    font-weight: 600;
+    color: #27ae60;
+    display: block;
+    margin-bottom: 4px;
+}
+
+/* Classes para formatação de instruções */
+.instrucao-texto {
+    display: block;
+    margin-bottom: 6px;
+    line-height: 1.5;
+}
+
+.instrucao-distancia {
+    display: inline-block;
+    font-weight: 600;
+    color: #666;
+    font-size: 13px;
+    margin-left: 8px;
+    white-space: nowrap;
+}
+
+.leaflet-routing-instruction-distance {
+    flex-shrink: 0;
+    font-size: 13px;
+    font-weight: 600;
+    color: #666;
+    margin-left: 8px;
+    white-space: nowrap;
+    min-width: 60px;
+    text-align: right;
+}
+
+.leaflet-routing-geocoders {
+    padding: 12px 16px;
+    border-bottom: 1px solid #e0e0e0;
+}
+
+.leaflet-routing-geocoders input {
+    width: 100%;
+    padding: 8px 12px;
+    border: 1px solid #ddd;
+    border-radius: 4px;
+    font-size: 14px;
+    margin-bottom: 8px;
+}
+
+.leaflet-routing-geocoders input:last-child {
+    margin-bottom: 0;
+}
+
+.leaflet-routing-error {
+    padding: 12px 16px;
+    color: #dc3545;
+    font-size: 14px;
+    background-color: #f8d7da;
+    border-radius: 4px;
+    margin: 8px;
+}
+
+.leaflet-routing-collapse-btn {
+    position: absolute;
+    top: 8px;
+    right: 8px;
+    background: none;
+    border: none;
+    font-size: 18px;
+    cursor: pointer;
+    color: #666;
+    padding: 4px 8px;
+    border-radius: 4px;
+    transition: background-color 0.2s;
+}
+
+.leaflet-routing-collapse-btn:hover {
+    background-color: #e9ecef;
+}
+
+/* Formatação específica para instruções de rota */
+.leaflet-routing-instruction-text {
+    display: block;
+    line-height: 1.6;
+}
+
+.leaflet-routing-instruction-text br {
+    display: block;
+    content: "";
+    margin: 4px 0;
+}
+
+/* Garantir quebra de linha adequada */
+.leaflet-routing-instruction {
+    flex-wrap: wrap;
+}
+
+.leaflet-routing-instruction-text {
+    display: block;
+    width: 100%;
+    margin-bottom: 4px;
+}
+
+.leaflet-routing-instruction-distance {
+    display: inline-block;
+    margin-left: auto;
+    margin-top: 0;
+}
+
+/* Responsividade para painel de rotas */
+@media (max-width: 768px) {
+    .leaflet-routing-container {
+        max-width: 100%;
+        max-height: 400px;
+    }
+    
+    .leaflet-routing-instruction {
+        flex-direction: column;
+        gap: 8px;
+    }
+    
+    .leaflet-routing-instruction-distance {
+        margin-left: 0;
+        text-align: left;
+    }
 }
 

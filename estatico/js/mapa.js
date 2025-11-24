@@ -1,7 +1,7 @@
 /*
 Módulo de Mapa - Dashboard-TRONIK
 ==================================
-Gerencia a visualização de lixeiras em mapa usando Leaflet.
+Gerencia a visualização de coletores em mapa usando Leaflet.
 Módulo independente e desacoplado do dashboard principal.
 */
 
@@ -25,7 +25,7 @@ let marcadores = {};
 let grupoMarcadores = null;
 let markerClusterGroup = null; // Grupo de clusters
 let routingControl = null; // Controle de rotas
-let lixeiras = []; // Armazenar lixeiras para acesso em funções como calcularRotaSede
+let coletores = []; // Armazenar coletores para acesso em funções como calcularRotaSede
 
 /**
  * Inicializa o mapa Leaflet
@@ -91,13 +91,13 @@ function inicializarMapa(containerId, options = {}) {
 }
 
 /**
- * Obtém cor do marcador baseado no status da lixeira
- * @param {Object} lixeira - Objeto lixeira
+ * Obtém cor do marcador baseado no status da coletor
+ * @param {Object} coletor - Objeto coletor
  * @returns {string} Cor em hexadecimal
  */
-function obterCorMarcador(lixeira) {
-    const nivel = lixeira.nivel_preenchimento || 0;
-    const status = lixeira.status || 'OK';
+function obterCorMarcador(coletor) {
+    const nivel = coletor.nivel_preenchimento || 0;
+    const status = coletor.status || 'OK';
 
     if (nivel >= 95 || status === 'CRITICO') return '#dc3545'; // Vermelho
     if (nivel >= 80 || status === 'ALERTA') return '#ffc107';   // Amarelo
@@ -112,7 +112,7 @@ function obterCorMarcador(lixeira) {
  */
 function criarIconeMarcador(cor) {
     return L.divIcon({
-        className: 'marcador-lixeira',
+        className: 'marcador-coletor',
         html: `<div style="background-color: ${cor}; border: 2px solid white; border-radius: 50%; width: 20px; height: 20px; box-shadow: 0 2px 4px rgba(0,0,0,0.3);"></div>`,
         iconSize: [20, 20],
         iconAnchor: [10, 10]
@@ -120,34 +120,34 @@ function criarIconeMarcador(cor) {
 }
 
 /**
- * Adiciona marcador de lixeira no mapa
- * @param {Object} lixeira - Objeto lixeira com latitude e longitude
+ * Adiciona marcador de coletor no mapa
+ * @param {Object} coletor - Objeto coletor com latitude e longitude
  */
-function adicionarMarcadorLixeira(lixeira) {
+function adicionarMarcadorLixeira(coletor) {
     if (!mapa) {
         console.warn('Mapa não inicializado');
         return;
     }
 
     // Verificar se tem coordenadas
-    if (!lixeira.latitude || !lixeira.longitude) {
-        return; // Pula lixeiras sem coordenadas
+    if (!coletor.latitude || !coletor.longitude) {
+        return; // Pula coletores sem coordenadas
     }
 
-    const cor = obterCorMarcador(lixeira);
+    const cor = obterCorMarcador(coletor);
     const icone = criarIconeMarcador(cor);
 
     // Criar popup com informações
-    const popupContent = criarPopupLixeira(lixeira);
+    const popupContent = criarPopupLixeira(coletor);
 
     // Criar marcador
     const marcador = L.marker(
-        [lixeira.latitude, lixeira.longitude],
+        [coletor.latitude, coletor.longitude],
         { icon: icone }
     )
     .bindPopup(popupContent, {
         maxWidth: 300,
-        className: 'popup-lixeira'
+        className: 'popup-coletor'
     });
 
     // Adicionar ao grupo de clusters (se disponível) ou grupo normal
@@ -158,27 +158,27 @@ function adicionarMarcadorLixeira(lixeira) {
     }
 
     // Armazenar referência
-    marcadores[lixeira.id] = marcador;
+    marcadores[coletor.id] = marcador;
 
     return marcador;
 }
 
 /**
  * Cria conteúdo do popup do marcador
- * @param {Object} lixeira - Objeto lixeira
+ * @param {Object} coletor - Objeto coletor
  * @returns {string} HTML do popup
  */
-function criarPopupLixeira(lixeira) {
-    const nivel = lixeira.nivel_preenchimento || 0;
-    const statusTexto = determinarStatusTexto(lixeira);
-    const parceiro = lixeira.parceiro ? lixeira.parceiro.nome : 'N/A';
-    const tipoMaterial = lixeira.tipo_material ? lixeira.tipo_material.nome : 'N/A';
-    const distanciaSede = calcularDistanciaSede(lixeira);
+function criarPopupLixeira(coletor) {
+    const nivel = coletor.nivel_preenchimento || 0;
+    const statusTexto = determinarStatusTexto(coletor);
+    const parceiro = coletor.parceiro ? coletor.parceiro.nome : 'N/A';
+    const tipoMaterial = coletor.tipo_material ? coletor.tipo_material.nome : 'N/A';
+    const distanciaSede = calcularDistanciaSede(coletor);
     const distanciaFormatada = formatarDistancia(distanciaSede);
 
     return `
-        <div class="popup-lixeira-content">
-            <h3>#L${String(lixeira.id).padStart(3, '0')} - ${lixeira.localizacao || 'Sem localização'}</h3>
+        <div class="popup-coletor-content">
+            <h3>#L${String(coletor.id).padStart(3, '0')} - ${coletor.localizacao || 'Sem localização'}</h3>
             <div class="popup-info">
                 <div class="popup-item">
                     <strong>Nível:</strong> ${nivel.toFixed(1)}%
@@ -197,18 +197,18 @@ function criarPopupLixeira(lixeira) {
                     <strong>Distância da Sede:</strong> <span class="distancia-sede">${distanciaFormatada}</span>
                 </div>
                 ` : ''}
-                ${lixeira.ultima_coleta ? `
+                ${coletor.ultima_coleta ? `
                 <div class="popup-item">
-                    <strong>Última Coleta:</strong> ${formatarData(lixeira.ultima_coleta)}
+                    <strong>Última Coleta:</strong> ${formatarData(coletor.ultima_coleta)}
                 </div>
                 ` : ''}
             </div>
             <div class="popup-buttons">
-                <button class="btn-popup-detalhes" onclick="verDetalhes(${lixeira.id})">
+                <button class="btn-popup-detalhes" onclick="if(typeof verDetalhes === 'function') { verDetalhes(${coletor.id}); } else { console.error('verDetalhes não está disponível'); }">
                     Ver Detalhes
                 </button>
                 ${distanciaSede !== null ? `
-                <button class="btn-popup-rota" onclick="calcularRotaSede(${lixeira.id})" title="Calcular rota a partir da sede">
+                <button class="btn-popup-rota" onclick="calcularRotaSede(${coletor.id})" title="Calcular rota a partir da sede">
                     🗺️ Rota da Sede
                 </button>
                 ` : ''}
@@ -219,14 +219,14 @@ function criarPopupLixeira(lixeira) {
 
 /**
  * Determina texto do status
- * @param {Object} lixeira - Objeto lixeira
+ * @param {Object} coletor - Objeto coletor
  * @returns {string} Texto do status
  */
-function determinarStatusTexto(lixeira) {
-    const nivel = lixeira.nivel_preenchimento || 0;
+function determinarStatusTexto(coletor) {
+    const nivel = coletor.nivel_preenchimento || 0;
     if (nivel >= 95) return 'CRÍTICO';
     if (nivel >= 80) return 'ATENÇÃO';
-    if (lixeira.status === 'MANUTENCAO') return 'MANUTENÇÃO';
+    if (coletor.status === 'MANUTENCAO') return 'MANUTENÇÃO';
     return 'NORMAL';
 }
 
@@ -253,21 +253,27 @@ function formatarData(dataISO) {
 
 /**
  * Atualiza todos os marcadores no mapa
- * @param {Array} lixeirasArray - Array de lixeiras
+ * @param {Array} lixeirasArray - Array de coletores
  */
 function atualizarMarcadores(lixeirasArray) {
     if (!mapa) return;
 
-    // Armazenar lixeiras globalmente
-    lixeiras = lixeirasArray || [];
+    // Armazenar coletores globalmente
+    coletores = Array.isArray(lixeirasArray) ? lixeirasArray : [];
 
     // Limpar marcadores existentes
     limparMarcadores();
 
-    // Filtrar lixeiras com coordenadas
-    const lixeirasComCoordenadas = lixeiras.filter(l => 
-        l.latitude && l.longitude
-    );
+    // Filtrar coletores com coordenadas válidas
+    const lixeirasComCoordenadas = coletores.filter(l => {
+        if (!l) return false;
+        const lat = parseFloat(l.latitude);
+        const lon = parseFloat(l.longitude);
+        return !isNaN(lat) && !isNaN(lon) && 
+               isFinite(lat) && isFinite(lon) &&
+               lat >= -90 && lat <= 90 &&
+               lon >= -180 && lon <= 180;
+    });
 
     if (lixeirasComCoordenadas.length === 0) {
         mostrarMensagemSemCoordenadas();
@@ -275,8 +281,8 @@ function atualizarMarcadores(lixeirasArray) {
     }
 
     // Adicionar novos marcadores
-    lixeirasComCoordenadas.forEach(lixeira => {
-        adicionarMarcadorLixeira(lixeira);
+    lixeirasComCoordenadas.forEach(coletor => {
+        adicionarMarcadorLixeira(coletor);
     });
 
     // Ajustar zoom para mostrar todos os marcadores
@@ -382,8 +388,8 @@ function mostrarMensagemSemCoordenadas() {
         const div = L.DomUtil.create('div', 'mapa-sem-coordenadas mapa-sem-coordenadas-overlay');
         div.innerHTML = `
             <div class="alerta-sem-coordenadas">
-                <strong>⚠️ Aviso</strong><br>
-                Nenhuma lixeira possui coordenadas cadastradas.
+                <strong><img src="/static/icons/alert_icon.png" alt="Aviso" class="inline-icon"> Aviso</strong><br>
+                Nenhuma coletor possui coordenadas cadastradas.
                 Adicione coordenadas nas configurações para visualizar no mapa.
             </div>
         `;
@@ -393,54 +399,99 @@ function mostrarMensagemSemCoordenadas() {
 }
 
 /**
- * Destaca uma lixeira específica no mapa
- * @param {number} lixeiraId - ID da lixeira
+ * Destaca uma coletor específica no mapa
+ * @param {number} lixeiraId - ID da coletor
  */
 function destacarLixeira(lixeiraId) {
-    if (!marcadores[lixeiraId]) return;
+    if (!mapa || !marcadores || !marcadores[lixeiraId]) return;
 
     const marcador = marcadores[lixeiraId];
-    mapa.setView(marcador.getLatLng(), 15);
-    marcador.openPopup();
-}
-
-/**
- * Atualiza cor do marcador baseado em mudanças na lixeira
- * @param {Object} lixeira - Objeto lixeira atualizado
- */
-function atualizarMarcadorLixeira(lixeira) {
-    if (!marcadores[lixeira.id]) return;
-
-    const marcador = marcadores[lixeira.id];
-    const cor = obterCorMarcador(lixeira);
-    const novoIcone = criarIconeMarcador(cor);
-
-    marcador.setIcon(novoIcone);
+    if (!marcador || typeof marcador.getLatLng !== 'function') return;
     
-    // Atualizar popup
-    const novoPopup = criarPopupLixeira(lixeira);
-    marcador.setPopupContent(novoPopup);
+    try {
+        const latLng = marcador.getLatLng();
+        if (latLng && typeof latLng.lat === 'number' && typeof latLng.lng === 'number') {
+            mapa.setView(latLng, 15);
+            if (typeof marcador.openPopup === 'function') {
+                marcador.openPopup();
+            }
+        }
+    } catch (e) {
+        console.warn('Erro ao destacar coletor:', e);
+    }
 }
 
 /**
- * Exporta mapa como imagem (funcionalidade futura)
+ * Atualiza cor do marcador baseado em mudanças na coletor
+ * @param {Object} coletor - Objeto coletor atualizado
+ */
+function atualizarMarcadorLixeira(coletor) {
+    if (!coletor || !coletor.id || !marcadores || !marcadores[coletor.id]) return;
+
+    const marcador = marcadores[coletor.id];
+    if (!marcador || typeof marcador.setIcon !== 'function') return;
+    
+    try {
+        const cor = obterCorMarcador(coletor);
+        const novoIcone = criarIconeMarcador(cor);
+        if (novoIcone) {
+            marcador.setIcon(novoIcone);
+        }
+        
+        // Atualizar popup
+        const novoPopup = criarPopupLixeira(coletor);
+        if (novoPopup && typeof marcador.setPopupContent === 'function') {
+            marcador.setPopupContent(novoPopup);
+        }
+    } catch (e) {
+        console.warn('Erro ao atualizar marcador:', e);
+    }
+}
+
+/**
+ * Exporta mapa como imagem (PNG)
  */
 function exportarMapa() {
-    // TODO: Implementar exportação de mapa
-    console.log('Exportação de mapa não implementada ainda');
+    if (!mapa) {
+        if (window.Logger) {
+            window.Logger.warn('Mapa não inicializado. Não é possível exportar.');
+        } else {
+            console.warn('Mapa não inicializado. Não é possível exportar.');
+        }
+        return;
+    }
+    
+    if (window.MapaExportacao) {
+        window.MapaExportacao.exportarMapa(mapa, 'png')
+            .then(() => {
+                if (window.Logger) {
+                    window.Logger.info('Mapa exportado com sucesso');
+                }
+            })
+            .catch((error) => {
+                if (window.Logger) {
+                    window.Logger.error('Erro ao exportar mapa:', error);
+                } else {
+                    console.error('Erro ao exportar mapa:', error);
+                }
+                alert('Erro ao exportar mapa. Verifique se html2canvas está disponível.');
+            });
+    } else {
+        alert('Funcionalidade de exportação não disponível. Recarregue a página.');
+    }
 }
 
 /**
- * Calcula rota otimizada entre múltiplas lixeiras
- * @param {Array} lixeiras - Array de lixeiras para visitar
+ * Calcula rota otimizada entre múltiplas coletores
+ * @param {Array} coletores - Array de coletores para visitar
  * @param {Object} pontoInicial - Coordenadas do ponto inicial {lat, lon}
  * @returns {Array} Array de coordenadas ordenadas para rota otimizada
  */
-function calcularRotaOtimizada(lixeiras, pontoInicial = null) {
-    if (!lixeiras || lixeiras.length === 0) return [];
+function calcularRotaOtimizada(coletores, pontoInicial = null) {
+    if (!coletores || coletores.length === 0) return [];
     
-    // Filtrar lixeiras com coordenadas válidas
-    const lixeirasValidas = lixeiras.filter(l => 
+    // Filtrar coletores com coordenadas válidas
+    const lixeirasValidas = coletores.filter(l => 
         l.latitude && l.longitude && 
         !isNaN(parseFloat(l.latitude)) && 
         !isNaN(parseFloat(l.longitude))
@@ -448,7 +499,7 @@ function calcularRotaOtimizada(lixeiras, pontoInicial = null) {
     
     if (lixeirasValidas.length === 0) return [];
     
-    // Se há apenas uma lixeira, retornar direto
+    // Se há apenas uma coletor, retornar direto
     if (lixeirasValidas.length === 1) {
         return [[parseFloat(lixeirasValidas[0].latitude), parseFloat(lixeirasValidas[0].longitude)]];
     }
@@ -483,12 +534,17 @@ function calcularRotaOtimizada(lixeiras, pontoInicial = null) {
         let menorDistancia = Infinity;
         
         for (const ponto of pontos) {
+            if (!ponto || !ponto.id) continue;
             if (!visitados.has(ponto.id)) {
+                const lat = parseFloat(ponto.lat);
+                const lon = parseFloat(ponto.lon);
+                if (isNaN(lat) || isNaN(lon) || !isFinite(lat) || !isFinite(lon)) continue;
+                
                 const distancia = calcularDistancia(
                     atual.lat, atual.lon,
-                    ponto.lat, ponto.lon
+                    lat, lon
                 );
-                if (distancia < menorDistancia) {
+                if (!isNaN(distancia) && isFinite(distancia) && distancia < menorDistancia) {
                     menorDistancia = distancia;
                     maisProximo = ponto;
                 }
@@ -496,9 +552,15 @@ function calcularRotaOtimizada(lixeiras, pontoInicial = null) {
         }
         
         if (maisProximo) {
-            rota.push([maisProximo.lat, maisProximo.lon]);
-            visitados.add(maisProximo.id);
-            atual = maisProximo;
+            const lat = parseFloat(maisProximo.lat);
+            const lon = parseFloat(maisProximo.lon);
+            if (!isNaN(lat) && !isNaN(lon) && isFinite(lat) && isFinite(lon)) {
+                rota.push([lat, lon]);
+                visitados.add(maisProximo.id);
+                atual = maisProximo;
+            } else {
+                break;
+            }
         } else {
             break;
         }
@@ -528,17 +590,17 @@ function calcularDistancia(lat1, lon1, lat2, lon2) {
 }
 
 /**
- * Calcula distância de uma lixeira até a sede
- * @param {Object} lixeira - Objeto lixeira com latitude e longitude
+ * Calcula distância de uma coletor até a sede
+ * @param {Object} coletor - Objeto coletor com latitude e longitude
  * @returns {number|null} Distância em quilômetros ou null se não tiver coordenadas
  */
-function calcularDistanciaSede(lixeira) {
-    if (!lixeira || !lixeira.latitude || !lixeira.longitude) {
+function calcularDistanciaSede(coletor) {
+    if (!coletor || !coletor.latitude || !coletor.longitude) {
         return null;
     }
     
-    const lat = parseFloat(lixeira.latitude);
-    const lon = parseFloat(lixeira.longitude);
+    const lat = parseFloat(coletor.latitude);
+    const lon = parseFloat(coletor.longitude);
     
     if (isNaN(lat) || isNaN(lon)) {
         return null;
@@ -604,6 +666,28 @@ function adicionarRota(waypoints, options = {}) {
     // Armazenar waypoints originais para fallback
     const waypointsOriginais = waypoints;
     
+    // Remover controle anterior se existir
+    if (routingControl && mapa) {
+        try {
+            mapa.removeControl(routingControl);
+        } catch (e) {
+            console.warn('Erro ao remover controle de rota anterior:', e);
+        }
+        routingControl = null;
+    }
+    
+    // Limpar observer anterior e flags de formatação
+    if (window.routingObserver) {
+        window.routingObserver.disconnect();
+        window.routingObserver = null;
+    }
+    const instrucoesAntigas = document.querySelectorAll('.leaflet-routing-instruction-text');
+    instrucoesAntigas.forEach(function(instrucao) {
+        if (instrucao) {
+            instrucao.removeAttribute('data-formatado');
+        }
+    });
+    
     // Criar controle de rota com tratamento de erros
     routingControl = L.Routing.control({
         router: router,
@@ -622,7 +706,19 @@ function adicionarRota(waypoints, options = {}) {
             ]
         },
         ...options
-    }).addTo(mapa);
+    });
+    
+    // Adicionar ao mapa com tratamento de erro
+    try {
+        routingControl.addTo(mapa);
+    } catch (e) {
+        console.error('Erro ao adicionar controle de rota ao mapa:', e);
+        // Usar fallback
+        if (waypointsOriginais && waypointsOriginais.length >= 2) {
+            desenharRotaRobusta(waypointsOriginais[0], waypointsOriginais[1]);
+        }
+        return null;
+    }
     
     // Tratamento de erros
     routingControl.on('routingerror', function(e) {
@@ -643,14 +739,264 @@ function adicionarRota(waypoints, options = {}) {
         }
     });
     
-    // Sucesso
+    // Sucesso - Leaflet Routing Machine desenha automaticamente, mas vamos garantir
     routingControl.on('routesfound', function(e) {
         console.log('Rota calculada com sucesso:', e.routes);
         if (e.routes && e.routes.length > 0) {
             const route = e.routes[0];
-            const distancia = (route.summary?.totalDistance / 1000).toFixed(1);
-            const tempo = Math.round(route.summary?.totalTime / 60);
+            
+            // Validar estrutura da rota
+            if (!route.summary) {
+                console.warn('Rota retornada sem summary, usando fallback');
+                if (waypointsOriginais && waypointsOriginais.length >= 2) {
+                    desenharRotaRobusta(waypointsOriginais[0], waypointsOriginais[1]);
+                }
+                return;
+            }
+            
+            // Verificar se route.coordinates existe (pode estar em route.coordinates ou route.waypoints)
+            const temCoordenadas = route.coordinates && Array.isArray(route.coordinates) && route.coordinates.length >= 2;
+            const temWaypoints = route.waypoints && Array.isArray(route.waypoints) && route.waypoints.length >= 2;
+            
+            if (!temCoordenadas && !temWaypoints) {
+                console.warn('Rota sem coordenadas válidas, usando fallback');
+                if (waypointsOriginais && waypointsOriginais.length >= 2) {
+                    desenharRotaRobusta(waypointsOriginais[0], waypointsOriginais[1]);
+                }
+                return;
+            }
+            
+            const distancia = (route.summary.totalDistance / 1000).toFixed(1);
+            const tempo = Math.round(route.summary.totalTime / 60);
             console.log(`Distância: ${distancia}km | Tempo estimado: ${tempo}min`);
+            
+            // Formatar instruções após renderização (múltiplas tentativas com delays maiores)
+            // O Leaflet Routing Machine pode demorar para renderizar instruções longas
+            // IMPORTANTE: Executar DEPOIS da tradução do routing-pt.js
+            // Mas também tentar ANTES para pegar elementos assim que forem criados
+            setTimeout(() => {
+                console.log('[routesfound] Tentativa 1 de formatação (100ms)');
+                formatarInstrucoesRota();
+            }, 100);
+            setTimeout(() => {
+                console.log('[routesfound] Tentativa 2 de formatação (300ms)');
+                formatarInstrucoesRota();
+            }, 300);
+            setTimeout(() => {
+                console.log('[routesfound] Tentativa 3 de formatação (600ms)');
+                formatarInstrucoesRota();
+            }, 600);
+            setTimeout(() => {
+                console.log('[routesfound] Tentativa 4 de formatação (1000ms)');
+                formatarInstrucoesRota();
+            }, 1000);
+            setTimeout(() => {
+                console.log('[routesfound] Tentativa 5 de formatação (2000ms)');
+                formatarInstrucoesRota();
+            }, 2000);
+            setTimeout(() => {
+                console.log('[routesfound] Tentativa 6 de formatação (3500ms)');
+                formatarInstrucoesRota();
+            }, 3500);
+            
+            // Observar mudanças no DOM para formatar novas instruções
+            // Usar observer mais agressivo que reformata imediatamente quando detecta mudanças
+            if (typeof MutationObserver !== 'undefined') {
+                // Remover observer anterior se existir
+                if (window.routingObserver) {
+                    window.routingObserver.disconnect();
+                }
+                
+                // Função para formatar quando detectar mudanças
+                const formatarQuandoMudar = function() {
+                    // Formatar IMEDIATAMENTE
+                    formatarInstrucoesRota();
+                    // Também formatar após pequenos delays para pegar mudanças subsequentes
+                    setTimeout(() => formatarInstrucoesRota(), 10);
+                    setTimeout(() => formatarInstrucoesRota(), 50);
+                    setTimeout(() => formatarInstrucoesRota(), 100);
+                };
+                
+                const observer = new MutationObserver(function(mutations) {
+                    let shouldFormat = false;
+                    mutations.forEach(function(mutation) {
+                        // Qualquer mudança no container de rotas
+                        if (mutation.target && mutation.target.classList) {
+                            if (mutation.target.classList.contains('leaflet-routing-container') ||
+                                mutation.target.classList.contains('leaflet-routing-instruction') ||
+                                mutation.target.classList.contains('leaflet-routing-instruction-text') ||
+                                mutation.target.closest('.leaflet-routing-container')) {
+                                shouldFormat = true;
+                            }
+                        }
+                        
+                        // Nós adicionados
+                        if (mutation.addedNodes.length > 0) {
+                            mutation.addedNodes.forEach(function(node) {
+                                if (node.nodeType === 1) {
+                                    if (node.classList?.contains('leaflet-routing-instruction') ||
+                                        node.classList?.contains('leaflet-routing-instruction-text') ||
+                                        node.querySelector?.('.leaflet-routing-instruction-text')) {
+                                        shouldFormat = true;
+                                    }
+                                } else if (node.nodeType === 3 && node.textContent && node.textContent.trim().length > 20) {
+                                    // Nó de texto adicionado diretamente
+                                    shouldFormat = true;
+                                }
+                            });
+                        }
+                        
+                        // Mudanças no texto
+                        if (mutation.type === 'childList' || mutation.type === 'characterData') {
+                            shouldFormat = true;
+                        }
+                    });
+                    
+                    if (shouldFormat) {
+                        formatarQuandoMudar();
+                    }
+                });
+                
+                // Observar o container de rotas com configuração mais abrangente
+                const routingContainer = document.querySelector('.leaflet-routing-container');
+                if (routingContainer) {
+                    observer.observe(routingContainer, {
+                        childList: true,
+                        subtree: true,
+                        characterData: true,
+                        attributes: false
+                    });
+                    window.routingObserver = observer;
+                } else {
+                    // Se o container ainda não existe, aguardar e observar o body
+                    setTimeout(() => {
+                        const container = document.querySelector('.leaflet-routing-container');
+                        if (container) {
+                            observer.observe(container, {
+                                childList: true,
+                                subtree: true,
+                                characterData: true
+                            });
+                            window.routingObserver = observer;
+                        }
+                    }, 500);
+                }
+                
+                // Observar mudanças diretamente nos elementos de instrução quando forem criados
+                const observarInstrucoes = function() {
+                    const instrucoes = document.querySelectorAll('.leaflet-routing-instruction-text');
+                    instrucoes.forEach(function(instrucao) {
+                        if (instrucao && !instrucao.dataset.observado) {
+                            // Interceptar propriedades de texto
+                            interceptarPropriedadesTexto(instrucao);
+                            
+                            // Observar este elemento específico
+                            observer.observe(instrucao, {
+                                childList: true,
+                                characterData: true,
+                                subtree: true
+                            });
+                            
+                            // Formatar imediatamente
+                            formatarInstrucoesRota();
+                            
+                            instrucao.dataset.observado = 'true';
+                        }
+                    });
+                };
+                
+                // Observar instruções periodicamente até que todas sejam encontradas
+                let tentativasObservacao = 0;
+                const intervaloObservacao = setInterval(() => {
+                    observarInstrucoes();
+                    tentativasObservacao++;
+                    if (tentativasObservacao >= 30) { // 30 * 200ms = 6 segundos
+                        clearInterval(intervaloObservacao);
+                    }
+                }, 200);
+                
+                // Também observar quando novos elementos são adicionados
+                if (routingContainer) {
+                    const observerNovosElementos = new MutationObserver(function(mutations) {
+                        mutations.forEach(function(mutation) {
+                            mutation.addedNodes.forEach(function(node) {
+                                if (node.nodeType === 1) {
+                                    let instrucoesNovas = [];
+                                    if (node.querySelectorAll) {
+                                        instrucoesNovas = Array.from(node.querySelectorAll('.leaflet-routing-instruction-text'));
+                                    }
+                                    if (node.classList && node.classList.contains('leaflet-routing-instruction-text')) {
+                                        instrucoesNovas.push(node);
+                                    }
+                                    instrucoesNovas.forEach(function(instrucao) {
+                                        if (instrucao && !instrucao._formatacaoInterceptada) {
+                                            interceptarPropriedadesTexto(instrucao);
+                                            formatarInstrucoesRota();
+                                        }
+                                    });
+                                }
+                            });
+                        });
+                    });
+                    
+                    observerNovosElementos.observe(routingContainer, {
+                        childList: true,
+                        subtree: true
+                    });
+                    
+                    if (!window.routingObservers) window.routingObservers = [];
+                    window.routingObservers.push(observerNovosElementos);
+                }
+            }
+            
+            // Formatação contínua em intervalos para garantir que persista
+            // Limpar intervalo anterior se existir
+            if (window.formatarInstrucoesInterval) {
+                clearInterval(window.formatarInstrucoesInterval);
+            }
+            // Formatar a cada 500ms por 10 segundos após a rota ser encontrada
+            let tentativas = 0;
+            window.formatarInstrucoesInterval = setInterval(() => {
+                formatarInstrucoesRota();
+                tentativas++;
+                if (tentativas >= 20) { // 20 * 500ms = 10 segundos
+                    clearInterval(window.formatarInstrucoesInterval);
+                    window.formatarInstrucoesInterval = null;
+                }
+            }, 500);
+            
+            // Leaflet Routing Machine desenha automaticamente, mas vamos garantir que está visível
+            // Forçar redesenho do mapa após um pequeno delay
+            setTimeout(() => {
+                if (mapa && routingControl) {
+                    mapa.invalidateSize();
+                    // Garantir que a rota está visível ajustando o zoom
+                    try {
+                        // Tentar obter bounds da rota do controle
+                        const routeLayer = routingControl._route;
+                        if (routeLayer && routeLayer.getBounds) {
+                            const bounds = routeLayer.getBounds();
+                            if (bounds && bounds.isValid()) {
+                                mapa.fitBounds(bounds, { padding: [50, 50] });
+                            }
+                        } else if (route.coordinates && route.coordinates.length > 0) {
+                            const bounds = L.latLngBounds(route.coordinates);
+                            if (bounds && bounds.isValid()) {
+                                mapa.fitBounds(bounds, { padding: [50, 50] });
+                            }
+                        }
+                    } catch (err) {
+                        console.warn('Erro ao ajustar zoom da rota:', err);
+                        // Usar waypoints originais como fallback
+                        if (waypointsOriginais && waypointsOriginais.length >= 2) {
+                            const bounds = L.latLngBounds(waypointsOriginais);
+                            if (bounds && bounds.isValid()) {
+                                mapa.fitBounds(bounds, { padding: [50, 50] });
+                            }
+                        }
+                    }
+                }
+            }, 200);
             
             // Salvar rota real para aprendizado
             if (typeof salvarRotaReal === 'function' && waypointsOriginais && waypointsOriginais.length >= 2) {
@@ -690,6 +1036,27 @@ function removerRota() {
         mapa.removeLayer(rotaLinha);
         rotaLinha = null;
     }
+    
+    // Limpar observer de formatação se existir
+    if (window.routingObserver) {
+        window.routingObserver.disconnect();
+        window.routingObserver = null;
+    }
+    
+    // Limpar intervalo de formatação contínua
+    if (window.formatarInstrucoesInterval) {
+        clearInterval(window.formatarInstrucoesInterval);
+        window.formatarInstrucoesInterval = null;
+    }
+    
+    // Limpar flags de formatação para permitir reformatação na próxima rota
+    const instrucoes = document.querySelectorAll('.leaflet-routing-instruction-text');
+    instrucoes.forEach(function(instrucao) {
+        if (instrucao) {
+            instrucao.removeAttribute('data-formatado');
+            instrucao.removeAttribute('data-observado');
+        }
+    });
 }
 
 /**
@@ -840,11 +1207,28 @@ function calcularRotaDijkstra(ponto1, ponto2) {
  * Desenha rota calculada usando sistema robusto de roteamento
  * @param {Array} ponto1 - [lat, lon] ponto inicial
  * @param {Array} ponto2 - [lat, lon] ponto final
+ * @returns {Promise<L.Polyline|null>} Promise que resolve com a linha da rota
  */
 async function desenharRotaRobusta(ponto1, ponto2) {
+    if (!mapa) {
+        console.error('Mapa não inicializado, não é possível desenhar rota');
+        return null;
+    }
+    
+    // Validar pontos de entrada
+    if (!Array.isArray(ponto1) || !Array.isArray(ponto2) || 
+        ponto1.length < 2 || ponto2.length < 2) {
+        console.error('Pontos inválidos para desenhar rota');
+        return null;
+    }
+    
     // Remover linha anterior se existir
     if (rotaLinha && mapa) {
-        mapa.removeLayer(rotaLinha);
+        try {
+            mapa.removeLayer(rotaLinha);
+        } catch (e) {
+            console.warn('Erro ao remover rota anterior:', e);
+        }
         rotaLinha = null;
     }
     
@@ -860,7 +1244,9 @@ async function desenharRotaRobusta(ponto1, ponto2) {
                 algoritmo: 'aStar',
                 suavizar: true
             });
-            tipoRota = 'Calculada';
+            if (pontosRota && pontosRota.length >= 3) {
+                tipoRota = 'Calculada';
+            }
         } catch (error) {
             console.warn('Erro ao calcular rota robusta:', error);
         }
@@ -868,15 +1254,16 @@ async function desenharRotaRobusta(ponto1, ponto2) {
     
     // Garantir que sempre temos uma rota válida com múltiplos pontos
     if (!pontosRota || pontosRota.length < 3) {
-        console.warn('Rota calculada tem poucos pontos, gerando rota intermediária');
+        console.log('Gerando rota intermediária com múltiplos pontos');
         // Gerar pontos intermediários para evitar linha reta
         if (typeof gerarRotaIntermediaria === 'function') {
-            pontosRota = gerarRotaIntermediaria(ponto1, ponto2, 8);
+            pontosRota = gerarRotaIntermediaria(ponto1, ponto2, 10);
         } else {
             // Fallback: criar pontos intermediários manualmente
             pontosRota = [ponto1];
-            for (let i = 1; i < 7; i++) {
-                const t = i / 8;
+            const numPontos = 10;
+            for (let i = 1; i < numPontos - 1; i++) {
+                const t = i / numPontos;
                 pontosRota.push([
                     ponto1[0] + (ponto2[0] - ponto1[0]) * t,
                     ponto1[1] + (ponto2[1] - ponto1[1]) * t
@@ -890,25 +1277,71 @@ async function desenharRotaRobusta(ponto1, ponto2) {
     // Calcular distância total
     let distanciaTotal = 0;
     for (let i = 0; i < pontosRota.length - 1; i++) {
-        distanciaTotal += calcularDistancia(
-            pontosRota[i][0], pontosRota[i][1],
-            pontosRota[i + 1][0], pontosRota[i + 1][1]
-        );
+        const ponto1 = pontosRota[i];
+        const ponto2 = pontosRota[i + 1];
+        if (!ponto1 || !ponto2 || !Array.isArray(ponto1) || !Array.isArray(ponto2)) continue;
+        
+        const lat1 = parseFloat(ponto1[0]);
+        const lon1 = parseFloat(ponto1[1]);
+        const lat2 = parseFloat(ponto2[0]);
+        const lon2 = parseFloat(ponto2[1]);
+        
+        if (isNaN(lat1) || isNaN(lon1) || isNaN(lat2) || isNaN(lon2)) continue;
+        if (!isFinite(lat1) || !isFinite(lon1) || !isFinite(lat2) || !isFinite(lon2)) continue;
+        
+        const distancia = calcularDistancia(lat1, lon1, lat2, lon2);
+        if (!isNaN(distancia) && isFinite(distancia)) {
+            distanciaTotal += distancia;
+        }
     }
     const distanciaFormatada = formatarDistancia(distanciaTotal);
     
-    // Criar linha da rota
-    rotaLinha = L.polyline(pontosRota, {
-        color: '#27ae60',
-        weight: 4,
-        opacity: 0.7,
-        dashArray: tipoRota === 'Calculada' ? '0' : '8, 4' // Sólida se calculada, tracejada se aproximada
-    }).addTo(mapa);
+    // Validar e normalizar pontos da rota antes de criar a linha
+    const pontosValidos = pontosRota.filter(ponto => {
+        if (!Array.isArray(ponto) || ponto.length < 2) return false;
+        const lat = parseFloat(ponto[0]);
+        const lon = parseFloat(ponto[1]);
+        return !isNaN(lat) && !isNaN(lon) && isFinite(lat) && isFinite(lon) &&
+               lat >= -90 && lat <= 90 && lon >= -180 && lon <= 180;
+    });
     
-    // Adicionar popup na linha
-    rotaLinha.bindPopup(`<strong>Rota ${tipoRota}</strong><br>Distância: ${distanciaFormatada}<br><small>${tipoRota === 'Calculada' ? 'Rota otimizada com dados reais' : 'Rota aproximada - serviço otimizado não disponível'}</small>`);
+    if (pontosValidos.length < 2) {
+        console.error('Não há pontos válidos suficientes para desenhar a rota');
+        return null;
+    }
     
-    return rotaLinha;
+    // Criar linha da rota com pontos validados
+    try {
+        rotaLinha = L.polyline(pontosValidos, {
+            color: '#27ae60',
+            weight: 5,
+            opacity: 0.8,
+            dashArray: tipoRota === 'Calculada' ? null : '10, 5' // Sólida se calculada, tracejada se aproximada
+        }).addTo(mapa);
+        
+        // Adicionar popup na linha
+        rotaLinha.bindPopup(`<strong>Rota ${tipoRota}</strong><br>Distância: ${distanciaFormatada}<br><small>${tipoRota === 'Calculada' ? 'Rota otimizada com dados reais' : 'Rota aproximada - serviço otimizado não disponível'}</small>`);
+        
+        // Garantir que a rota está visível
+        setTimeout(() => {
+            if (mapa && rotaLinha) {
+                try {
+                    const bounds = rotaLinha.getBounds();
+                    if (bounds && bounds.isValid()) {
+                        mapa.fitBounds(bounds, { padding: [50, 50] });
+                    }
+                } catch (e) {
+                    console.warn('Erro ao ajustar zoom da rota:', e);
+                }
+            }
+        }, 100);
+        
+        console.log(`Rota desenhada: ${pontosValidos.length} pontos, distância: ${distanciaFormatada}`);
+        return rotaLinha;
+    } catch (error) {
+        console.error('Erro ao criar linha da rota:', error);
+        return null;
+    }
 }
 
 /**
@@ -919,19 +1352,48 @@ async function desenharRotaRobusta(ponto1, ponto2) {
  * @returns {Array} Array de coordenadas [lat, lon][]
  */
 function gerarRotaIntermediaria(ponto1, ponto2, numPontos = 10) {
+    // Validar pontos
+    if (!Array.isArray(ponto1) || !Array.isArray(ponto2)) {
+        return [ponto1, ponto2];
+    }
+    
+    const lat1 = parseFloat(ponto1[0]);
+    const lon1 = parseFloat(ponto1[1]);
+    const lat2 = parseFloat(ponto2[0]);
+    const lon2 = parseFloat(ponto2[1]);
+    
+    if (isNaN(lat1) || isNaN(lon1) || isNaN(lat2) || isNaN(lon2)) {
+        return [ponto1, ponto2];
+    }
+    if (!isFinite(lat1) || !isFinite(lon1) || !isFinite(lat2) || !isFinite(lon2)) {
+        return [ponto1, ponto2];
+    }
+    
+    // Validar numPontos
+    numPontos = Math.max(2, Math.min(50, Math.floor(numPontos)));
+    
     const pontos = [ponto1];
     
     for (let i = 1; i < numPontos - 1; i++) {
         const t = i / numPontos;
-        const lat = ponto1[0] + (ponto2[0] - ponto1[0]) * t;
-        const lon = ponto1[1] + (ponto2[1] - ponto1[1]) * t;
+        const lat = lat1 + (lat2 - lat1) * t;
+        const lon = lon1 + (lon2 - lon1) * t;
         
         // Adicionar pequena variação para evitar linha perfeitamente reta
         const variacao = 0.001; // ~100m
         const variacaoLat = (Math.random() - 0.5) * variacao;
         const variacaoLon = (Math.random() - 0.5) * variacao;
         
-        pontos.push([lat + variacaoLat, lon + variacaoLon]);
+        const latFinal = lat + variacaoLat;
+        const lonFinal = lon + variacaoLon;
+        
+        // Validar coordenadas finais
+        if (!isNaN(latFinal) && !isNaN(lonFinal) && 
+            isFinite(latFinal) && isFinite(lonFinal) &&
+            latFinal >= -90 && latFinal <= 90 &&
+            lonFinal >= -180 && lonFinal <= 180) {
+            pontos.push([latFinal, lonFinal]);
+        }
     }
     
     pontos.push(ponto2);
@@ -939,31 +1401,375 @@ function gerarRotaIntermediaria(ponto1, ponto2, numPontos = 10) {
 }
 
 /**
- * Calcula rota da sede até uma lixeira específica
- * @param {number} lixeiraId - ID da lixeira de destino
+ * Intercepta e formata texto antes de ser inserido no DOM
+ * Sobrescreve textContent e innerHTML para aplicar formatação automaticamente
+ */
+function interceptarPropriedadesTexto(elemento) {
+    if (!elemento || elemento._formatacaoInterceptada) return;
+    
+    // Interceptar textContent
+    const originalTextContentDesc = Object.getOwnPropertyDescriptor(Node.prototype, 'textContent') || 
+                                     Object.getOwnPropertyDescriptor(HTMLElement.prototype, 'textContent');
+    
+    if (originalTextContentDesc) {
+        const originalTextContent = originalTextContentDesc.set;
+        Object.defineProperty(elemento, 'textContent', {
+            get: function() {
+                return originalTextContentDesc.get.call(this);
+            },
+            set: function(value) {
+                // Se o valor não tem HTML formatado e é longo, formatar antes de definir
+                if (value && typeof value === 'string' && value.length > 20 && 
+                    !value.includes('<br>') && !value.includes('<span class="instrucao-')) {
+                    const textoFormatado = formatarTextoInstrucao(value);
+                    if (textoFormatado !== value) {
+                        // Usar innerHTML em vez de textContent para preservar formatação
+                        console.log('Interceptando textContent e formatando:', value.substring(0, 50) + '...');
+                        this.innerHTML = textoFormatado;
+                        this.dataset.formatado = 'true';
+                        return;
+                    }
+                }
+                originalTextContent.call(this, value);
+            },
+            configurable: true
+        });
+    }
+    
+    // Interceptar innerHTML também
+    const originalInnerHTMLDesc = Object.getOwnPropertyDescriptor(Element.prototype, 'innerHTML');
+    if (originalInnerHTMLDesc) {
+        const originalInnerHTML = originalInnerHTMLDesc.set;
+        Object.defineProperty(elemento, 'innerHTML', {
+            get: function() {
+                return originalInnerHTMLDesc.get.call(this);
+            },
+            set: function(value) {
+                // Se o valor não tem HTML formatado e é longo, formatar antes de definir
+                if (value && typeof value === 'string' && value.length > 20 && 
+                    !value.includes('<br>') && !value.includes('<span class="instrucao-')) {
+                    const textoFormatado = formatarTextoInstrucao(value);
+                    if (textoFormatado !== value) {
+                        console.log('Interceptando innerHTML e formatando:', value.substring(0, 50) + '...');
+                        originalInnerHTML.call(this, textoFormatado);
+                        this.dataset.formatado = 'true';
+                        return;
+                    }
+                }
+                originalInnerHTML.call(this, value);
+            },
+            configurable: true
+        });
+    }
+    
+    // Interceptar appendChild para formatar texto quando for adicionado
+    const originalAppendChild = elemento.appendChild;
+    elemento.appendChild = function(child) {
+        if (child && child.nodeType === 3 && child.textContent) {
+            // É um nó de texto
+            const texto = child.textContent;
+            if (texto && texto.length > 20 && !texto.includes('<br>')) {
+                const textoFormatado = formatarTextoInstrucao(texto);
+                if (textoFormatado !== texto) {
+                    // Criar elemento com HTML formatado
+                    const temp = document.createElement('span');
+                    temp.innerHTML = textoFormatado;
+                    while (temp.firstChild) {
+                        originalAppendChild.call(this, temp.firstChild);
+                    }
+                    return temp.firstChild || child;
+                }
+            }
+        }
+        return originalAppendChild.call(this, child);
+    };
+    
+    elemento._formatacaoInterceptada = true;
+}
+
+/**
+ * Formata texto de instrução (versão que retorna HTML)
+ */
+function formatarTextoInstrucao(texto) {
+    if (!texto || texto.length < 20) return texto;
+    
+    let textoFormatado = texto;
+    
+    // CRÍTICO: Primeiro, adicionar espaços onde faltam
+    textoFormatado = textoFormatado.replace(/([a-záàâãéèêíïóôõöúçñA-Z])(\d+\.?\d*\s*(?:km|m|min))/g, '$1 $2');
+    textoFormatado = textoFormatado.replace(/(\d+\.?\d*)([a-záàâãéèêíïóôõöúçñA-Z])/g, '$1 $2');
+    
+    // Remover distâncias duplicadas
+    textoFormatado = textoFormatado.replace(/\((\d+\.?\d*\s*(?:km|m|min))\)\s*\1/g, '($1)');
+    
+    // Separar distâncias/tempos
+    textoFormatado = textoFormatado.replace(/(\d+\.?\d*\s*(?:km|m|min)),\s*(\d+\.?\d*\s*(?:km|m|min))/g, '$1<br>$2');
+    textoFormatado = textoFormatado.replace(/([a-záàâãéèêíïóôõöúçñA-Z])\s*\((\d+\.?\d*\s*(?:km|m|min))\)/g, '$1<br>($2)');
+    textoFormatado = textoFormatado.replace(/([a-záàâãéèêíïóôõöúçñA-Z0-9])\s*(\d+\.?\d*\s*(?:km|m|min))\s*([A-Z])/g, '$1<br>$2<br>$3');
+    
+    // Separar instruções
+    textoFormatado = textoFormatado.replace(/\s+(Siga|Vire|Continue|Entre|Saia|Pegue|Faça|Mantenha|Keep|Merge|Enter|Turn|Go|Head|Take|Exit)\s+/gi, '<br>$1 ');
+    
+    // Criar HTML formatado
+    const linhas = textoFormatado.split('<br>').filter(l => l.trim());
+    if (linhas.length > 1) {
+        let html = '';
+        linhas.forEach((linha, index) => {
+            linha = linha.trim();
+            if (!linha) return;
+            
+            if (/^\(?\d+\.?\d*\s*(?:km|m|min)\)?$/.test(linha)) {
+                html += `<span class="instrucao-distancia">${linha}</span>`;
+            } else if (/^\d+\.?\d*\s*(?:km|m|min)/.test(linha)) {
+                html += `<span class="instrucao-distancia">${linha}</span>`;
+            } else {
+                html += `<span class="instrucao-texto">${linha}</span>`;
+            }
+            
+            if (index < linhas.length - 1) {
+                html += '<br>';
+            }
+        });
+        return html;
+    }
+    
+    return textoFormatado;
+}
+
+/**
+ * Formata as instruções de rota para exibição adequada
+ * Esta função é chamada repetidamente para garantir que a formatação persista
+ */
+function formatarInstrucoesRota() {
+    // O Leaflet Routing Machine pode renderizar de duas formas:
+    // 1. Com elementos .leaflet-routing-instruction-text (estrutura completa)
+    // 2. Com texto diretamente em .leaflet-routing-alt (estrutura simplificada)
+    
+    // Primeiro, tentar encontrar elementos .leaflet-routing-instruction-text
+    let instrucoes = document.querySelectorAll('.leaflet-routing-instruction-text');
+    
+    // Se não encontrou, o texto pode estar diretamente em .leaflet-routing-alt
+    if (instrucoes.length === 0) {
+        const altContainer = document.querySelector('.leaflet-routing-alt');
+        if (altContainer && altContainer.textContent && altContainer.textContent.trim().length > 20) {
+            // O texto está diretamente no container, vamos formatá-lo
+            console.log(`[formatarInstrucoesRota] Texto encontrado diretamente em .leaflet-routing-alt`);
+            
+            let texto = altContainer.textContent || altContainer.innerText || '';
+            const htmlAtual = altContainer.innerHTML;
+            
+            // Verificar se já está formatado
+            const jaFormatado = htmlAtual.includes('<br>') || htmlAtual.includes('<span class="instrucao-');
+            
+            if (!jaFormatado && texto && texto.length > 20) {
+                console.log(`[formatarInstrucoesRota] Formatando texto diretamente no container`);
+                
+                // Aplicar formatação
+                texto = texto.replace(/([a-záàâãéèêíïóôõöúçñA-Z])(\d+\.?\d*\s*(?:km|m|min))/g, '$1 $2');
+                texto = texto.replace(/(\d+\.?\d*)([a-záàâãéèêíïóôõöúçñA-Z])/g, '$1 $2');
+                texto = texto.replace(/\((\d+\.?\d*\s*(?:km|m|min))\)\s*\1/g, '($1)');
+                texto = texto.replace(/([a-záàâãéèêíïóôõöúçñA-Z])\s*\((\d+\.?\d*\s*(?:km|m|min))\)/g, '$1\n($2)');
+                texto = texto.replace(/([a-záàâãéèêíïóôõöúçñA-Z0-9])\s*(\d+\.?\d*\s*(?:km|m|min))\s*([A-Z])/g, '$1\n$2\n$3');
+                texto = texto.replace(/(\d+\.?\d*\s*(?:km|m|min)),\s*(\d+\.?\d*\s*(?:km|m|min))/g, '$1\n$2');
+                texto = texto.replace(/\s+(Siga|Vire|Continue|Entre|Saia|Pegue|Faça|Mantenha|Keep|Merge|Enter|Turn|Go|Head|Take|Exit)\s+/gi, '\n$1 ');
+                texto = texto.replace(/\n\n+/g, '\n').trim();
+                
+                // Criar HTML formatado
+                const linhas = texto.split('\n').filter(l => l.trim());
+                if (linhas.length > 1) {
+                    let htmlFormatado = '';
+                    linhas.forEach((linha, index) => {
+                        linha = linha.trim();
+                        if (!linha) return;
+                        
+                        if (/^\(?\d+\.?\d*\s*(?:km|m|min)\)?$/.test(linha)) {
+                            htmlFormatado += `<span class="instrucao-distancia">${linha}</span>`;
+                        } else if (/^\d+\.?\d*\s*(?:km|m|min)/.test(linha)) {
+                            htmlFormatado += `<span class="instrucao-distancia">${linha}</span>`;
+                        } else {
+                            htmlFormatado += `<span class="instrucao-texto">${linha}</span>`;
+                        }
+                        
+                        if (index < linhas.length - 1) {
+                            htmlFormatado += '<br>';
+                        }
+                    });
+                    
+                    altContainer.innerHTML = htmlFormatado;
+                    altContainer.dataset.formatado = 'true';
+                    console.log(`[formatarInstrucoesRota] HTML formatado aplicado ao container`);
+                    return; // Já formatamos, não precisa continuar
+                }
+            }
+        }
+    }
+    
+    console.log(`[formatarInstrucoesRota] Encontradas ${instrucoes.length} instruções individuais`);
+    
+    instrucoes.forEach(function(instrucao, index) {
+        if (!instrucao) return;
+        
+        // Interceptar propriedades de texto para este elemento
+        interceptarPropriedadesTexto(instrucao);
+        
+        // Obter texto atual (pode ter sido alterado pelo Leaflet Routing Machine)
+        let texto = instrucao.textContent || instrucao.innerText || '';
+        const textoOriginal = texto;
+        const htmlAtual = instrucao.innerHTML;
+        
+        // Debug: log do primeiro elemento para ver o que está acontecendo
+        if (index === 0 && texto.length > 50) {
+            console.log(`[formatarInstrucoesRota] Primeira instrução - Texto: "${texto.substring(0, 100)}..."`);
+            console.log(`[formatarInstrucoesRota] HTML atual: "${htmlAtual.substring(0, 100)}..."`);
+        }
+        
+        // Verificar se o HTML já está bem formatado (tem quebras de linha ou spans)
+        const jaFormatado = htmlAtual.includes('<br>') || 
+                           htmlAtual.includes('<span class="instrucao-');
+        
+        // Se já está formatado corretamente, verificar se não foi sobrescrito
+        if (jaFormatado) {
+            // Verificar se o texto ainda está formatado (não foi sobrescrito)
+            const textoFormatado = htmlAtual.replace(/<[^>]*>/g, '').trim();
+            // Se o texto mudou, significa que foi sobrescrito, então reformatar
+            if (textoFormatado === textoOriginal && textoOriginal.length > 50) {
+                // Parece que está formatado e não foi alterado, mas vamos verificar se precisa melhorar
+                return;
+            }
+        }
+        
+        // Se o texto foi sobrescrito (não tem HTML formatado mas tem texto), reformatar
+        // Se o texto não tem quebras de linha adequadas, tentar formatar
+        if (!jaFormatado && texto && texto.length > 20) {
+            console.log(`[formatarInstrucoesRota] Formatando instrução ${index + 1} - Texto não formatado detectado`);
+            // CRÍTICO: Primeiro, adicionar espaços onde faltam (caso específico do problema)
+            // Padrão: letra seguida de número sem espaço: "Samambaia14.8" -> "Samambaia 14.8"
+            texto = texto.replace(/([a-záàâãéèêíïóôõöúçñA-Z])(\d+\.?\d*\s*(?:km|m|min))/g, '$1 $2');
+            
+            // Padrão: número seguido de letra sem espaço: "14.8km" -> "14.8 km"
+            texto = texto.replace(/(\d+\.?\d*)([a-záàâãéèêíïóôõöúçñA-Z])/g, '$1 $2');
+            
+            // Remover distâncias duplicadas: "(67 m)67 m" -> "(67 m)"
+            texto = texto.replace(/\((\d+\.?\d*\s*(?:km|m|min))\)\s*\1/g, '($1)');
+            
+            // Separar distâncias entre parênteses: "(67 m)" -> linha separada ANTES da instrução
+            texto = texto.replace(/([a-záàâãéèêíïóôõöúçñA-Z])\s*\((\d+\.?\d*\s*(?:km|m|min))\)/g, '$1\n($2)');
+            
+            // Separar distâncias/tempos que aparecem sozinhos (mas não dentro de parênteses já processados)
+            texto = texto.replace(/([a-záàâãéèêíïóôõöúçñA-Z0-9])\s*(\d+\.?\d*\s*(?:km|m|min))\s*([A-Z])/g, '$1\n$2\n$3');
+            
+            // Separar quando há vírgula seguida de distância/tempo: "14.8 km, 19 min" -> linhas separadas
+            texto = texto.replace(/(\d+\.?\d*\s*(?:km|m|min)),\s*(\d+\.?\d*\s*(?:km|m|min))/g, '$1\n$2');
+            
+            // Separar instruções principais (verbos de ação em português) - com espaço antes
+            texto = texto.replace(/\s+(Siga|Vire|Continue|Entre|Saia|Pegue|Faça|Mantenha)\s+/g, '\n$1 ');
+            
+            // Separar instruções em inglês (caso o servidor retorne em inglês)
+            texto = texto.replace(/\s+(Keep|Merge|Enter|Turn|Go|Head|Take|Exit)\s+/gi, '\n$1 ');
+            
+            // Separar quando há "para" ou "em" seguido de nome de rua
+            texto = texto.replace(/(para|em|to|onto)\s+([A-Z][a-záàâãéèêíïóôõöúçñA-Z0-9\s,]+?)(\s*\(|\s*\d|$)/g, '$1 $2\n$3');
+            
+            // Separar nomes de ruas longos seguidos de instruções
+            texto = texto.replace(/([A-Z][a-záàâãéèêíïóôõöúçñA-Z0-9\s,]{10,}?)\s+(Siga|Vire|Continue|Entre|Saia|Pegue|Faça|Mantenha|Keep|Merge|Enter|Turn|Go|Head|Take|Exit)/gi, '$1\n$2');
+            
+            // Limpar múltiplas quebras de linha
+            texto = texto.replace(/\n\n+/g, '\n');
+            texto = texto.trim();
+            
+            // Criar estrutura HTML formatada
+            const linhas = texto.split('\n').filter(l => l.trim());
+            if (linhas.length > 1) {
+                let htmlFormatado = '';
+                linhas.forEach((linha, index) => {
+                    linha = linha.trim();
+                    if (!linha) return;
+                    
+                    // Detectar se é uma distância/tempo (formato: número + unidade, com ou sem parênteses)
+                    if (/^\(?\d+\.?\d*\s*(?:km|m|min)\)?$/.test(linha)) {
+                        htmlFormatado += `<span class="instrucao-distancia">${linha}</span>`;
+                    } else if (/^\d+\.?\d*\s*(?:km|m|min)/.test(linha)) {
+                        htmlFormatado += `<span class="instrucao-distancia">${linha}</span>`;
+                    } else {
+                        // É uma instrução ou nome de rua
+                        htmlFormatado += `<span class="instrucao-texto">${linha}</span>`;
+                    }
+                    
+                    if (index < linhas.length - 1) {
+                        htmlFormatado += '<br>';
+                    }
+                });
+                
+                console.log(`[formatarInstrucoesRota] Aplicando HTML formatado na instrução ${index + 1}`);
+                instrucao.innerHTML = htmlFormatado;
+                instrucao.dataset.formatado = 'true';
+            } else if (texto && texto !== textoOriginal) {
+                // Se não conseguiu quebrar mas houve alguma mudança, aplicar
+                console.log(`[formatarInstrucoesRota] Aplicando texto formatado (sem HTML) na instrução ${index + 1}`);
+                instrucao.textContent = texto;
+                instrucao.dataset.formatado = 'true';
+            } else if (textoOriginal) {
+                // Se não conseguiu formatar, marcar como formatado para evitar loops
+                console.log(`[formatarInstrucoesRota] Não foi possível formatar instrução ${index + 1}, texto muito curto ou já formatado`);
+                instrucao.dataset.formatado = 'true';
+            }
+        } else {
+            // Marcar como formatado mesmo que seja curto
+            instrucao.dataset.formatado = 'true';
+        }
+    });
+    
+    // Também formatar o cabeçalho da rota (distância total e tempo)
+    const rotas = document.querySelectorAll('.leaflet-routing-alt');
+    rotas.forEach(function(rota) {
+        if (!rota) return;
+        
+        // Procurar por texto não formatado no cabeçalho
+        const primeiroItem = rota.querySelector('.leaflet-routing-instruction:first-child');
+        if (primeiroItem) {
+            const instrucaoTexto = primeiroItem.querySelector('.leaflet-routing-instruction-text');
+            if (instrucaoTexto && instrucaoTexto.dataset.formatado !== 'true') {
+                let textoItem = instrucaoTexto.textContent || '';
+                // Se o texto contém distância e tempo juntos sem formatação
+                if (textoItem.match(/\d+\.?\d*\s*km.*\d+\s*min/) && !textoItem.includes('<br>')) {
+                    const textoFormatado = textoItem.replace(/(\d+\.?\d*\s*km)/, '<strong>$1</strong>')
+                                                    .replace(/(\d+\s*min)/, '<span class="instrucao-distancia">$1</span>');
+                    instrucaoTexto.innerHTML = textoFormatado;
+                    instrucaoTexto.dataset.formatado = 'true';
+                } else {
+                    instrucaoTexto.dataset.formatado = 'true';
+                }
+            }
+        }
+    });
+}
+
+/**
+ * Calcula rota da sede até uma coletor específica
+ * @param {number} lixeiraId - ID da coletor de destino
  */
 function calcularRotaSede(lixeiraId) {
-    if (!lixeiras || !lixeiras.length) {
-        console.warn('Nenhuma lixeira disponível');
-        alert('Nenhuma lixeira disponível no mapa');
+    if (!coletores || !coletores.length) {
+        console.warn('Nenhuma coletor disponível');
+        alert('Nenhuma coletor disponível no mapa');
         return;
     }
     
-    const lixeira = lixeiras.find(l => l.id === lixeiraId);
-    if (!lixeira || !lixeira.latitude || !lixeira.longitude) {
-        alert('Lixeira não encontrada ou sem coordenadas');
+    const coletor = coletores.find(l => l.id === lixeiraId);
+    if (!coletor || !coletor.latitude || !coletor.longitude) {
+        alert('Coletor não encontrada ou sem coordenadas');
         return;
     }
     
-    const lat = parseFloat(lixeira.latitude);
-    const lon = parseFloat(lixeira.longitude);
+    const lat = parseFloat(coletor.latitude);
+    const lon = parseFloat(coletor.longitude);
     
     if (isNaN(lat) || isNaN(lon)) {
-        alert('Coordenadas inválidas para esta lixeira');
+        alert('Coordenadas inválidas para esta coletor');
         return;
     }
     
-    // Criar rota: Sede -> Lixeira
+    // Criar rota: Sede -> Coletor
     const waypoints = [
         [SEDE_TRONIK.lat, SEDE_TRONIK.lon],
         [lat, lon]
@@ -987,7 +1793,7 @@ function calcularRotaSede(lixeiraId) {
                             })
                         }).bindPopup(`<strong>${SEDE_TRONIK.nome}</strong><br>Ponto de partida`);
                     } else {
-                        // Marcador padrão para a lixeira
+                        // Marcador padrão para a coletor
                         return L.marker(wp.latLng);
                     }
                 }
@@ -996,29 +1802,51 @@ function calcularRotaSede(lixeiraId) {
             // Se falhou imediatamente, usar sistema robusto como fallback
             if (!resultado) {
                 console.warn('Falha ao criar rota otimizada, usando sistema robusto');
-                desenharRotaRobusta(waypoints[0], waypoints[1]);
+                desenharRotaRobusta(waypoints[0], waypoints[1]).then(() => {
+                    // Centralizar mapa na rota após desenhar
+                    const bounds = L.latLngBounds(waypoints);
+                    if (bounds && bounds.isValid()) {
+                        mapa.fitBounds(bounds, { padding: [50, 50] });
+                    }
+                });
+            } else {
+                // Se sucesso, aguardar um pouco antes de centralizar (rota pode ainda estar sendo calculada)
+                setTimeout(() => {
+                    const bounds = L.latLngBounds(waypoints);
+                    if (bounds && bounds.isValid()) {
+                        mapa.fitBounds(bounds, { padding: [50, 50] });
+                    }
+                }, 500);
             }
         } catch (error) {
             console.error('Erro ao tentar criar rota:', error);
             // Usar sistema robusto como fallback
-            desenharRotaRobusta(waypoints[0], waypoints[1]);
+            desenharRotaRobusta(waypoints[0], waypoints[1]).then(() => {
+                // Centralizar mapa na rota após desenhar
+                const bounds = L.latLngBounds(waypoints);
+                if (bounds && bounds.isValid()) {
+                    mapa.fitBounds(bounds, { padding: [50, 50] });
+                }
+            });
         }
     } else {
         // Se Leaflet Routing Machine não estiver disponível, usar sistema robusto
         console.warn('Leaflet Routing Machine não disponível, usando sistema robusto');
-        desenharRotaRobusta(waypoints[0], waypoints[1]);
+        desenharRotaRobusta(waypoints[0], waypoints[1]).then(() => {
+            // Centralizar mapa na rota após desenhar
+            const bounds = L.latLngBounds(waypoints);
+            if (bounds && bounds.isValid()) {
+                mapa.fitBounds(bounds, { padding: [50, 50] });
+            }
+        });
     }
     
-    // Centralizar mapa na rota
-    const bounds = L.latLngBounds(waypoints);
-    mapa.fitBounds(bounds, { padding: [50, 50] });
-    
-    console.log(`Rota calculada: ${SEDE_TRONIK.nome} -> Lixeira #${lixeiraId}`);
+    console.log(`Rota calculada: ${SEDE_TRONIK.nome} -> Coletor #${lixeiraId}`);
 }
 
 /**
- * Filtra lixeiras por distância da sede
- * @param {Array} lixeirasList - Lista de lixeiras
+ * Filtra coletores por distância da sede
+ * @param {Array} lixeirasList - Lista de coletores
  * @param {string} filtroDistancia - Filtro de distância ('todas', 'ate-10', '10-20', '20-50', 'mais-50')
  * @returns {Array} Lista filtrada
  */
@@ -1027,10 +1855,10 @@ function filtrarPorDistancia(lixeirasList, filtroDistancia = 'todas') {
         return lixeirasList;
     }
     
-    return lixeirasList.filter(lixeira => {
-        const distancia = calcularDistanciaSede(lixeira);
+    return lixeirasList.filter(coletor => {
+        const distancia = calcularDistanciaSede(coletor);
         if (distancia === null) {
-            return false; // Excluir lixeiras sem coordenadas
+            return false; // Excluir coletores sem coordenadas
         }
         
         switch (filtroDistancia) {
@@ -1049,18 +1877,18 @@ function filtrarPorDistancia(lixeirasList, filtroDistancia = 'todas') {
 }
 
 /**
- * Ordena lixeiras por distância da sede
- * @param {Array} lixeirasList - Lista de lixeiras
+ * Ordena coletores por distância da sede
+ * @param {Array} lixeirasList - Lista de coletores
  * @param {string} ordem - 'asc' (mais próxima primeiro) ou 'desc' (mais distante primeiro)
  * @returns {Array} Lista ordenada
  */
 function ordenarPorDistancia(lixeirasList, ordem = 'asc') {
-    const lixeirasComDistancia = lixeirasList.map(lixeira => ({
-        lixeira,
-        distancia: calcularDistanciaSede(lixeira)
+    const lixeirasComDistancia = lixeirasList.map(coletor => ({
+        coletor,
+        distancia: calcularDistanciaSede(coletor)
     }));
     
-    // Separar lixeiras com e sem coordenadas
+    // Separar coletores com e sem coordenadas
     const comCoordenadas = lixeirasComDistancia.filter(item => item.distancia !== null);
     const semCoordenadas = lixeirasComDistancia.filter(item => item.distancia === null);
     
@@ -1074,7 +1902,7 @@ function ordenarPorDistancia(lixeirasList, ordem = 'asc') {
     });
     
     // Retornar: ordenadas + sem coordenadas
-    return comCoordenadas.map(item => item.lixeira).concat(semCoordenadas.map(item => item.lixeira));
+    return comCoordenadas.map(item => item.coletor).concat(semCoordenadas.map(item => item.coletor));
 }
 
 /**
@@ -1170,4 +1998,5 @@ if (typeof window !== 'undefined') {
     // Também expor globalmente para compatibilidade
     window.mapa = mapa;
 }
+
 

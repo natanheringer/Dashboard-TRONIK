@@ -12,13 +12,13 @@
         <!-- Header -->
         <div class="config-header">
             <h2>Configurações do Sistema</h2>
-            <p>Gerencie lixeiras e configurações do sistema</p>
+            <p>Gerencie coletores e configurações do sistema</p>
         </div>
 
-        <!-- Formulário para Adicionar Lixeira -->
+        <!-- Formulário para Adicionar Coletor -->
         <div class="card">
-            <h3 class="card-header">Adicionar Nova Lixeira</h3>
-            <form id="form-nova-lixeira" class="form-lixeira">
+            <h3 class="card-header">Adicionar Nova Coletor</h3>
+            <form id="form-nova-coletor" class="form-coletor">
                 <div class="form-grid">
                     <div class="form-group">
                         <label for="localizacao">Localização *</label>
@@ -69,7 +69,7 @@
                 </div>
 
                 <div class="form-actions">
-                    <button type="submit" class="btn-primary">Adicionar Lixeira</button>
+                    <button type="submit" class="btn-primary">Adicionar Coletor</button>
                     <button type="reset" class="btn-secondary">Limpar</button>
                 </div>
 
@@ -80,12 +80,12 @@
         <!-- Formulário para Adicionar Coleta -->
         <div class="card">
             <h3 class="card-header">Adicionar Nova Coleta</h3>
-            <form id="form-nova-coleta" class="form-lixeira">
+            <form id="form-nova-coleta" class="form-coletor">
                 <div class="form-grid">
                     <div class="form-group">
-                        <label for="coleta-lixeira-id">Lixeira *</label>
-                        <select id="coleta-lixeira-id" name="lixeira_id" required>
-                            <option value="">Selecione uma lixeira...</option>
+                        <label for="coleta-coletor-id">Coletor *</label>
+                        <select id="coleta-coletor-id" name="coletor_id" required>
+                            <option value="">Selecione uma coletor...</option>
                         </select>
                     </div>
 
@@ -162,12 +162,12 @@
         <!-- Formulário para Adicionar Sensor -->
         <div class="card">
             <h3 class="card-header">Adicionar Novo Sensor</h3>
-            <form id="form-novo-sensor" class="form-lixeira">
+            <form id="form-novo-sensor" class="form-coletor">
                 <div class="form-grid">
                     <div class="form-group">
-                        <label for="sensor-lixeira-id">Lixeira *</label>
-                        <select id="sensor-lixeira-id" name="lixeira_id" required>
-                            <option value="">Selecione uma lixeira...</option>
+                        <label for="sensor-coletor-id">Coletor *</label>
+                        <select id="sensor-coletor-id" name="coletor_id" required>
+                            <option value="">Selecione uma coletor...</option>
                         </select>
                     </div>
 
@@ -197,15 +197,15 @@
         <!-- Lista de Lixeiras Existentes -->
         <div class="card">
             <h3 class="card-header">Lixeiras Cadastradas</h3>
-            <div id="lista-lixeiras" class="lista-lixeiras">
-                <div class="loading-message">Carregando lixeiras...</div>
+            <div id="lista-coletores" class="lista-coletores">
+                <div class="loading-message">Carregando coletores...</div>
             </div>
         </div>
 
         <!-- Lista de Sensores Existentes -->
         <div class="card">
             <h3 class="card-header">Sensores Cadastrados</h3>
-            <div id="lista-sensores" class="lista-lixeiras">
+            <div id="lista-sensores" class="lista-coletores">
                 <div class="loading-message">Carregando sensores...</div>
             </div>
         </div>

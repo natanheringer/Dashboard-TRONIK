@@ -37,7 +37,7 @@ function configurarEventListeners() {
     // Filtros
     const filterTipo = document.getElementById('filter-tipo');
     const filterEnviada = document.getElementById('filter-enviada');
-    const filterLixeira = document.getElementById('filter-lixeira');
+    const filterLixeira = document.getElementById('filter-coletor');
     const btnLimparFiltros = document.getElementById('btn-limpar-filtros');
     
     if (filterTipo) {
@@ -74,7 +74,10 @@ async function carregarNotificacoes() {
         if (list) list.style.display = 'none';
         if (empty) empty.style.display = 'none';
         
-        // Aplicar filtros
+        // Aplicar filtros - garantir que filtrosAtivos está definido
+        if (typeof filtrosAtivos === 'undefined' || filtrosAtivos === null) {
+            filtrosAtivos = {};
+        }
         const filtros = { ...filtrosAtivos, limite: 100 };
         notificacoes = await obterNotificacoes(filtros);
         
@@ -90,7 +93,11 @@ async function carregarNotificacoes() {
             atualizarEstatisticas(notificacoes);
         }
     } catch (error) {
-        console.error('Erro ao carregar notificações:', error);
+        if (window.Logger) {
+            window.Logger.error('Erro ao carregar notificações:', error);
+        } else {
+            console.error('Erro ao carregar notificações:', error);
+        }
         if (loading) loading.style.display = 'none';
         alert('Erro ao carregar notificações: ' + (error.message || 'Erro desconhecido'));
     }
@@ -103,62 +110,88 @@ function exibirNotificacoes(notifs) {
     const list = document.getElementById('notificacoes-list');
     if (!list) return;
     
+    // Garantir que notifs é um array
+    if (!Array.isArray(notifs)) {
+        notifs = [];
+    }
+    
     list.innerHTML = notifs.map(notif => {
-        const tipoIcon = notif.tipo === 'lixeira_cheia' ? '🗑️' : '🔋';
-        const tipoLabel = notif.tipo === 'lixeira_cheia' ? 'Lixeira Cheia' : 'Bateria Baixa';
+        // Validar notificação
+        if (!notif || !notif.id) {
+            return '';
+        }
+        const tipoIcon = notif.tipo === 'lixeira_cheia' 
+            ? '<img src="/static/icons/alert_icon.png" alt="Coletor" class="notificacao-icon-img">' 
+            : '<img src="/static/icons/alert_icon.png" alt="Bateria" class="notificacao-icon-img">';
+        const tipoLabel = notif.tipo === 'lixeira_cheia' ? 'Coletor Cheia' : 'Bateria Baixa';
         const enviadaClass = notif.enviada ? 'enviada' : 'pendente';
         const lidaClass = notif.lida ? 'lida' : 'nao-lida';
         const enviadaBadge = notif.enviada 
-            ? '<span class="badge-enviada">✓ Enviada</span>' 
-            : '<span class="badge-pendente">⏳ Pendente</span>';
+            ? '<span class="badge-enviada"><img src="/static/icons/check_icon.png" alt="Enviada" class="badge-icon"> Enviada</span>' 
+            : '<span class="badge-pendente"><img src="/static/icons/calendar.png" alt="Pendente" class="badge-icon"> Pendente</span>';
         const lidaBadge = notif.lida 
-            ? '<span class="badge-lida">✓ Lida</span>' 
-            : '<span class="badge-nao-lida">👁️ Não lida</span>';
+            ? '<span class="badge-lida"><img src="/static/icons/check_icon.png" alt="Lida" class="badge-icon"> Lida</span>' 
+            : '<span class="badge-nao-lida"><img src="/static/icons/people_icon.png" alt="Não lida" class="badge-icon"> Não lida</span>';
         
-        const dataFormatada = formatarData(notif.criada_em);
-        const horaFormatada = formatarHora(notif.criada_em);
+        // Usar utilitários de formatação se disponíveis
+        const formatarDataFn = window.Formatacao ? window.Formatacao.formatarData : formatarData;
+        const formatarHoraFn = window.Formatacao ? window.Formatacao.formatarHora : formatarHora;
+        const escapeHtmlFn = window.Formatacao ? window.Formatacao.escapeHtml : escapeHtml;
+        
+        const dataFormatada = formatarDataFn(notif.criada_em);
+        const horaFormatada = formatarHoraFn(notif.criada_em);
         
         return `
             <div class="notificacao-item ${enviadaClass} ${lidaClass}" data-id="${notif.id}" role="article" aria-label="Notificação ${notif.lida ? 'lida' : 'não lida'}: ${escapeHtml(notif.titulo)}">
                 <div class="notificacao-icon" aria-hidden="true">${tipoIcon}</div>
                 <div class="notificacao-content">
                     <div class="notificacao-header">
-                        <h3 class="notificacao-titulo">${escapeHtml(notif.titulo)}</h3>
+                        <h3 class="notificacao-titulo">${escapeHtmlFn(notif.titulo)}</h3>
                         <div class="notificacao-badges">
                             ${enviadaBadge}
                             ${lidaBadge}
                         </div>
                     </div>
-                    <p class="notificacao-mensagem">${escapeHtml(notif.mensagem)}</p>
+                    <p class="notificacao-mensagem">${escapeHtmlFn(notif.mensagem)}</p>
                     <div class="notificacao-detalhes">
-                        ${notif.lixeira ? `<span class="detalhe-item">📍 Lixeira #${notif.lixeira.id}: ${escapeHtml(notif.lixeira.localizacao)}</span>` : ''}
-                        ${notif.sensor ? `<span class="detalhe-item">🔋 Sensor #${notif.sensor.id}: ${notif.sensor.bateria}%</span>` : ''}
-                        <span class="detalhe-item">📅 ${dataFormatada} às ${horaFormatada}</span>
-                        ${notif.enviada_em ? `<span class="detalhe-item">✉️ Enviada em ${formatarData(notif.enviada_em)} às ${formatarHora(notif.enviada_em)}</span>` : ''}
-                        ${notif.lida_em ? `<span class="detalhe-item">👁️ Lida em ${formatarData(notif.lida_em)} às ${formatarHora(notif.lida_em)}</span>` : ''}
+                        ${notif.coletor && notif.coletor.id && notif.coletor.localizacao ? `<span class="detalhe-item"><img src="/static/icons/alvo_icon.png" alt="Coletor" class="inline-icon"> Coletor #${notif.coletor.id}: ${escapeHtmlFn(String(notif.coletor.localizacao))}</span>` : ''}
+                        ${notif.sensor && notif.sensor.id && typeof notif.sensor.bateria === 'number' ? `<span class="detalhe-item"><img src="/static/icons/alert_icon.png" alt="Sensor" class="inline-icon"> Sensor #${notif.sensor.id}: ${notif.sensor.bateria}%</span>` : ''}
+                        <span class="detalhe-item"><img src="/static/icons/calendar.png" alt="Data" class="inline-icon"> ${dataFormatada} às ${horaFormatada}</span>
+                        ${notif.enviada_em ? `<span class="detalhe-item"><img src="/static/icons/prancheta_icon.png" alt="Enviada" class="inline-icon"> Enviada em ${formatarDataFn(notif.enviada_em)} às ${formatarHoraFn(notif.enviada_em)}</span>` : ''}
+                        ${notif.lida_em ? `<span class="detalhe-item"><img src="/static/icons/people_icon.png" alt="Lida" class="inline-icon"> Lida em ${formatarDataFn(notif.lida_em)} às ${formatarHoraFn(notif.lida_em)}</span>` : ''}
                     </div>
-                    ${!notif.lida ? `<button class="btn-marcar-lida" onclick="marcarComoLida(${notif.id})" aria-label="Marcar notificação como lida">✓ Marcar como lida</button>` : ''}
+                    ${!notif.lida ? `<button class="btn-marcar-lida" onclick="marcarComoLida(${notif.id})" aria-label="Marcar notificação como lida"><img src="/static/icons/check_icon.png" alt="Marcar" class="btn-icon-small"> Marcar como lida</button>` : ''}
                 </div>
             </div>
         `;
-    }).join('');
+    }).filter(item => item).join('');
 }
 
 /**
  * Atualiza estatísticas
  */
 function atualizarEstatisticas(notifs) {
+    // Garantir que notifs é um array
+    if (!Array.isArray(notifs)) {
+        notifs = [];
+    }
+    
     const total = notifs.length;
-    const enviadas = notifs.filter(n => n.enviada).length;
+    const enviadas = notifs.filter(n => n && n.enviada === true).length;
     const pendentes = total - enviadas;
-    const lidas = notifs.filter(n => n.lida).length;
+    const lidas = notifs.filter(n => n && n.lida === true).length;
     const naoLidas = total - lidas;
     
     // Notificações de hoje
     const hoje = new Date().toISOString().split('T')[0];
     const hojeCount = notifs.filter(n => {
-        if (!n.criada_em) return false;
-        return n.criada_em.split('T')[0] === hoje;
+        if (!n || !n.criada_em) return false;
+        try {
+            const dataStr = String(n.criada_em);
+            return dataStr.split('T')[0] === hoje;
+        } catch (e) {
+            return false;
+        }
     }).length;
     
     const statTotal = document.getElementById('stat-total');
@@ -191,7 +224,7 @@ function aplicarFiltros() {
     const filterTipo = document.getElementById('filter-tipo');
     const filterEnviada = document.getElementById('filter-enviada');
     const filterLida = document.getElementById('filter-lida');
-    const filterLixeira = document.getElementById('filter-lixeira');
+    const filterLixeira = document.getElementById('filter-coletor');
     
     filtrosAtivos = {};
     
@@ -205,7 +238,7 @@ function aplicarFiltros() {
         filtrosAtivos.lida = filterLida.value;
     }
     if (filterLixeira && filterLixeira.value) {
-        filtrosAtivos.lixeira_id = parseInt(filterLixeira.value);
+        filtrosAtivos.coletor_id = parseInt(filterLixeira.value);
     }
     
     carregarNotificacoes();
@@ -218,7 +251,7 @@ function limparFiltros() {
     const filterTipo = document.getElementById('filter-tipo');
     const filterEnviada = document.getElementById('filter-enviada');
     const filterLida = document.getElementById('filter-lida');
-    const filterLixeira = document.getElementById('filter-lixeira');
+    const filterLixeira = document.getElementById('filter-coletor');
     
     if (filterTipo) filterTipo.value = '';
     if (filterEnviada) filterEnviada.value = '';
@@ -321,9 +354,12 @@ async function atualizarBadgeNotificacoes() {
 }
 
 /**
- * Formata data
+ * Formata data (usa utilitário se disponível)
  */
 function formatarData(dataISO) {
+    if (window.Formatacao) {
+        return window.Formatacao.formatarData(dataISO);
+    }
     if (!dataISO) return 'N/A';
     try {
         const data = new Date(dataISO);
@@ -338,9 +374,12 @@ function formatarData(dataISO) {
 }
 
 /**
- * Formata hora
+ * Formata hora (usa utilitário se disponível)
  */
 function formatarHora(dataISO) {
+    if (window.Formatacao) {
+        return window.Formatacao.formatarHora(dataISO);
+    }
     if (!dataISO) return 'N/A';
     try {
         const data = new Date(dataISO);
@@ -354,18 +393,24 @@ function formatarHora(dataISO) {
 }
 
 /**
- * Escapa HTML para prevenir XSS
+ * Escapa HTML para prevenir XSS (usa utilitário se disponível)
  */
 function escapeHtml(text) {
+    if (window.Formatacao) {
+        return window.Formatacao.escapeHtml(text);
+    }
     const div = document.createElement('div');
     div.textContent = text;
     return div.innerHTML;
 }
 
 /**
- * Debounce para limitar chamadas de função
+ * Debounce para limitar chamadas de função (usa utilitário se disponível)
  */
 function debounce(func, wait) {
+    if (window.Formatacao && window.Formatacao.debounce) {
+        return window.Formatacao.debounce(func, wait);
+    }
     let timeout;
     return function executedFunction(...args) {
         const later = () => {

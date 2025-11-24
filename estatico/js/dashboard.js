@@ -25,11 +25,15 @@ let ordenacaoHistorico = {
     direcao: 'desc' // 'asc' ou 'desc'
 };
 let dadosHistoricoAtual = [];
+// Array para armazenar event listeners para cleanup
+let eventListeners = [];
+// Flag para controlar se os listeners WebSocket já foram configurados
+let websocketListenersConfigurados = false;
 
-// Função para determinar status da lixeira
-function determinarStatus(lixeira) {
-    const nivel = lixeira.nivel_preenchimento || 0;
-    const statusLixeira = lixeira.status || 'ativo';
+// Função para determinar status da coletor
+function determinarStatus(coletor) {
+    const nivel = coletor.nivel_preenchimento || 0;
+    const statusLixeira = coletor.status || 'ativo';
     
     if (nivel >= 95) return { tipo: 'alert', texto: 'Crítico' };
     if (nivel >= 80) return { tipo: 'warning', texto: 'Atenção' };
@@ -54,8 +58,8 @@ function formatarData(dataISO) {
 }
 
 // Função para calcular distância da sede (Haversine)
-function calcularDistanciaSede(lixeira) {
-    if (!lixeira || !lixeira.latitude || !lixeira.longitude) {
+function calcularDistanciaSede(coletor) {
+    if (!coletor || !coletor.latitude || !coletor.longitude) {
         return null;
     }
     
@@ -64,8 +68,8 @@ function calcularDistanciaSede(lixeira) {
         lon: -48.076158282355806
     };
     
-    const lat = parseFloat(lixeira.latitude);
-    const lon = parseFloat(lixeira.longitude);
+    const lat = parseFloat(coletor.latitude);
+    const lon = parseFloat(coletor.longitude);
     
     if (isNaN(lat) || isNaN(lon)) {
         return null;
@@ -95,24 +99,33 @@ function formatarDistancia(distancia) {
     return `${distancia.toFixed(1)}km`;
 }
 
-// Função para criar card de lixeira
-function criarCardLixeira(lixeira) {
-    const status = determinarStatus(lixeira);
-    const nivel = Math.round(lixeira.nivel_preenchimento || 0);
-    const tipoMaterial = lixeira.tipo_material ? lixeira.tipo_material.nome : 'Não especificado';
-    const parceiro = lixeira.parceiro ? lixeira.parceiro.nome : null;
-    const distanciaSede = calcularDistanciaSede(lixeira);
+// Função para criar card de coletor
+function criarCardLixeira(coletor) {
+    const status = determinarStatus(coletor);
+    const nivel = Math.round(coletor.nivel_preenchimento || 0);
+    
+    // Sanitizar dados
+    const escapeHtml = window.Formatacao && window.Formatacao.escapeHtml ? window.Formatacao.escapeHtml : (text) => {
+        const div = document.createElement('div');
+        div.textContent = text;
+        return div.innerHTML;
+    };
+    
+    const tipoMaterial = escapeHtml(coletor.tipo_material ? coletor.tipo_material.nome : 'Não especificado');
+    const parceiro = coletor.parceiro ? escapeHtml(coletor.parceiro.nome) : null;
+    const localizacao = escapeHtml(coletor.localizacao || 'Sem localização');
+    const distanciaSede = calcularDistanciaSede(coletor);
     const distanciaFormatada = formatarDistancia(distanciaSede);
     
     const card = document.createElement('div');
     card.className = `bin-card ${status.tipo === 'alert' ? 'alert' : status.tipo === 'warning' ? 'warning' : ''}`;
-    card.dataset.id = lixeira.id;
+    card.dataset.id = coletor.id;
     
     card.innerHTML = `
         <div class="bin-header">
             <div class="bin-info">
-                <div class="bin-id">#L${String(lixeira.id).padStart(3, '0')}</div>
-                <div class="bin-name">${lixeira.localizacao || 'Sem localização'}</div>
+                <div class="bin-id">#L${String(coletor.id).padStart(3, '0')}</div>
+                <div class="bin-name">${localizacao}</div>
                 <div class="bin-location">${tipoMaterial}${parceiro ? ` | ${parceiro}` : ''}${distanciaSede !== null ? ` | 📍 ${distanciaFormatada} da sede` : ''}</div>
             </div>
             <span class="bin-status-badge status-${status.tipo}">${status.texto}</span>
@@ -128,30 +141,35 @@ function criarCardLixeira(lixeira) {
             </div>
         </div>
         <div class="bin-footer">
-            <span class="bin-update">${formatarData(lixeira.ultima_coleta)}</span>
-            <button class="bin-action" data-lixeira-id="${lixeira.id}">Detalhes</button>
+            <span class="bin-update">${formatarData(coletor.ultima_coleta)}</span>
+            <button class="bin-action" data-coletor-id="${coletor.id}">Detalhes</button>
         </div>
     `;
     
     return card;
 }
 
-// Função para renderizar grid de lixeiras
+// Função para renderizar grid de coletores
 function renderizarGridLixeiras(lixeirasFiltradas) {
     const grid = document.getElementById('bins-grid');
-    grid.innerHTML = '';
-    
-    if (lixeirasFiltradas.length === 0) {
-        grid.innerHTML = '<div class="loading-message">Nenhuma lixeira encontrada</div>';
+    if (!grid) {
+        console.warn('Elemento bins-grid não encontrado');
         return;
     }
     
-    lixeirasFiltradas.forEach(lixeira => {
-        const card = criarCardLixeira(lixeira);
+    grid.innerHTML = '';
+    
+    if (!Array.isArray(lixeirasFiltradas) || lixeirasFiltradas.length === 0) {
+        grid.innerHTML = '<div class="loading-message">Nenhuma coletor encontrada</div>';
+        return;
+    }
+    
+    lixeirasFiltradas.forEach(coletor => {
+        const card = criarCardLixeira(coletor);
         // Adicionar event listener ao botão de detalhes
         const btnDetalhes = card.querySelector('.bin-action');
         if (btnDetalhes) {
-            btnDetalhes.addEventListener('click', () => verDetalhes(lixeira.id));
+            btnDetalhes.addEventListener('click', () => verDetalhes(coletor.id));
         }
         grid.appendChild(card);
     });
@@ -181,7 +199,7 @@ function atualizarAlertas() {
     const lixeirasAlerta = todasLixeiras.filter(l => l.nivel_preenchimento >= 80);
     
     if (lixeirasAlerta.length > 0) {
-        alertTitle.textContent = `${lixeirasAlerta.length} lixeira(s) precisam de atenção urgente`;
+        alertTitle.textContent = `${lixeirasAlerta.length} coletor(s) precisam de atenção urgente`;
         const ids = lixeirasAlerta.map(l => `#L${String(l.id).padStart(3, '0')}`).join(', ');
         alertMessage.textContent = `Lixeiras ${ids} estão acima de 80% de capacidade`;
         alertasBar.style.display = 'flex';
@@ -264,16 +282,29 @@ async function carregarDados() {
             }
         }
         
-        // Carregar lixeiras e estatísticas em paralelo
-        const [lixeiras, stats] = await Promise.all([
+        // Carregar coletores e estatísticas em paralelo (usar allSettled para não falhar tudo se uma falhar)
+        const results = await Promise.allSettled([
             obterTodasLixeiras(),
             obterEstatisticas()
         ]);
         
-        todasLixeiras = lixeiras;
+        const coletores = results[0].status === 'fulfilled' ? (Array.isArray(results[0].value) ? results[0].value : []) : [];
+        const stats = results[1].status === 'fulfilled' ? (results[1].value || {}) : {};
+        
+        if (results[0].status === 'rejected') {
+            console.error('Erro ao carregar coletores:', results[0].reason);
+        }
+        if (results[1].status === 'rejected') {
+            console.error('Erro ao carregar estatísticas:', results[1].reason);
+        }
+        
+        todasLixeiras = coletores;
         atualizarEstatisticas(stats);
         atualizarAlertas();
         aplicarFiltros();
+        
+        // Configurar listeners WebSocket para atualizações em tempo real
+        configurarWebSocketListeners();
         
         // Carregar histórico (só se o elemento existir)
         const historyTbody = document.getElementById('history-tbody');
@@ -309,13 +340,21 @@ async function carregarDados() {
 
 // Atualização manual com feedback de botão
 async function atualizarComFeedback() {
+    console.log('[Dashboard] atualizarComFeedback chamado');
     const btn = document.getElementById('btn-atualizar');
-    if (!btn) return carregarDados();
+    if (!btn) {
+        console.warn('[Dashboard] Botão atualizar não encontrado, chamando carregarDados diretamente');
+        return carregarDados();
+    }
     const original = btn.textContent;
     btn.disabled = true;
     btn.textContent = 'Atualizando...';
+    console.log('[Dashboard] Iniciando atualização de dados...');
     try {
         await carregarDados();
+        console.log('[Dashboard] Dados atualizados com sucesso');
+    } catch (error) {
+        console.error('[Dashboard] Erro ao atualizar dados:', error);
     } finally {
         btn.disabled = false;
         btn.textContent = original;
@@ -360,7 +399,13 @@ async function carregarHistorico() {
             return;
         }
         
-        const historico = await obterHistorico(dataFiltroHistorico);
+        let historico = await obterHistorico(dataFiltroHistorico);
+        
+        // Garantir que historico é um array
+        if (!Array.isArray(historico)) {
+            console.warn('Histórico não é um array, convertendo...', historico);
+            historico = historico && historico.dados ? historico.dados : [];
+        }
         
         // Armazenar dados para ordenação
         dadosHistoricoAtual = historico;
@@ -379,7 +424,7 @@ async function carregarHistorico() {
         // Mostrar todas as coletas (ou limitar a 50 se houver muitas)
         const coletasLimitadas = historicoOrdenado.length > 50 ? historicoOrdenado.slice(0, 50) : historicoOrdenado;
         tbody.innerHTML = coletasLimitadas.map(coleta => {
-            const lixeira = todasLixeiras.find(l => l.id === coleta.lixeira_id) || coleta.lixeira;
+            const coletor = todasLixeiras.find(l => l.id === coleta.coletor_id) || coleta.coletor;
             const data = coleta.data_hora ? new Date(coleta.data_hora) : null;
             const hora = data ? data.toLocaleTimeString('pt-BR', { hour: '2-digit', minute: '2-digit' }) : 'N/A';
             const dataFormatada = data ? data.toLocaleDateString('pt-BR') : 'N/A';
@@ -390,8 +435,8 @@ async function carregarHistorico() {
             
             return `
                 <tr>
-                    <td>#L${String(coleta.lixeira_id || 'N/A').padStart(3, '0')}</td>
-                    <td>${lixeira ? (lixeira.localizacao || 'N/A') : 'N/A'}</td>
+                    <td>#L${String(coleta.coletor_id || 'N/A').padStart(3, '0')}</td>
+                    <td>${coletor ? (coletor.localizacao || 'N/A') : 'N/A'}</td>
                     <td>${dataFormatada} ${hora}</td>
                     <td>${volume}KG</td>
                     <td>${km}${typeof km === 'number' ? 'km' : ''}</td>
@@ -419,12 +464,12 @@ function ordenarHistorico(coletas, coluna, direcao) {
         
         switch(coluna) {
             case 'id':
-                valorA = a.lixeira_id || 0;
-                valorB = b.lixeira_id || 0;
+                valorA = a.coletor_id || 0;
+                valorB = b.coletor_id || 0;
                 break;
             case 'local':
-                const lixeiraA = todasLixeiras.find(l => l.id === a.lixeira_id) || a.lixeira;
-                const lixeiraB = todasLixeiras.find(l => l.id === b.lixeira_id) || b.lixeira;
+                const lixeiraA = todasLixeiras.find(l => l.id === a.coletor_id) || a.coletor;
+                const lixeiraB = todasLixeiras.find(l => l.id === b.coletor_id) || b.coletor;
                 valorA = (lixeiraA ? (lixeiraA.localizacao || '') : '').toLowerCase();
                 valorB = (lixeiraB ? (lixeiraB.localizacao || '') : '').toLowerCase();
                 break;
@@ -508,6 +553,15 @@ function atualizarIndicadoresOrdenacao() {
 // Função para renderizar histórico ordenado
 function renderizarHistoricoOrdenado() {
     const tbody = document.getElementById('history-tbody');
+    if (!tbody) {
+        console.warn('Elemento history-tbody não encontrado');
+        return;
+    }
+    
+    // Garantir que dadosHistoricoAtual é um array
+    if (!Array.isArray(dadosHistoricoAtual)) {
+        dadosHistoricoAtual = [];
+    }
     
     if (dadosHistoricoAtual.length === 0) {
         tbody.innerHTML = '<tr><td colspan="8" style="text-align: center;">Nenhuma coleta registrada</td></tr>';
@@ -518,24 +572,33 @@ function renderizarHistoricoOrdenado() {
     const historicoOrdenado = ordenarHistorico(dadosHistoricoAtual, ordenacaoHistorico.coluna, ordenacaoHistorico.direcao);
     const coletasLimitadas = historicoOrdenado.length > 50 ? historicoOrdenado.slice(0, 50) : historicoOrdenado;
     
+    // Sanitizar função
+    const escapeHtml = window.Formatacao && window.Formatacao.escapeHtml ? window.Formatacao.escapeHtml : (text) => {
+        const div = document.createElement('div');
+        div.textContent = text;
+        return div.innerHTML;
+    };
+    
     tbody.innerHTML = coletasLimitadas.map(coleta => {
-        const lixeira = todasLixeiras.find(l => l.id === coleta.lixeira_id) || coleta.lixeira;
+        const coletor = Array.isArray(todasLixeiras) ? todasLixeiras.find(l => l && l.id === coleta.coletor_id) : null;
+        const lixeiraObj = coletor || coleta.coletor;
         const data = coleta.data_hora ? new Date(coleta.data_hora) : null;
         const hora = data ? data.toLocaleTimeString('pt-BR', { hour: '2-digit', minute: '2-digit' }) : 'N/A';
         const dataFormatada = data ? data.toLocaleDateString('pt-BR') : 'N/A';
         const volume = coleta.volume_estimado ? Math.round(coleta.volume_estimado) : 0;
         const km = coleta.km_percorrido ? Math.round(coleta.km_percorrido * 10) / 10 : 'N/A';
-        const parceiro = coleta.parceiro ? coleta.parceiro.nome : 'N/A';
-        const tipoOperacao = coleta.tipo_operacao || 'N/A';
+        const parceiroNome = coleta.parceiro ? escapeHtml(coleta.parceiro.nome) : 'N/A';
+        const tipoOperacao = escapeHtml(coleta.tipo_operacao || 'N/A');
+        const localizacao = lixeiraObj ? escapeHtml(lixeiraObj.localizacao || 'N/A') : 'N/A';
         
         return `
             <tr>
-                <td>#L${String(coleta.lixeira_id || 'N/A').padStart(3, '0')}</td>
-                <td>${lixeira ? (lixeira.localizacao || 'N/A') : 'N/A'}</td>
+                <td>#L${String(coleta.coletor_id || 'N/A').padStart(3, '0')}</td>
+                <td>${localizacao}</td>
                 <td>${dataFormatada} ${hora}</td>
                 <td>${volume}KG</td>
                 <td>${km}${typeof km === 'number' ? 'km' : ''}</td>
-                <td>${parceiro}</td>
+                <td>${parceiroNome}</td>
                 <td>${tipoOperacao}</td>
                 <td><span class="bin-status-badge status-ok">OK</span></td>
             </tr>
@@ -546,16 +609,79 @@ function renderizarHistoricoOrdenado() {
 // Função para ver detalhes
 async function verDetalhes(id) {
     try {
-        const lixeira = await obterLixeira(id);
-        const historico = await obterHistorico();
-        const historicoLixeira = historico.filter(c => c.lixeira_id === id).slice(0, 5);
+        const coletor = await obterLixeira(id);
+        let historico = await obterHistorico();
         
-        const status = determinarStatus(lixeira);
-        const nivel = Math.round(lixeira.nivel_preenchimento || 0);
+        // Garantir que historico é um array
+        if (!Array.isArray(historico)) {
+            historico = historico && historico.dados ? historico.dados : [];
+        }
         
-        // Preencher modal
-        document.getElementById('modal-title').textContent = 
-            `Lixeira #L${String(lixeira.id).padStart(3, '0')} - ${lixeira.localizacao || 'Sem localização'}`;
+        const historicoLixeira = historico.filter(c => c.coletor_id === id).slice(0, 5);
+        
+        const status = determinarStatus(coletor);
+        const nivel = Math.round(coletor.nivel_preenchimento || 0);
+        
+        // Mostrar modal ANTES de preencher conteúdo
+        let modalOverlay = document.getElementById('modal-overlay');
+        if (!modalOverlay) {
+            console.error('Elemento modal-overlay não encontrado');
+            // Tentar criar o modal se não existir
+            const body = document.body;
+            if (body) {
+                modalOverlay = document.createElement('div');
+                modalOverlay.id = 'modal-overlay';
+                modalOverlay.className = 'modal-overlay';
+                modalOverlay.style.display = 'none';
+                modalOverlay.innerHTML = `
+                    <div class="modal-container">
+                        <div class="modal-header">
+                            <h2 id="modal-title">Detalhes da Coletor</h2>
+                            <button class="modal-close" id="modal-close">&times;</button>
+                        </div>
+                        <div class="modal-body" id="modal-body">
+                            <!-- Conteúdo será preenchido via JavaScript -->
+                        </div>
+                    </div>
+                `;
+                body.appendChild(modalOverlay);
+                
+                // Adicionar event listeners para fechar modal
+                const modalClose = modalOverlay.querySelector('#modal-close');
+                if (modalClose) {
+                    modalClose.addEventListener('click', () => {
+                        modalOverlay.style.display = 'none';
+                    });
+                }
+                modalOverlay.addEventListener('click', (e) => {
+                    if (e.target.id === 'modal-overlay') {
+                        modalOverlay.style.display = 'none';
+                    }
+                });
+            } else {
+                console.error('Body não encontrado, não é possível criar modal');
+                return;
+            }
+        }
+        
+        // Preencher modal - validar elementos
+        const modalTitle = modalOverlay.querySelector('#modal-title');
+        if (!modalTitle) {
+            console.error('Elemento modal-title não encontrado no modal');
+            return;
+        }
+        
+        const modalBody = modalOverlay.querySelector('#modal-body');
+        if (!modalBody) {
+            console.error('Elemento modal-body não encontrado no modal');
+            return;
+        }
+        
+        modalTitle.textContent = 
+            `Coletor #L${String(coletor.id).padStart(3, '0')} - ${coletor.localizacao || 'Sem localização'}`;
+        
+        // Mostrar modal
+        modalOverlay.style.display = 'flex';
         
         // Carregar tipos e parceiros para dropdowns
         const [tiposMaterial, parceiros] = await Promise.all([
@@ -563,17 +689,31 @@ async function verDetalhes(id) {
             obterParceiros().catch(() => [])
         ]);
         
-        const tipoMaterialAtual = lixeira.tipo_material ? lixeira.tipo_material.id : null;
-        const parceiroAtual = lixeira.parceiro ? lixeira.parceiro.id : null;
+        // Garantir que são arrays
+        const tiposMaterialArray = Array.isArray(tiposMaterial) ? tiposMaterial : [];
+        const parceirosArray = Array.isArray(parceiros) ? parceiros : [];
         
-        const modalBody = document.getElementById('modal-body');
+        const tipoMaterialAtual = coletor.tipo_material ? coletor.tipo_material.id : null;
+        const parceiroAtual = coletor.parceiro ? coletor.parceiro.id : null;
+        
+        // Sanitizar dados antes de inserir no HTML
+        const escapeHtml = window.Formatacao && window.Formatacao.escapeHtml ? window.Formatacao.escapeHtml : (text) => {
+            const div = document.createElement('div');
+            div.textContent = text;
+            return div.innerHTML;
+        };
+        
+        const localizacao = escapeHtml(coletor.localizacao || 'Sem localização');
+        const tipoMaterialNome = escapeHtml(coletor.tipo_material ? coletor.tipo_material.nome : 'Não especificado');
+        const parceiroNome = escapeHtml(coletor.parceiro ? coletor.parceiro.nome : 'N/A');
+        
         modalBody.innerHTML = `
             <div class="modal-detail-card">
                 <div class="modal-detail-header">
                     <div>
-                        <div class="modal-detail-title">${lixeira.localizacao || 'Sem localização'}</div>
+                        <div class="modal-detail-title">${localizacao}</div>
                         <div style="font-size: 12px; color: #7f8c8d; margin-top: 5px;">
-                            ${lixeira.tipo_material ? lixeira.tipo_material.nome : 'Não especificado'}${lixeira.parceiro ? ` | ${lixeira.parceiro.nome}` : ''} | Atualizado ${formatarData(lixeira.ultima_coleta)}
+                            ${tipoMaterialNome}${coletor.parceiro ? ` | ${parceiroNome}` : ''} | Atualizado ${formatarData(coletor.ultima_coleta)}
                         </div>
                     </div>
                     <span class="bin-status-badge status-${status.tipo}">${status.texto}</span>
@@ -595,25 +735,25 @@ async function verDetalhes(id) {
                 <div class="modal-info-grid">
                     <div class="modal-info-item">
                         <span class="modal-info-label">Status</span>
-                        <span class="modal-info-value">${lixeira.status || 'OK'}</span>
+                        <span class="modal-info-value">${coletor.status || 'OK'}</span>
                     </div>
                     <div class="modal-info-item">
                         <span class="modal-info-label">Tipo de Material</span>
-                        <span class="modal-info-value">${lixeira.tipo_material ? lixeira.tipo_material.nome : 'Não especificado'}</span>
+                        <span class="modal-info-value">${tipoMaterialNome}</span>
                     </div>
                     <div class="modal-info-item">
                         <span class="modal-info-label">Parceiro</span>
-                        <span class="modal-info-value">${lixeira.parceiro ? lixeira.parceiro.nome : 'N/A'}</span>
+                        <span class="modal-info-value">${parceiroNome}</span>
                     </div>
                     <div class="modal-info-item">
                         <span class="modal-info-label">Última Coleta</span>
-                        <span class="modal-info-value">${formatarData(lixeira.ultima_coleta)}</span>
+                        <span class="modal-info-value">${formatarData(coletor.ultima_coleta)}</span>
                     </div>
                     <div class="modal-info-item">
                         <span class="modal-info-label">Coordenadas</span>
                         <span class="modal-info-value">
-                            ${lixeira.latitude && lixeira.longitude ? 
-                                `${parseFloat(lixeira.latitude).toFixed(4)}, ${parseFloat(lixeira.longitude).toFixed(4)}` : 
+                            ${coletor.latitude && coletor.longitude ? 
+                                `${parseFloat(coletor.latitude).toFixed(4)}, ${parseFloat(coletor.longitude).toFixed(4)}` : 
                                 'N/A'}
                         </span>
                     </div>
@@ -657,50 +797,54 @@ async function verDetalhes(id) {
             ` : ''}
             
             <div class="modal-detail-card" id="edit-section">
-                <h3 style="font-size: 14px; font-weight: 600; margin-bottom: 10px; color: #2c3e50;">Editar Lixeira</h3>
+                <h3 style="font-size: 14px; font-weight: 600; margin-bottom: 10px; color: #2c3e50;">Editar Coletor</h3>
                 <div id="edit-feedback" style="display:none; font-size:12px; margin-bottom:8px;"></div>
                 <div class="form-grid" style="display:grid; grid-template-columns: 1fr 1fr; gap: 10px;">
                     <div class="form-group">
                         <label style="font-size:12px; color:#7f8c8d;">Localização *</label>
-                        <input type="text" id="edit-localizacao" value="${lixeira.localizacao || ''}" />
+                        <input type="text" id="edit-localizacao" value="${coletor.localizacao || ''}" />
                     </div>
                     <div class="form-group">
                         <label style="font-size:12px; color:#7f8c8d;">Tipo de Material</label>
                         <select id="edit-tipo-material">
                             <option value="">Selecione...</option>
-                            ${tiposMaterial.map(tipo => `
-                                <option value="${tipo.id}" ${tipo.id === tipoMaterialAtual ? 'selected' : ''}>${tipo.nome}</option>
-                            `).join('')}
+                            ${tiposMaterialArray.map(tipo => {
+                                if (!tipo || !tipo.id || !tipo.nome) return '';
+                                const nomeEscapado = escapeHtml(tipo.nome);
+                                return `<option value="${tipo.id}" ${tipo.id === tipoMaterialAtual ? 'selected' : ''}>${nomeEscapado}</option>`;
+                            }).filter(opt => opt).join('')}
                         </select>
                     </div>
                     <div class="form-group">
                         <label style="font-size:12px; color:#7f8c8d;">Parceiro</label>
                         <select id="edit-parceiro">
                             <option value="">Selecione...</option>
-                            ${parceiros.map(parceiro => `
-                                <option value="${parceiro.id}" ${parceiro.id === parceiroAtual ? 'selected' : ''}>${parceiro.nome}</option>
-                            `).join('')}
+                            ${parceirosArray.map(parceiro => {
+                                if (!parceiro || !parceiro.id || !parceiro.nome) return '';
+                                const nomeEscapado = escapeHtml(parceiro.nome);
+                                return `<option value="${parceiro.id}" ${parceiro.id === parceiroAtual ? 'selected' : ''}>${nomeEscapado}</option>`;
+                            }).filter(opt => opt).join('')}
                         </select>
                     </div>
                     <div class="form-group">
                         <label style="font-size:12px; color:#7f8c8d;">Nível (%)</label>
-                        <input type="number" id="edit-nivel" min="0" max="100" step="0.1" value="${lixeira.nivel_preenchimento || 0}" />
+                        <input type="number" id="edit-nivel" min="0" max="100" step="0.1" value="${coletor.nivel_preenchimento || 0}" />
                     </div>
                     <div class="form-group">
                         <label style="font-size:12px; color:#7f8c8d;">Status</label>
                         <select id="edit-status">
-                            <option value="OK" ${lixeira.status === 'OK' ? 'selected' : ''}>OK</option>
-                            <option value="CHEIA" ${lixeira.status === 'CHEIA' ? 'selected' : ''}>CHEIA</option>
-                            <option value="QUEBRADA" ${lixeira.status === 'QUEBRADA' ? 'selected' : ''}>QUEBRADA</option>
+                            <option value="OK" ${coletor.status === 'OK' ? 'selected' : ''}>OK</option>
+                            <option value="CHEIA" ${coletor.status === 'CHEIA' ? 'selected' : ''}>CHEIA</option>
+                            <option value="QUEBRADA" ${coletor.status === 'QUEBRADA' ? 'selected' : ''}>QUEBRADA</option>
                         </select>
                     </div>
                     <div class="form-group">
                         <label style="font-size:12px; color:#7f8c8d;">Latitude</label>
-                        <input type="number" id="edit-lat" step="0.0001" value="${lixeira.latitude || ''}" />
+                        <input type="number" id="edit-lat" step="0.0001" value="${coletor.latitude || ''}" />
                     </div>
                     <div class="form-group">
                         <label style="font-size:12px; color:#7f8c8d;">Longitude</label>
-                        <input type="number" id="edit-lon" step="0.0001" value="${lixeira.longitude || ''}" />
+                        <input type="number" id="edit-lon" step="0.0001" value="${coletor.longitude || ''}" />
                     </div>
                 </div>
                 <div class="form-actions" style="margin-top:10px; display:flex; gap:8px;">
@@ -710,24 +854,53 @@ async function verDetalhes(id) {
             </div>
         `;
         
-        // Mostrar modal
-        document.getElementById('modal-overlay').style.display = 'flex';
+        // Mostrar modal (já foi validado acima)
+        modalOverlay = document.getElementById('modal-overlay');
+        if (modalOverlay) {
+            modalOverlay.style.display = 'flex';
+        }
         
-        // Listeners de edição
-        document.getElementById('btn-cancelar-edicao').addEventListener('click', fecharModal);
-        document.getElementById('btn-salvar-edicao').addEventListener('click', async function() {
+        // Listeners de edição - validar elementos
+        const btnCancelar = document.getElementById('btn-cancelar-edicao');
+        const btnSalvar = document.getElementById('btn-salvar-edicao');
+        
+        if (btnCancelar) {
+            btnCancelar.addEventListener('click', fecharModal);
+        }
+        
+        if (btnSalvar) {
+            btnSalvar.addEventListener('click', async function() {
             const feedback = document.getElementById('edit-feedback');
+            if (!feedback) {
+                console.error('Elemento edit-feedback não encontrado');
+                return;
+            }
             feedback.style.display = 'none';
             feedback.textContent = '';
             feedback.className = '';
 
-            const localizacao = document.getElementById('edit-localizacao').value.trim();
-            const tipoMaterialId = document.getElementById('edit-tipo-material').value;
-            const parceiroId = document.getElementById('edit-parceiro').value;
-            const nivelStr = document.getElementById('edit-nivel').value;
-            const statusSel = document.getElementById('edit-status').value;
-            const latStr = document.getElementById('edit-lat').value;
-            const lonStr = document.getElementById('edit-lon').value;
+            const localizacaoEl = document.getElementById('edit-localizacao');
+            const tipoMaterialEl = document.getElementById('edit-tipo-material');
+            const parceiroEl = document.getElementById('edit-parceiro');
+            const nivelEl = document.getElementById('edit-nivel');
+            const statusEl = document.getElementById('edit-status');
+            const latEl = document.getElementById('edit-lat');
+            const lonEl = document.getElementById('edit-lon');
+            
+            if (!localizacaoEl || !nivelEl || !statusEl) {
+                feedback.textContent = 'Erro: Campos do formulário não encontrados.';
+                feedback.style.display = 'block';
+                feedback.style.color = '#e74c3c';
+                return;
+            }
+
+            const localizacao = localizacaoEl.value.trim();
+            const tipoMaterialId = tipoMaterialEl ? tipoMaterialEl.value : '';
+            const parceiroId = parceiroEl ? parceiroEl.value : '';
+            const nivelStr = nivelEl.value;
+            const statusSel = statusEl.value;
+            const latStr = latEl ? latEl.value : '';
+            const lonStr = lonEl ? lonEl.value : '';
 
             // Validações
             if (!localizacao) {
@@ -752,14 +925,31 @@ async function verDetalhes(id) {
                 parceiro_id: parceiroId ? parseInt(parceiroId) : null
             };
             
-            if (latStr && lonStr) {
-                const lat = parseFloat(latStr);
-                const lon = parseFloat(lonStr);
-                if (!isNaN(lat) && !isNaN(lon)) {
+            // Atualizar coordenadas independentemente (permitir atualizar apenas uma)
+            // Converter vírgula para ponto (formato brasileiro -> internacional)
+            if (latStr && latStr.trim() !== '') {
+                const latStrNormalizado = latStr.trim().replace(',', '.');
+                const lat = parseFloat(latStrNormalizado);
+                if (!isNaN(lat)) {
                     dadosAtualizacao.latitude = lat;
-                    dadosAtualizacao.longitude = lon;
+                    console.log(`[Editar Coletor] Latitude será atualizada: ${lat}`);
+                } else {
+                    console.warn(`[Editar Coletor] Latitude inválida: "${latStr}"`);
                 }
             }
+            
+            if (lonStr && lonStr.trim() !== '') {
+                const lonStrNormalizado = lonStr.trim().replace(',', '.');
+                const lon = parseFloat(lonStrNormalizado);
+                if (!isNaN(lon)) {
+                    dadosAtualizacao.longitude = lon;
+                    console.log(`[Editar Coletor] Longitude será atualizada: ${lon}`);
+                } else {
+                    console.warn(`[Editar Coletor] Longitude inválida: "${lonStr}"`);
+                }
+            }
+
+            console.log('[Editar Coletor] Dados que serão enviados:', dadosAtualizacao);
 
             // Feedback de loading
             const btnSalvar = document.getElementById('btn-salvar-edicao');
@@ -767,7 +957,7 @@ async function verDetalhes(id) {
             btnSalvar.textContent = 'Salvando...';
             try {
                 await atualizarLixeira(id, dadosAtualizacao);
-                feedback.textContent = 'Lixeira atualizada com sucesso!';
+                feedback.textContent = 'Coletor atualizada com sucesso!';
                 feedback.style.display = 'block';
                 feedback.style.color = '#27ae60';
                 // Atualizar grid e estatísticas
@@ -777,32 +967,36 @@ async function verDetalhes(id) {
                     fecharModal();
                 }, 800);
             } catch (err) {
-                console.error('Erro ao atualizar lixeira:', err);
-                feedback.textContent = 'Erro ao atualizar lixeira: ' + (err.message || 'Erro desconhecido');
+                console.error('Erro ao atualizar coletor:', err);
+                feedback.textContent = 'Erro ao atualizar coletor: ' + (err.message || 'Erro desconhecido');
                 feedback.style.display = 'block';
                 feedback.style.color = '#e74c3c';
             } finally {
                 btnSalvar.disabled = false;
                 btnSalvar.textContent = 'Salvar Alterações';
             }
-        });
+            });
+        }
         
     } catch (error) {
         console.error('Erro ao carregar detalhes:', error);
-        alert('Erro ao carregar detalhes da lixeira.');
+        alert('Erro ao carregar detalhes da coletor.');
     }
 }
 
 // Função para fechar modal
 function fecharModal() {
-    document.getElementById('modal-overlay').style.display = 'none';
+    const modalOverlay = document.getElementById('modal-overlay');
+    if (modalOverlay) {
+        modalOverlay.style.display = 'none';
+    }
 }
 
 // Função para exportar CSV
 function exportarCSV() {
     try {
         // Preparar dados
-        const lixeiras = todasLixeiras.map(l => {
+        const coletores = todasLixeiras.map(l => {
             const status = determinarStatus(l);
             return {
                 'ID': `L${String(l.id).padStart(3, '0')}`,
@@ -817,16 +1011,16 @@ function exportarCSV() {
         });
         
         // Criar CSV
-        const headers = Object.keys(lixeiras[0] || {});
+        const headers = Object.keys(coletores[0] || {});
         const csvRows = [];
         
         // Adicionar cabeçalhos
         csvRows.push(headers.join(','));
         
         // Adicionar dados
-        lixeiras.forEach(lixeira => {
+        coletores.forEach(coletor => {
             const values = headers.map(header => {
-                const value = lixeira[header];
+                const value = coletor[header];
                 // Escapar valores que contêm vírgulas
                 return typeof value === 'string' && value.includes(',') ? `"${value}"` : value;
             });
@@ -854,21 +1048,162 @@ function exportarCSV() {
 }
 
 // Event listeners
-document.addEventListener('DOMContentLoaded', function() {
-    // Verificar se estamos na página do dashboard (não na página de relatórios)
-    // A página de relatórios tem o elemento 'relatorios-container'
-    const isRelatoriosPage = document.querySelector('.relatorios-container') !== null;
+/**
+ * Atualiza a lista de coletores no grid
+ * Reaplica filtros e renderiza novamente
+ */
+function atualizarListaLixeiras() {
+    // Verificar se estamos na página do dashboard
+    const binsGrid = document.getElementById('bins-grid');
+    if (!binsGrid) {
+        return; // Não é a página do dashboard
+    }
     
-    if (isRelatoriosPage) {
-        // É a página de relatórios, não executar listeners específicos do dashboard
+    // Reaplicar filtros para atualizar a visualização
+    aplicarFiltros();
+}
+
+/**
+ * Configura listeners WebSocket para atualizações em tempo real
+ */
+function configurarWebSocketListeners() {
+    // Evitar configurar múltiplas vezes
+    if (websocketListenersConfigurados) {
         return;
     }
     
-    // Botão atualizar
+    if (!window.WebSocketClient || !window.WebSocketClient.estaConectado()) {
+        return;
+    }
+    
+    // Listener para atualização de coletor
+    const handlerLixeira = function(event) {
+        const coletor = event.detail;
+        // Atualizar coletor na lista local
+        const index = todasLixeiras.findIndex(l => l.id === coletor.id);
+        if (index !== -1) {
+            todasLixeiras[index] = coletor;
+            atualizarListaLixeiras();
+        } else {
+            // Nova coletor - recarregar dados
+            carregarDados();
+        }
+    };
+    window.addEventListener('websocket:lixeira_atualizada', handlerLixeira);
+    eventListeners.push({ type: 'websocket:lixeira_atualizada', handler: handlerLixeira });
+    
+    // Listener para nova coletor criada
+    const handlerLixeiraCriada = function(event) {
+        const coletor = event.detail;
+        todasLixeiras.push(coletor);
+        atualizarListaLixeiras();
+        // Recarregar estatísticas
+        obterEstatisticas()
+            .then(atualizarEstatisticas)
+            .catch(error => {
+                console.error('Erro ao recarregar estatísticas:', error);
+            });
+    };
+    window.addEventListener('websocket:lixeira_criada', handlerLixeiraCriada);
+    eventListeners.push({ type: 'websocket:lixeira_criada', handler: handlerLixeiraCriada });
+    
+    // Listener para atualização de estatísticas
+    const handlerEstatisticas = function(event) {
+        atualizarEstatisticas(event.detail);
+    };
+    window.addEventListener('websocket:estatisticas_atualizadas', handlerEstatisticas);
+    eventListeners.push({ type: 'websocket:estatisticas_atualizadas', handler: handlerEstatisticas });
+    
+    // Listener para nova notificação
+    const handlerNotificacao = function(event) {
+        // Atualizar badge de notificações
+        if (typeof atualizarBadgeNotificacoes === 'function') {
+            atualizarBadgeNotificacoes();
+        }
+    };
+    window.addEventListener('websocket:nova_notificacao', handlerNotificacao);
+    eventListeners.push({ type: 'websocket:nova_notificacao', handler: handlerNotificacao });
+    
+    // Marcar como configurado
+    websocketListenersConfigurados = true;
+}
+
+/**
+ * Remove todos os event listeners e limpa intervalos
+ * Previne memory leaks
+ */
+function cleanupEventListeners() {
+    // Verificar se eventListeners existe antes de usar
+    if (eventListeners && Array.isArray(eventListeners)) {
+        // Remover todos os event listeners registrados
+        eventListeners.forEach(({ type, handler }) => {
+            if (type && handler) {
+                window.removeEventListener(type, handler);
+            }
+        });
+        eventListeners.length = 0;
+    }
+    
+    // Limpar intervalos
+    if (intervaloAtualizacao) {
+        clearInterval(intervaloAtualizacao);
+        intervaloAtualizacao = null;
+    }
+    if (intervaloSimulacao) {
+        clearInterval(intervaloSimulacao);
+        intervaloSimulacao = null;
+    }
+    
+    // Resetar flag para permitir reconfiguração
+    websocketListenersConfigurados = false;
+}
+
+// Função para configurar listeners do botão atualizar
+function configurarBotaoAtualizar() {
     const btnAtualizar = document.getElementById('btn-atualizar');
     if (btnAtualizar) {
-        btnAtualizar.addEventListener('click', atualizarComFeedback);
+        console.log('[Dashboard] Botão atualizar encontrado, configurando event listener');
+        
+        // Remover todos os listeners anteriores clonando o botão
+        const novoBtn = btnAtualizar.cloneNode(true);
+        if (btnAtualizar.parentNode) {
+            btnAtualizar.parentNode.replaceChild(novoBtn, btnAtualizar);
+        }
+        
+        // Adicionar novo listener
+        novoBtn.addEventListener('click', function(e) {
+            e.preventDefault();
+            e.stopPropagation();
+            console.log('[Dashboard] Botão atualizar clicado!');
+            atualizarComFeedback();
+        });
+        
+        console.log('[Dashboard] Event listener do botão atualizar configurado');
+        return true;
+    } else {
+        console.warn('[Dashboard] Botão atualizar (btn-atualizar) não encontrado no DOM');
+        return false;
     }
+}
+
+document.addEventListener('DOMContentLoaded', function() {
+    console.log('[Dashboard] DOMContentLoaded disparado');
+    
+    // Verificar se estamos na página do dashboard (não na página de relatórios)
+    // A página de relatórios tem o elemento 'relatorios-container'
+    const isRelatoriosPage = document.querySelector('.relatorios-container') !== null;
+    const isMapaPage = document.querySelector('.mapa-page-container') !== null;
+    
+    console.log('[Dashboard] isRelatoriosPage:', isRelatoriosPage, 'isMapaPage:', isMapaPage);
+    
+    if (isRelatoriosPage) {
+        // É a página de relatórios, não executar listeners específicos do dashboard
+        console.log('[Dashboard] Página de relatórios detectada, pulando configuração de listeners do dashboard');
+        return;
+    }
+    
+    // Configurar botão atualizar (disponível em todas as páginas exceto relatórios)
+    configurarBotaoAtualizar();
     
     // Filtros
     const filterStatus = document.getElementById('filter-status');
@@ -959,6 +1294,9 @@ document.addEventListener('DOMContentLoaded', function() {
         });
     }
     
+    // Tornar verDetalhes global para acesso do mapa
+    window.verDetalhes = verDetalhes;
+    
     // Carregar dados iniciais
     carregarDados();
     
@@ -973,10 +1311,6 @@ document.addEventListener('DOMContentLoaded', function() {
 
 // Limpar intervalo ao sair da página
 window.addEventListener('beforeunload', function() {
-    if (intervaloAtualizacao) {
-        clearInterval(intervaloAtualizacao);
-    }
-    if (intervaloSimulacao) {
-        clearInterval(intervaloSimulacao);
-    }
+    // Cleanup ao sair da página
+    cleanupEventListeners();
 });
