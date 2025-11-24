@@ -25,8 +25,9 @@ from sqlalchemy.orm import sessionmaker, scoped_session
 # Importações dos modelos
 # Importar todos os modelos para garantir que as tabelas sejam criadas
 from banco_dados.modelos import (
-    Base, Usuario, Lixeira, Sensor, Coleta,
-    Parceiro, TipoMaterial, TipoSensor, TipoColetor, Notificacao
+    Base, Usuario, Coletor, Sensor, Coleta,
+    Parceiro, TipoMaterial, TipoSensor, TipoColetor, Notificacao,
+    MetaComercial, Pipeline, Interacao, Tarefa, ContratoRecorrente
 )
 
 # Importações do sistema de inicialização
@@ -37,34 +38,65 @@ from banco_dados.seed_tipos import popular_tipos
 from rotas.api import api_bp
 from rotas.paginas import paginas_bp
 from rotas.auth import auth_bp
+from rotas.websocket import inicializar_websocket
+
+# Configurar logging centralizado
+from banco_dados.utils.logger import configurar_logging
 
 # Carregar variáveis de ambiente
 load_dotenv()
 
+# Configuração de ambiente (deve estar antes de criar o app)
+FLASK_ENV = os.getenv('FLASK_ENV', 'development')
+
 # Criação da instância da aplicação Flask
 app = Flask(__name__, static_folder='estatico', static_url_path='/static')
+
+# Cache busting para arquivos estáticos em desenvolvimento
+import time
+@app.context_processor
+def inject_cache_bust():
+    """Adiciona versão aos arquivos estáticos para evitar cache"""
+    # Em desenvolvimento, usar timestamp para forçar atualização
+    # Em produção, usar versão fixa (pode ser atualizada manualmente)
+    cache_version = int(time.time()) if FLASK_ENV == 'development' else '1.0.0'
+    return dict(cache_version=cache_version)
+
+# Desabilitar cache de arquivos estáticos em desenvolvimento
+if FLASK_ENV == 'development':
+    @app.after_request
+    def add_no_cache_headers(response):
+        """Adiciona headers para desabilitar cache em desenvolvimento"""
+        if request.endpoint and request.endpoint.startswith('static'):
+            response.cache_control.no_cache = True
+            response.cache_control.no_store = True
+            response.cache_control.must_revalidate = True
+            response.cache_control.max_age = 0
+        return response
 
 # ========================================
 # CONFIGURAÇÕES DE SEGURANÇA
 # ========================================
 
 # SECRET_KEY - CRÍTICO: Deve estar em variável de ambiente
-app.config['SECRET_KEY'] = os.getenv('SECRET_KEY')
-if not app.config['SECRET_KEY']:
+SECRET_KEY = os.getenv('SECRET_KEY')
+if not SECRET_KEY:
+    if FLASK_ENV == 'production':
+        raise ValueError("SECRET_KEY deve estar configurada em produção! Configure no arquivo .env.")
     # Gerar uma chave temporária se não estiver configurada (apenas desenvolvimento)
-    app.config['SECRET_KEY'] = secrets.token_hex(32)
+    SECRET_KEY = secrets.token_hex(32)
     print("⚠️  AVISO: SECRET_KEY não configurada. Usando chave temporária.")
     print("⚠️  Configure SECRET_KEY no arquivo .env para produção!")
+elif len(SECRET_KEY) < 32:
+    raise ValueError(f"SECRET_KEY deve ter pelo menos 32 caracteres. Atual: {len(SECRET_KEY)} caracteres.")
+
+app.config['SECRET_KEY'] = SECRET_KEY
 
 # Configurações básicas
 app.config['JSON_SORT_KEYS'] = False
 app.config['SESSION_COOKIE_HTTPONLY'] = True
 app.config['SESSION_COOKIE_SAMESITE'] = 'Lax'
 app.config['PERMANENT_SESSION_LIFETIME'] = 3600  # 1 hora
-
-# Configuração de ambiente
-FLASK_ENV = os.getenv('FLASK_ENV', 'development')
-app.config['DEBUG'] = os.getenv('DEBUG', 'false').lower() == 'true'
 
 # Configuração de CORS - Restrito a origens específicas
 cors_origins = os.getenv('CORS_ORIGINS', 'http://localhost:5000,http://127.0.0.1:5000')
@@ -114,6 +146,10 @@ limiter = Limiter(
     enabled=os.getenv('RATELIMIT_ENABLED', 'true').lower() == 'true'
 )
 
+# Tornar limiter disponível para os decorators da API
+from rotas.api import decorators
+decorators.limiter = limiter
+
 # ========================================
 # FLASK-TALISMAN (Headers de Segurança)
 # ========================================
@@ -125,11 +161,11 @@ talisman = Talisman(
     strict_transport_security_max_age=31536000,  # 1 ano
     content_security_policy={
         'default-src': "'self'",
-        'script-src': "'self' 'unsafe-inline' https://cdn.jsdelivr.net",
+        'script-src': "'self' 'unsafe-inline' https://cdn.jsdelivr.net https://cdn.socket.io",
         'style-src': "'self' 'unsafe-inline' https://cdn.jsdelivr.net",
         'img-src': "'self' data: https:",
         'font-src': "'self' data: https://cdn.jsdelivr.net",
-        'connect-src': "'self' https://cdn.jsdelivr.net https://router.project-osrm.org",
+        'connect-src': "'self' https://cdn.jsdelivr.net https://router.project-osrm.org https://cdn.socket.io",
     }
     # Removido content_security_policy_nonce_in para evitar conflito com 'unsafe-inline'
 )
@@ -137,11 +173,10 @@ talisman = Talisman(
 # ========================================
 # LOGGING
 # ========================================
-logging.basicConfig(
-    level=getattr(logging, os.getenv('LOG_LEVEL', 'INFO')),
-    format='%(asctime)s - %(name)s - %(levelname)s - %(message)s',
-    datefmt='%Y-%m-%d %H:%M:%S'
-)
+# Configurar logging centralizado
+log_level = os.getenv('LOG_LEVEL', 'INFO')
+log_file = os.getenv('LOG_FILE', None)
+configurar_logging(nivel=log_level, arquivo_log=log_file)
 logger = logging.getLogger(__name__)
 
 # ========================================
@@ -171,6 +206,15 @@ from banco_dados.agendamento import inicializar_agendamento
 
 # Inicializar agendamento automático
 inicializar_agendamento(app)
+
+# ========================================
+# WEBSOCKET (Atualizações em Tempo Real)
+# ========================================
+socketio = inicializar_websocket(app)
+if socketio:
+    logger.info("WebSocket inicializado com sucesso")
+else:
+    logger.warning("WebSocket não pôde ser inicializado, continuando sem WebSocket")
 
 # ========================================
 # CONFIGURAÇÃO DO BANCO DE DADOS
@@ -273,9 +317,18 @@ if __name__ == '__main__':
     logger.info(f"Login: http://localhost:5000/auth/login")
     logger.info("=" * 50)
     
-    # Executar aplicação
-    app.run(
-        debug=app.config['DEBUG'],
-        host='0.0.0.0',
-        port=int(os.getenv('PORT', 5000))
-    )
+    # Executar aplicação com WebSocket
+    if socketio:
+        socketio.run(
+            app,
+            debug=app.config['DEBUG'],
+            host='0.0.0.0',
+            port=int(os.getenv('PORT', 5000)),
+            allow_unsafe_werkzeug=True
+        )
+    else:
+        app.run(
+            debug=app.config['DEBUG'],
+            host='0.0.0.0',
+            port=int(os.getenv('PORT', 5000))
+        )
