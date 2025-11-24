@@ -1,8 +1,8 @@
 # 📚 Documentação Completa do Sistema Dashboard-TRONIK
 
-**Versão:** 2.0  
-**Data:** 20 de Novembro de 2025  
-**Última Atualização:** 20 de Novembro de 2025
+**Versão:** 2.1  
+**Data:** 24 de Novembro de 2025  
+**Última Atualização:** 24 de Novembro de 2025
 
 ---
 
@@ -30,15 +30,15 @@
 
 ### 1.1 Descrição
 
-O **Dashboard-TRONIK** é um sistema web completo de monitoramento e gestão de lixeiras inteligentes para a empresa Tronik Recicla. O sistema permite visualizar em tempo real o status de lixeiras equipadas com sensores, gerenciar coletas, gerar relatórios financeiros e operacionais, calcular rotas otimizadas para equipes de coleta, e enviar notificações automáticas por email.
+O **Dashboard-TRONIK** é um sistema web completo de monitoramento e gestão de coletores inteligentes para a empresa Tronik Recicla. O sistema permite visualizar em tempo real o status de coletores equipadas com sensores, gerenciar coletas, gerar relatórios financeiros e operacionais, calcular rotas otimizadas para equipes de coleta, e enviar notificações automáticas por email.
 
 ### 1.2 Objetivos
 
-- **Monitoramento em Tempo Real**: Visualização do nível de preenchimento e status de cada lixeira
+- **Monitoramento em Tempo Real**: Visualização do nível de preenchimento e status de cada coletor
 - **Gestão de Coletas**: Registro e histórico completo de coletas realizadas
 - **Análise Financeira**: Cálculo de custos, lucros e métricas operacionais
 - **Otimização de Rotas**: Sistema avançado de cálculo de rotas com múltiplos algoritmos
-- **Notificações Automáticas**: Alertas por email quando lixeiras estão cheias ou sensores com bateria baixa
+- **Notificações Automáticas**: Alertas por email quando coletores estão cheias ou sensores com bateria baixa
 - **Geocodificação Automática**: Conversão automática de endereços em coordenadas geográficas
 
 ### 1.3 Stack Tecnológico
@@ -91,7 +91,7 @@ dashboard-Tronik/
 │   ├── seguranca.py                # Validações e sanitização
 │   ├── utils.py                    # Utilitários (datetime)
 │   ├── geocodificacao.py           # Geocodificação Nominatim
-│   ├── geocodificar_lixeiras.py    # Script CLI de geocodificação
+│   ├── geocodificar_coletores.py    # Script CLI de geocodificação
 │   ├── importar_csv.py             # Importação de dados CSV
 │   ├── migrar_dados.py             # Migração de dados
 │   ├── migrar_notificacoes.py      # Migração de notificações
@@ -149,7 +149,7 @@ dashboard-Tronik/
 │
 ├── tests/                          # Testes automatizados
 │   ├── conftest.py                 # Configuração e fixtures
-│   ├── test_api_lixeiras.py        # Testes de API de lixeiras
+│   ├── test_api_coletores.py        # Testes de API de coletores
 │   ├── test_api_coletas.py         # Testes de API de coletas
 │   ├── test_api_sensores.py        # Testes de API de sensores
 │   ├── test_api_atualizacao_exclusao.py  # Testes de atualização/exclusão
@@ -226,8 +226,8 @@ Os modelos SQLAlchemy atuam como repositórios, encapsulando acesso aos dados:
 
 ```python
 # Exemplo: banco_dados/modelos.py
-class Lixeira(Base):
-    __tablename__ = "lixeiras"
+class Coletor(Base):
+    __tablename__ = "coletores"
     # ... campos ...
     # Relacionamentos automáticos via SQLAlchemy
 ```
@@ -426,17 +426,19 @@ def internal_error(error):
 
 ### 3.2 Blueprints
 
-#### 3.2.1 API Blueprint (`rotas/api.py`)
+#### 3.2.1 API Blueprints (Modularizados)
 
-**30+ endpoints REST** organizados por funcionalidade:
+**55+ endpoints REST** organizados em blueprints especializados:
 
-**Lixeiras:**
-- `GET /api/lixeiras` - Listar todas
-- `GET /api/lixeira/<id>` - Detalhes
-- `POST /api/lixeira` - Criar (autenticado)
-- `PUT /api/lixeira/<id>` - Atualizar (autenticado)
-- `DELETE /api/lixeira/<id>` - Deletar (admin)
-- `POST /api/lixeira/<id>/geocodificar` - Geocodificar manualmente
+**Coletores (`rotas/api/coletores.py`):**
+- `GET /api/coletores` - Listar todas
+- `GET /api/coletor/<id>` - Detalhes
+- `POST /api/coletor` - Criar (autenticado)
+- `PUT /api/coletor/<id>` - Atualizar (autenticado)
+- `DELETE /api/coletor/<id>` - Deletar (admin)
+- `POST /api/coletor/<id>/geocodificar` - Geocodificar manualmente
+
+**Nota:** Sistema migrado de "lixeira" para "coletor" em toda a aplicação (novembro 2025).
 
 **Coletas:**
 - `GET /api/coletas` - Listar com filtros
@@ -461,14 +463,46 @@ def internal_error(error):
 - `GET /api/relatorios` - Dados para relatórios
 - `GET /api/relatorios/exportar-pdf` - Exportar PDF
 
-**Auxiliares:**
+**Auxiliares (`rotas/api/auxiliares.py`):**
 - `GET /api/estatisticas` - Estatísticas gerais
 - `GET /api/configuracoes` - Configurações do sistema
 - `GET /api/parceiros` - Listar parceiros
 - `GET /api/tipos/material` - Tipos de material
 - `GET /api/tipos/sensor` - Tipos de sensor
 - `GET /api/tipos/coletor` - Tipos de coletor
-- `POST /api/lixeiras/simular-niveis` - Simular níveis
+- `POST /api/coletores/simular-niveis` - Simular níveis
+
+**Comercial (`rotas/api/comercial.py`):**
+- `GET /api/comercial/dashboard` - Dados do dashboard comercial
+- `GET /api/comercial/meta` - Meta mensal atual
+- `PUT /api/comercial/meta` - Atualizar meta
+- `GET /api/comercial/meta/historico` - Histórico de metas
+- `GET /api/comercial/metricas` - Métricas financeiras detalhadas
+- `GET /api/comercial/parceiros` - Análise por parceiro
+- `GET /api/comercial/comparar` - Comparação com mês anterior
+- `POST /api/comercial/layout` - Salvar layout personalizado
+- `GET /api/comercial/layout` - Obter layout salvo
+
+**CRM (`rotas/api/crm.py`):**
+- `GET /api/crm/pipeline` - Listar pipeline de vendas
+- `POST /api/crm/pipeline` - Criar novo lead/pipeline
+- `GET /api/crm/pipeline/<id>` - Detalhes do pipeline
+- `PUT /api/crm/pipeline/<id>/status` - Atualizar status
+- `POST /api/crm/pipeline/<id>/interacoes` - Registrar interação
+- `GET /api/crm/funil` - Dados do funil de vendas (Kanban)
+- `GET /api/crm/estatisticas` - Estatísticas do CRM
+- `GET /api/crm/tarefas` - Listar tarefas pendentes
+- `POST /api/crm/tarefas` - Criar nova tarefa
+- `POST /api/crm/tarefas/<id>/concluir` - Concluir tarefa
+
+**Contratos (`rotas/api/contratos.py`):**
+- `GET /api/contratos` - Listar contratos recorrentes
+- `POST /api/contratos` - Criar novo contrato
+- `GET /api/contratos/<id>` - Detalhes do contrato
+- `PUT /api/contratos/<id>` - Atualizar contrato
+- `POST /api/contratos/<id>/cancelar` - Cancelar contrato
+- `GET /api/contratos/receita-mensal` - Calcular receita mensal
+- `GET /api/contratos/vencendo` - Contratos vencendo
 
 **Características:**
 - Rate limiting por endpoint
@@ -477,6 +511,8 @@ def internal_error(error):
 - Permissões admin via `@admin_required`
 - Eager loading com `joinedload()` para performance
 - Tratamento de erros com logging
+- **Todos os endpoints verificados e corrigidos (novembro 2025)**
+- **Migração completa: lixeira → coletor**
 
 #### 3.2.2 Auth Blueprint (`rotas/auth.py`)
 
@@ -565,11 +601,11 @@ class Parceiro(Base):
     criado_em = Column(DateTime, default=utc_now_naive)
     
     # Relacionamentos
-    lixeiras = relationship("Lixeira", back_populates="parceiro")
+    coletores = relationship("Coletor", back_populates="parceiro")
     coletas = relationship("Coleta", back_populates="parceiro")
 ```
 
-**Uso:** Representa clientes/parceiros da Tronik que possuem lixeiras.
+**Uso:** Representa clientes/parceiros da Tronik que possuem coletores.
 
 #### 4.1.3 Modelo: TipoMaterial
 
@@ -581,7 +617,7 @@ class TipoMaterial(Base):
     nome = Column(String(100), unique=True, nullable=False, index=True)
     
     # Relacionamentos
-    lixeiras = relationship("Lixeira", back_populates="tipo_material")
+    coletores = relationship("Coletor", back_populates="tipo_material")
 ```
 
 **Valores comuns:** "Plástico", "Papel", "Metal", "Vidro", "Orgânico", etc.
@@ -616,11 +652,13 @@ class TipoColetor(Base):
 
 **Valores comuns:** "Caminhão", "Carreta", "Van", etc.
 
-#### 4.1.6 Modelo: Lixeira
+#### 4.1.6 Modelo: Coletor
+
+**Nota:** Este modelo foi renomeado de `Lixeira` para `Coletor` em novembro de 2025 para refletir a terminologia usada pela empresa.
 
 ```python
-class Lixeira(Base):
-    __tablename__ = "lixeiras"
+class Coletor(Base):
+    __tablename__ = "coletores"
     
     id = Column(Integer, primary_key=True)
     localizacao = Column(String(150), nullable=False)
@@ -637,10 +675,10 @@ class Lixeira(Base):
     tipo_material_id = Column(Integer, ForeignKey("tipo_material.id"), nullable=True, index=True)
     
     # Relacionamentos ORM
-    parceiro = relationship("Parceiro", back_populates="lixeiras")
-    tipo_material = relationship("TipoMaterial", back_populates="lixeiras")
-    sensores = relationship("Sensor", back_populates="lixeira", cascade="all, delete-orphan")
-    coletas = relationship("Coleta", back_populates="lixeira", cascade="all, delete-orphan")
+    parceiro = relationship("Parceiro", back_populates="coletores")
+    tipo_material = relationship("TipoMaterial", back_populates="coletores")
+    sensores = relationship("Sensor", back_populates="coletor", cascade="all, delete-orphan")
+    coletas = relationship("Coleta", back_populates="coletor", cascade="all, delete-orphan")
 ```
 
 **Campos:**
@@ -651,7 +689,7 @@ class Lixeira(Base):
 - `latitude`/`longitude`: Coordenadas geográficas (para mapas)
 
 **Cascata:**
-- Ao deletar lixeira, sensores e coletas são deletados automaticamente
+- Ao deletar coletor, sensores e coletas são deletados automaticamente
 
 #### 4.1.7 Modelo: Sensor
 
@@ -660,18 +698,18 @@ class Sensor(Base):
     __tablename__ = "sensores"
     
     id = Column(Integer, primary_key=True)
-    lixeira_id = Column(Integer, ForeignKey("lixeiras.id"), nullable=False, index=True)
+    coletor_id = Column(Integer, ForeignKey("coletores.id"), nullable=False, index=True)
     tipo_sensor_id = Column(Integer, ForeignKey("tipo_sensor.id"), nullable=True, index=True)
     bateria = Column(Float, default=100.0)  # 0-100%
     ultimo_ping = Column(DateTime, default=utc_now_naive)
     
     # Relacionamentos
-    lixeira = relationship("Lixeira", back_populates="sensores")
+    coletor = relationship("Coletor", back_populates="sensores")
     tipo_sensor = relationship("TipoSensor", back_populates="sensores")
 ```
 
 **Campos:**
-- `lixeira_id`: Lixeira à qual o sensor pertence (obrigatório)
+- `coletor_id`: Coletor à qual o sensor pertence (obrigatório)
 - `tipo_sensor_id`: Tipo do sensor (opcional)
 - `bateria`: Nível de bateria (0-100%)
 - `ultimo_ping`: Última comunicação do sensor
@@ -683,7 +721,7 @@ class Coleta(Base):
     __tablename__ = "coletas"
     
     id = Column(Integer, primary_key=True)
-    lixeira_id = Column(Integer, ForeignKey("lixeiras.id"), nullable=False, index=True)
+    coletor_id = Column(Integer, ForeignKey("coletores.id"), nullable=False, index=True)
     data_hora = Column(DateTime, default=utc_now_naive, index=True)
     volume_estimado = Column(Float)  # kg
     
@@ -699,7 +737,7 @@ class Coleta(Base):
     parceiro_id = Column(Integer, ForeignKey("parceiros.id"), nullable=True, index=True)
     
     # Relacionamentos ORM
-    lixeira = relationship("Lixeira", back_populates="coletas")
+    coletor = relationship("Coletor", back_populates="coletas")
     tipo_coletor = relationship("TipoColetor", back_populates="coletas")
     parceiro = relationship("Parceiro", back_populates="coletas")
 ```
@@ -728,7 +766,7 @@ class Notificacao(Base):
     mensagem = Column(String(500), nullable=False)
     
     # Relacionamentos
-    lixeira_id = Column(Integer, ForeignKey("lixeiras.id"), nullable=True, index=True)
+    coletor_id = Column(Integer, ForeignKey("coletores.id"), nullable=True, index=True)
     sensor_id = Column(Integer, ForeignKey("sensores.id"), nullable=True, index=True)
     
     # Status
@@ -739,18 +777,164 @@ class Notificacao(Base):
     criada_em = Column(DateTime, default=utc_now_naive)
     
     # Relacionamentos ORM
-    lixeira = relationship("Lixeira", backref="notificacoes")
+    coletor = relationship("Coletor", backref="notificacoes")
     sensor = relationship("Sensor", backref="notificacoes")
 ```
 
 **Tipos de Notificação:**
-- `lixeira_cheia`: Lixeira com nível > 80%
+- `lixeira_cheia`: Coletor com nível > 80%
 - `bateria_baixa`: Sensor com bateria < 20%
 
 **Status:**
 - `enviada`: Se o email foi enviado
 - `lida`: Se foi visualizada no frontend
 - `criada_em`: Data de criação
+
+#### 4.1.10 Modelo: MetaComercial
+
+```python
+class MetaComercial(Base):
+    __tablename__ = "metas_comerciais"
+    
+    id = Column(Integer, primary_key=True)
+    mes = Column(Integer, nullable=False)  # 1-12
+    ano = Column(Integer, nullable=False)
+    valor_meta = Column(Float, nullable=False)
+    valor_realizado = Column(Float, default=0.0)
+    percentual_atingido = Column(Float, default=0.0)
+    status = Column(String(20), default='em_andamento')  # em_andamento, atingida, nao_atingida
+    observacoes = Column(String(500))
+    criado_em = Column(DateTime, default=utc_now_naive)
+    atualizado_em = Column(DateTime, default=utc_now_naive, onupdate=utc_now_naive)
+```
+
+**Uso:** Metas mensais de faturamento para acompanhamento comercial.
+
+#### 4.1.11 Modelo: Pipeline
+
+```python
+class Pipeline(Base):
+    __tablename__ = "pipeline"
+    
+    id = Column(Integer, primary_key=True)
+    coletor_id = Column(Integer, ForeignKey("coletores.id"), nullable=True)  # Nullable para leads sem coletor
+    status = Column(String(50), nullable=False, default='lead')  # lead, contato_inicial, proposta_enviada, negociacao, fechado, perdido
+    valor_estimado = Column(Float, default=0.0)
+    probabilidade = Column(Integer, default=10)  # 0-100%
+    proxima_acao = Column(String(200))
+    data_proxima_acao = Column(DateTime)
+    responsavel_id = Column(Integer, ForeignKey("usuarios.id"), nullable=True)
+    origem = Column(String(100))  # indicacao, site, rede_social, evento
+    tipo_servico = Column(String(100))  # coleta, palestra, oficina, contrato
+    observacoes = Column(String(1000))
+    motivo_perda = Column(String(200))  # Se status='perdido'
+    criado_em = Column(DateTime, default=utc_now_naive)
+    atualizado_em = Column(DateTime, default=utc_now_naive, onupdate=utc_now_naive)
+    fechado_em = Column(DateTime)
+    
+    # Relacionamentos
+    coletor = relationship("Coletor", backref="pipeline_items")
+    responsavel = relationship("Usuario", backref="pipeline_responsavel")
+    interacoes = relationship("Interacao", back_populates="pipeline", cascade="all, delete-orphan", lazy="dynamic")
+    tarefas = relationship("Tarefa", back_populates="pipeline", cascade="all, delete-orphan")
+```
+
+**Uso:** Pipeline de vendas/CRM para gerenciar leads e oportunidades.
+
+#### 4.1.12 Modelo: Interacao
+
+```python
+class Interacao(Base):
+    __tablename__ = "interacoes"
+    
+    id = Column(Integer, primary_key=True)
+    pipeline_id = Column(Integer, ForeignKey("pipeline.id"), nullable=False)
+    tipo = Column(String(50), nullable=False)  # ligacao, email, whatsapp, reuniao, visita, proposta, outro
+    descricao = Column(String(1000), nullable=False)
+    resultado = Column(String(100))  # positivo, neutro, negativo
+    data = Column(DateTime, default=utc_now_naive)
+    duracao_minutos = Column(Integer)
+    usuario_id = Column(Integer, ForeignKey("usuarios.id"), nullable=True)
+    anexos = Column(String(500))  # JSON string com lista de URLs
+    criado_em = Column(DateTime, default=utc_now_naive)
+    
+    # Relacionamentos
+    pipeline = relationship("Pipeline", back_populates="interacoes")
+    usuario = relationship("Usuario", backref="interacoes")
+```
+
+**Uso:** Registro de interações com clientes no pipeline de vendas.
+
+#### 4.1.13 Modelo: Tarefa
+
+```python
+class Tarefa(Base):
+    __tablename__ = "tarefas"
+    
+    id = Column(Integer, primary_key=True)
+    pipeline_id = Column(Integer, ForeignKey("pipeline.id"), nullable=True)
+    usuario_id = Column(Integer, ForeignKey("usuarios.id"), nullable=False)
+    titulo = Column(String(200), nullable=False)
+    descricao = Column(String(1000))
+    status = Column(String(20), default='pendente')  # pendente, concluida
+    prioridade = Column(String(20), default='media')  # baixa, media, alta
+    data_vencimento = Column(DateTime)
+    concluida_em = Column(DateTime)
+    criado_em = Column(DateTime, default=utc_now_naive)
+    atualizado_em = Column(DateTime, default=utc_now_naive, onupdate=utc_now_naive)
+    
+    # Relacionamentos
+    pipeline = relationship("Pipeline", back_populates="tarefas")
+    usuario = relationship("Usuario", backref="tarefas")
+```
+
+**Uso:** Tarefas do CRM associadas a pipelines ou independentes.
+
+#### 4.1.14 Modelo: ContratoRecorrente
+
+```python
+class ContratoRecorrente(Base):
+    __tablename__ = "contratos_recorrentes"
+    
+    id = Column(Integer, primary_key=True)
+    coletor_id = Column(Integer, ForeignKey("coletores.id"), nullable=False)
+    parceiro_id = Column(Integer, ForeignKey("parceiros.id"), nullable=True)
+    titulo = Column(String(200), nullable=False)
+    descricao = Column(String(1000))
+    valor_mensal = Column(Float, nullable=False)
+    frequencia_coleta = Column(String(20), default='mensal')  # semanal, quinzenal, mensal, bimestral
+    dia_coleta = Column(Integer)  # Dia do mês (1-31)
+    data_inicio = Column(DateTime, nullable=False)
+    data_vencimento = Column(DateTime)
+    status = Column(String(20), default='ativo')  # ativo, pausado, cancelado, vencido
+    observacoes = Column(String(1000))
+    criado_em = Column(DateTime, default=utc_now_naive)
+    atualizado_em = Column(DateTime, default=utc_now_naive, onupdate=utc_now_naive)
+    
+    # Relacionamentos
+    coletor = relationship("Coletor", backref="contratos")
+    parceiro = relationship("Parceiro", backref="contratos")
+```
+
+**Uso:** Contratos recorrentes de coleta com clientes.
+
+#### 4.1.15 Modelo: PreferenciaLayout
+
+```python
+class PreferenciaLayout(Base):
+    __tablename__ = "preferencias_layout"
+    
+    id = Column(Integer, primary_key=True)
+    usuario_id = Column(Integer, ForeignKey("usuarios.id"), unique=True, nullable=False)
+    ordem_containers = Column(String(2000))  # JSON string com ordem dos containers
+    criado_em = Column(DateTime, default=utc_now_naive)
+    atualizado_em = Column(DateTime, default=utc_now_naive, onupdate=utc_now_naive)
+    
+    # Relacionamentos
+    usuario = relationship("Usuario", backref="preferencia_layout")
+```
+
+**Uso:** Preferências de layout do dashboard comercial por usuário.
 
 ### 4.2 Relacionamentos
 
@@ -759,19 +943,19 @@ class Notificacao(Base):
 ```
 Usuario (1) ────┐
                 │
-Parceiro (1) ───┼─── (N) Lixeira (1) ──── (N) Sensor
+Parceiro (1) ───┼─── (N) Coletor (1) ──── (N) Sensor
                 │                          │
                 │                          │
 TipoMaterial (1)┘                          │
                                            │
 TipoSensor (1) ───────────────────────────┘
 
-Lixeira (1) ──── (N) Coleta (N) ──── (1) Parceiro
+Coletor (1) ──── (N) Coleta (N) ──── (1) Parceiro
                 │
                 │
 TipoColetor (1)┘
 
-Lixeira (1) ──── (N) Notificacao
+Coletor (1) ──── (N) Notificacao
 Sensor (1) ──── (N) Notificacao
 ```
 
@@ -780,10 +964,10 @@ Sensor (1) ──── (N) Notificacao
 Para otimizar performance, o sistema usa **eager loading** com `joinedload()`:
 
 ```python
-# Exemplo: Carregar lixeira com parceiro e tipo_material
-query = db.query(Lixeira).options(
-    joinedload(Lixeira.parceiro),
-    joinedload(Lixeira.tipo_material)
+# Exemplo: Carregar coletor com parceiro e tipo_material
+query = db.query(Coletor).options(
+    joinedload(Coletor.parceiro),
+    joinedload(Coletor.tipo_material)
 )
 ```
 
@@ -1047,9 +1231,9 @@ A API REST está organizada em `rotas/api.py` usando o blueprint `api_bp` com pr
 
 ### 6.2 Endpoints de Lixeiras
 
-#### 6.2.1 GET /api/lixeiras
+#### 6.2.1 GET /api/coletores
 
-**Descrição:** Lista todas as lixeiras
+**Descrição:** Lista todas as coletores
 
 **Autenticação:** Não requerida
 
@@ -1077,9 +1261,9 @@ A API REST está organizada em `rotas/api.py` usando o blueprint `api_bp` com pr
 - Eager loading de `parceiro` e `tipo_material`
 - Ordenação por `id` (padrão)
 
-#### 6.2.2 GET /api/lixeira/<id>
+#### 6.2.2 GET /api/coletor/<id>
 
-**Descrição:** Detalhes de uma lixeira específica
+**Descrição:** Detalhes de uma coletor específica
 
 **Autenticação:** Não requerida
 
@@ -1099,11 +1283,11 @@ A API REST está organizada em `rotas/api.py` usando o blueprint `api_bp` com pr
 ```
 
 **Erros:**
-- `404`: Lixeira não encontrada
+- `404`: Coletor não encontrada
 
-#### 6.2.3 POST /api/lixeira
+#### 6.2.3 POST /api/coletor
 
-**Descrição:** Cria nova lixeira
+**Descrição:** Cria nova coletor
 
 **Autenticação:** `@login_required`
 
@@ -1141,9 +1325,9 @@ A API REST está organizada em `rotas/api.py` usando o blueprint `api_bp` com pr
 - `400`: Dados inválidos
 - `401`: Não autenticado
 
-#### 6.2.4 PUT /api/lixeira/<id>
+#### 6.2.4 PUT /api/coletor/<id>
 
-**Descrição:** Atualiza lixeira existente
+**Descrição:** Atualiza coletor existente
 
 **Autenticação:** `@login_required`
 
@@ -1154,11 +1338,11 @@ A API REST está organizada em `rotas/api.py` usando o blueprint `api_bp` com pr
 **Erros:**
 - `400`: Dados inválidos
 - `401`: Não autenticado
-- `404`: Lixeira não encontrada
+- `404`: Coletor não encontrada
 
-#### 6.2.5 DELETE /api/lixeira/<id>
+#### 6.2.5 DELETE /api/coletor/<id>
 
-**Descrição:** Deleta lixeira
+**Descrição:** Deleta coletor
 
 **Autenticação:** `@admin_required`
 
@@ -1169,17 +1353,17 @@ A API REST está organizada em `rotas/api.py` usando o blueprint `api_bp` com pr
 **Resposta:**
 ```json
 {
-  "mensagem": "Lixeira deletada com sucesso"
+  "mensagem": "Coletor deletada com sucesso"
 }
 ```
 
 **Erros:**
 - `403`: Apenas admins
-- `404`: Lixeira não encontrada
+- `404`: Coletor não encontrada
 
-#### 6.2.6 POST /api/lixeira/<id>/geocodificar
+#### 6.2.6 POST /api/coletor/<id>/geocodificar
 
-**Descrição:** Geocodifica lixeira manualmente
+**Descrição:** Geocodifica coletor manualmente
 
 **Autenticação:** `@login_required`
 
@@ -1199,7 +1383,7 @@ A API REST está organizada em `rotas/api.py` usando o blueprint `api_bp` com pr
 **Autenticação:** Não requerida
 
 **Query Parameters:**
-- `lixeira_id` (opcional)
+- `coletor_id` (opcional)
 - `parceiro_id` (opcional)
 - `tipo_operacao` (opcional): "Avulsa" ou "Campanha"
 - `data_inicio` (opcional): YYYY-MM-DD
@@ -1210,14 +1394,14 @@ A API REST está organizada em `rotas/api.py` usando o blueprint `api_bp` com pr
 [
   {
     "id": 1,
-    "lixeira_id": 1,
+    "coletor_id": 1,
     "data_hora": "2025-11-20T10:30:00",
     "volume_estimado": 50.5,
     "tipo_operacao": "Avulsa",
     "km_percorrido": 15.2,
     "preco_combustivel": 5.50,
     "lucro_por_kg": 2.00,
-    "lixeira": {...},
+    "coletor": {...},
     "parceiro": {...},
     "tipo_coletor": {...}
   }
@@ -1244,7 +1428,7 @@ A API REST está organizada em `rotas/api.py` usando o blueprint `api_bp` com pr
 **Body:**
 ```json
 {
-  "lixeira_id": 1,
+  "coletor_id": 1,
   "data_hora": "2025-11-20T10:30:00",
   "volume_estimado": 50.5,
   "tipo_operacao": "Avulsa",
@@ -1257,7 +1441,7 @@ A API REST está organizada em `rotas/api.py` usando o blueprint `api_bp` com pr
 ```
 
 **Validações:**
-- `lixeira_id`: Deve existir
+- `coletor_id`: Deve existir
 - `data_hora`: Formato ISO válido
 - `volume_estimado`: > 0
 - `km_percorrido`: >= 0
@@ -1273,7 +1457,7 @@ A API REST está organizada em `rotas/api.py` usando o blueprint `api_bp` com pr
 **Autenticação:** Não requerida
 
 **Query Parameters:**
-- `lixeira_id` (opcional)
+- `coletor_id` (opcional)
 - `tipo_sensor_id` (opcional)
 - `bateria_min` (opcional): Bateria mínima
 - `bateria_max` (opcional): Bateria máxima
@@ -1283,11 +1467,11 @@ A API REST está organizada em `rotas/api.py` usando o blueprint `api_bp` com pr
 [
   {
     "id": 1,
-    "lixeira_id": 1,
+    "coletor_id": 1,
     "tipo_sensor_id": 1,
     "bateria": 85.5,
     "ultimo_ping": "2025-11-20T10:30:00",
-    "lixeira": {...},
+    "coletor": {...},
     "tipo_sensor": {...}
   }
 ]
@@ -1308,14 +1492,14 @@ A API REST está organizada em `rotas/api.py` usando o blueprint `api_bp` com pr
 **Body:**
 ```json
 {
-  "lixeira_id": 1,
+  "coletor_id": 1,
   "tipo_sensor_id": 1,
   "bateria": 100.0
 }
 ```
 
 **Validações:**
-- `lixeira_id`: Deve existir
+- `coletor_id`: Deve existir
 - `tipo_sensor_id`: Deve existir (se fornecido)
 - `bateria`: 0-100
 
@@ -1343,7 +1527,7 @@ A API REST está organizada em `rotas/api.py` usando o blueprint `api_bp` com pr
 - `tipo` (opcional): "lixeira_cheia" ou "bateria_baixa"
 - `enviada` (opcional): true/false
 - `lida` (opcional): true/false
-- `lixeira_id` (opcional)
+- `coletor_id` (opcional)
 - `limite` (opcional): Número máximo (padrão: 50)
 
 **Resposta:**
@@ -1352,14 +1536,14 @@ A API REST está organizada em `rotas/api.py` usando o blueprint `api_bp` com pr
   {
     "id": 1,
     "tipo": "lixeira_cheia",
-    "titulo": "Lixeira #1 - Nível Alto",
-    "mensagem": "A lixeira em Asa Norte está com 85% de preenchimento.",
+    "titulo": "Coletor #1 - Nível Alto",
+    "mensagem": "A coletor em Asa Norte está com 85% de preenchimento.",
     "enviada": true,
     "enviada_em": "2025-11-20T10:30:00",
     "lida": false,
     "lida_em": null,
     "criada_em": "2025-11-20T10:25:00",
-    "lixeira": {...},
+    "coletor": {...},
     "sensor": null
   }
 ]
@@ -1549,9 +1733,9 @@ A API REST está organizada em `rotas/api.py` usando o blueprint `api_bp` com pr
 
 **Autenticação:** Não requerida
 
-#### 6.7.7 POST /api/lixeiras/simular-niveis
+#### 6.7.7 POST /api/coletores/simular-niveis
 
-**Descrição:** Simula mudança de níveis de lixeiras
+**Descrição:** Simula mudança de níveis de coletores
 
 **Autenticação:** `@login_required`
 
@@ -1560,7 +1744,7 @@ A API REST está organizada em `rotas/api.py` usando o blueprint `api_bp` com pr
 **Body:**
 ```json
 {
-  "lixeiras": [
+  "coletores": [
     {"id": 1, "nivel": 75.5},
     {"id": 2, "nivel": 90.0}
   ]
@@ -1624,7 +1808,7 @@ O sistema utiliza **Jinja2** como engine de templates. Todos os templates herdam
 #### 7.1.2 Páginas
 
 **Dashboard (`index.html`):**
-- Grid de cards de lixeiras
+- Grid de cards de coletores
 - Filtros por status e parceiro
 - Tabela de histórico de coletas
 - Estatísticas gerais
@@ -1632,11 +1816,39 @@ O sistema utiliza **Jinja2** como engine de templates. Todos os templates herdam
 
 **Mapa (`mapa.html`):**
 - Mapa Leaflet interativo
-- Marcadores de lixeiras
+- Marcadores de coletores
 - Marcador da sede Tronik
 - Filtros (status, parceiro, distância, busca)
 - Legenda interativa
 - Controles de zoom
+
+**Dashboard Comercial (`comercial.html`):**
+- KPIs financeiros (faturamento, meta, percentual)
+- Resumo financeiro detalhado
+- Comparação com mês anterior
+- Análise por parceiro (gráficos Chart.js)
+- Próximas coletas agendadas
+- Clientes inativos
+- Sugestões de ações
+- Layout personalizável (drag-and-drop)
+- Filtro de período (mês, trimestre, semestre, ano, todos)
+
+**CRM (`crm.html`):**
+- Funil de vendas (Kanban board)
+- Estatísticas do CRM
+- Lista de pipelines
+- Tarefas pendentes
+- Modal de detalhes do pipeline
+- Criação de novos leads
+- Registro de interações
+- Gestão de tarefas
+
+**Contratos (`contratos.html`):**
+- Lista de contratos recorrentes
+- Criação de novos contratos
+- Visualização de receita mensal
+- Contratos vencendo
+- Status de contratos
 
 **Relatórios (`relatorios.html`):**
 - Filtros de período e parceiro
@@ -1646,9 +1858,9 @@ O sistema utiliza **Jinja2** como engine de templates. Todos os templates herdam
 - Botões de exportação (CSV, PDF)
 
 **Configurações (`configuracoes.html`):**
-- Formulário de criação de lixeiras
+- Formulário de criação de coletores
 - Formulário de criação de coletas
-- Lista de lixeiras cadastradas (com distância da sede)
+- Lista de coletores cadastradas (com distância da sede)
 - Gerenciamento de sensores (CRUD completo)
 - Visualização de bateria de sensores
 
@@ -1716,7 +1928,7 @@ obterEstatisticas()
 #### 7.2.2 Dashboard (`estatico/js/dashboard.js`)
 
 **Funcionalidades:**
-- Carregamento de lixeiras e exibição em cards
+- Carregamento de coletores e exibição em cards
 - Filtros por status e parceiro
 - Ordenação de tabela de histórico
 - Atualização automática periódica
@@ -1727,7 +1939,7 @@ obterEstatisticas()
 **Funções Principais:**
 ```javascript
 carregarLixeiras()
-criarCardLixeira(lixeira)
+criarCardLixeira(coletor)
 aplicarFiltros()
 ordenarTabela(coluna)
 atualizarHistorico()
@@ -1750,15 +1962,15 @@ const MapaTronik = (function() {
     // API pública
     return {
         inicializar: function(containerId, coordenadas),
-        adicionarMarcador: function(lixeira),
+        adicionarMarcador: function(coletor),
         adicionarMarcadorSede: function(),
         limparMarcadores: function(),
-        criarPopupLixeira: function(lixeira),
+        criarPopupLixeira: function(coletor),
         calcularRotaSede: function(lixeiraId),
-        calcularDistanciaSede: function(lixeira),
+        calcularDistanciaSede: function(coletor),
         formatarDistancia: function(distanciaKm),
-        filtrarPorDistancia: function(lixeiras, filtro),
-        ordenarLixeirasPorDistancia: function(lixeiras, ordem),
+        filtrarPorDistancia: function(coletores, filtro),
+        ordenarLixeirasPorDistancia: function(coletores, ordem),
         ajustarZoomMarcadores: function(),
         getMapa: function()
     };
@@ -1769,7 +1981,7 @@ const MapaTronik = (function() {
 - Inicialização de mapa Leaflet
 - Marcadores coloridos por status (verde=OK, amarelo=ALERTA, vermelho=CHEIA)
 - Clusters de marcadores (Leaflet.markercluster)
-- Popup informativo em cada lixeira
+- Popup informativo em cada coletor
 - Marcador especial da sede Tronik (não agrupa)
 - Cálculo de rotas (OSRM + sistema robusto)
 - Cálculo de distância da sede (Haversine)
@@ -1784,7 +1996,7 @@ const MapaTronik = (function() {
 
 **Lógica Específica da Página de Mapa:**
 
-- Carregamento de lixeiras
+- Carregamento de coletores
 - Aplicação de filtros (status, parceiro, distância, busca)
 - Ordenação por distância
 - Event listeners para controles do mapa
@@ -1797,7 +2009,7 @@ const MapaTronik = (function() {
 - Filtros por período, parceiro, tipo de operação
 - Gráficos Chart.js:
   - Evolução de coletas
-  - Distribuição por lixeira
+  - Distribuição por coletor
   - Distribuição por horário
   - Análise financeira
 - Exportação CSV
@@ -1806,16 +2018,16 @@ const MapaTronik = (function() {
 
 **Gráficos:**
 - **Evolução**: Linha temporal de coletas
-- **Distribuição por Lixeira**: Barras horizontais/verticais
+- **Distribuição por Coletor**: Barras horizontais/verticais
 - **Distribuição por Horário**: Barras de horários
 - **Financeiro**: Pizza de custos vs lucros
 
 #### 7.2.6 Configurações (`estatico/js/configuracoes.js`)
 
 **Funcionalidades:**
-- Formulário de criação de lixeiras
+- Formulário de criação de coletores
 - Formulário de criação de coletas
-- Lista de lixeiras com ações (editar, deletar)
+- Lista de coletores com ações (editar, deletar)
 - Gerenciamento de sensores (CRUD)
 - Carregamento de dropdowns (parceiros, tipos)
 - Validação client-side
@@ -1827,7 +2039,7 @@ const MapaTronik = (function() {
 
 **Funcionalidades:**
 - Carregamento de notificações
-- Filtros (tipo, status envio, status leitura, lixeira)
+- Filtros (tipo, status envio, status leitura, coletor)
 - Estatísticas (total, enviadas, pendentes, hoje)
 - Marcação como lida
 - Atualização de badge no header
@@ -1900,7 +2112,7 @@ atualizarEstatisticas(notifs)
 
 **`configuracoes.css`**: Página de configurações
 - Formulários
-- Listas de lixeiras/sensores
+- Listas de coletores/sensores
 - Indicadores de bateria
 - Ações
 
@@ -2268,7 +2480,7 @@ instructions.pt = {
 **Integração com Leaflet:**
 
 ```javascript
-// Calcular rota da sede até lixeira
+// Calcular rota da sede até coletor
 calcularRotaSede(lixeiraId)
 // 1. Tenta OSRM (Leaflet Routing Machine)
 // 2. Se falhar, usa calcularRotaRobusta()
@@ -2295,19 +2507,19 @@ O sistema de notificações é composto por:
 
 ### 9.2 Tipos de Notificações
 
-#### 9.2.1 Lixeira Cheia
+#### 9.2.1 Coletor Cheia
 
 **Trigger:** `nivel_preenchimento > 80%`
 
 **Processo:**
-1. `verificar_alertas_lixeiras()` busca lixeiras com nível > 80%
+1. `verificar_alertas_lixeiras()` busca coletores com nível > 80%
 2. Verifica se já existe notificação recente (últimas 24h)
 3. Cria notificação no banco
 4. Envia email para administradores
 5. Marca como enviada
 
 **Email:**
-- Assunto: "Lixeira #X - Nível Alto"
+- Assunto: "Coletor #X - Nível Alto"
 - Conteúdo: Localização, nível, status
 - Destinatários: Todos os admins ativos
 
@@ -2324,7 +2536,7 @@ O sistema de notificações é composto por:
 
 **Email:**
 - Assunto: "Sensor #X - Bateria Baixa"
-- Conteúdo: Sensor ID, lixeira, nível de bateria
+- Conteúdo: Sensor ID, coletor, nível de bateria
 - Destinatários: Todos os admins ativos
 
 ### 9.3 Processamento de Alertas
@@ -2348,7 +2560,7 @@ def processar_alertas(db: Session) -> Dict[str, int]:
 ```
 
 **Fluxo:**
-1. Verifica alertas de lixeiras
+1. Verifica alertas de coletores
 2. Verifica alertas de sensores
 3. Cria notificações
 4. Envia emails
@@ -2360,13 +2572,13 @@ def processar_alertas(db: Session) -> Dict[str, int]:
 ```python
 limite_tempo = utc_now_naive() - timedelta(hours=24)
 notificacao_recente = db.query(Notificacao).filter(
-    Notificacao.lixeira_id == lixeira.id,
+    Notificacao.coletor_id == coletor.id,
     Notificacao.tipo == 'lixeira_cheia',
     Notificacao.criada_em >= limite_tempo
 ).first()
 ```
 
-**Resultado:** Evita spam de emails (máximo 1 por 24h por lixeira/sensor).
+**Resultado:** Evita spam de emails (máximo 1 por 24h por coletor/sensor).
 
 ### 9.4 Agendamento Automático
 
@@ -2469,16 +2681,16 @@ def enviar_email_notificacao(destinatarios, assunto, corpo_html):
 
 **Funcionalidades:**
 - Lista de notificações com scroll
-- Filtros (tipo, status envio, status leitura, lixeira)
+- Filtros (tipo, status envio, status leitura, coletor)
 - Estatísticas (total, enviadas, pendentes, hoje)
 - Marcação como lida
 - Botão para processar alertas manualmente
 
 **Filtros:**
-- Tipo: Todos / Lixeira Cheia / Bateria Baixa
+- Tipo: Todos / Coletor Cheia / Bateria Baixa
 - Status Envio: Todas / Enviadas / Não Enviadas
 - Status Leitura: Todas / Lidas / Não Lidas
-- Lixeira: ID específico
+- Coletor: ID específico
 
 #### 9.6.2 Badge no Header
 
@@ -2555,12 +2767,12 @@ RATE_LIMIT_DELAY = 1.0  # 1 segundo entre requisições
 
 ### 10.3 Geocodificação de Lixeiras
 
-#### 10.3.1 Função de Lixeira
+#### 10.3.1 Função de Coletor
 
 ```python
 def geocodificar_lixeira(
     session: Session,
-    lixeira_id: int,
+    coletor_id: int,
     cidade: str = "Brasília",
     estado: str = "DF",
     forcar_atualizacao: bool = False
@@ -2569,7 +2781,7 @@ def geocodificar_lixeira(
 
 **Comportamento:**
 - Se `forcar_atualizacao=False` e já tem coordenadas: pula
-- Geocodifica endereço da lixeira
+- Geocodifica endereço da coletor
 - Atualiza `latitude` e `longitude` no banco
 - Retorna sucesso/mensagem
 
@@ -2602,39 +2814,39 @@ def geocodificar_lixeiras_em_lote(
 #### 10.4.1 Geocodificar Lixeiras
 
 ```bash
-# banco_dados/geocodificar_lixeiras.py
-python banco_dados/geocodificar_lixeiras.py
+# banco_dados/geocodificar_coletores.py
+python banco_dados/geocodificar_coletores.py
 ```
 
 **Funcionalidades:**
-- Processa todas as lixeiras sem coordenadas
+- Processa todas as coletores sem coordenadas
 - Respeita rate limiting
 - Logs detalhados
 - Relatório final
 
 ### 10.5 Integração Automática
 
-#### 10.5.1 Criação de Lixeira
+#### 10.5.1 Criação de Coletor
 
-Quando uma lixeira é criada via API, o sistema pode geocodificar automaticamente:
+Quando uma coletor é criada via API, o sistema pode geocodificar automaticamente:
 
 ```python
 # rotas/api.py
-@api_bp.route('/lixeira', methods=['POST'])
+@api_bp.route('/coletor', methods=['POST'])
 def criar_lixeira():
-    # ... criar lixeira ...
+    # ... criar coletor ...
     
     # Geocodificar se não tiver coordenadas
-    if not lixeira.latitude or not lixeira.longitude:
+    if not coletor.latitude or not coletor.longitude:
         from banco_dados.geocodificacao import geocodificar_lixeira
-        geocodificar_lixeira(db, lixeira.id)
+        geocodificar_lixeira(db, coletor.id)
 ```
 
 ### 10.6 Endpoint Manual
 
-#### 10.6.1 POST /api/lixeira/<id>/geocodificar
+#### 10.6.1 POST /api/coletor/<id>/geocodificar
 
-**Descrição:** Geocodifica lixeira manualmente
+**Descrição:** Geocodifica coletor manualmente
 
 **Autenticação:** `@login_required`
 
@@ -2658,7 +2870,7 @@ O sistema possui **120 testes automatizados** organizados em arquivos especializ
 ```
 tests/
 ├── conftest.py                    # Fixtures e configuração
-├── test_api_lixeiras.py          # Testes de API de lixeiras
+├── test_api_coletores.py          # Testes de API de coletores
 ├── test_api_coletas.py           # Testes de API de coletas
 ├── test_api_sensores.py           # Testes de API de sensores
 ├── test_api_atualizacao_exclusao.py  # Testes de atualização/exclusão
@@ -2721,9 +2933,9 @@ def auth_headers(client, db_session):
 ```python
 @pytest.fixture
 def create_lixeira(db_session):
-    """Factory para criar lixeiras de teste"""
+    """Factory para criar coletores de teste"""
     def _create(**kwargs):
-        # Cria lixeira com dados padrão ou customizados
+        # Cria coletor com dados padrão ou customizados
     return _create
 ```
 
@@ -2733,7 +2945,7 @@ def create_lixeira(db_session):
 def create_sensor(db_session, create_lixeira):
     """Factory para criar sensores de teste"""
     def _create(**kwargs):
-        # Cria sensor associado a lixeira
+        # Cria sensor associado a coletor
     return _create
 ```
 
@@ -2741,19 +2953,19 @@ def create_sensor(db_session, create_lixeira):
 
 #### 11.3.1 Testes de API (69 testes)
 
-**Lixeiras (test_api_lixeiras.py):**
-- Listar lixeiras
-- Obter lixeira específica
-- Criar lixeira (sucesso e erros)
-- Atualizar lixeira
-- Deletar lixeira
+**Lixeiras (test_api_coletores.py):**
+- Listar coletores
+- Obter coletor específica
+- Criar coletor (sucesso e erros)
+- Atualizar coletor
+- Deletar coletor
 - Filtros (status, parceiro)
 - Validações (coordenadas, nível, etc.)
 
 **Coletas (test_api_coletas.py):**
 - Listar coletas
 - Criar coleta (sucesso e erros)
-- Filtros (lixeira, parceiro, data)
+- Filtros (coletor, parceiro, data)
 - Validações (quantidade, tipo operação)
 
 **Sensores (test_api_sensores.py - 18 testes):**
@@ -2762,12 +2974,12 @@ def create_sensor(db_session, create_lixeira):
 - Criar sensor (sucesso e erros)
 - Atualizar sensor
 - Deletar sensor
-- Filtros (lixeira, tipo, bateria)
+- Filtros (coletor, tipo, bateria)
 - Validações (bateria, relacionamentos)
 
 **Atualização/Exclusão (test_api_atualizacao_exclusao.py):**
-- Atualizar lixeira existente
-- Deletar lixeira (com cascade)
+- Atualizar coletor existente
+- Deletar coletor (com cascade)
 - Proteção de dados (não perde dados relacionados)
 - Validações de permissão
 
@@ -2826,7 +3038,7 @@ def create_sensor(db_session, create_lixeira):
 - Endereço não encontrado
 - Rate limiting
 - Fallback para coordenadas aproximadas
-- Geocodificação de lixeira
+- Geocodificação de coletor
 - Geocodificação em lote
 - Validação de coordenadas
 
@@ -2840,7 +3052,7 @@ def create_sensor(db_session, create_lixeira):
 - Estatísticas gerais
 - Relatórios com filtros
 - Cálculos financeiros
-- Agregações (por lixeira, por parceiro)
+- Agregações (por coletor, por parceiro)
 - Filtros de data
 - Filtros de parceiro
 - Filtros de tipo de operação
@@ -2857,10 +3069,10 @@ pytest
 pytest --cov=. --cov-report=html
 
 # Apenas um arquivo
-pytest tests/test_api_lixeiras.py
+pytest tests/test_api_coletores.py
 
 # Apenas um teste
-pytest tests/test_api_lixeiras.py::test_criar_lixeira_success
+pytest tests/test_api_coletores.py::test_criar_lixeira_success
 
 # Com verbose
 pytest -v
@@ -3291,7 +3503,7 @@ Data,Localização,Volume (kg),KM Percorrido,Preço Combustível,Lucro por kg,Ti
 1. Lê arquivo CSV
 2. Valida dados
 3. Busca/cria parceiros
-4. Busca/cria lixeiras
+4. Busca/cria coletores
 5. Cria coletas
 6. Relatório de importação
 
@@ -3350,14 +3562,14 @@ python scripts/processar_alertas.py
 - Integração com cron
 - Execução sob demanda
 
-#### 15.1.2 geocodificar_lixeiras.py
+#### 15.1.2 geocodificar_coletores.py
 
 ```bash
-# banco_dados/geocodificar_lixeiras.py
-python banco_dados/geocodificar_lixeiras.py
+# banco_dados/geocodificar_coletores.py
+python banco_dados/geocodificar_coletores.py
 ```
 
-**Funcionalidade:** Geocodifica todas as lixeiras sem coordenadas
+**Funcionalidade:** Geocodifica todas as coletores sem coordenadas
 
 **Características:**
 - Rate limiting automático
@@ -3453,7 +3665,7 @@ Documentação principal do projeto:
 
 ### 16.1 Resumo do Sistema
 
-O **Dashboard-TRONIK** é um sistema completo e robusto de monitoramento e gestão de lixeiras inteligentes, desenvolvido com tecnologias modernas e boas práticas de engenharia de software.
+O **Dashboard-TRONIK** é um sistema completo e robusto de monitoramento e gestão de coletores inteligentes, desenvolvido com tecnologias modernas e boas práticas de engenharia de software.
 
 **Principais Características:**
 - ✅ **120 testes automatizados** com 0 falhas
@@ -3551,6 +3763,18 @@ Para dúvidas, problemas ou sugestões:
 
 ## 📝 Histórico de Versões
 
+### Versão 2.1 (24 de Novembro de 2025)
+- ✅ **Migração completa: lixeira → coletor** em todo o sistema
+- ✅ **Dashboard Comercial completo** com KPIs e análises
+- ✅ **Sistema CRM completo** com funil de vendas e tarefas
+- ✅ **Gestão de Contratos** recorrentes
+- ✅ **Verificação e correção de todos os endpoints** (55+ endpoints)
+- ✅ Correção de problemas com `lazy="dynamic"` em SQLAlchemy
+- ✅ Correção do WebSocket (erro "write() before start_response")
+- ✅ Substituição de emojis por ícones PNG profissionais
+- ✅ Layout personalizável no dashboard comercial (drag-and-drop)
+- ✅ Filtro de período expandido (todos os períodos)
+
 ### Versão 2.0 (20 de Novembro de 2025)
 - ✅ Sistema de roteamento modular completo
 - ✅ Notificações automáticas com APScheduler
@@ -3566,7 +3790,7 @@ Para dúvidas, problemas ou sugestões:
 - ✅ Dashboard principal
 - ✅ API REST básica
 - ✅ Sistema de autenticação
-- ✅ Geocodificação de lixeiras
+- ✅ Geocodificação de coletores
 
 ---
 
@@ -3574,6 +3798,6 @@ Para dúvidas, problemas ou sugestões:
 
 ---
 
-*Documentação gerada em: 20 de Novembro de 2025*  
-*Sistema: Dashboard-TRONIK v2.0*  
+*Documentação gerada em: 24 de Novembro de 2025*  
+*Sistema: Dashboard-TRONIK v2.1*  
 *Desenvolvido para: Tronik Recicla*
