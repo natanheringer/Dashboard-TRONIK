@@ -43,9 +43,19 @@ def migrar_tabela(origem_engine, destino_engine, tabela, session_origem, session
         count_query = text(f"SELECT COUNT(*) FROM {tabela}")
         count_existente = session_destino.execute(count_query).scalar()
         
-        if count_existente > 0:
+        # Permitir re-migração se houver erro anterior (apenas para coletas)
+        if count_existente > 0 and tabela != 'coletas':
             logger.info(f"⚠️  Tabela {tabela} já possui {count_existente} registros. Pulando...")
             return 0
+        elif count_existente > 0 and tabela == 'coletas':
+            logger.warning(f"⚠️  Tabela {tabela} já possui {count_existente} registros, mas pode ter erro. Tentando migrar novamente...")
+            # Limpar dados existentes se houver erro
+            try:
+                session_destino.execute(text(f"DELETE FROM {tabela}"))
+                session_destino.commit()
+                logger.info(f"🗑️  Dados antigos de {tabela} removidos para re-migração")
+            except:
+                pass
         
         # Ler todos os dados do SQLite
         query = text(f"SELECT * FROM {tabela}")
@@ -62,13 +72,36 @@ def migrar_tabela(origem_engine, destino_engine, tabela, session_origem, session
         placeholders = ", ".join([f":{col}" for col in colunas])
         insert_query = text(f"INSERT INTO {tabela} ({colunas_str}) VALUES ({placeholders})")
         
+        # Verificar tipos de colunas no destino para conversões necessárias
+        inspector_dest = inspect(destino_engine)
+        colunas_destino = {col['name']: col['type'] for col in inspector_dest.get_columns(tabela)}
+        
         # Inserir dados em lotes
         lote = 100
         total_inseridos = 0
         
         for i in range(0, len(dados), lote):
             lote_dados = dados[i:i+lote]
-            registros = [dict(zip(colunas, linha)) for linha in lote_dados]
+            registros = []
+            
+            for linha in lote_dados:
+                registro = dict(zip(colunas, linha))
+                
+                # Converter tipos se necessário
+                for coluna, valor in registro.items():
+                    if coluna in colunas_destino:
+                        tipo_destino = str(colunas_destino[coluna])
+                        
+                        # Converter inteiro 0/1 para boolean se o destino for boolean
+                        if 'BOOLEAN' in tipo_destino.upper() or 'BOOL' in tipo_destino.upper():
+                            if isinstance(valor, (int, float)):
+                                registro[coluna] = bool(valor)
+                            elif valor is None:
+                                registro[coluna] = None
+                            else:
+                                registro[coluna] = bool(valor)
+                
+                registros.append(registro)
             
             session_destino.execute(insert_query, registros)
             total_inseridos += len(registros)
@@ -88,6 +121,17 @@ def migrar_dados(sqlite_url, postgres_url):
     logger.info("=" * 60)
     logger.info("MIGRAÇÃO SQLITE → POSTGRESQL")
     logger.info("=" * 60)
+    
+    # Normalizar URL do SQLite
+    # Se for apenas um caminho de arquivo, converter para URL SQLAlchemy
+    if not sqlite_url.startswith('sqlite:///'):
+        # É um caminho de arquivo, converter para URL
+        arquivo_db = sqlite_url
+        if not os.path.isabs(arquivo_db):
+            # Caminho relativo, tornar absoluto
+            arquivo_db = os.path.abspath(arquivo_db)
+        sqlite_url = f'sqlite:///{arquivo_db}'
+        logger.info(f"📁 Arquivo SQLite: {arquivo_db}")
     
     # Verificar se o arquivo SQLite existe
     if sqlite_url.startswith('sqlite:///'):
@@ -166,8 +210,8 @@ def main():
     import argparse
     
     parser = argparse.ArgumentParser(description='Migra dados do SQLite para PostgreSQL')
-    parser.add_argument('--sqlite', default='sqlite:///tronik.db', 
-                       help='URL do banco SQLite (padrão: sqlite:///tronik.db)')
+    parser.add_argument('--sqlite', default='tronik.db', 
+                       help='Caminho do arquivo SQLite ou URL (padrão: tronik.db)')
     parser.add_argument('--postgres', required=True,
                        help='URL do banco PostgreSQL (ex: postgresql://user:pass@host:port/db)')
     parser.add_argument('--backup', action='store_true',
