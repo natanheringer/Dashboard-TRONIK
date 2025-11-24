@@ -14,7 +14,7 @@ Funções implementadas:
 from sqlalchemy import create_engine
 from sqlalchemy.orm import sessionmaker
 from banco_dados.modelos import (
-    Base, Lixeira, Sensor, Coleta, Usuario,
+    Base, Coletor, Sensor, Coleta, Usuario,
     Parceiro, TipoMaterial, TipoSensor, TipoColetor
 )
 from banco_dados.seed_tipos import popular_tipos
@@ -49,9 +49,9 @@ def inserir_dados_iniciais(engine, caminho_json="banco_dados/dados/sensores_mock
             dados = json.load(f)
 
         # --- INSERIR LIXEIRAS ---
-        print("Inserindo lixeiras...")
-        for item in dados["lixeiras"]:
-            lixeira = Lixeira(
+        print("Inserindo coletores...")
+        for item in dados["coletores"]:
+            coletor = Coletor(
                 localizacao=item["localizacao"],
                 nivel_preenchimento=item["nivel_preenchimento"],
                 status=item["status"],
@@ -59,7 +59,7 @@ def inserir_dados_iniciais(engine, caminho_json="banco_dados/dados/sensores_mock
                 tipo=item["tipo"],
                 coordenadas=f"{item['coordenadas']['latitude']}, {item['coordenadas']['longitude']}"
             )
-            session.add(lixeira)
+            session.add(coletor)
         session.commit()
         print("Lixeiras inseridas com sucesso!")
 
@@ -67,7 +67,7 @@ def inserir_dados_iniciais(engine, caminho_json="banco_dados/dados/sensores_mock
         print("Inserindo histórico de coletas...")
         for coleta in dados["historico_coletas"]:
             nova_coleta = Coleta(
-                lixeira_id=coleta["id_lixeira"],
+                coletor_id=coleta["id_lixeira"],
                 data_hora=datetime.fromisoformat(coleta["data_coleta"]),
                 volume_estimado=float(coleta["nivel_antes"]) - float(coleta["nivel_depois"])
             )

@@ -36,15 +36,15 @@ graph TB
         end
         
         subgraph "Endpoints API"
-            GET1[GET /api/lixeiras<br/>Listar todas]
-            GET2[GET /api/lixeira/id<br/>Obter uma]
+            GET1[GET /api/coletores<br/>Listar todas]
+            GET2[GET /api/coletor/id<br/>Obter uma]
             GET3[GET /api/estatisticas<br/>Estatísticas gerais]
             GET4[GET /api/historico<br/>Histórico coletas]
             GET5[GET /api/configuracoes<br/>Configurações sistema]
             GET6[GET /api/relatorios<br/>Dados para relatórios]
-            POST1[POST /api/lixeira<br/>Criar nova]
-            PUT1[PUT /api/lixeira/id<br/>Atualizar]
-            DELETE1[DELETE /api/lixeira/id<br/>Deletar]
+            POST1[POST /api/coletor<br/>Criar nova]
+            PUT1[PUT /api/coletor/id<br/>Atualizar]
+            DELETE1[DELETE /api/coletor/id<br/>Deletar]
         end
         
         subgraph "Rotas Páginas"
@@ -57,9 +57,9 @@ graph TB
     
     subgraph "Banco de Dados"
         subgraph "Modelos SQLAlchemy"
-            ModelLixeira[Lixeira<br/>- id<br/>- localizacao<br/>- nivel_preenchimento<br/>- status<br/>- ultima_coleta<br/>- tipo<br/>- coordenadas]
-            ModelSensor[Sensor<br/>- id<br/>- lixeira_id<br/>- tipo<br/>- bateria<br/>- ultimo_ping]
-            ModelColeta[Coleta<br/>- id<br/>- lixeira_id<br/>- data_hora<br/>- volume_estimado]
+            ModelLixeira[Coletor<br/>- id<br/>- localizacao<br/>- nivel_preenchimento<br/>- status<br/>- ultima_coleta<br/>- tipo<br/>- coordenadas]
+            ModelSensor[Sensor<br/>- id<br/>- coletor_id<br/>- tipo<br/>- bateria<br/>- ultimo_ping]
+            ModelColeta[Coleta<br/>- id<br/>- coletor_id<br/>- data_hora<br/>- volume_estimado]
         end
         
         SQLite[(SQLite<br/>tronik.db)]
@@ -163,11 +163,11 @@ sequenceDiagram
     F-->>B: index.html
     B->>JS: DOMContentLoaded
     JS->>API: obterTodasLixeiras()
-    API->>F: GET /api/lixeiras
-    F->>DB: SELECT * FROM lixeiras
-    DB-->>F: Lista de lixeiras
+    API->>F: GET /api/coletores
+    F->>DB: SELECT * FROM coletores
+    DB-->>F: Lista de coletores
     F-->>API: JSON Response
-    API-->>JS: Array de lixeiras
+    API-->>JS: Array de coletores
     JS->>JS: renderizarGridLixeiras()
     JS->>B: Atualiza DOM
     
@@ -181,21 +181,21 @@ sequenceDiagram
     
     loop Polling (30s)
         JS->>API: obterTodasLixeiras()
-        API->>F: GET /api/lixeiras
-        F->>DB: SELECT * FROM lixeiras
+        API->>F: GET /api/coletores
+        F->>DB: SELECT * FROM coletores
         DB-->>F: Dados atualizados
         F-->>API: JSON Response
         API-->>JS: Dados atualizados
         JS->>B: Atualiza interface
     end
     
-    U->>B: Cria nova lixeira
+    U->>B: Cria nova coletor
     B->>JS: criarNovaLixeira()
     JS->>API: criarLixeira(dados)
-    API->>F: POST /api/lixeira
+    API->>F: POST /api/coletor
     F->>F: validar_lixeira()
-    F->>DB: INSERT INTO lixeiras
-    DB-->>F: Lixeira criada
+    F->>DB: INSERT INTO coletores
+    DB-->>F: Coletor criada
     F-->>API: JSON Response (201)
     API-->>JS: Sucesso
     JS->>B: Atualiza interface
@@ -213,7 +213,7 @@ graph TD
     Root --> DB[tronik.db]
     
     Root --> Banco[banco_dados/]
-    Banco --> Modelos[modelos.py<br/>Lixeira, Sensor, Coleta]
+    Banco --> Modelos[modelos.py<br/>Coletor, Sensor, Coleta]
     Banco --> Init[inicializar.py<br/>Setup DB]
     Banco --> Dados[dados/]
     Dados --> Mock[sensores_mock.json]
@@ -275,7 +275,7 @@ erDiagram
     
     SENSOR {
         int id PK
-        int lixeira_id FK
+        int coletor_id FK
         string tipo
         float bateria
         datetime ultimo_ping
@@ -283,7 +283,7 @@ erDiagram
     
     COLETA {
         int id PK
-        int lixeira_id FK
+        int coletor_id FK
         datetime data_hora
         float volume_estimado
     }
@@ -312,7 +312,7 @@ graph LR
     end
     
     subgraph "Página: Configurações (configuracoes.html)"
-        C1[Formulário<br/>Criar Lixeira]
+        C1[Formulário<br/>Criar Coletor]
         C2[Lista Lixeiras<br/>Existentes]
         C3[Botões<br/>Criar, Deletar]
     end
@@ -325,7 +325,7 @@ graph LR
     end
     
     subgraph "JavaScript: dashboard.js"
-        JS1[carregarDados<br/>Carrega lixeiras e stats]
+        JS1[carregarDados<br/>Carrega coletores e stats]
         JS2[renderizarGridLixeiras<br/>Cria cards]
         JS3[aplicarFiltros<br/>Filtra por status/busca]
         JS4[atualizarEstatisticas<br/>Atualiza KPIs]
@@ -334,11 +334,11 @@ graph LR
     end
     
     subgraph "JavaScript: api.js"
-        API1[obterTodasLixeiras<br/>GET /api/lixeiras]
+        API1[obterTodasLixeiras<br/>GET /api/coletores]
         API2[obterEstatisticas<br/>GET /api/estatisticas]
         API3[obterRelatorios<br/>GET /api/relatorios]
-        API4[criarLixeira<br/>POST /api/lixeira]
-        API5[deletarLixeira<br/>DELETE /api/lixeira]
+        API4[criarLixeira<br/>POST /api/coletor]
+        API5[deletarLixeira<br/>DELETE /api/coletor]
     end
     
     D4 --> JS2
@@ -364,8 +364,8 @@ graph LR
 graph TB
     subgraph "API REST - /api"
         subgraph "GET Endpoints"
-            G1[GET /lixeiras<br/>Lista todas as lixeiras]
-            G2[GET /lixeira/id<br/>Obtém lixeira específica]
+            G1[GET /coletores<br/>Lista todas as coletores]
+            G2[GET /coletor/id<br/>Obtém coletor específica]
             G3[GET /estatisticas<br/>Estatísticas agregadas]
             G4[GET /historico<br/>Histórico de coletas]
             G5[GET /configuracoes<br/>Configurações sistema]
@@ -373,15 +373,15 @@ graph TB
         end
         
         subgraph "POST Endpoints"
-            P1[POST /lixeira<br/>Cria nova lixeira<br/>Body: JSON]
+            P1[POST /coletor<br/>Cria nova coletor<br/>Body: JSON]
         end
         
         subgraph "PUT Endpoints"
-            U1[PUT /lixeira/id<br/>Atualiza lixeira<br/>Body: JSON]
+            U1[PUT /coletor/id<br/>Atualiza coletor<br/>Body: JSON]
         end
         
         subgraph "DELETE Endpoints"
-            D1[DELETE /lixeira/id<br/>Deleta lixeira]
+            D1[DELETE /coletor/id<br/>Deleta coletor]
         end
     end
     
@@ -392,7 +392,7 @@ graph TB
         R4[GET /sobre<br/>Sobre]
     end
     
-    G1 --> ModelLixeira[Modelo: Lixeira]
+    G1 --> ModelLixeira[Modelo: Coletor]
     G2 --> ModelLixeira
     G3 --> ModelLixeira
     G3 --> ModelColeta[Modelo: Coleta]

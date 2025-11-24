@@ -79,7 +79,7 @@ git checkout -b docs/readme-update
 git add .
 
 # Faça commit com mensagem descritiva
-git commit -m "feat: implementa grid de lixeiras no dashboard"
+git commit -m "feat: implementa grid de coletores no dashboard"
 
 # Push para sua branch
 git push origin sua-branch
@@ -161,7 +161,7 @@ Antes de fazer commit, verifique:
 - [ ] Dados mock integrados
 
 ### Sprint 2 (Semana 3-4)
-- [ ] Grid de lixeiras implementado
+- [ ] Grid de coletores implementado
 - [ ] Filtros funcionando
 - [ ] CRUD básico da API
 - [ ] Interface responsiva

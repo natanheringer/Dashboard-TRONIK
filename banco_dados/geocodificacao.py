@@ -63,8 +63,9 @@ def geocodificar_endereco(
     endereco_limpo = endereco.strip()
     
     # Estratégias de busca (tentativas em ordem de especificidade)
+    # IMPORTANTE: Priorizar endereços completos mesmo que o nome não esteja registrado
     estrategias = [
-        # 1. Busca completa: endereço + cidade + estado + país
+        # 1. Busca completa: endereço + cidade + estado + país (MAIS ESPECÍFICO)
         f"{endereco_limpo}, {cidade}, {estado}, {pais}",
         # 2. Busca com cidade: endereço + cidade + estado
         f"{endereco_limpo}, {cidade}, {estado}",
@@ -73,6 +74,17 @@ def geocodificar_endereco(
         # 4. Busca apenas o endereço (pode encontrar em qualquer lugar)
         endereco_limpo,
     ]
+    
+    # Se o endereço parece ser um endereço completo (contém rua, número, bairro),
+    # adicionar estratégias mais específicas
+    import re
+    tem_rua_numero = bool(re.search(r'(Rua|Avenida|Quadra|SHIS|SES|SCS|SGAN|EQN|QE|QSD|SIAS|Rodovia|DF-\d+|Km\s+\d+|Trecho|Área Especial)', endereco_limpo, re.IGNORECASE))
+    tem_bairro = bool(re.search(r'(Asa Norte|Asa Sul|Guará|Taguatinga|Sobradinho|Gama|Águas Claras|Lago Sul|SIA|Jardim Botânico|Recanto das Emas|Vila Planalto)', endereco_limpo, re.IGNORECASE))
+    
+    if tem_rua_numero or tem_bairro:
+        # Se parece ser um endereço completo, priorizar busca exata do endereço
+        # antes de tentar variações com o nome
+        estrategias.insert(0, endereco_limpo)  # Adicionar no início
     
     # Se o endereço parece ser um nome pessoal ou muito genérico, tentar variações
     if len(endereco_limpo.split()) <= 2 and not any(palavra.lower() in endereco_limpo.lower() for palavra in ['hotel', 'condomínio', 'shopping', 'escola', 'igreja', 'colegio', 'associação']):
@@ -189,19 +201,19 @@ def geocodificar_endereco(
     }
 
 
-def geocodificar_lixeira(
+def geocodificar_coletor(
     session: Session,
-    lixeira_id: int,
+    coletor_id: int,
     cidade: str = "Brasília",
     estado: str = "DF",
     forcar_atualizacao: bool = False
 ) -> Tuple[bool, Optional[str]]:
     """
-    Geocodifica uma lixeira específica e atualiza no banco de dados.
+    Geocodifica uma coletor específica e atualiza no banco de dados.
     
     Args:
         session: Sessão do SQLAlchemy
-        lixeira_id: ID da lixeira
+        coletor_id: ID da coletor
         cidade: Cidade para geocodificação
         estado: Estado para geocodificação
         forcar_atualizacao: Se True, atualiza mesmo se já tiver coordenadas
@@ -209,29 +221,29 @@ def geocodificar_lixeira(
     Returns:
         Tuple (sucesso: bool, mensagem: str)
     """
-    from banco_dados.modelos import Lixeira
+    from banco_dados.modelos import Coletor
     
     try:
-        lixeira = session.query(Lixeira).filter(Lixeira.id == lixeira_id).first()
+        coletor = session.query(Coletor).filter(Coletor.id == coletor_id).first()
         
-        if not lixeira:
-            return False, f"Lixeira {lixeira_id} não encontrada"
+        if not coletor:
+            return False, f"Coletor {coletor_id} não encontrada"
         
         # Verificar se já tem coordenadas
-        if not forcar_atualizacao and lixeira.latitude and lixeira.longitude:
-            logger.debug(f"Lixeira {lixeira_id} já possui coordenadas. Pulando...")
-            return True, "Lixeira já possui coordenadas"
+        if not forcar_atualizacao and coletor.latitude and coletor.longitude:
+            logger.debug(f"Coletor {coletor_id} já possui coordenadas. Pulando...")
+            return True, "Coletor já possui coordenadas"
         
         # Geocodificar
         resultado = geocodificar_endereco(
-            lixeira.localizacao,
+            coletor.localizacao,
             cidade=cidade,
             estado=estado
         )
         
         if resultado:
-            lixeira.latitude = resultado['latitude']
-            lixeira.longitude = resultado['longitude']
+            coletor.latitude = resultado['latitude']
+            coletor.longitude = resultado['longitude']
             session.commit()
             
             # Mensagem informativa sobre o tipo de geocodificação
@@ -242,11 +254,11 @@ def geocodificar_lixeira(
             
             return True, mensagem
         else:
-            return False, f"Não foi possível geocodificar: {lixeira.localizacao}"
+            return False, f"Não foi possível geocodificar: {coletor.localizacao}"
             
     except Exception as e:
         session.rollback()
-        logger.error(f"Erro ao geocodificar lixeira {lixeira_id}: {e}")
+        logger.error(f"Erro ao geocodificar coletor {coletor_id}: {e}")
         return False, f"Erro: {str(e)}"
 
 
@@ -258,19 +270,19 @@ def geocodificar_lixeiras_em_lote(
     limite: Optional[int] = None
 ) -> Dict[str, any]:
     """
-    Geocodifica múltiplas lixeiras em lote, respeitando rate limits.
+    Geocodifica múltiplas coletores em lote, respeitando rate limits.
     
     Args:
         session: Sessão do SQLAlchemy
         cidade: Cidade para geocodificação
         estado: Estado para geocodificação
-        apenas_sem_coordenadas: Se True, processa apenas lixeiras sem coordenadas
-        limite: Número máximo de lixeiras a processar (None = todas)
+        apenas_sem_coordenadas: Se True, processa apenas coletores sem coordenadas
+        limite: Número máximo de coletores a processar (None = todas)
     
     Returns:
         Dict com estatísticas do processamento
     """
-    from banco_dados.modelos import Lixeira
+    from banco_dados.modelos import Coletor
     
     stats = {
         'total': 0,
@@ -282,30 +294,30 @@ def geocodificar_lixeiras_em_lote(
     }
     
     try:
-        # Buscar lixeiras
-        query = session.query(Lixeira)
+        # Buscar coletores
+        query = session.query(Coletor)
         
         if apenas_sem_coordenadas:
             query = query.filter(
-                (Lixeira.latitude.is_(None)) | (Lixeira.longitude.is_(None))
+                (Coletor.latitude.is_(None)) | (Coletor.longitude.is_(None))
             )
         
         if limite:
             query = query.limit(limite)
         
-        lixeiras = query.all()
-        stats['total'] = len(lixeiras)
+        coletores = query.all()
+        stats['total'] = len(coletores)
         
-        logger.info(f"Iniciando geocodificação em lote de {stats['total']} lixeiras...")
+        logger.info(f"Iniciando geocodificação em lote de {stats['total']} coletores...")
         
-        for i, lixeira in enumerate(lixeiras, 1):
+        for i, coletor in enumerate(coletores, 1):
             stats['processadas'] += 1
             
-            logger.info(f"Processando {i}/{stats['total']}: {lixeira.localizacao}")
+            logger.info(f"Processando {i}/{stats['total']}: {coletor.localizacao}")
             
-            sucesso, mensagem = geocodificar_lixeira(
+            sucesso, mensagem = geocodificar_coletor(
                 session,
-                lixeira.id,
+                coletor.id,
                 cidade=cidade,
                 estado=estado,
                 forcar_atualizacao=False
@@ -319,8 +331,8 @@ def geocodificar_lixeiras_em_lote(
             else:
                 stats['falha'] += 1
                 stats['erros'].append({
-                    'lixeira_id': lixeira.id,
-                    'localizacao': lixeira.localizacao,
+                    'coletor_id': coletor.id,
+                    'localizacao': coletor.localizacao,
                     'erro': mensagem
                 })
             

@@ -15,7 +15,7 @@ from sqlalchemy.orm import sessionmaker
 # Adicionar diretório raiz ao path para imports
 sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 
-from banco_dados.modelos import Lixeira, Coleta, Parceiro, TipoColetor
+from banco_dados.modelos import Coletor, Coleta, Parceiro, TipoColetor
 from banco_dados.seed_tipos import obter_parceiro_por_nome, obter_tipo_coletor_por_nome
 import logging
 
@@ -90,7 +90,7 @@ def validar_boolean(valor):
 
 def criar_ou_buscar_lixeira(session, nome_empresa, parceiro_id=None, tipo_material_id=None):
     """
-    Cria ou busca uma lixeira pelo nome da empresa.
+    Cria ou busca uma coletor pelo nome da empresa.
     
     Args:
         session: SQLAlchemy session
@@ -99,19 +99,19 @@ def criar_ou_buscar_lixeira(session, nome_empresa, parceiro_id=None, tipo_materi
         tipo_material_id: ID do tipo de material (opcional)
     
     Returns:
-        Lixeira object
+        Coletor object
     """
     if not nome_empresa or not nome_empresa.strip():
         raise ValueError("Nome da empresa não pode ser vazio")
     
     nome_empresa = nome_empresa.strip()
     
-    # Buscar lixeira existente pela localização
-    lixeira = session.query(Lixeira).filter(Lixeira.localizacao == nome_empresa).first()
+    # Buscar coletor existente pela localização
+    coletor = session.query(Coletor).filter(Coletor.localizacao == nome_empresa).first()
     
-    if not lixeira:
-        # Criar nova lixeira
-        lixeira = Lixeira(
+    if not coletor:
+        # Criar nova coletor
+        coletor = Coletor(
             localizacao=nome_empresa,
             nivel_preenchimento=0.0,
             status="OK",
@@ -119,17 +119,17 @@ def criar_ou_buscar_lixeira(session, nome_empresa, parceiro_id=None, tipo_materi
             parceiro_id=parceiro_id,
             tipo_material_id=tipo_material_id
         )
-        session.add(lixeira)
+        session.add(coletor)
         session.commit()
-        session.refresh(lixeira)
-        logger.debug(f"Nova lixeira criada: {nome_empresa}")
+        session.refresh(coletor)
+        logger.debug(f"Nova coletor criada: {nome_empresa}")
     else:
         # Atualizar parceiro se fornecido
-        if parceiro_id and not lixeira.parceiro_id:
-            lixeira.parceiro_id = parceiro_id
+        if parceiro_id and not coletor.parceiro_id:
+            coletor.parceiro_id = parceiro_id
             session.commit()
     
-    return lixeira
+    return coletor
 
 
 def validar_linha_csv(linha, num_linha):
@@ -280,12 +280,12 @@ def importar_csv(caminho_csv, engine, atualizar_existentes=False):
                         tipo_coletor = obter_tipo_coletor_por_nome(session, tipo_coletor_nome)
                         tipo_coletor_id = tipo_coletor.id if tipo_coletor else None
                     
-                    # Criar/buscar lixeira
-                    lixeira = criar_ou_buscar_lixeira(session, empresa, parceiro_id=parceiro_id)
+                    # Criar/buscar coletor
+                    coletor = criar_ou_buscar_lixeira(session, empresa, parceiro_id=parceiro_id)
                     
-                    # Verificar se coleta já existe (mesma lixeira + data + quantidade)
+                    # Verificar se coleta já existe (mesma coletor + data + quantidade)
                     coleta_existente = session.query(Coleta).filter(
-                        Coleta.lixeira_id == lixeira.id,
+                        Coleta.coletor_id == coletor.id,
                         Coleta.data_hora == data_hora,
                         Coleta.volume_estimado == quantidade
                     ).first()
@@ -309,7 +309,7 @@ def importar_csv(caminho_csv, engine, atualizar_existentes=False):
                     else:
                         # Criar nova coleta
                         nova_coleta = Coleta(
-                            lixeira_id=lixeira.id,
+                            coletor_id=coletor.id,
                             data_hora=data_hora,
                             volume_estimado=quantidade,
                             tipo_operacao=tipo_operacao,

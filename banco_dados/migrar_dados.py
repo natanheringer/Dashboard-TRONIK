@@ -8,7 +8,7 @@ Converte coordenadas string para latitude/longitude e tipos string para FKs.
 
 from sqlalchemy import create_engine
 from sqlalchemy.orm import sessionmaker
-from banco_dados.modelos import Base, Lixeira, Sensor, Coleta, TipoMaterial, TipoSensor
+from banco_dados.modelos import Base, Coletor, Sensor, Coleta, TipoMaterial, TipoSensor
 from banco_dados.seed_tipos import popular_tipos
 import logging
 
@@ -144,46 +144,46 @@ def migrar_dados(engine, backup=True):
         # ============================================================
         # 2. Migrar Lixeiras
         # ============================================================
-        logger.info("Migrando lixeiras...")
-        lixeiras = session.query(Lixeira).all()
+        logger.info("Migrando coletores...")
+        coletores = session.query(Coletor).all()
         
-        for lixeira in lixeiras:
+        for coletor in coletores:
             try:
                 # Converter coordenadas
-                if lixeira.coordenadas:
-                    lat, lon = converter_coordenadas_string(lixeira.coordenadas)
+                if coletor.coordenadas:
+                    lat, lon = converter_coordenadas_string(coletor.coordenadas)
                     if lat is not None and lon is not None:
-                        lixeira.latitude = lat
-                        lixeira.longitude = lon
+                        coletor.latitude = lat
+                        coletor.longitude = lon
                         stats['lixeiras_com_coordenadas'] += 1
                     else:
                         stats['lixeiras_sem_coordenadas'] += 1
-                        logger.warning(f"Coordenadas inválidas na lixeira {lixeira.id}: {lixeira.coordenadas}")
+                        logger.warning(f"Coordenadas inválidas na coletor {coletor.id}: {coletor.coordenadas}")
                 else:
                     stats['lixeiras_sem_coordenadas'] += 1
                 
                 # Converter tipo de material
-                if lixeira.tipo:
-                    tipo_nome = mapear_tipo_material(lixeira.tipo)
+                if coletor.tipo:
+                    tipo_nome = mapear_tipo_material(coletor.tipo)
                     if tipo_nome:
                         tipo_material = session.query(TipoMaterial).filter(
                             TipoMaterial.nome == tipo_nome
                         ).first()
                         if tipo_material:
-                            lixeira.tipo_material_id = tipo_material.id
+                            coletor.tipo_material_id = tipo_material.id
                 
                 stats['lixeiras_migradas'] += 1
                 
             except Exception as e:
                 stats['erros'].append({
-                    'tipo': 'lixeira',
-                    'id': lixeira.id,
+                    'tipo': 'coletor',
+                    'id': coletor.id,
                     'erro': str(e)
                 })
-                logger.error(f"Erro ao migrar lixeira {lixeira.id}: {e}")
+                logger.error(f"Erro ao migrar coletor {coletor.id}: {e}")
         
         session.commit()
-        logger.info(f"✅ {stats['lixeiras_migradas']} lixeiras migradas")
+        logger.info(f"✅ {stats['lixeiras_migradas']} coletores migradas")
         
         # ============================================================
         # 3. Migrar Sensores

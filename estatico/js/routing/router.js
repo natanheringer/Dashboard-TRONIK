@@ -12,6 +12,56 @@ Orquestra todos os módulos de roteamento para calcular rotas robustas
  * @returns {Promise<Array>} Rota calculada [lat, lon][]
  */
 async function calcularRotaRobusta(ponto1, ponto2, opcoes = {}) {
+    // Validar entrada
+    if (!ponto1 || !ponto2) {
+        throw new Error('Pontos não fornecidos');
+    }
+    
+    // Validar formato de ponto (pode ser array [lat, lon] ou objeto {lat, lon})
+    let lat1, lon1, lat2, lon2;
+    
+    if (Array.isArray(ponto1)) {
+        lat1 = parseFloat(ponto1[0]);
+        lon1 = parseFloat(ponto1[1]);
+    } else if (ponto1.lat !== undefined && ponto1.lon !== undefined) {
+        lat1 = parseFloat(ponto1.lat);
+        lon1 = parseFloat(ponto1.lon);
+    } else {
+        throw new Error('Formato inválido para ponto1');
+    }
+    
+    if (Array.isArray(ponto2)) {
+        lat2 = parseFloat(ponto2[0]);
+        lon2 = parseFloat(ponto2[1]);
+    } else if (ponto2.lat !== undefined && ponto2.lon !== undefined) {
+        lat2 = parseFloat(ponto2.lat);
+        lon2 = parseFloat(ponto2.lon);
+    } else {
+        throw new Error('Formato inválido para ponto2');
+    }
+    
+    // Validar coordenadas
+    const validarCoordenadas = window.Formatacao && window.Formatacao.validarCoordenadas 
+        ? window.Formatacao.validarCoordenadas 
+        : (lat, lon) => {
+            if (typeof lat !== 'number' || typeof lon !== 'number') return false;
+            if (isNaN(lat) || isNaN(lon)) return false;
+            if (!isFinite(lat) || !isFinite(lon)) return false;
+            if (lat < -90 || lat > 90) return false;
+            if (lon < -180 || lon > 180) return false;
+            return true;
+        };
+    
+    if (!validarCoordenadas(lat1, lon1)) {
+        throw new Error(`Coordenadas inválidas para ponto1: lat=${lat1}, lon=${lon1}`);
+    }
+    if (!validarCoordenadas(lat2, lon2)) {
+        throw new Error(`Coordenadas inválidas para ponto2: lat=${lat2}, lon=${lon2}`);
+    }
+    
+    // Normalizar pontos para formato [lat, lon]
+    const p1 = [lat1, lon1];
+    const p2 = [lat2, lon2];
     const {
         usarOSM = true,
         usarCache = true,
@@ -21,9 +71,14 @@ async function calcularRotaRobusta(ponto1, ponto2, opcoes = {}) {
     
     // Calcular distância para otimizações
     const distancia = calcularDistancia(
-        ponto1[0], ponto1[1],
-        ponto2[0], ponto2[1]
+        p1[0], p1[1],
+        p2[0], p2[1]
     );
+    
+    // Validar distância
+    if (isNaN(distancia) || !isFinite(distancia) || distancia < 0) {
+        throw new Error('Erro ao calcular distância entre pontos');
+    }
     
     // Escolher algoritmo otimizado se não especificado
     if (!algoritmo && typeof escolherAlgoritmoOtimizado === 'function') {
@@ -34,17 +89,21 @@ async function calcularRotaRobusta(ponto1, ponto2, opcoes = {}) {
     
     // Para rotas muito longas, usar processamento em segmentos
     if (distancia > 30 && typeof calcularRotaLonga === 'function') {
-        return await calcularRotaLonga(ponto1, ponto2, (p1, p2) => 
-            calcularRotaRobusta(p1, p2, { ...opcoes, usarOSM: false }) // Desabilitar OSM em segmentos
+        return await calcularRotaLonga(p1, p2, (p1Seg, p2Seg) => 
+            calcularRotaRobusta(p1Seg, p2Seg, { ...opcoes, usarOSM: false }) // Desabilitar OSM em segmentos
         );
     }
     
     // 1. Verificar cache primeiro
     if (usarCache && typeof obterRotaCache === 'function') {
-        const rotaCache = await obterRotaCache(ponto1, ponto2);
-        if (rotaCache) {
-            console.log('Rota obtida do cache');
-            return rotaCache;
+        try {
+            const rotaCache = await obterRotaCache(p1, p2);
+            if (rotaCache && Array.isArray(rotaCache) && rotaCache.length >= 2) {
+                console.log('Rota obtida do cache');
+                return rotaCache;
+            }
+        } catch (e) {
+            console.warn('Erro ao obter rota do cache:', e);
         }
     }
     

@@ -96,7 +96,7 @@ git config --global user.email "seu.email@exemplo.com"
 
 ## 2.1 Dashboard-TRONIK
 
-Sistema de monitoramento de lixeiras inteligentes com:
+Sistema de monitoramento de coletores inteligentes com:
 - Visualização em tempo real do nível de preenchimento
 - Alertas automáticos
 - Relatórios de coleta
@@ -386,8 +386,8 @@ Se aparecer "merge conflict":
 Use mensagens claras:
 ```bash
 # Bom
-git commit -m "feat: adiciona filtro por status de lixeira"
-git commit -m "fix: corrige erro na API de lixeiras"
+git commit -m "feat: adiciona filtro por status de coletor"
+git commit -m "fix: corrige erro na API de coletores"
 git commit -m "docs: atualiza README com instruções de setup"
 
 # Ruim
@@ -450,7 +450,7 @@ git commit -m "teste"
 
 ### Tarefa 3: Conectar banco de dados
 1. Abrir `banco_dados/modelos.py`
-2. Criar modelo Lixeira
+2. Criar modelo Coletor
 3. Configurar SQLAlchemy
 4. Testar conexão
 
@@ -458,7 +458,7 @@ git commit -m "teste"
 
 ### Tarefa 1: Expandir dados mock
 1. Abrir `dados/sensores_mock.json`
-2. Adicionar mais lixeiras
+2. Adicionar mais coletores
 3. Criar diferentes cenários
 4. Validar formato JSON
 

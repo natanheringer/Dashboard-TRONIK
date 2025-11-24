@@ -3,10 +3,10 @@
 ## 1. Descrição do MVP
 
 ### 1.1 Problema (≤ 250 caracteres)
-Municípios e equipes de limpeza carecem de visibilidade sobre o nível de preenchimento de lixeiras públicas, causando coletas ineficientes, transbordo e custos operacionais elevados.
+Municípios e equipes de limpeza carecem de visibilidade sobre o nível de preenchimento de coletores públicas, causando coletas ineficientes, transbordo e custos operacionais elevados.
 
 ### 1.2 Solução (≤ 250 caracteres)
-Dashboard web que monitora lixeiras inteligentes via sensores ultrassônicos, exibindo níveis, alertas (>80%) e status em tempo quase real, permitindo priorização de rotas e coletas mais eficientes.
+Dashboard web que monitora coletores inteligentes via sensores ultrassônicos, exibindo níveis, alertas (>80%) e status em tempo quase real, permitindo priorização de rotas e coletas mais eficientes.
 
 ### 1.3 Personas
 - Gestor de Limpeza Urbana: define políticas, acompanha indicadores e custos.
@@ -16,12 +16,12 @@ Dashboard web que monitora lixeiras inteligentes via sensores ultrassônicos, ex
 
 ### 1.4 Jornadas do usuário
 - Gestor: acessa o dashboard → filtra por região → verifica alertas → exporta relatório semanal.
-- Supervisor: abre o mapa/grid → identifica lixeiras >80% → reorganiza rota do dia.
-- Agente: consulta lista priorizada → realiza coleta → marca lixeira como vazia (futuro).
+- Supervisor: abre o mapa/grid → identifica coletores >80% → reorganiza rota do dia.
+- Agente: consulta lista priorizada → realiza coleta → marca coletor como vazia (futuro).
 - Analista: consulta histórico agregado → identifica padrões → propõe ajustes de frequência.
 
 ## 2. Escopo do MVP (versão inicial)
-- Grid de lixeiras com nível e status.
+- Grid de coletores com nível e status.
 - API REST para leitura de dados (mock/simulada).
 - Alerta visual para nível >80%.
 - Relatório básico (listagem) por período.
@@ -29,13 +29,13 @@ Dashboard web que monitora lixeiras inteligentes via sensores ultrassônicos, ex
 Itens fora do escopo inicial (próximas iterações): autenticação, mapas em tempo real, otimização automática de rotas, app mobile.
 
 ## 3. Critérios de sucesso
-- Usuário visualiza ao menos 10 lixeiras com nível e estado.
+- Usuário visualiza ao menos 10 coletores com nível e estado.
 - Alertas são exibidos quando nível >80%.
 - Dados podem ser atualizados via mock a cada X segundos.
 - Página responde adequadamente em desktop e mobile básico.
 
 ## 4. Métricas (iniciais)
-- % de lixeiras com coleta preventiva (antes do transbordo).
+- % de coletores com coleta preventiva (antes do transbordo).
 - Tempo médio entre alertas e coleta efetiva (simulado).
 - Redução de ocorrências de transbordo (simulado).
 
