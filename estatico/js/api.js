@@ -113,13 +113,18 @@ async function fazerRequisicaoComCache(endpoint, ttl = 5 * 60 * 1000) {
 
 // Função para obter todas as coletores (com cache)
 async function obterTodasLixeiras() {
-    const resultado = await fazerRequisicaoComCache('/coletores', 2 * 60 * 1000); // Cache de 2 minutos
-    // Ajustar para formato paginado (se aplicável)
-    if (resultado && resultado.dados) {
-        return resultado.dados;
+    try {
+        const resultado = await fazerRequisicaoComCache('/coletores', 2 * 60 * 1000); // Cache de 2 minutos
+        // Ajustar para formato paginado (se aplicável)
+        if (resultado && resultado.dados) {
+            return Array.isArray(resultado.dados) ? resultado.dados : [];
+        }
+        // Se não for formato paginado, retornar direto (compatibilidade)
+        return Array.isArray(resultado) ? resultado : [];
+    } catch (error) {
+        console.error('Erro ao obter coletores:', error);
+        return [];  // Retornar array vazio em caso de erro
     }
-    // Se não for formato paginado, retornar direto (compatibilidade)
-    return Array.isArray(resultado) ? resultado : [];
 }
 
 // Função para obter coletor específica
