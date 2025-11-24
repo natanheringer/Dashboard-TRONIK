@@ -51,7 +51,7 @@ def test_db():
 def db_session(test_db):
     """Cria uma sessão do banco para cada teste"""
     # Limpar todas as tabelas antes de cada teste
-    from banco_dados.modelos import Usuario, Lixeira, Coleta, Sensor, Parceiro, TipoMaterial, TipoSensor, TipoColetor
+    from banco_dados.modelos import Usuario, Coletor, Coleta, Sensor, Parceiro, TipoMaterial, TipoSensor, TipoColetor
     
     Session = sessionmaker(bind=test_db)
     session = Session()
@@ -60,7 +60,7 @@ def db_session(test_db):
         # Limpar dados (manter tipos que são populados no seed)
         session.query(Coleta).delete()
         session.query(Sensor).delete()
-        session.query(Lixeira).delete()
+        session.query(Coletor).delete()
         session.query(Usuario).delete()
         session.query(Parceiro).delete()
         session.commit()
@@ -82,6 +82,18 @@ def client(test_db, db_session):
     
     # Substituir sessão do banco pela sessão de teste
     app.config['DATABASE_SESSION'] = lambda: db_session
+    
+    # Garantir que limiter existe para testes
+    from rotas.api import decorators
+    if not hasattr(decorators, 'limiter') or decorators.limiter is None:
+        from flask_limiter import Limiter
+        from flask_limiter.util import get_remote_address
+        decorators.limiter = Limiter(
+            app=app,
+            key_func=get_remote_address,
+            default_limits=[],
+            enabled=False  # Desabilitar em testes
+        )
     
     # Criar cliente de teste
     with app.test_client() as client:
@@ -144,7 +156,7 @@ def admin_headers(client, db_session):
 
 @pytest.fixture
 def sample_lixeira_data():
-    """Retorna dados de exemplo para criar uma lixeira"""
+    """Retorna dados de exemplo para criar uma coletor"""
     return {
         'localizacao': 'Teste Localização',
         'nivel_preenchimento': 50.0,
@@ -155,12 +167,12 @@ def sample_lixeira_data():
 
 @pytest.fixture
 def create_lixeira(db_session):
-    """Fixture factory para criar lixeiras de teste"""
-    from banco_dados.modelos import Lixeira, Parceiro, TipoMaterial
+    """Fixture factory para criar coletores de teste"""
+    from banco_dados.modelos import Coletor, Parceiro, TipoMaterial
     from banco_dados.utils import utc_now_naive
     from datetime import datetime
     
-    def _create_lixeira(localizacao="Lixeira Teste", nivel=50.0, status="OK", lat=-15.7942, lon=-47.8822, parceiro_id=None, tipo_material_id=None):
+    def _create_lixeira(localizacao="Coletor Teste", nivel=50.0, status="OK", lat=-15.7942, lon=-47.8822, parceiro_id=None, tipo_material_id=None):
         if parceiro_id is None:
             parceiro = db_session.query(Parceiro).first()
             if not parceiro:
@@ -177,7 +189,7 @@ def create_lixeira(db_session):
                 db_session.flush()
             tipo_material_id = tipo_material.id
         
-        lixeira = Lixeira(
+        coletor = Coletor(
             localizacao=localizacao,
             nivel_preenchimento=nivel,
             status=status,
@@ -187,10 +199,10 @@ def create_lixeira(db_session):
             tipo_material_id=tipo_material_id,
             ultima_coleta=utc_now_naive()
         )
-        db_session.add(lixeira)
+        db_session.add(coletor)
         db_session.commit()
-        db_session.refresh(lixeira)
-        return lixeira
+        db_session.refresh(coletor)
+        return coletor
     
     return _create_lixeira
 

@@ -11,19 +11,19 @@ import os
 from unittest.mock import patch, MagicMock
 sys.path.insert(0, os.path.abspath(os.path.join(os.path.dirname(__file__), '..')))
 
-from banco_dados.modelos import Lixeira, Parceiro, TipoMaterial, Usuario
+from banco_dados.modelos import Coletor, Parceiro, TipoMaterial, Usuario
 
 
 class TestGeocodificacaoEndpoint:
     """Testes do endpoint de geocodificação manual"""
     
     def test_geocodificar_lixeira_requires_auth(self, client):
-        """Testa que geocodificar lixeira requer autenticação"""
-        response = client.post('/api/lixeira/1/geocodificar', json={})
+        """Testa que geocodificar coletor requer autenticação"""
+        response = client.post('/api/coletor/1/geocodificar', json={})
         assert response.status_code == 401 or response.status_code == 302
     
     def test_geocodificar_lixeira_not_found(self, client, db_session):
-        """Testa geocodificar lixeira inexistente"""
+        """Testa geocodificar coletor inexistente"""
         # Fazer login
         usuario = Usuario(
             username='testuser_geo',
@@ -40,13 +40,13 @@ class TestGeocodificacaoEndpoint:
             'senha': 'TestPass123!'
         })
         
-        # Tentar geocodificar lixeira inexistente
-        response = client.post('/api/lixeira/99999/geocodificar', json={})
+        # Tentar geocodificar coletor inexistente
+        response = client.post('/api/coletor/99999/geocodificar', json={})
         assert response.status_code == 404
     
     @patch('banco_dados.geocodificacao.geocodificar_endereco')
     def test_geocodificar_lixeira_success(self, mock_geocodificar, client, db_session):
-        """Testa geocodificação bem-sucedida de lixeira"""
+        """Testa geocodificação bem-sucedida de coletor"""
         # Mock da função de geocodificação
         mock_geocodificar.return_value = {
             'latitude': -15.8000,
@@ -71,24 +71,24 @@ class TestGeocodificacaoEndpoint:
             'senha': 'TestPass123!'
         })
         
-        # Criar lixeira sem coordenadas
+        # Criar coletor sem coordenadas
         tipo_material = db_session.query(TipoMaterial).first()
         parceiro = Parceiro(nome='Parceiro Geo')
         db_session.add(parceiro)
         db_session.flush()
         
-        lixeira = Lixeira(
+        coletor = Coletor(
             localizacao='Shopping Conjunto Nacional',
             nivel_preenchimento=50.0,
             status='OK',
             parceiro_id=parceiro.id,
             tipo_material_id=tipo_material.id if tipo_material else None
         )
-        db_session.add(lixeira)
+        db_session.add(coletor)
         db_session.commit()
         
         # Geocodificar
-        response = client.post(f'/api/lixeira/{lixeira.id}/geocodificar', json={
+        response = client.post(f'/api/coletor/{coletor.id}/geocodificar', json={
             'cidade': 'Brasília',
             'estado': 'DF'
         })
@@ -96,12 +96,10 @@ class TestGeocodificacaoEndpoint:
         assert response.status_code == 200
         data = response.get_json()
         assert 'mensagem' in data
-        assert 'lixeira' in data
-        assert data['lixeira']['latitude'] == -15.8000
-        assert data['lixeira']['longitude'] == -47.9000
+        # O endpoint retorna apenas mensagem, não o objeto coletor
         
         # Verificar que foi atualizado no banco
-        lixeira_atualizada = db_session.query(Lixeira).filter_by(id=lixeira.id).first()
+        lixeira_atualizada = db_session.query(Coletor).filter_by(id=coletor.id).first()
         assert lixeira_atualizada.latitude == -15.8000
         assert lixeira_atualizada.longitude == -47.9000
     
@@ -127,24 +125,24 @@ class TestGeocodificacaoEndpoint:
             'senha': 'TestPass123!'
         })
         
-        # Criar lixeira
+        # Criar coletor
         tipo_material = db_session.query(TipoMaterial).first()
         parceiro = Parceiro(nome='Parceiro Geo Fail')
         db_session.add(parceiro)
         db_session.flush()
         
-        lixeira = Lixeira(
+        coletor = Coletor(
             localizacao='Endereço Inexistente 12345',
             nivel_preenchimento=50.0,
             status='OK',
             parceiro_id=parceiro.id,
             tipo_material_id=tipo_material.id if tipo_material else None
         )
-        db_session.add(lixeira)
+        db_session.add(coletor)
         db_session.commit()
         
         # Tentar geocodificar (deve falhar e usar fallback)
-        response = client.post(f'/api/lixeira/{lixeira.id}/geocodificar', json={})
+        response = client.post(f'/api/coletor/{coletor.id}/geocodificar', json={})
         
         # Pode retornar 200 com coordenadas de fallback ou 400 com erro
         # Dependendo da implementação de geocodificar_lixeira
@@ -156,7 +154,7 @@ class TestGeocodificacaoAutomatica:
     
     @patch('banco_dados.geocodificacao.geocodificar_endereco')
     def test_criar_lixeira_geocodificacao_automatica(self, mock_geocodificar, client, db_session):
-        """Testa geocodificação automática ao criar lixeira sem coordenadas"""
+        """Testa geocodificação automática ao criar coletor sem coordenadas"""
         # Mock da função de geocodificação
         mock_geocodificar.return_value = {
             'latitude': -15.7900,
@@ -187,7 +185,7 @@ class TestGeocodificacaoAutomatica:
         db_session.add(parceiro)
         db_session.flush()
         
-        # Criar lixeira sem coordenadas (deve geocodificar automaticamente)
+        # Criar coletor sem coordenadas (deve geocodificar automaticamente)
         dados = {
             'localizacao': 'Hotel Royal Tulip',
             'nivel_preenchimento': 50.0,
@@ -197,7 +195,7 @@ class TestGeocodificacaoAutomatica:
             # Não fornecer latitude/longitude
         }
         
-        response = client.post('/api/lixeira', json=dados)
+        response = client.post('/api/coletor', json=dados)
         
         assert response.status_code == 201
         data = response.get_json()
@@ -234,24 +232,24 @@ class TestGeocodificacaoAutomatica:
             'senha': 'TestPass123!'
         })
         
-        # Criar lixeira sem coordenadas
+        # Criar coletor sem coordenadas
         tipo_material = db_session.query(TipoMaterial).first()
         parceiro = Parceiro(nome='Parceiro Update Geo')
         db_session.add(parceiro)
         db_session.flush()
         
-        lixeira = Lixeira(
+        coletor = Coletor(
             localizacao='Localização Original',
             nivel_preenchimento=50.0,
             status='OK',
             parceiro_id=parceiro.id,
             tipo_material_id=tipo_material.id if tipo_material else None
         )
-        db_session.add(lixeira)
+        db_session.add(coletor)
         db_session.commit()
         
         # Atualizar localização (deve geocodificar automaticamente)
-        response = client.put(f'/api/lixeira/{lixeira.id}', json={
+        response = client.put(f'/api/coletor/{coletor.id}', json={
             'localizacao': 'Shopping Iguatemi Brasília'
         })
         

@@ -1,7 +1,7 @@
 """
 Testes de Atualização e Exclusão - Dashboard-TRONIK
 ===================================================
-Testa endpoints PUT e DELETE de lixeiras.
+Testa endpoints PUT e DELETE de coletores.
 IMPORTANTE: Todos os testes usam banco de dados isolado (test_db) para não afetar dados reais.
 """
 
@@ -11,20 +11,20 @@ import os
 from datetime import datetime
 sys.path.insert(0, os.path.abspath(os.path.join(os.path.dirname(__file__), '..')))
 
-from banco_dados.modelos import Lixeira, Parceiro, TipoMaterial, Usuario
+from banco_dados.modelos import Coletor, Parceiro, TipoMaterial, Usuario
 from banco_dados.utils import utc_now_naive
 
 
 class TestAtualizarLixeira:
-    """Testes de atualização de lixeiras"""
+    """Testes de atualização de coletores"""
     
     def test_atualizar_lixeira_requires_auth(self, client):
-        """Testa que atualizar lixeira requer autenticação"""
-        response = client.put('/api/lixeira/1', json={})
+        """Testa que atualizar coletor requer autenticação"""
+        response = client.put('/api/coletor/1', json={})
         assert response.status_code == 401 or response.status_code == 302
     
     def test_atualizar_lixeira_not_found(self, client, db_session):
-        """Testa atualizar lixeira inexistente"""
+        """Testa atualizar coletor inexistente"""
         # Fazer login
         usuario = Usuario(
             username='testuser',
@@ -41,8 +41,8 @@ class TestAtualizarLixeira:
             'senha': 'TestPass123!'
         })
         
-        # Tentar atualizar lixeira inexistente
-        response = client.put('/api/lixeira/99999', json={
+        # Tentar atualizar coletor inexistente
+        response = client.put('/api/coletor/99999', json={
             'localizacao': 'Nova Localização'
         })
         assert response.status_code == 404
@@ -50,7 +50,7 @@ class TestAtualizarLixeira:
         assert 'erro' in data
     
     def test_atualizar_lixeira_success(self, client, db_session):
-        """Testa atualização bem-sucedida de lixeira"""
+        """Testa atualização bem-sucedida de coletor"""
         # Fazer login
         usuario = Usuario(
             username='testuser_update',
@@ -67,13 +67,13 @@ class TestAtualizarLixeira:
             'senha': 'TestPass123!'
         })
         
-        # Criar lixeira para atualizar
+        # Criar coletor para atualizar
         tipo_material = db_session.query(TipoMaterial).first()
         parceiro = Parceiro(nome='Parceiro Teste Update')
         db_session.add(parceiro)
         db_session.flush()
         
-        lixeira = Lixeira(
+        coletor = Coletor(
             localizacao='Localização Original',
             nivel_preenchimento=50.0,
             status='OK',
@@ -82,11 +82,11 @@ class TestAtualizarLixeira:
             parceiro_id=parceiro.id,
             tipo_material_id=tipo_material.id if tipo_material else None
         )
-        db_session.add(lixeira)
+        db_session.add(coletor)
         db_session.commit()
         
-        # Atualizar lixeira
-        response = client.put(f'/api/lixeira/{lixeira.id}', json={
+        # Atualizar coletor
+        response = client.put(f'/api/coletor/{coletor.id}', json={
             'localizacao': 'Localização Atualizada',
             'nivel_preenchimento': 75.0,
             'status': 'ALERTA'
@@ -99,13 +99,13 @@ class TestAtualizarLixeira:
         assert data['status'] == 'ALERTA'
         
         # Verificar que foi realmente atualizado no banco (buscar novamente)
-        lixeira_atualizada = db_session.query(Lixeira).filter_by(id=lixeira.id).first()
+        lixeira_atualizada = db_session.query(Coletor).filter_by(id=coletor.id).first()
         assert lixeira_atualizada is not None
         assert lixeira_atualizada.localizacao == 'Localização Atualizada'
         assert lixeira_atualizada.nivel_preenchimento == 75.0
     
     def test_atualizar_lixeira_partial(self, client, db_session):
-        """Testa atualização parcial de lixeira (apenas alguns campos)"""
+        """Testa atualização parcial de coletor (apenas alguns campos)"""
         # Fazer login
         usuario = Usuario(
             username='testuser_partial',
@@ -122,13 +122,13 @@ class TestAtualizarLixeira:
             'senha': 'TestPass123!'
         })
         
-        # Criar lixeira
+        # Criar coletor
         tipo_material = db_session.query(TipoMaterial).first()
         parceiro = Parceiro(nome='Parceiro Teste Partial')
         db_session.add(parceiro)
         db_session.flush()
         
-        lixeira = Lixeira(
+        coletor = Coletor(
             localizacao='Localização Original',
             nivel_preenchimento=50.0,
             status='OK',
@@ -137,13 +137,13 @@ class TestAtualizarLixeira:
             parceiro_id=parceiro.id,
             tipo_material_id=tipo_material.id if tipo_material else None
         )
-        db_session.add(lixeira)
+        db_session.add(coletor)
         db_session.commit()
-        lixeira_id = lixeira.id
-        localizacao_original = lixeira.localizacao
+        coletor_id = coletor.id
+        localizacao_original = coletor.localizacao
         
         # Atualizar apenas nível de preenchimento
-        response = client.put(f'/api/lixeira/{lixeira_id}', json={
+        response = client.put(f'/api/coletor/{coletor_id}', json={
             'nivel_preenchimento': 90.0
         })
         
@@ -171,24 +171,24 @@ class TestAtualizarLixeira:
             'senha': 'TestPass123!'
         })
         
-        # Criar lixeira
+        # Criar coletor
         tipo_material = db_session.query(TipoMaterial).first()
         parceiro = Parceiro(nome='Parceiro Teste Invalid')
         db_session.add(parceiro)
         db_session.flush()
         
-        lixeira = Lixeira(
+        coletor = Coletor(
             localizacao='Teste',
             nivel_preenchimento=50.0,
             status='OK',
             parceiro_id=parceiro.id,
             tipo_material_id=tipo_material.id if tipo_material else None
         )
-        db_session.add(lixeira)
+        db_session.add(coletor)
         db_session.commit()
         
         # Tentar atualizar com nível inválido (> 100)
-        response = client.put(f'/api/lixeira/{lixeira.id}', json={
+        response = client.put(f'/api/coletor/{coletor.id}', json={
             'nivel_preenchimento': 150.0
         })
         
@@ -214,24 +214,24 @@ class TestAtualizarLixeira:
             'senha': 'TestPass123!'
         })
         
-        # Criar lixeira sem coordenadas
+        # Criar coletor sem coordenadas
         tipo_material = db_session.query(TipoMaterial).first()
         parceiro = Parceiro(nome='Parceiro Teste Coords')
         db_session.add(parceiro)
         db_session.flush()
         
-        lixeira = Lixeira(
+        coletor = Coletor(
             localizacao='Teste Coordenadas',
             nivel_preenchimento=50.0,
             status='OK',
             parceiro_id=parceiro.id,
             tipo_material_id=tipo_material.id if tipo_material else None
         )
-        db_session.add(lixeira)
+        db_session.add(coletor)
         db_session.commit()
         
         # Atualizar com coordenadas
-        response = client.put(f'/api/lixeira/{lixeira.id}', json={
+        response = client.put(f'/api/coletor/{coletor.id}', json={
             'latitude': -15.8000,
             'longitude': -47.9000
         })
@@ -243,15 +243,15 @@ class TestAtualizarLixeira:
 
 
 class TestDeletarLixeira:
-    """Testes de exclusão de lixeiras (APENAS ADMIN)"""
+    """Testes de exclusão de coletores (APENAS ADMIN)"""
     
     def test_deletar_lixeira_requires_auth(self, client):
-        """Testa que deletar lixeira requer autenticação"""
-        response = client.delete('/api/lixeira/1')
+        """Testa que deletar coletor requer autenticação"""
+        response = client.delete('/api/coletor/1')
         assert response.status_code == 401 or response.status_code == 302
     
     def test_deletar_lixeira_requires_admin(self, client, db_session):
-        """Testa que deletar lixeira requer permissão de admin"""
+        """Testa que deletar coletor requer permissão de admin"""
         # Fazer login como usuário comum (não admin)
         usuario = Usuario(
             username='testuser_common',
@@ -269,14 +269,14 @@ class TestDeletarLixeira:
         })
         
         # Tentar deletar (deve falhar - não é admin)
-        response = client.delete('/api/lixeira/1')
+        response = client.delete('/api/coletor/1')
         assert response.status_code == 403
         data = response.get_json()
         assert 'erro' in data
         assert 'admin' in data['erro'].lower()
     
     def test_deletar_lixeira_not_found(self, client, db_session):
-        """Testa deletar lixeira inexistente"""
+        """Testa deletar coletor inexistente"""
         # Fazer login como admin
         admin = Usuario(
             username='admin_delete',
@@ -293,14 +293,14 @@ class TestDeletarLixeira:
             'senha': 'AdminPass123!'
         })
         
-        # Tentar deletar lixeira inexistente
-        response = client.delete('/api/lixeira/99999')
+        # Tentar deletar coletor inexistente
+        response = client.delete('/api/coletor/99999')
         assert response.status_code == 404
         data = response.get_json()
         assert 'erro' in data
     
     def test_deletar_lixeira_success(self, client, db_session):
-        """Testa exclusão bem-sucedida de lixeira (apenas admin)"""
+        """Testa exclusão bem-sucedida de coletor (apenas admin)"""
         # IMPORTANTE: Este teste usa banco de dados isolado (test_db)
         # Os dados são limpos automaticamente após o teste
         
@@ -320,41 +320,41 @@ class TestDeletarLixeira:
             'senha': 'AdminPass123!'
         })
         
-        # Criar lixeira para deletar (em banco de teste isolado)
+        # Criar coletor para deletar (em banco de teste isolado)
         tipo_material = db_session.query(TipoMaterial).first()
         parceiro = Parceiro(nome='Parceiro Para Deletar')
         db_session.add(parceiro)
         db_session.flush()
         
-        lixeira = Lixeira(
-            localizacao='Lixeira Para Deletar',
+        coletor = Coletor(
+            localizacao='Coletor Para Deletar',
             nivel_preenchimento=50.0,
             status='OK',
             parceiro_id=parceiro.id,
             tipo_material_id=tipo_material.id if tipo_material else None
         )
-        db_session.add(lixeira)
+        db_session.add(coletor)
         db_session.commit()
-        lixeira_id = lixeira.id
+        coletor_id = coletor.id
         
-        # Verificar que lixeira existe
-        lixeira_existente = db_session.query(Lixeira).filter_by(id=lixeira_id).first()
+        # Verificar que coletor existe
+        lixeira_existente = db_session.query(Coletor).filter_by(id=coletor_id).first()
         assert lixeira_existente is not None
         
-        # Deletar lixeira
-        response = client.delete(f'/api/lixeira/{lixeira_id}')
+        # Deletar coletor
+        response = client.delete(f'/api/coletor/{coletor_id}')
         
         assert response.status_code == 200
         data = response.get_json()
         assert 'mensagem' in data
         assert 'deletada' in data['mensagem'].lower()
         
-        # Verificar que lixeira foi realmente deletada (no banco de teste)
-        lixeira_deletada = db_session.query(Lixeira).filter_by(id=lixeira_id).first()
+        # Verificar que coletor foi realmente deletada (no banco de teste)
+        lixeira_deletada = db_session.query(Coletor).filter_by(id=coletor_id).first()
         assert lixeira_deletada is None
     
     def test_deletar_lixeira_with_coletas(self, client, db_session):
-        """Testa que deletar lixeira também deleta coletas relacionadas (cascade)"""
+        """Testa que deletar coletor também deleta coletas relacionadas (cascade)"""
         # Fazer login como admin
         admin = Usuario(
             username='admin_cascade',
@@ -371,7 +371,7 @@ class TestDeletarLixeira:
             'senha': 'AdminPass123!'
         })
         
-        # Criar lixeira com coletas
+        # Criar coletor com coletas
         from banco_dados.modelos import Coleta, TipoColetor
         
         tipo_material = db_session.query(TipoMaterial).first()
@@ -381,19 +381,19 @@ class TestDeletarLixeira:
         
         tipo_coletor = db_session.query(TipoColetor).first()
         
-        lixeira = Lixeira(
-            localizacao='Lixeira Com Coletas',
+        coletor = Coletor(
+            localizacao='Coletor Com Coletas',
             nivel_preenchimento=50.0,
             status='OK',
             parceiro_id=parceiro.id,
             tipo_material_id=tipo_material.id if tipo_material else None
         )
-        db_session.add(lixeira)
+        db_session.add(coletor)
         db_session.flush()
         
         # Criar coleta associada
         coleta = Coleta(
-            lixeira_id=lixeira.id,
+            coletor_id=coletor.id,
             data_hora=utc_now_naive(),
             volume_estimado=100.0,
             tipo_coletor_id=tipo_coletor.id if tipo_coletor else None
@@ -402,14 +402,14 @@ class TestDeletarLixeira:
         db_session.commit()
         
         coleta_id = coleta.id
-        lixeira_id = lixeira.id
+        coletor_id = coletor.id
         
-        # Deletar lixeira
-        response = client.delete(f'/api/lixeira/{lixeira_id}')
+        # Deletar coletor
+        response = client.delete(f'/api/coletor/{coletor_id}')
         assert response.status_code == 200
         
-        # Verificar que lixeira foi deletada
-        lixeira_deletada = db_session.query(Lixeira).filter_by(id=lixeira_id).first()
+        # Verificar que coletor foi deletada
+        lixeira_deletada = db_session.query(Coletor).filter_by(id=coletor_id).first()
         assert lixeira_deletada is None
         
         # Verificar que coletas também foram deletadas (cascade)

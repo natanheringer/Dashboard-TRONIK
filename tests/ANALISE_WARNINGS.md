@@ -16,7 +16,7 @@
 
 **Onde ocorre:**
 - `banco_dados/modelos.py` - Valores padrão de colunas (5 ocorrências)
-- `rotas/api.py` - Criação de lixeiras e coletas (6 ocorrências)
+- `rotas/api.py` - Criação de coletores e coletas (6 ocorrências)
 - `rotas/auth.py` - Atualização de último login (1 ocorrência)
 - `tests/*.py` - Testes usando `datetime.utcnow()` (12 ocorrências)
 

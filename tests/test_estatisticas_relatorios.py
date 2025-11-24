@@ -10,7 +10,7 @@ import os
 from datetime import datetime
 sys.path.insert(0, os.path.abspath(os.path.join(os.path.dirname(__file__), '..')))
 
-from banco_dados.modelos import Lixeira, Coleta, Parceiro, TipoMaterial, TipoColetor
+from banco_dados.modelos import Coletor, Coleta, Parceiro, TipoMaterial, TipoColetor
 from banco_dados.utils import utc_now_naive
 
 
@@ -31,7 +31,12 @@ class TestEstatisticas:
     
     def test_obter_estatisticas_with_data(self, client, db_session):
         """Testa obter estatísticas com dados"""
-        # Criar lixeiras e coletas
+        # Invalidar cache antes de criar dados
+        from banco_dados.utils.cache import obter_cache
+        cache = obter_cache()
+        cache.invalidar('estatisticas')
+        
+        # Criar coletores e coletas
         tipo_material = db_session.query(TipoMaterial).first()
         parceiro = Parceiro(nome='Parceiro Stats')
         db_session.add(parceiro)
@@ -39,9 +44,9 @@ class TestEstatisticas:
         
         tipo_coletor = db_session.query(TipoColetor).first()
         
-        # Criar 2 lixeiras
-        lixeira1 = Lixeira(
-            localizacao='Lixeira 1',
+        # Criar 2 coletores
+        lixeira1 = Coletor(
+            localizacao='Coletor 1',
             nivel_preenchimento=50.0,
             status='OK',
             parceiro_id=parceiro.id,
@@ -50,8 +55,8 @@ class TestEstatisticas:
         db_session.add(lixeira1)
         db_session.flush()
         
-        lixeira2 = Lixeira(
-            localizacao='Lixeira 2',
+        lixeira2 = Coletor(
+            localizacao='Coletor 2',
             nivel_preenchimento=85.0,  # > 80 para ser contada como alerta
             status='ALERTA',
             parceiro_id=parceiro.id,
@@ -63,7 +68,7 @@ class TestEstatisticas:
         # Criar 3 coletas
         for i in range(3):
             coleta = Coleta(
-                lixeira_id=lixeira1.id if i % 2 == 0 else lixeira2.id,
+                coletor_id=lixeira1.id if i % 2 == 0 else lixeira2.id,
                 data_hora=utc_now_naive(),
                 volume_estimado=100.0 + i * 10,
                 tipo_coletor_id=tipo_coletor.id if tipo_coletor else None,
@@ -73,6 +78,9 @@ class TestEstatisticas:
         
         db_session.commit()
         
+        # Invalidar cache novamente após criar dados
+        cache.invalidar('estatisticas')
+        
         # Obter estatísticas
         response = client.get('/api/estatisticas')
         assert response.status_code == 200
@@ -81,7 +89,7 @@ class TestEstatisticas:
         assert 'coletas_hoje' in data
         assert 'nivel_medio' in data
         assert 'lixeiras_alerta' in data
-        assert data['lixeiras_alerta'] >= 1  # Pelo menos a lixeira 2 com 80%
+        assert data['lixeiras_alerta'] >= 1  # Pelo menos a coletor 2 com 80%
 
 
 class TestRelatorios:
@@ -99,7 +107,7 @@ class TestRelatorios:
     
     def test_obter_relatorios_with_data(self, client, db_session):
         """Testa obter relatórios com dados"""
-        # Criar lixeira e coletas
+        # Criar coletor e coletas
         tipo_material = db_session.query(TipoMaterial).first()
         parceiro = Parceiro(nome='Parceiro Relatórios')
         db_session.add(parceiro)
@@ -107,19 +115,19 @@ class TestRelatorios:
         
         tipo_coletor = db_session.query(TipoColetor).first()
         
-        lixeira = Lixeira(
-            localizacao='Lixeira Relatórios',
+        coletor = Coletor(
+            localizacao='Coletor Relatórios',
             nivel_preenchimento=50.0,
             status='OK',
             parceiro_id=parceiro.id,
             tipo_material_id=tipo_material.id if tipo_material else None
         )
-        db_session.add(lixeira)
+        db_session.add(coletor)
         db_session.flush()
         
         # Criar coletas com dados financeiros
         coleta1 = Coleta(
-            lixeira_id=lixeira.id,
+            coletor_id=coletor.id,
             data_hora=utc_now_naive(),
             volume_estimado=100.0,
             tipo_operacao='Avulsa',
@@ -132,7 +140,7 @@ class TestRelatorios:
         db_session.add(coleta1)
         
         coleta2 = Coleta(
-            lixeira_id=lixeira.id,
+            coletor_id=coletor.id,
             data_hora=utc_now_naive(),
             volume_estimado=200.0,
             tipo_operacao='Campanha',
@@ -160,7 +168,7 @@ class TestRelatorios:
     
     def test_obter_relatorios_filter_by_date(self, client, db_session):
         """Testa filtrar relatórios por data"""
-        # Criar lixeira
+        # Criar coletor
         tipo_material = db_session.query(TipoMaterial).first()
         parceiro = Parceiro(nome='Parceiro Filtro')
         db_session.add(parceiro)
@@ -168,20 +176,20 @@ class TestRelatorios:
         
         tipo_coletor = db_session.query(TipoColetor).first()
         
-        lixeira = Lixeira(
-            localizacao='Lixeira Filtro',
+        coletor = Coletor(
+            localizacao='Coletor Filtro',
             nivel_preenchimento=50.0,
             status='OK',
             parceiro_id=parceiro.id,
             tipo_material_id=tipo_material.id if tipo_material else None
         )
-        db_session.add(lixeira)
+        db_session.add(coletor)
         db_session.flush()
         
         # Criar coleta com data específica
         data_especifica = datetime(2025, 11, 20, 10, 0, 0)
         coleta = Coleta(
-            lixeira_id=lixeira.id,
+            coletor_id=coletor.id,
             data_hora=data_especifica,
             volume_estimado=100.0,
             tipo_coletor_id=tipo_coletor.id if tipo_coletor else None,
@@ -199,7 +207,7 @@ class TestRelatorios:
     
     def test_obter_relatorios_calculo_combustivel(self, client, db_session):
         """Testa cálculo correto de custo de combustível"""
-        # Criar lixeira e coleta
+        # Criar coletor e coleta
         tipo_material = db_session.query(TipoMaterial).first()
         parceiro = Parceiro(nome='Parceiro Combustível')
         db_session.add(parceiro)
@@ -207,20 +215,20 @@ class TestRelatorios:
         
         tipo_coletor = db_session.query(TipoColetor).first()
         
-        lixeira = Lixeira(
-            localizacao='Lixeira Combustível',
+        coletor = Coletor(
+            localizacao='Coletor Combustível',
             nivel_preenchimento=50.0,
             status='OK',
             parceiro_id=parceiro.id,
             tipo_material_id=tipo_material.id if tipo_material else None
         )
-        db_session.add(lixeira)
+        db_session.add(coletor)
         db_session.flush()
         
         # Criar coleta: 10 km, R$ 5.50/L, consumo 4 km/L
         # Custo esperado: (10 / 4) * 5.50 = 2.5 * 5.50 = 13.75
         coleta = Coleta(
-            lixeira_id=lixeira.id,
+            coletor_id=coletor.id,
             data_hora=utc_now_naive(),
             volume_estimado=100.0,
             km_percorrido=10.0,
@@ -243,7 +251,7 @@ class TestRelatorios:
     
     def test_obter_relatorios_calculo_lucro(self, client, db_session):
         """Testa cálculo correto de lucro total"""
-        # Criar lixeira e coleta
+        # Criar coletor e coleta
         tipo_material = db_session.query(TipoMaterial).first()
         parceiro = Parceiro(nome='Parceiro Lucro')
         db_session.add(parceiro)
@@ -251,20 +259,20 @@ class TestRelatorios:
         
         tipo_coletor = db_session.query(TipoColetor).first()
         
-        lixeira = Lixeira(
-            localizacao='Lixeira Lucro',
+        coletor = Coletor(
+            localizacao='Coletor Lucro',
             nivel_preenchimento=50.0,
             status='OK',
             parceiro_id=parceiro.id,
             tipo_material_id=tipo_material.id if tipo_material else None
         )
-        db_session.add(lixeira)
+        db_session.add(coletor)
         db_session.flush()
         
         # Criar coleta: 100 kg, R$ 2.00/kg
         # Lucro esperado: 100 * 2.00 = 200.00
         coleta = Coleta(
-            lixeira_id=lixeira.id,
+            coletor_id=coletor.id,
             data_hora=utc_now_naive(),
             volume_estimado=100.0,
             lucro_por_kg=2.0,
@@ -283,4 +291,54 @@ class TestRelatorios:
         assert 'lucro_total' in resumo
         # Verificar cálculo: 100 * 2.00 = 200.00
         assert abs(resumo['lucro_total'] - 200.0) < 0.01
+    
+    def test_obter_relatorios_com_dados_invalidos(self, client, db_session):
+        """Testa relatórios com dados inválidos (NaN, None, Infinity)"""
+        import math
+        from banco_dados.services.relatorio_service import calcular_metricas_financeiras
+        from unittest.mock import Mock
+        
+        # Criar mocks de coletas com dados inválidos
+        coleta1 = Mock()
+        coleta1.volume_estimado = float('nan')
+        coleta1.km_percorrido = 10.0
+        coleta1.preco_combustivel = 5.50
+        coleta1.lucro_por_kg = 2.0
+        
+        coleta2 = Mock()
+        coleta2.volume_estimado = 100.0
+        coleta2.km_percorrido = float('inf')
+        coleta2.preco_combustivel = 5.50
+        coleta2.lucro_por_kg = 2.0
+        
+        coleta3 = Mock()
+        coleta3.volume_estimado = None
+        coleta3.km_percorrido = None
+        coleta3.preco_combustivel = None
+        coleta3.lucro_por_kg = None
+        
+        coletas = [coleta1, coleta2, coleta3]
+        resultado = calcular_metricas_financeiras(coletas)
+        
+        # Deve lidar graciosamente com dados inválidos
+        assert resultado['total_coletas'] == 3
+        assert math.isfinite(resultado['volume_total'])
+        assert math.isfinite(resultado['km_total'])
+        assert math.isfinite(resultado['custo_combustivel_total'])
+        assert math.isfinite(resultado['lucro_total'])
+    
+    def test_obter_relatorios_paginacao_valida(self, client, db_session):
+        """Testa paginação válida em relatórios"""
+        response = client.get('/api/relatorios?pagina=1&por_pagina=10')
+        assert response.status_code == 200
+    
+    def test_obter_relatorios_paginacao_invalida(self, client):
+        """Testa paginação inválida em relatórios (valores são ajustados)"""
+        response = client.get('/api/relatorios?pagina=0')
+        assert response.status_code == 200
+        # Página 0 é ajustada para 1
+        
+        response = client.get('/api/relatorios?por_pagina=200')
+        assert response.status_code == 200
+        # por_pagina 200 é ajustado para o máximo
 

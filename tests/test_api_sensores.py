@@ -9,7 +9,7 @@ import sys
 import os
 sys.path.insert(0, os.path.abspath(os.path.join(os.path.dirname(__file__), '..')))
 
-from banco_dados.modelos import Sensor, Lixeira, TipoSensor, Parceiro, TipoMaterial
+from banco_dados.modelos import Sensor, Coletor, TipoSensor, Parceiro, TipoMaterial
 from banco_dados.utils import utc_now_naive
 
 
@@ -26,11 +26,11 @@ class TestListarSensores:
     
     def test_listar_sensores_with_data(self, client, db_session, create_lixeira):
         """Testa listar sensores com dados"""
-        lixeira = create_lixeira()
+        coletor = create_lixeira()
         tipo_sensor = db_session.query(TipoSensor).first()
         
         sensor1 = Sensor(
-            lixeira_id=lixeira.id,
+            coletor_id=coletor.id,
             tipo_sensor_id=tipo_sensor.id if tipo_sensor else None,
             bateria=85.0
         )
@@ -42,32 +42,32 @@ class TestListarSensores:
         data = response.get_json()
         assert len(data) == 1
         assert data[0]['bateria'] == 85.0
-        assert data[0]['lixeira_id'] == lixeira.id
+        assert data[0]['coletor_id'] == coletor.id
     
     def test_listar_sensores_filter_by_lixeira(self, client, db_session, create_lixeira):
-        """Testa filtrar sensores por lixeira"""
-        lixeira1 = create_lixeira(localizacao="Lixeira 1")
-        lixeira2 = create_lixeira(localizacao="Lixeira 2")
+        """Testa filtrar sensores por coletor"""
+        lixeira1 = create_lixeira(localizacao="Coletor 1")
+        lixeira2 = create_lixeira(localizacao="Coletor 2")
         tipo_sensor = db_session.query(TipoSensor).first()
         
-        sensor1 = Sensor(lixeira_id=lixeira1.id, tipo_sensor_id=tipo_sensor.id if tipo_sensor else None)
-        sensor2 = Sensor(lixeira_id=lixeira2.id, tipo_sensor_id=tipo_sensor.id if tipo_sensor else None)
+        sensor1 = Sensor(coletor_id=lixeira1.id, tipo_sensor_id=tipo_sensor.id if tipo_sensor else None)
+        sensor2 = Sensor(coletor_id=lixeira2.id, tipo_sensor_id=tipo_sensor.id if tipo_sensor else None)
         db_session.add_all([sensor1, sensor2])
         db_session.commit()
         
-        response = client.get(f'/api/sensores?lixeira_id={lixeira1.id}')
+        response = client.get(f'/api/sensores?coletor_id={lixeira1.id}')
         assert response.status_code == 200
         data = response.get_json()
         assert len(data) == 1
-        assert data[0]['lixeira_id'] == lixeira1.id
+        assert data[0]['coletor_id'] == lixeira1.id
     
     def test_listar_sensores_filter_by_bateria(self, client, db_session, create_lixeira):
         """Testa filtrar sensores por nível de bateria"""
-        lixeira = create_lixeira()
+        coletor = create_lixeira()
         tipo_sensor = db_session.query(TipoSensor).first()
         
-        sensor1 = Sensor(lixeira_id=lixeira.id, tipo_sensor_id=tipo_sensor.id if tipo_sensor else None, bateria=20.0)
-        sensor2 = Sensor(lixeira_id=lixeira.id, tipo_sensor_id=tipo_sensor.id if tipo_sensor else None, bateria=80.0)
+        sensor1 = Sensor(coletor_id=coletor.id, tipo_sensor_id=tipo_sensor.id if tipo_sensor else None, bateria=20.0)
+        sensor2 = Sensor(coletor_id=coletor.id, tipo_sensor_id=tipo_sensor.id if tipo_sensor else None, bateria=80.0)
         db_session.add_all([sensor1, sensor2])
         db_session.commit()
         
@@ -83,11 +83,11 @@ class TestObterSensor:
     
     def test_obter_sensor_success(self, client, db_session, create_lixeira):
         """Testa obter um sensor específico com sucesso"""
-        lixeira = create_lixeira()
+        coletor = create_lixeira()
         tipo_sensor = db_session.query(TipoSensor).first()
         
         sensor = Sensor(
-            lixeira_id=lixeira.id,
+            coletor_id=coletor.id,
             tipo_sensor_id=tipo_sensor.id if tipo_sensor else None,
             bateria=75.0
         )
@@ -99,7 +99,7 @@ class TestObterSensor:
         data = response.get_json()
         assert data['id'] == sensor.id
         assert data['bateria'] == 75.0
-        assert data['lixeira_id'] == lixeira.id
+        assert data['coletor_id'] == coletor.id
     
     def test_obter_sensor_not_found(self, client):
         """Testa obter sensor que não existe"""
@@ -115,7 +115,7 @@ class TestCriarSensor:
     def test_criar_sensor_requires_auth(self, client):
         """Testa que criar sensor requer autenticação"""
         response = client.post('/api/sensor', json={
-            'lixeira_id': 1,
+            'coletor_id': 1,
             'bateria': 100.0
         })
         assert response.status_code == 401 or response.status_code == 302
@@ -139,11 +139,11 @@ class TestCriarSensor:
             'senha': 'TestPass123!'
         })
         
-        lixeira = create_lixeira()
+        coletor = create_lixeira()
         tipo_sensor = db_session.query(TipoSensor).first()
         
         response = client.post('/api/sensor', json={
-            'lixeira_id': lixeira.id,
+            'coletor_id': coletor.id,
             'tipo_sensor_id': tipo_sensor.id if tipo_sensor else None,
             'bateria': 90.0
         })
@@ -152,10 +152,10 @@ class TestCriarSensor:
         data = response.get_json()
         assert 'id' in data
         assert data['bateria'] == 90.0
-        assert data['lixeira_id'] == lixeira.id
+        assert data['coletor_id'] == coletor.id
     
     def test_criar_sensor_missing_lixeira_id(self, client, db_session):
-        """Testa criar sensor sem lixeira_id"""
+        """Testa criar sensor sem coletor_id"""
         from banco_dados.modelos import Usuario
         usuario = Usuario(
             username='testuser_sensor2',
@@ -181,7 +181,7 @@ class TestCriarSensor:
         assert 'erro' in data
     
     def test_criar_sensor_invalid_lixeira_id(self, client, db_session):
-        """Testa criar sensor com lixeira_id inválido"""
+        """Testa criar sensor com coletor_id inválido"""
         from banco_dados.modelos import Usuario
         usuario = Usuario(
             username='testuser_sensor3',
@@ -199,7 +199,7 @@ class TestCriarSensor:
         })
         
         response = client.post('/api/sensor', json={
-            'lixeira_id': 99999,
+            'coletor_id': 99999,
             'bateria': 100.0
         })
         
@@ -225,10 +225,10 @@ class TestCriarSensor:
             'senha': 'TestPass123!'
         })
         
-        lixeira = create_lixeira()
+        coletor = create_lixeira()
         
         response = client.post('/api/sensor', json={
-            'lixeira_id': lixeira.id,
+            'coletor_id': coletor.id,
             'bateria': 150.0  # Inválido (> 100)
         })
         
@@ -284,11 +284,11 @@ class TestAtualizarSensor:
             'senha': 'TestPass123!'
         })
         
-        lixeira = create_lixeira()
+        coletor = create_lixeira()
         tipo_sensor = db_session.query(TipoSensor).first()
         
         sensor = Sensor(
-            lixeira_id=lixeira.id,
+            coletor_id=coletor.id,
             tipo_sensor_id=tipo_sensor.id if tipo_sensor else None,
             bateria=100.0
         )
@@ -330,11 +330,11 @@ class TestDeletarSensor:
             'senha': 'TestPass123!'
         })
         
-        lixeira = create_lixeira()
+        coletor = create_lixeira()
         tipo_sensor = db_session.query(TipoSensor).first()
         
         sensor = Sensor(
-            lixeira_id=lixeira.id,
+            coletor_id=coletor.id,
             tipo_sensor_id=tipo_sensor.id if tipo_sensor else None
         )
         db_session.add(sensor)
@@ -361,11 +361,11 @@ class TestDeletarSensor:
             'senha': 'AdminPass123!'
         })
         
-        lixeira = create_lixeira()
+        coletor = create_lixeira()
         tipo_sensor = db_session.query(TipoSensor).first()
         
         sensor = Sensor(
-            lixeira_id=lixeira.id,
+            coletor_id=coletor.id,
             tipo_sensor_id=tipo_sensor.id if tipo_sensor else None
         )
         db_session.add(sensor)

@@ -2,9 +2,12 @@
 
 ## Status Atual
 
-✅ **89 testes passando**  
+✅ **103+ testes passando** (89 funcionais + 14 de performance)  
 ❌ **0 testes falhando**  
 ⚠️ **118 warnings** (principalmente relacionados a imports e configurações)
+
+**Última execução:** 21-11-2025  
+**Tempo de execução:** ~0.2s (testes de performance) | ~20-25s (todos os testes)
 
 ## Cobertura de Testes
 
@@ -30,31 +33,31 @@
 ### ✅ API de Lixeiras (10 testes)
 - Listar Lixeiras
   - ✅ Não requer autenticação (comportamento atual)
-  - ✅ Lista vazia quando não há lixeiras
-  - ✅ Lista lixeiras com dados
+  - ✅ Lista vazia quando não há coletores
+  - ✅ Lista coletores com dados
 
-- Criar Lixeira
+- Criar Coletor
   - ✅ Requer autenticação
   - ✅ Criação bem-sucedida
   - ✅ Campos obrigatórios ausentes
   - ✅ Coordenadas inválidas
 
-- Obter Lixeira
-  - ✅ Lixeira não encontrada (404)
-  - ✅ Obter lixeira existente
+- Obter Coletor
+  - ✅ Coletor não encontrada (404)
+  - ✅ Obter coletor existente
 
 ### ✅ API de Coletas (11 testes)
 - Listar Coletas
   - ✅ Lista vazia quando não há coletas
   - ✅ Lista coletas com dados
-  - ✅ Filtro por lixeira
+  - ✅ Filtro por coletor
   - ✅ Filtro por data
 
 - Criar Coleta
   - ✅ Requer autenticação
   - ✅ Criação bem-sucedida
   - ✅ Campos obrigatórios ausentes
-  - ✅ Lixeira inexistente
+  - ✅ Coletor inexistente
 
 - Histórico
   - ✅ Histórico vazio
@@ -111,18 +114,18 @@
   - ✅ Valores vazios
 - Listar Lixeiras
   - ✅ Não requer autenticação (comportamento atual)
-  - ✅ Lista vazia quando não há lixeiras
-  - ✅ Lista lixeiras com dados
+  - ✅ Lista vazia quando não há coletores
+  - ✅ Lista coletores com dados
 
-- Criar Lixeira
+- Criar Coletor
   - ✅ Requer autenticação
   - ✅ Criação bem-sucedida
   - ✅ Campos obrigatórios ausentes
   - ✅ Coordenadas inválidas
 
-- Obter Lixeira
-  - ✅ Lixeira não encontrada (404)
-  - ✅ Obter lixeira existente
+- Obter Coletor
+  - ✅ Coletor não encontrada (404)
+  - ✅ Obter coletor existente
 
 ## Como Executar
 
@@ -134,7 +137,7 @@ pytest
 pytest tests/test_auth.py
 
 # Apenas testes da API
-pytest tests/test_api_lixeiras.py
+pytest tests/test_api_coletores.py
 
 # Com cobertura
 pytest --cov=. --cov-report=html
@@ -143,13 +146,46 @@ pytest --cov=. --cov-report=html
 ## Próximos Testes a Implementar
 
 1. **Testes de Integração** (média prioridade)
-   - Fluxo completo de criação de lixeira e coleta
+   - Fluxo completo de criação de coletor e coleta
    - Fluxo de autenticação completo
    - Fluxo de geocodificação automática
 
-2. **Testes de Performance** (baixa prioridade)
-   - Testes de carga
-   - Testes de tempo de resposta
+### ✅ Testes de Performance (14 testes) - **IMPLEMENTADO**
+
+**Arquivo:** `tests/test_performance.py`
+
+#### Performance de Queries (5 testes)
+- ✅ Query de coletores (< 1s)
+- ✅ Query de coletas (< 1s)
+- ✅ Query com filtros de data (< 2s)
+- ✅ Geração de relatórios (< 3s)
+- ✅ Query com joins (eager loading) (< 1.5s)
+  - Verifica que relacionamentos são carregados (evita problema N+1)
+
+#### Testes de Carga (2 testes)
+- ✅ Múltiplas queries sequenciais (< 2s para 10 queries)
+- ✅ Paginação com grandes volumes (10, 50, 100, 200 itens)
+
+#### Testes de Índices (2 testes)
+- ✅ Query por status (usa índice)
+- ✅ Query por parceiro (usa índice)
+
+#### Testes Parametrizados (5 testes)
+- ✅ Paginação variada (diferentes páginas e tamanhos)
+
+**Resultados da Execução:**
+```
+============================== 14 passed in 0.19s ==============================
+```
+
+**Métricas de Performance:**
+- Query de coletores: < 1 segundo
+- Query de coletas: < 1 segundo
+- Query com filtros: < 2 segundos
+- Geração de relatórios: < 3 segundos
+- Queries com joins: < 1.5 segundos
+- 10 queries sequenciais: < 2 segundos
+- Paginação funciona corretamente para todos os tamanhos testados
 
 3. **Testes de Segurança** (baixa prioridade)
    - Testes de SQL injection
@@ -167,7 +203,7 @@ tests/
 ├── __init__.py              # Pacote de testes
 ├── conftest.py              # Configuração compartilhada
 ├── test_auth.py             # Testes de autenticação
-├── test_api_lixeiras.py     # Testes da API de lixeiras
+├── test_api_coletores.py     # Testes da API de coletores
 ├── README.md                # Documentação
 └── TESTES_IMPLEMENTADOS.md  # Este arquivo
 ```
@@ -179,7 +215,7 @@ tests/
 - `client`: Cliente Flask para requisições
 - `auth_headers`: Headers de autenticação (usuário comum)
 - `admin_headers`: Headers de autenticação (admin)
-- `sample_lixeira_data`: Dados de exemplo para lixeiras
+- `sample_lixeira_data`: Dados de exemplo para coletores
 
 ## Notas Importantes
 
@@ -191,8 +227,10 @@ tests/
 ## Melhorias Futuras
 
 - [ ] Adicionar testes de integração
-- [ ] Adicionar testes de performance
+- [x] Adicionar testes de performance ✅ **IMPLEMENTADO**
 - [ ] Adicionar testes de segurança
 - [ ] Aumentar cobertura para 80%+
 - [ ] Adicionar testes de frontend (Selenium/Playwright)
+- [ ] Adicionar testes de WebSocket
+- [ ] Adicionar testes de stress (carga extrema)
 
