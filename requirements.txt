@@ -94,10 +94,10 @@ gunicorn==21.2.0
 # Necessário para deploy em Render.com, Heroku, etc.
 
 # Driver PostgreSQL para SQLAlchemy
-psycopg2-binary==2.9.9
-# Driver PostgreSQL necessário para usar PostgreSQL
-# psycopg2-binary é a versão pré-compilada (mais fácil de instalar)
-# NOTA: Requer Python 3.12 ou inferior (veja runtime.txt)
+# Usando psycopg (psycopg3) que suporta Python 3.13
+psycopg[binary]==3.2.0
+# psycopg3 é a versão moderna que suporta Python 3.13
+# Alternativa: psycopg2-binary==2.9.9 (requer Python 3.12 ou inferior)
 
 # ========================================
 # DEPENDÊNCIAS DE DESENVOLVIMENTO (OPCIONAL)

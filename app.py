@@ -220,7 +220,19 @@ else:
 # CONFIGURAÇÃO DO BANCO DE DADOS
 # ========================================
 DATABASE_URL = os.getenv('DATABASE_URL', 'sqlite:///tronik.db')
-engine = create_engine(DATABASE_URL, echo=False)
+# Se for PostgreSQL, usar psycopg (psycopg3) que suporta Python 3.13
+if DATABASE_URL.startswith('postgresql://') or DATABASE_URL.startswith('postgres://'):
+    # Converter URL para usar psycopg3 (psycopg) ao invés de psycopg2
+    # SQLAlchemy 2.0+ detecta psycopg automaticamente se disponível
+    if '+psycopg' not in DATABASE_URL and '+psycopg2' not in DATABASE_URL:
+        # Adicionar driver psycopg explicitamente
+        db_url = DATABASE_URL.replace('postgresql://', 'postgresql+psycopg://')
+        db_url = db_url.replace('postgres://', 'postgresql+psycopg://')
+        engine = create_engine(db_url, echo=False)
+    else:
+        engine = create_engine(DATABASE_URL, echo=False)
+else:
+    engine = create_engine(DATABASE_URL, echo=False)
 SessionLocal = scoped_session(sessionmaker(bind=engine))
 
 # Tornar SessionLocal disponível globalmente para os blueprints
