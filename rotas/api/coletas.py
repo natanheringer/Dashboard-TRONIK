@@ -16,6 +16,7 @@ from banco_dados.utils.erros import (
     tratar_erro_api, ErroValidacao, validar_requisicao_json,
     validar_tipo, validar_range
 )
+from banco_dados.utils.validacao import validar_paginacao
 from banco_dados.utils.logger import obter_logger
 
 logger = obter_logger(__name__)
@@ -34,8 +35,6 @@ def listar_coletas():
             request.args.get('pagina', type=int),
             request.args.get('por_pagina', type=int)
         )
-        # pagina = request.args.get('pagina', type=int, default=1)
-        por_pagina = request.args.get('por_pagina', type=int, default=50)
         
         # Filtros
         coletor_id = request.args.get('coletor_id', type=int)
@@ -85,21 +84,6 @@ def obter_historico():
             request.args.get('pagina', type=int),
             request.args.get('por_pagina', type=int)
         )
-        # pagina = request.args.get('pagina', type=int, default=1)
-        if pagina < 1:
-            pagina = 1
-        if pagina > 1000:  # Limite máximo de páginas
-            pagina = 1000
-        
-        pagina, por_pagina = validar_paginacao(
-            request.args.get('pagina', type=int),
-            request.args.get('por_pagina', type=int)
-        )
-        # por_pagina = request.args.get('por_pagina', type=int, default=50)
-        if por_pagina < 1:
-            por_pagina = 1
-        if por_pagina > 500:  # Limite máximo de itens por página
-            por_pagina = 500
         
         # Se data fornecida, usar como data_inicio e data_fim
         data_inicio = data_filtro

@@ -7,7 +7,6 @@ Endpoints para operações CRUD de coletores.
 from flask import Blueprint, jsonify, request, current_app
 from flask_login import login_required
 from rotas.api import decorators
-from rotas.api import decorators
 from rotas.api.decorators import admin_required, get_db, get_limiter
 from banco_dados.modelos import Coletor
 from banco_dados.serializers import coletor_para_dict
@@ -19,6 +18,7 @@ from banco_dados.utils.erros import (
     tratar_erro_api, ErroNaoEncontrado, ErroValidacao, 
     validar_requisicao_json, validar_tipo, validar_range
 )
+from banco_dados.utils.validacao import validar_paginacao
 from banco_dados.utils.logger import obter_logger
 from sqlalchemy.orm import joinedload
 
@@ -38,21 +38,6 @@ def listar_coletores():
             request.args.get('pagina', type=int),
             request.args.get('por_pagina', type=int)
         )
-        # pagina = request.args.get('pagina', type=int, default=1)
-        if pagina < 1:
-            pagina = 1
-        if pagina > 1000:  # Limite máximo de páginas
-            pagina = 1000
-        
-        pagina, por_pagina = validar_paginacao(
-            request.args.get('pagina', type=int),
-            request.args.get('por_pagina', type=int)
-        )
-        # por_pagina = request.args.get('por_pagina', type=int, default=100)
-        if por_pagina < 1:
-            por_pagina = 1
-        if por_pagina > 500:  # Limite máximo de itens por página
-            por_pagina = 500
         
         # Filtros
         status = request.args.get('status')
