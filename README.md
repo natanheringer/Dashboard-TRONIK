@@ -2,11 +2,11 @@
 
 ## Sobre o Projeto
 
-O Dashboard-TRONIK é um sistema de monitoramento de coletores inteligentes que permite visualizar em tempo real o nível de preenchimento e status de cada coletor equipada com sensores ultrassônicos.
+O Dashboard-TRONIK é um sistema web de monitoramento e gestão de coletores inteligentes de resíduos eletrônicos, desenvolvido para a empresa Tronik Recicla. Permite visualizar em tempo real o nível de preenchimento e status de cada coletor equipada com sensores ultrassônicos e conecta esses dados a módulos comerciais (dashboard comercial, CRM e gestão de contratos).
 
 ## Objetivo
 
-Desenvolver uma solução web completa para monitoramento de coletores, permitindo que a equipe aprenda desenvolvimento web moderno através de um projeto real e prático.
+Desenvolver uma solução web completa para monitoramento e gestão de coletores de resíduos eletrônicos, permitindo que a equipe aprenda desenvolvimento web moderno através de um projeto real e prático, ao mesmo tempo em que gera valor direto para a operação da Tronik Recicla.
 
 ## Stack Tecnológico
 
@@ -154,6 +154,41 @@ A equipe deve se auto-organizar baseada nos interesses e habilidades de cada mem
 - [x] ✅ Notificações automáticas por email
 - [x] ✅ WebSocket para atualizações em tempo real
 - [x] ✅ Testes automatizados (120+ testes)
+
+## Documentação Principal
+
+- `DOCUMENTAÇÃO_COMPLETA.md` — Visão geral completa, arquitetura, backend, frontend, banco de dados, segurança, testes e deploy
+- `ESTADO_ATUAL_PROJETO.md` — Resumo executivo do estado atual (funcionalidades, métricas, próximos passos)
+- `docs/MVP.md` — Definição do MVP original e sua evolução até a versão atual
+- `docs/Planejamento.md` — Backlog, roadmap e histórias de usuário atualizados
+- `docs/Especificacao_Tecnica.md` — Stack técnica, arquitetura e integrações atualizadas
+- `ESPECIFICACAO_TECNICA_NOVAS_FEATURES.md` — Especificação das features comerciais (dashboard comercial, CRM, contratos)
+
+## Documentação Legada / Histórica
+
+A pasta `documentacao_legado/` contém análises detalhadas, relatórios de investigação, changelogs e decisões históricas que foram importantes durante o desenvolvimento, mas não são necessárias para o uso diário do sistema ou onboarding de novos contribuidores:
+
+- `documentacao_legado/ANALISE_CONFLITOS_DADOS.md`
+- `documentacao_legado/ANALISE_ERROS_SISTEMA.md`
+- `documentacao_legado/ANALISE_IMPORTACAO_PRECIFICACAO.md`
+- `documentacao_legado/ANALISE_INTEGRACAO_NOVAS_FEATURES.md`
+- `documentacao_legado/INVESTIGACAO_PROFUNDA_SISTEMA.md`
+- `documentacao_legado/INVESTIGACAO_ADICIONAL_ROBUSTEZ.md`
+- `documentacao_legado/DOCUMENTACAO_ROBUSTEZ.md`
+- `documentacao_legado/PONTOS_CRITICOS_IMPLEMENTAR.md`
+- `documentacao_legado/IMPLEMENTACOES_2025.md`
+- `documentacao_legado/MUDANÇAS_SESSAO_2025.md`
+- `documentacao_legado/RELATORIO_MUDANCAS.md`
+- `documentacao_legado/PROGRESSO_IMPLEMENTACAO.md`
+- `documentacao_legado/CHANGELOG_IMPLEMENTACOES.md`
+- `documentacao_legado/CHANGELOG_PRECIFICACAO.md`
+- `documentacao_legado/MELHORIAS_IMPLEMENTADAS.md`
+- `documentacao_legado/MELHORIAS_PAGINA_COMERCIAL.md`
+- `documentacao_legado/RESUMO_IMPORTACAO_PRECIFICACAO.md`
+- `documentacao_legado/COORDENADAS_COMPLETAS.md`
+
+Esses arquivos são úteis como registro técnico e histórico de decisões, mas a documentação principal para entender e evoluir o sistema está nas seções anteriores.
+
 
 ## Desenvolvimento
 

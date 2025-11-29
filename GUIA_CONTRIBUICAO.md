@@ -21,25 +21,31 @@ A equipe deve se auto-organizar baseada nos interesses e habilidades de cada mem
 - `estatico/imagens/` - Assets
 
 ### Backend
-**Foco:** Lógica e APIs
+**Foco:** Lógica, APIs e serviços
 - Flask e APIs REST
-- Banco de dados SQLite
+- Banco de dados SQLite/PostgreSQL via SQLAlchemy
+- Camada de serviços (regras de negócio)
 - Processamento de dados
 
 **Arquivos principais:**
 - `app.py` - Aplicação principal
-- `rotas/` - Endpoints da API
-- `banco_dados/` - Modelos e configuração
+- `rotas/api/` - Endpoints da API (coletores, coletas, sensores, notificações, relatórios, comercial, CRM, contratos)
+- `rotas/auth.py` - Autenticação
+- `rotas/paginas.py` - Páginas web
+- `rotas/websocket.py` - Atualizações em tempo real
+- `banco_dados/modelos.py` - Modelos de dados
+- `banco_dados/services/` - Serviços (coletor, coleta, comercial, CRM, contratos, relatórios)
 
 ### Dados e Testes
-**Foco:** Qualidade e validação
-- Dados mock e cenários
-- Testes automatizados
-- Validação de dados
+**Foco:** Qualidade, validação e cobertura
+- Dados reais e mock
+- Testes automatizados (120+ testes)
+- Validação de dados e regras de negócio
 
 **Arquivos principais:**
-- `dados/` - Dados mock
-- Testes automatizados
+- `tests/` - Testes automatizados (API, autenticação, geocodificação, relatórios, performance)
+- `banco_dados/utils/` - Utilitários (validação, datetime, logger, erros, cache)
+- `banco_dados/dados/` - Dados mock (quando necessário)
 
 ### Documentação
 **Foco:** Organização e clareza
