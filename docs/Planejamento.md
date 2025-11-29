@@ -1,22 +1,64 @@
 # Planejamento do Desenvolvimento
 
-## 1. Backlog do Produto (Priorizado com cliente)
+**Versão:** 2.1  
+**Data de Atualização:** 24 de Novembro de 2025  
+**Status:** MVP Completo + Funcionalidades Comerciais Implementadas
 
-1. Visualizar grid de coletores com nível e status
-2. Exibir alertas quando nível >80%
-3. API REST para listar coletores (mock)
-4. Relatório básico de coletas/níveis por período
-5. Atualização periódica dos dados (polling)
-6. CRUD básico de coletores (criar/editar/remover)
-7. Interface responsiva (desktop e mobile básico)
-8. Histórico de níveis (visual simples)
-9. Exportar CSV dos dados listados
-10. Autenticação simples (post-MVP)
+## 1. Backlog do Produto (Status de Implementação)
 
-## 2. Roadmap (sprints sugeridas)
-- Sprint 1 (MVP funcional): itens 1–5
-- Sprint 2 (robustez): itens 6–9
-- Sprint 3 (segurança/escala): item 10 e melhorias
+### Sprint 1 - MVP Funcional (✅ CONCLUÍDO)
+1. ✅ Visualizar grid de coletores com nível e status
+2. ✅ Exibir alertas quando nível >80% (visual e por email)
+3. ✅ API REST completa para CRUD de coletores e sensores
+4. ✅ Relatórios financeiros e operacionais completos
+5. ✅ Atualização em tempo real via WebSocket
+6. ✅ CRUD completo de coletores e sensores
+7. ✅ Interface responsiva (desktop, tablet e mobile)
+8. ✅ Histórico de coletas com filtros e ordenação
+9. ✅ Exportar CSV e PDF dos dados
+10. ✅ Sistema de autenticação e autorização completo
+
+### Sprint 2 - Robustez e Segurança (✅ CONCLUÍDO)
+11. ✅ Sistema de notificações automáticas por email
+12. ✅ Mapa interativo com rotas otimizadas
+13. ✅ Geocodificação automática de endereços
+14. ✅ Sistema de roteamento modular robusto
+15. ✅ Testes automatizados (120+ testes)
+16. ✅ Docker e containerização
+17. ✅ Segurança robusta (rate limiting, headers, validação)
+
+### Sprint 3 - Funcionalidades Comerciais (✅ CONCLUÍDO)
+18. ✅ Dashboard Comercial com KPIs financeiros
+19. ✅ Sistema CRM completo com funil de vendas
+20. ✅ Gestão de Contratos recorrentes
+21. ✅ Análise por parceiro com gráficos
+22. ✅ Layout personalizável (drag-and-drop)
+
+### Sprint 4 - Melhorias e Otimizações (✅ CONCLUÍDO)
+23. ✅ Otimização de queries (eager loading)
+24. ✅ Sistema de cache para rotas
+25. ✅ Aprendizado adaptativo de rotas
+26. ✅ Migração completa: lixeira → coletor
+27. ✅ WebSocket para atualizações em tempo real
+
+## 2. Roadmap (Status Atual)
+
+### ✅ Sprint 1 - MVP Funcional (CONCLUÍDO)
+- Grid de coletores, API REST, Alertas, Relatórios básicos, Polling
+
+### ✅ Sprint 2 - Robustez e Segurança (CONCLUÍDO)
+- CRUD completo, Autenticação, Notificações, Mapa, Geocodificação, Testes
+
+### ✅ Sprint 3 - Funcionalidades Comerciais (CONCLUÍDO)
+- Dashboard Comercial, CRM, Contratos, Análises financeiras
+
+### ✅ Sprint 4 - Otimizações (CONCLUÍDO)
+- Sistema de roteamento modular, Otimizações de performance, WebSocket
+
+### 🚀 Próximas Sprints (Planejadas)
+- **Sprint 5**: Modo Apresentação, Otimizador de Rotas Semanal, Calculadora de Precificação
+- **Sprint 6**: Integração WhatsApp, Templates de Propostas, App Mobile/PWA
+- **Sprint 7**: Landing Page Pública, Relatório de Impacto, Machine Learning
 
 ## 3. Histórias de Usuário e Critérios de Aceitação
 
@@ -74,11 +116,37 @@ Como Gestor, quero exportar os dados exibidos para análise externa.
 - Critérios de Aceitação:
   - Botão Exportar que gera CSV do dataset atual.
 
-### US-10: Autenticação (post-MVP)
-Como Administrador, quero login básico para restringir ações de CRUD.
+### US-10: Autenticação ✅ IMPLEMENTADO
+Como Administrador, quero login completo para restringir ações de CRUD.
 - Critérios de Aceitação:
-  - Tela de login simples.
-  - Sessão mínima.
+  - ✅ Tela de login e registro funcionais
+  - ✅ Sessões seguras com Flask-Login
+  - ✅ Permissões de admin e usuário
+  - ✅ Proteção de rotas com decorators
+
+### US-11: Mapa Interativo ✅ IMPLEMENTADO
+Como Supervisor, quero visualizar coletores em mapa geográfico com rotas otimizadas.
+- Critérios de Aceitação:
+  - ✅ Mapa interativo com Leaflet.js
+  - ✅ Marcadores coloridos por status
+  - ✅ Cálculo de rotas otimizadas
+  - ✅ Filtros por distância, status e parceiro
+
+### US-12: Dashboard Comercial ✅ IMPLEMENTADO
+Como Gestor Comercial, quero acompanhar KPIs financeiros e metas mensais.
+- Critérios de Aceitação:
+  - ✅ KPIs financeiros (faturamento, meta, percentual)
+  - ✅ Análise por parceiro com gráficos
+  - ✅ Comparação com mês anterior
+  - ✅ Layout personalizável
+
+### US-13: Sistema CRM ✅ IMPLEMENTADO
+Como Vendedor, quero gerenciar pipeline de vendas e interações com clientes.
+- Critérios de Aceitação:
+  - ✅ Funil de vendas (Kanban board)
+  - ✅ Registro de interações
+  - ✅ Gestão de tarefas
+  - ✅ Estatísticas do CRM
 
 ## 4. Dependências e Riscos
 - Dependência: disponibilidade de dados reais (usa-se mock inicialmente).
