@@ -2,7 +2,7 @@
 
 **Projeto:** Sistema de Gestão Integrada para Tronik Recicla    
 **Cliente:** Maiara (Fundadora Tronik Recicla)  
-**Data:** 22 de Novembro de 2025  
+**Data:** 27 de Novembro de 2025  
 **Versão:** 2.0 - Módulos Comerciais e Operacionais
 
 ---
