@@ -293,6 +293,14 @@ popular_tipos(engine)
 criar_usuario_admin(engine)
 
 # ========================================
+# HEALTH CHECK (Antes dos blueprints para garantir disponibilidade)
+# ========================================
+@app.route('/api/health', methods=['GET'])
+def health_check():
+    """Endpoint simples para health check (sem autenticação, sem dependências)"""
+    return {"status": "ok", "service": "dashboard-tronik"}, 200
+
+# ========================================
 # REGISTRAR BLUEPRINTS
 # ========================================
 app.register_blueprint(auth_bp)  # Autenticação primeiro
