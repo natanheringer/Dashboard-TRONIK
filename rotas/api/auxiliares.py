@@ -21,6 +21,12 @@ logger = obter_logger(__name__)
 auxiliares_bp = Blueprint('auxiliares', __name__)
 
 
+@auxiliares_bp.route('/health', methods=['GET'])
+def health_check():
+    """Endpoint simples para health check (sem autenticação)"""
+    return jsonify({"status": "ok", "service": "dashboard-tronik"}), 200
+
+
 @auxiliares_bp.route('/estatisticas', methods=['GET'])
 @decorators.rate_limit("30 per minute")
 def obter_estatisticas():
