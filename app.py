@@ -52,6 +52,18 @@ FLASK_ENV = os.getenv('FLASK_ENV', 'development')
 # Criação da instância da aplicação Flask
 app = Flask(__name__, static_folder='estatico', static_url_path='/static')
 
+# ========================================
+# HEALTH CHECK (Registrar ANTES de qualquer middleware)
+# ========================================
+@app.route('/api/health', methods=['GET'])
+def health_check():
+    """Endpoint simples para health check (sem autenticação, sem dependências)"""
+    from flask import jsonify, Response
+    # Retornar resposta direta sem passar por middlewares
+    response = jsonify({"status": "ok", "service": "dashboard-tronik"})
+    response.status_code = 200
+    return response
+
 # Cache busting para arquivos estáticos em desenvolvimento
 import time
 @app.context_processor
@@ -123,6 +135,14 @@ login_manager.login_message = 'Por favor, faça login para acessar esta página.
 login_manager.login_message_category = 'info'
 login_manager.session_protection = 'strong'  # Proteção contra session fixation
 
+# Não redirecionar health check para login
+@login_manager.request_loader
+def load_user_from_request(request):
+    """Permitir health check sem autenticação"""
+    if request.path == '/api/health':
+        return None
+    return None
+
 @login_manager.user_loader
 def load_user(user_id):
     """Carrega usuário para sessão"""
@@ -154,6 +174,7 @@ decorators.limiter = limiter
 # FLASK-TALISMAN (Headers de Segurança)
 # ========================================
 # Adiciona headers de segurança HTTP
+# Excluir /api/health do force_https para evitar redirecionamentos no health check
 talisman = Talisman(
     app,
     force_https=FLASK_ENV == 'production',
@@ -166,8 +187,8 @@ talisman = Talisman(
         'img-src': "'self' data: https:",
         'font-src': "'self' data: https://cdn.jsdelivr.net",
         'connect-src': "'self' https://cdn.jsdelivr.net https://router.project-osrm.org https://cdn.socket.io",
-    }
-    # Removido content_security_policy_nonce_in para evitar conflito com 'unsafe-inline'
+    },
+    force_https_permanent=False  # Não forçar HTTPS permanentemente
 )
 
 # ========================================
@@ -291,15 +312,6 @@ popular_tipos(engine)
 
 # Sempre verificar/criar usuário admin (pode não existir mesmo se o banco existir)
 criar_usuario_admin(engine)
-
-# ========================================
-# HEALTH CHECK (Antes dos blueprints para garantir disponibilidade)
-# ========================================
-@app.route('/api/health', methods=['GET'])
-def health_check():
-    """Endpoint simples para health check (sem autenticação, sem dependências)"""
-    from flask import jsonify
-    return jsonify({"status": "ok", "service": "dashboard-tronik"}), 200
 
 # ========================================
 # REGISTRAR BLUEPRINTS
