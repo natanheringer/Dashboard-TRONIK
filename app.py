@@ -298,7 +298,8 @@ criar_usuario_admin(engine)
 @app.route('/api/health', methods=['GET'])
 def health_check():
     """Endpoint simples para health check (sem autenticação, sem dependências)"""
-    return {"status": "ok", "service": "dashboard-tronik"}, 200
+    from flask import jsonify
+    return jsonify({"status": "ok", "service": "dashboard-tronik"}), 200
 
 # ========================================
 # REGISTRAR BLUEPRINTS
