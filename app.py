@@ -56,13 +56,16 @@ app = Flask(__name__, static_folder='estatico', static_url_path='/static')
 # HEALTH CHECK (Registrar ANTES de qualquer middleware)
 # ========================================
 @app.route('/api/health', methods=['GET'])
+@app.route('/health', methods=['GET'])  # Também em /health como fallback
 def health_check():
     """Endpoint simples para health check (sem autenticação, sem dependências)"""
-    from flask import jsonify, Response
-    # Retornar resposta direta sem passar por middlewares
-    response = jsonify({"status": "ok", "service": "dashboard-tronik"})
-    response.status_code = 200
-    return response
+    from flask import Response
+    # Retornar resposta JSON direta sem passar por middlewares
+    return Response(
+        '{"status":"ok","service":"dashboard-tronik"}',
+        mimetype='application/json',
+        status=200
+    )
 
 # Cache busting para arquivos estáticos em desenvolvimento
 import time
