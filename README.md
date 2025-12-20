@@ -164,6 +164,31 @@ A equipe deve se auto-organizar baseada nos interesses e habilidades de cada mem
 - `docs/Especificacao_Tecnica.md` — Stack técnica, arquitetura e integrações atualizadas
 - `ESPECIFICACAO_TECNICA_NOVAS_FEATURES.md` — Especificação das features comerciais (dashboard comercial, CRM, contratos)
 
+## Deploy em Produção
+
+O projeto está configurado para deploy em plataformas cloud:
+
+### Railway.app (Recomendado) 🚂
+
+- **Guia Completo:** [`GUIA_DEPLOY_RAILWAY.md`](GUIA_DEPLOY_RAILWAY.md)
+- **Análise de Migração:** [`ANALISE_MIGRACAO_RENDER_RAILWAY.md`](ANALISE_MIGRACAO_RENDER_RAILWAY.md)
+- **Configuração:** `railway.json` ou `Procfile`
+- **Modelo:** Pay-as-you-go (mais flexível)
+- **Vantagens:** Escalabilidade automática, sem hibernação, interface moderna
+
+### Render.com (Atual) 🎨
+
+- **Guia Completo:** [`GUIA_DEPLOY_RENDER.md`](GUIA_DEPLOY_RENDER.md)
+- **Configuração:** `render.yaml`
+- **Modelo:** Plano fixo mensal
+- **Status:** Sistema atual em produção
+
+### Docker 🐳
+
+- **Guia:** [`DOCKER.md`](DOCKER.md)
+- **Configuração:** `Dockerfile` e `docker-compose.yml`
+- **Uso:** Desenvolvimento local ou deploy em servidor próprio
+
 ## Documentação Legada / Histórica
 
 A pasta `documentacao_legado/` contém análises detalhadas, relatórios de investigação, changelogs e decisões históricas que foram importantes durante o desenvolvimento, mas não são necessárias para o uso diário do sistema ou onboarding de novos contribuidores:

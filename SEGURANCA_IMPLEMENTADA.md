@@ -242,6 +242,6 @@ python app.py
 
 ---
 
-**Data de Implementação:** 2025-01-27  
+**Data de Implementação:** 2025-11-24  
 **Versão:** 1.0.0
 

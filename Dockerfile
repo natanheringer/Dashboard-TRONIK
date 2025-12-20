@@ -35,15 +35,17 @@ COPY . .
 # Criar diretório para banco de dados (se necessário)
 RUN mkdir -p /app/data
 
-# Expor porta
-EXPOSE 5000
+# Expor porta (Railway define PORT dinamicamente)
+EXPOSE ${PORT:-5000}
 
-# Health check
+# Health check (usa PORT da variável de ambiente)
 HEALTHCHECK --interval=30s --timeout=10s --start-period=40s --retries=3 \
-    CMD python -c "import requests; requests.get('http://localhost:5000/api/configuracoes', timeout=5)" || exit 1
+    CMD python -c "import os, requests; port = os.getenv('PORT', '5000'); requests.get(f'http://localhost:{port}/api/configuracoes', timeout=5)" || exit 1
 
-# Comando para executar a aplicação
-CMD ["python", "app.py"]
+# Comando para executar a aplicação com gunicorn
+# Railway define PORT automaticamente via variável de ambiente
+# Usar sh -c para garantir expansão de variável em qualquer contexto
+CMD ["sh", "-c", "gunicorn --bind 0.0.0.0:${PORT:-5000} --workers 2 --threads 4 --timeout 60 --access-logfile - --error-logfile - app:app"]
 
 
 

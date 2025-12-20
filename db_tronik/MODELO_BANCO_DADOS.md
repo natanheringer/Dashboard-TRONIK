@@ -228,6 +228,6 @@ LIXEIRAS (1) ──< (N) SENSORES
 
 ---
 
-**Data de Criação:** 2025-01-27  
+**Data de Criação:** 2025-11-24
 **Versão:** 2.0 (Expandida para integração CSV)
 

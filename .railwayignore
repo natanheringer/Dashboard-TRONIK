@@ -1,0 +1,11 @@
+# Railway Ignore File
+# Este arquivo força o Railway a usar NIXPACKS ao invés do Dockerfile
+
+# O Railway prioriza Dockerfile se existir
+# Para usar NIXPACKS (recomendado), você pode:
+# 1. Remover ou renomear o Dockerfile temporariamente
+# 2. Ou configurar no painel Railway: Settings → Build → Builder → NIXPACKS
+
+# Alternativamente, o railway.json já especifica "builder": "NIXPACKS"
+# Mas se o Railway ainda usar Dockerfile, configure manualmente no painel
+
