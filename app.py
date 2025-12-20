@@ -180,7 +180,7 @@ decorators.limiter = limiter
 # Excluir /api/health do force_https para evitar redirecionamentos no health check
 talisman = Talisman(
     app,
-    force_https=FLASK_ENV == 'production',
+    force_https=False,  # Railway já fornece HTTPS, não precisa forçar
     strict_transport_security=True,
     strict_transport_security_max_age=31536000,  # 1 ano
     content_security_policy={
@@ -190,8 +190,7 @@ talisman = Talisman(
         'img-src': "'self' data: https:",
         'font-src': "'self' data: https://cdn.jsdelivr.net",
         'connect-src': "'self' https://cdn.jsdelivr.net https://router.project-osrm.org https://cdn.socket.io",
-    },
-    force_https_permanent=False  # Não forçar HTTPS permanentemente
+    }
 )
 
 # ========================================
