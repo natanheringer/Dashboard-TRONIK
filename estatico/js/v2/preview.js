@@ -128,4 +128,215 @@
   document.body.addEventListener("htmx:responseError", function () {
     window.previewToast("Não foi possível atualizar. Tente de novo.", "warn");
   });
+
+  /* ---------- WebSocket Real-time Updates ---------- */
+  window.PreviewSocket = {
+    socket: null,
+    isConnected: false,
+    isPublicPreview: false,
+    currentView: null,
+
+    init: function () {
+      // Detectar se é preview público (sem autenticação)
+      const body = document.querySelector("body");
+      this.isPublicPreview = body && body.classList.contains("preview-public");
+
+      // Não conectar ao WebSocket em preview público
+      if (this.isPublicPreview) {
+        console.log("[Preview] Public preview mode - WebSocket disabled");
+        return;
+      }
+
+      // Conectar apenas se Socket.IO estiver disponível
+      if (typeof io === "undefined") {
+        console.warn("[Preview] Socket.IO not available");
+        return;
+      }
+
+      try {
+        this.socket = io("/", {
+          reconnection: true,
+          reconnectionDelay: 1000,
+          reconnectionDelayMax: 5000,
+          reconnectionAttempts: 5,
+          transports: ["websocket", "polling"],
+        });
+
+        this.attachHandlers();
+      } catch (e) {
+        console.error("[Preview] WebSocket init failed:", e);
+      }
+    },
+
+    attachHandlers: function () {
+      if (!this.socket) return;
+
+      const self = this;
+
+      this.socket.on("connect", function () {
+        self.isConnected = true;
+        console.log("[Preview] WebSocket connected");
+        self.subscribeToCurrentView();
+      });
+
+      this.socket.on("disconnect", function () {
+        self.isConnected = false;
+        console.log("[Preview] WebSocket disconnected");
+      });
+
+      this.socket.on("coletor_atualizado", function (data) {
+        self.onColetorUpdate(data);
+      });
+
+      this.socket.on("sensor_atualizado", function (data) {
+        self.onSensorUpdate(data);
+      });
+
+      this.socket.on("nova_notificacao", function (data) {
+        self.onNewNotification(data);
+      });
+
+      this.socket.on("error", function (err) {
+        console.error("[Preview] WebSocket error:", err);
+      });
+    },
+
+    subscribeToCurrentView: function () {
+      if (!this.socket || !this.isConnected) return;
+
+      const view = this.getCurrentView();
+      if (view === "monit") {
+        this.socket.emit("subscribe_lixeiras");
+        console.log("[Preview] Subscribed to coletores updates");
+      } else if (view === "mapa") {
+        this.socket.emit("subscribe_lixeiras");
+        console.log("[Preview] Subscribed to coletores updates (mapa)");
+      }
+    },
+
+    getCurrentView: function () {
+      const activeView = document.querySelector(".view.active");
+      if (!activeView) return null;
+      const match = activeView.id.match(/view-(.+)/);
+      return match ? match[1] : null;
+    },
+
+    onColetorUpdate: function (data) {
+      const view = this.getCurrentView();
+      if (!view || (view !== "monit" && view !== "mapa")) return;
+
+      // Update KPI stats if visible
+      if (view === "monit") {
+        this.updateKpiIfVisible("monit", data);
+        this.updateColetorCard(data);
+      } else if (view === "mapa") {
+        this.updateMapMarker(data);
+      }
+    },
+
+    updateKpiIfVisible: function (view, coletorData) {
+      // Re-fetch stats and update KPI bars
+      // This is conservative - only update if coletor belongs to current filters
+      if (view === "monit") {
+        const q = document.querySelector('input[name="q"]');
+        const nivel = document.querySelector('button.filter-chip.active[name="nivel"]');
+        const shouldUpdate =
+          !q ||
+          !q.value ||
+          this.matchesFilter(coletorData, q.value, nivel ? nivel.value : "todos");
+        if (shouldUpdate) {
+          console.log("[Preview] Coletor matches filter, triggering refresh");
+          const form = document.getElementById("form-monit");
+          if (form && window.htmx) {
+            htmx.trigger(form, "submit");
+          }
+        }
+      }
+    },
+
+    matchesFilter: function (coletorData, searchText, nivelFilter) {
+      const blob = (
+        coletorData.localizacao +
+        " " +
+        (coletorData.parceiro || "") +
+        " " +
+        coletorData.id +
+        " L" +
+        String(coletorData.id).padStart(3, "0")
+      ).toLowerCase();
+      if (searchText && !blob.includes(searchText.toLowerCase())) {
+        return false;
+      }
+      if (nivelFilter !== "todos") {
+        // Would need nivel classification - for now accept
+      }
+      return true;
+    },
+
+    updateColetorCard: function (coletorData) {
+      // Find and update card element if visible
+      const card = document.querySelector(`[data-coletor-id="${coletorData.id}"]`);
+      if (card) {
+        // Update nivel percentage and bar
+        const levelValue = card.querySelector(".level-value");
+        const levelFill = card.querySelector(".level-fill");
+        if (levelValue) {
+          levelValue.textContent = Math.round(coletorData.nivel_preenchimento) + "%";
+        }
+        if (levelFill) {
+          levelFill.setAttribute("data-pct", coletorData.nivel_preenchimento);
+          levelFill.style.width = Math.min(100, coletorData.nivel_preenchimento) + "%";
+        }
+        // Update status badge
+        const badge = card.querySelector(".badge");
+        if (badge && coletorData.status_classe) {
+          badge.classList.remove("crit", "warn", "ok", "neutral");
+          badge.classList.add(coletorData.status_classe);
+          badge.textContent = this.getBadgeLabel(coletorData.status_classe);
+        }
+      }
+    },
+
+    updateMapMarker: function (coletorData) {
+      // Update map marker if mapa-preview.js available
+      if (window.PreviewMapa && window.PreviewMapa.updateMarker) {
+        window.PreviewMapa.updateMarker(coletorData);
+      }
+    },
+
+    onSensorUpdate: function (data) {
+      // Update sensor battery info in cards
+      const card = document.querySelector(`[data-sensor-id="${data.id}"]`);
+      if (card) {
+        const batteryText = card.querySelector(".sensor-battery");
+        if (batteryText) {
+          batteryText.textContent = Math.round(data.bateria) + "%";
+        }
+      }
+    },
+
+    onNewNotification: function (data) {
+      previewToast("Nova notificação: " + data.titulo, data.tipo === "lixeira_cheia" ? "warn" : "ok");
+      // Optionally trigger refresh of alerts
+    },
+
+    getBadgeLabel: function (classe) {
+      return {
+        crit: "Crítico",
+        warn: "Atenção",
+        ok: "Normal",
+        neutral: "Manutenção",
+      }[classe] || "Normal";
+    },
+  };
+
+  // Initialize WebSocket on page load
+  document.addEventListener("DOMContentLoaded", function () {
+    window.PreviewSocket.init();
+  });
+
+  // Re-subscribe when view changes via HTMX
+  document.body.addEventListener("htmx:afterSwap", function () {
+    window.PreviewSocket.subscribeToCurrentView();
+  });
 })();

@@ -92,5 +92,5 @@ analise_precificacao/
 # === Pasta local para lixo / exports / dumps de desenvolvimento ===
 ignore/
 
-# === Cursor — transcripts/agents locais (rules em .cursor/rules podem ser versionadas)
+# === Cursor — transcripts/agents locais 
 .cursor/agent-transcripts/
