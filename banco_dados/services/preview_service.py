@@ -7,6 +7,7 @@ Mantem regras de classificacao alinhadas ao restante do sistema
 from __future__ import annotations
 
 import hashlib
+import os
 from collections import defaultdict
 from dataclasses import dataclass
 from datetime import date, datetime, timedelta
@@ -45,6 +46,16 @@ def rotulo_badge(classe: str) -> str:
         "ok": "Normal",
         "neutral": "Manutenção",
     }.get(classe, "Normal")
+
+
+def empty_state(titulo: str, descricao: str, sugestao: str = "") -> Dict[str, Any]:
+    """Helper para criar estrutura de empty state consistente."""
+    return {
+        "vazio": True,
+        "titulo": titulo,
+        "descricao": descricao,
+        "sugestao": sugestao,
+    }
 
 
 def _media_bateria(sensores: Sequence[Sensor]) -> Optional[float]:
@@ -109,6 +120,40 @@ def coletores_monitoramento(db: Session) -> List[Coletor]:
         .order_by(Coletor.nivel_preenchimento.desc().nullslast(), Coletor.id)
         .all()
     )
+
+
+def coletores_monitoramento_paginado(
+    db: Session, page: int = 1, per_page: int = 50
+) -> Tuple[List[Coletor], int]:
+    """Retorna coletores com paginação e total de registros.
+    
+    Args:
+        db: SQLAlchemy session
+        page: Número da página (1-indexed)
+        per_page: Itens por página
+        
+    Returns:
+        Tupla (coletores, total_count)
+    """
+    page = max(1, page)
+    per_page = max(1, min(per_page, 200))  # Limitar a 200 por razões de performance
+    
+    query = db.query(Coletor).options(
+        joinedload(Coletor.parceiro),
+        joinedload(Coletor.tipo_material),
+        joinedload(Coletor.sensores),
+    )
+    
+    total = query.count()
+    coletores = (
+        query
+        .order_by(Coletor.nivel_preenchimento.desc().nullslast(), Coletor.id)
+        .offset((page - 1) * per_page)
+        .limit(per_page)
+        .all()
+    )
+    
+    return coletores, total
 
 
 def montar_cards_coletores(
@@ -231,6 +276,7 @@ def coletores_geojson(db: Session) -> List[Dict[str, Any]]:
                 "label": c.localizacao,
                 "nivel": round(float(c.nivel_preenchimento or 0), 1),
                 "classe": cls,
+                "parceiro_id": c.parceiro_id,
                 "parceiro": c.parceiro.nome if c.parceiro else "—",
                 "tipo": c.tipo_material.nome if c.tipo_material else "—",
                 "bateria": round(_media_bateria(c.sensores or []), 1)
@@ -240,6 +286,55 @@ def coletores_geojson(db: Session) -> List[Dict[str, Any]]:
             }
         )
     return feats
+
+
+def filtrar_marcadores_mapa(
+    marcadores: List[Dict[str, Any]],
+    nivel: Optional[str],
+    parceiro_id: Optional[int],
+    q: Optional[str],
+) -> List[Dict[str, Any]]:
+    """Filtros alinhados à UI do mapa preview (query string)."""
+    n = (nivel or "todos").strip().lower()
+    if n not in {"todos", "crit", "warn", "ok", "neutral"}:
+        n = "todos"
+    qn = (q or "").strip().lower()
+    out: List[Dict[str, Any]] = []
+    for m in marcadores:
+        if n != "todos" and m.get("classe") != n:
+            continue
+        if parceiro_id is not None and m.get("parceiro_id") != parceiro_id:
+            continue
+        if qn:
+            pid = m.get("id")
+            lid = f"L{int(pid):03d}" if pid is not None else ""
+            blob = " ".join(
+                [
+                    str(pid or ""),
+                    lid,
+                    str(m.get("label") or ""),
+                    str(m.get("parceiro") or ""),
+                ]
+            ).lower()
+            if qn not in blob:
+                continue
+        out.append(m)
+    return out
+
+
+def coordenadas_sede_mapa() -> Optional[Dict[str, Any]]:
+    """Marcador opcional da sede (env). Sem variáveis, retorna None."""
+    lat_s = (os.getenv("TRONIK_SEDE_LAT") or "").strip()
+    lng_s = (os.getenv("TRONIK_SEDE_LNG") or "").strip()
+    if not lat_s or not lng_s:
+        return None
+    try:
+        lat = float(lat_s.replace(",", "."))
+        lng = float(lng_s.replace(",", "."))
+    except ValueError:
+        return None
+    label = (os.getenv("TRONIK_SEDE_LABEL") or "Sede Tronik").strip() or "Sede Tronik"
+    return {"lat": lat, "lng": lng, "label": label}
 
 
 def detalhe_coletor_mapa(db: Session, coletor_id: int) -> Optional[Dict[str, Any]]:

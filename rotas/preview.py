@@ -73,13 +73,27 @@ def monitoramento():
     try:
         q = (request.args.get("q") or "").strip()
         nivel = (request.args.get("nivel") or "todos").strip().lower()
+        page = request.args.get("page", 1, type=int)
+        
         if nivel not in {"todos", "crit", "warn", "ok"}:
             nivel = "todos"
-        coletores = pv.coletores_monitoramento(db)
+        
+        # Fetch paginated coletores
+        coletores_pagina, total_coletores = pv.coletores_monitoramento_paginado(db, page=page, per_page=50)
+        
+        # Get full list for stats (reuse para não recarregar)
         stats = pv.estatisticas_resumo(db)
-        cards = pv.montar_cards_coletores(coletores, q, nivel)
-        alerta = pv.primeiro_alerta_critico(coletores)
+        
+        # Build cards with filters
+        cards = pv.montar_cards_coletores(coletores_pagina, q, nivel)
+        alerta = pv.primeiro_alerta_critico(coletores_pagina)
         recentes = pv.coletas_recentes(db, 8)
+        
+        # Pagination info
+        per_page = 50
+        total_pages = (total_coletores + per_page - 1) // per_page
+        page = min(page, total_pages) if total_pages > 0 else 1
+        
         ctx = {
             "current": "monit",
             "total_coletores": stats["total_coletores"],
@@ -89,6 +103,14 @@ def monitoramento():
             "filtro_nivel": nivel,
             "alerta_destaque": alerta,
             "coletas_recentes": recentes,
+            "paginacao": {
+                "pagina_atual": page,
+                "total_paginas": total_pages,
+                "total_itens": total_coletores,
+                "itens_por_pagina": per_page,
+                "tem_proxima": page < total_pages,
+                "tem_anterior": page > 1,
+            },
         }
         return render_template("preview/monitoramento.html", **ctx)
     finally:
@@ -101,16 +123,30 @@ def mapa():
     db = get_db()
     try:
         stats = pv.estatisticas_resumo(db)
-        marcadores = pv.coletores_geojson(db)
+        raw = pv.coletores_geojson(db)
+        nivel_f = (request.args.get("nivel") or "todos").strip().lower()
+        if nivel_f not in {"todos", "crit", "warn", "ok", "neutral"}:
+            nivel_f = "todos"
+        parceiro_f = request.args.get("parceiro_id", type=int)
+        q_f = (request.args.get("q") or "").strip()
+        marcadores = pv.filtrar_marcadores_mapa(raw, nivel_f, parceiro_f, q_f)
+        parceiros = pv.listar_parceiros_select(db)
+        sede = pv.coordenadas_sede_mapa()
+
         sel_id = request.args.get("coletor_id", type=int)
         detalhe = pv.detalhe_coletor_mapa(db, sel_id) if sel_id else None
-        if detalhe is None and marcadores:
-            detalhe = pv.detalhe_coletor_mapa(db, marcadores[0]["id"])
+
         ctx = {
             "current": "mapa",
             "total_coletores": stats["total_coletores"],
             "stats": stats,
             "marcadores": marcadores,
+            "marcadores_total": len(raw),
+            "parceiros": parceiros,
+            "filtro_mapa_nivel": nivel_f,
+            "filtro_mapa_parceiro_id": parceiro_f,
+            "filtro_mapa_q": q_f,
+            "sede_mapa": sede,
             "detalhe": detalhe,
             "coletor_selecionado_id": detalhe["id"] if detalhe else None,
         }
