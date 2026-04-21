@@ -1,11 +1,16 @@
 /**
- * Mapa Leaflet para preview v2 — marcadores a partir de window.__PREVIEW_MAP__.
+ * Mapa Leaflet preview v2 — cluster, sede opcional, atualização via WebSocket (PreviewMapa).
+ * Limites de classificação alinhados a preview_service (80 / 95).
  */
 (function () {
-  const data = window.__PREVIEW_MAP__ || [];
-  const selectedRaw = window.__PREVIEW_SELECTED__;
-  const selectedId =
+  var LIMIAR_ATENCAO = 80;
+  var LIMIAR_CRITICO = 95;
+
+  var data = window.__PREVIEW_MAP__ || [];
+  var selectedRaw = window.__PREVIEW_SELECTED__;
+  var selectedId =
     selectedRaw === null || selectedRaw === undefined ? null : Number(selectedRaw);
+  var sede = window.__PREVIEW_SEDE__ || null;
 
   function corPin(classe) {
     if (classe === "crit") return "#9b2a1f";
@@ -14,19 +19,40 @@
     return "#1a5d3a";
   }
 
-  const el = document.getElementById("leaflet-map");
+  function classFromPayload(row) {
+    var st = (row.status || "OK").toString().toUpperCase();
+    if (st === "QUEBRADA" || st === "MANUTENCAO" || st === "MANUTENÇÃO") return "neutral";
+    var n = parseFloat(row.nivel_preenchimento);
+    if (!Number.isFinite(n)) n = 0;
+    if (n >= LIMIAR_CRITICO) return "crit";
+    if (n >= LIMIAR_ATENCAO) return "warn";
+    return "ok";
+  }
+
+  var el = document.getElementById("leaflet-map");
   if (!el || typeof L === "undefined") return;
 
-  const map = L.map(el, { scrollWheelZoom: true });
+  var map = L.map(el, { scrollWheelZoom: true });
   L.tileLayer("https://tile.openstreetmap.org/{z}/{x}/{y}.png", {
     maxZoom: 19,
     attribution: "&copy; OpenStreetMap",
   }).addTo(map);
 
-  const markers = [];
-  let alvo = null;
+  var cluster =
+    typeof L.markerClusterGroup === "function"
+      ? L.markerClusterGroup({
+          maxClusterRadius: 52,
+          spiderfyOnMaxZoom: true,
+          showCoverageOnHover: false,
+        })
+      : null;
+
+  var markersById = {};
+  var markers = [];
+  var alvo = null;
+
   data.forEach(function (m) {
-    const circle = L.circleMarker([m.lat, m.lng], {
+    var circle = L.circleMarker([m.lat, m.lng], {
       radius: 9,
       color: corPin(m.classe),
       fillColor: corPin(m.classe),
@@ -45,16 +71,50 @@
       window.location.href =
         "/preview/mapa?coletor_id=" + encodeURIComponent(m.id);
     });
-    circle.addTo(map);
+    if (cluster) {
+      cluster.addLayer(circle);
+    } else {
+      circle.addTo(map);
+    }
     markers.push(circle);
+    markersById[m.id] = circle;
     if (selectedId !== null && Number(m.id) === selectedId) alvo = m;
   });
 
+  if (cluster) {
+    map.addLayer(cluster);
+  }
+
+  if (sede && typeof sede.lat === "number" && typeof sede.lng === "number") {
+    var sedeIcon = L.divIcon({
+      className: "preview-sede-marker",
+      html: '<span aria-hidden="true">🏢</span>',
+      iconSize: [28, 28],
+      iconAnchor: [14, 28],
+    });
+    L.marker([sede.lat, sede.lng], { icon: sedeIcon })
+      .addTo(map)
+      .bindPopup("<strong>" + (sede.label || "Sede") + "</strong>");
+  }
+
+  function boundsTargets() {
+    var layers = [];
+    if (cluster) {
+      cluster.eachLayer(function (ly) {
+        layers.push(ly);
+      });
+    } else {
+      layers = markers;
+    }
+    return layers;
+  }
+
   function applyView() {
-    if (data.length && markers.length) {
+    var layers = boundsTargets();
+    if (data.length && layers.length) {
       try {
-        const group = L.featureGroup(markers);
-        map.fitBounds(group.getBounds().pad(0.15));
+        var fg = L.featureGroup(layers);
+        map.fitBounds(fg.getBounds().pad(0.15));
       } catch (_e) {
         map.setView([-15.793889, -47.882778], 11);
       }
@@ -70,9 +130,10 @@
 
   function reflowMap() {
     map.invalidateSize();
-    if (data.length && markers.length) {
+    var layers = boundsTargets();
+    if (data.length && layers.length) {
       try {
-        map.fitBounds(L.featureGroup(markers).getBounds().pad(0.15));
+        map.fitBounds(L.featureGroup(layers).getBounds().pad(0.15));
       } catch (_e) {
         /* ignore */
       }
@@ -84,4 +145,45 @@
 
   requestAnimationFrame(reflowMap);
   setTimeout(reflowMap, 250);
+
+  function updateMarker(row) {
+    if (!row || row.id === undefined || row.id === null) return;
+    var id = Number(row.id);
+    var circle = markersById[id];
+    if (!circle) return;
+
+    var lat = parseFloat(row.latitude);
+    var lng = parseFloat(row.longitude);
+    if (Number.isFinite(lat) && Number.isFinite(lng)) {
+      circle.setLatLng([lat, lng]);
+    }
+
+    var cls = classFromPayload(row);
+    var col = corPin(cls);
+    circle.setStyle({ color: col, fillColor: col });
+
+    var parc = row.parceiro && row.parceiro.nome ? row.parceiro.nome : "—";
+    var nivel = Number.isFinite(parseFloat(row.nivel_preenchimento))
+      ? Math.round(parseFloat(row.nivel_preenchimento) * 10) / 10
+      : "—";
+    circle.setPopupContent(
+      "<strong>" +
+        (row.localizacao || "") +
+        "</strong><br/>" +
+        nivel +
+        "% · " +
+        parc
+    );
+
+    if (cluster && typeof cluster.refreshClusters === "function") {
+      cluster.refreshClusters();
+    }
+  }
+
+  window.PreviewMapa = {
+    map: map,
+    cluster: cluster,
+    markersById: markersById,
+    updateMarker: updateMarker,
+  };
 })();
