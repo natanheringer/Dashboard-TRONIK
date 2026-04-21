@@ -1,0 +1,33 @@
+# Pre-commit hooks - Dashboard-TRONIK
+# Instalar: pip install pre-commit && pre-commit install
+# Rodar manualmente em todo o repo: pre-commit run --all-files
+
+repos:
+  - repo: https://github.com/pre-commit/pre-commit-hooks
+    rev: v4.6.0
+    hooks:
+      - id: trailing-whitespace
+      - id: end-of-file-fixer
+      - id: check-yaml
+      - id: check-added-large-files
+        args: ["--maxkb=512"]
+      - id: check-merge-conflict
+      - id: mixed-line-ending
+        args: ["--fix=lf"]
+
+  - repo: https://github.com/astral-sh/ruff-pre-commit
+    rev: v0.6.9
+    hooks:
+      - id: ruff
+        args: ["--fix"]
+      - id: ruff-format
+
+  - repo: local
+    hooks:
+      - id: forbid-shadowed-modules
+        name: Forbid shadowed modules (rotas/api.py vs rotas/api/)
+        # Falha se alguem recriar o rotas/api.py fantasma que foi removido
+        # na refatoracao de abril/2026.
+        entry: python -c "import os, sys; sys.exit(1 if os.path.exists('rotas/api.py') else 0)"
+        language: system
+        pass_filenames: false

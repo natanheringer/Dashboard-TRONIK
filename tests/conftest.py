@@ -82,19 +82,11 @@ def client(test_db, db_session):
     
     # Substituir sessão do banco pela sessão de teste
     app.config['DATABASE_SESSION'] = lambda: db_session
-    
-    # Garantir que limiter existe para testes
-    from rotas.api import decorators
-    if not hasattr(decorators, 'limiter') or decorators.limiter is None:
-        from flask_limiter import Limiter
-        from flask_limiter.util import get_remote_address
-        decorators.limiter = Limiter(
-            app=app,
-            key_func=get_remote_address,
-            default_limits=[],
-            enabled=False  # Desabilitar em testes
-        )
-    
+
+    # Desabilitar rate limiting em testes (o limiter singleton ja esta ligado ao app)
+    from rotas.api._limiter import limiter as api_limiter
+    api_limiter.enabled = False
+
     # Criar cliente de teste
     with app.test_client() as client:
         with app.app_context():
