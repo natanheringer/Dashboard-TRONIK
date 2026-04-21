@@ -1,0 +1,84 @@
+/* Auto-gerado por scripts/extrair_preview_css.py */
+:root {
+  /* --- Paleta marfim/papel reciclado --- */
+  --paper-page: #f4efe3;          /* fundo principal, marfim quente */
+  --paper-card: #faf6ea;          /* cards elevados, marfim claro */
+  --paper-elevated: #fffdf7;      /* hover, destaque */
+  --paper-muted: #ebe4d2;         /* seções secundárias */
+  --paper-sunk: #e8dfc9;          /* fundos de input, áreas rebaixadas */
+
+  /* --- Texto --- */
+  --ink-primary: #1c1810;         /* quase preto, quente */
+  --ink-secondary: #4a423a;       /* corpo, labels */
+  --ink-tertiary: #87796a;        /* metadados, hints */
+  --ink-muted: #b5a78f;            /* placeholders */
+
+  /* --- Linhas e bordas --- */
+  --line-default: #d8cdb2;        /* bordas de card */
+  --line-strong: #a89975;         /* linhas decorativas */
+  --line-subtle: #e4d9bd;         /* divisores internos */
+
+  /* --- Verde TRONIK revisado --- */
+  --tronik: #1a5d3a;              /* verde-floresta profundo */
+  --tronik-hover: #134428;
+  --tronik-soft: #d8e6d8;         /* fundo de badge, hover sutil */
+  --tronik-ghost: rgba(26, 93, 58, 0.08);
+
+  /* --- Acentos semânticos --- */
+  --signal-ok: #1a5d3a;           /* mesmo que tronik, reforça */
+  --signal-ok-soft: #d8e6d8;
+  --signal-warn: #b0661e;         /* âmbar profundo */
+  --signal-warn-soft: #f3e4cc;
+  --signal-critical: #9b2a1f;     /* vermelho terracota */
+  --signal-critical-soft: #f0d6cc;
+  --signal-neutral: #6b6254;      /* cinza quente */
+  --signal-neutral-soft: #ddd3bd;
+
+  /* --- Cor acento editorial (pequenos toques) --- */
+  --accent-clay: #c4663a;         /* terracota/clay, usar raro */
+  --accent-indigo: #2e4b6b;       /* indigo profundo, contra-ponto */
+
+  /* --- Tipografia --- */
+  --font-display: "Montserrat", system-ui, sans-serif;
+  --font-body: "Roboto", system-ui, sans-serif;
+  --font-mono: "Roboto Mono", ui-monospace, monospace;
+
+  /* --- Escala tipográfica --- */
+  --text-xs: 0.75rem;
+  --text-sm: 0.8125rem;
+  --text-base: 0.9375rem;
+  --text-md: 1.0625rem;
+  --text-lg: 1.25rem;
+  --text-xl: 1.625rem;
+  --text-2xl: 2.25rem;
+  --text-3xl: 3rem;
+  --text-display: 4.5rem;
+
+  /* --- Espaçamento --- */
+  --space-1: 0.25rem;
+  --space-2: 0.5rem;
+  --space-3: 0.75rem;
+  --space-4: 1rem;
+  --space-5: 1.25rem;
+  --space-6: 1.5rem;
+  --space-8: 2rem;
+  --space-10: 2.5rem;
+  --space-12: 3rem;
+  --space-16: 4rem;
+  --space-20: 5rem;
+
+  /* --- Raios --- */
+  --radius-sm: 4px;
+  --radius-md: 8px;
+  --radius-lg: 14px;
+  --radius-xl: 20px;
+
+  /* --- Sombras quentes (não cinza) --- */
+  --shadow-sm: 0 1px 2px rgba(75, 56, 30, 0.06);
+  --shadow-md: 0 4px 14px rgba(75, 56, 30, 0.08), 0 1px 3px rgba(75, 56, 30, 0.04);
+  --shadow-lg: 0 18px 40px rgba(75, 56, 30, 0.1);
+
+  /* --- Grid sidebar --- */
+  --sidebar-width: 248px;
+  --sidebar-collapsed: 68px;
+}

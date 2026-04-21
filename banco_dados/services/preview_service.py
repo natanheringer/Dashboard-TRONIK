@@ -1,0 +1,472 @@
+"""Dados agregados para o dashboard preview v2.
+
+Mantem regras de classificacao alinhadas ao restante do sistema
+(LIMIAR 80% em sensores.py; 95% critico na UI).
+"""
+
+from __future__ import annotations
+
+import hashlib
+from collections import defaultdict
+from dataclasses import dataclass
+from datetime import date, datetime, timedelta
+from typing import Any, Dict, List, Optional, Sequence, Tuple
+
+from sqlalchemy import func
+from sqlalchemy.orm import Session, joinedload
+
+from banco_dados.modelos import Coleta, Coletor, Parceiro, Sensor
+
+# Alinhado a rotas/api/auxiliares (alerta >80) e sensores.LIMIAR_NIVEL_CHEIO
+NIVEL_ATENCAO = 80.0
+NIVEL_CRITICO = 95.0
+BATERIA_BAIXA = 20.0
+
+# Brasilia fallback quando lat/lng nao cadastrados
+_FALLBACK_LAT = -15.793889
+_FALLBACK_LNG = -47.882778
+
+
+def classificacao_ui(nivel: float, status: Optional[str]) -> str:
+    st = (status or "OK").upper()
+    if st in {"QUEBRADA", "MANUTENCAO", "MANUTENÇÃO"}:
+        return "neutral"
+    if nivel >= NIVEL_CRITICO:
+        return "crit"
+    if nivel >= NIVEL_ATENCAO:
+        return "warn"
+    return "ok"
+
+
+def rotulo_badge(classe: str) -> str:
+    return {
+        "crit": "Crítico",
+        "warn": "Atenção",
+        "ok": "Normal",
+        "neutral": "Manutenção",
+    }.get(classe, "Normal")
+
+
+def _media_bateria(sensores: Sequence[Sensor]) -> Optional[float]:
+    if not sensores:
+        return None
+    return sum(s.bateria for s in sensores) / len(sensores)
+
+
+def _fmt_data(dt: Optional[datetime]) -> str:
+    if not dt:
+        return "—"
+    return dt.strftime("%d/%m/%Y")
+
+
+def _coords_mapa(c: Coletor) -> Tuple[float, float]:
+    if c.latitude is not None and c.longitude is not None:
+        return float(c.latitude), float(c.longitude)
+    h = hashlib.md5(str(c.id).encode(), usedforsecurity=False).hexdigest()
+    dlat = (int(h[:4], 16) / 65535 - 0.5) * 0.12
+    dlng = (int(h[4:8], 16) / 65535 - 0.5) * 0.12
+    return _FALLBACK_LAT + dlat, _FALLBACK_LNG + dlng
+
+
+def estatisticas_resumo(db: Session) -> Dict[str, Any]:
+    coletores = db.query(Coletor).all()
+    sensores = db.query(Sensor).all()
+    hoje = date.today()
+    inicio_hoje = datetime.combine(hoje, datetime.min.time())
+    fim_hoje = inicio_hoje + timedelta(days=1)
+    coletas_hoje = (
+        db.query(Coleta)
+        .filter(Coleta.data_hora >= inicio_hoje, Coleta.data_hora < fim_hoje)
+        .count()
+    )
+
+    total = len(coletores)
+    alertas = sum(1 for c in coletores if c.nivel_preenchimento >= NIVEL_ATENCAO)
+    criticos = sum(1 for c in coletores if c.nivel_preenchimento >= NIVEL_CRITICO)
+    nivel_medio = (
+        round(sum(c.nivel_preenchimento for c in coletores) / total, 1) if total else 0.0
+    )
+    bateria_baixa = sum(1 for s in sensores if s.bateria < BATERIA_BAIXA)
+
+    return {
+        "total_coletores": total,
+        "alertas_ativos": alertas,
+        "criticos": criticos,
+        "nivel_medio": nivel_medio,
+        "coletas_hoje": coletas_hoje,
+        "sensores_bateria_baixa": bateria_baixa,
+    }
+
+
+def coletores_monitoramento(db: Session) -> List[Coletor]:
+    return (
+        db.query(Coletor)
+        .options(
+            joinedload(Coletor.parceiro),
+            joinedload(Coletor.tipo_material),
+            joinedload(Coletor.sensores),
+        )
+        .order_by(Coletor.nivel_preenchimento.desc().nullslast(), Coletor.id)
+        .all()
+    )
+
+
+def montar_cards_coletores(
+    coletores: Sequence[Coletor],
+    filtro_texto: str = "",
+    filtro_nivel: str = "todos",
+) -> List[Dict[str, Any]]:
+    q = filtro_texto.strip().lower()
+    out: List[Dict[str, Any]] = []
+    for c in coletores:
+        cls = classificacao_ui(float(c.nivel_preenchimento or 0), c.status)
+        if filtro_nivel == "crit" and cls != "crit":
+            continue
+        if filtro_nivel == "warn" and cls != "warn":
+            continue
+        if filtro_nivel == "ok" and cls not in {"ok", "neutral"}:
+            continue
+        if q:
+            pid = f"l{c.id:03d}"
+            blob = " ".join(
+                [
+                    (c.localizacao or "").lower(),
+                    (c.parceiro.nome if c.parceiro else "") or "",
+                    str(c.id),
+                    pid,
+                ]
+            )
+            if q not in blob and q.replace("#", "") not in blob:
+                continue
+
+        bat = _media_bateria(c.sensores or [])
+        out.append(
+            {
+                "id": c.id,
+                "id_fmt": f"#L{c.id:03d}",
+                "nome": c.localizacao,
+                "parceiro": c.parceiro.nome if c.parceiro else "—",
+                "tipo_material": c.tipo_material.nome if c.tipo_material else "—",
+                "nivel": round(float(c.nivel_preenchimento or 0), 1),
+                "status": c.status or "OK",
+                "classe": cls,
+                "badge": rotulo_badge(cls),
+                "bateria": round(bat, 1) if bat is not None else None,
+                "ultima_coleta_fmt": _fmt_data(c.ultima_coleta),
+            }
+        )
+    return out
+
+
+def primeiro_alerta_critico(coletores: Sequence[Coletor]) -> Optional[Dict[str, Any]]:
+    for c in sorted(
+        coletores,
+        key=lambda x: float(x.nivel_preenchimento or 0),
+        reverse=True,
+    ):
+        if float(c.nivel_preenchimento or 0) >= NIVEL_CRITICO and (
+            c.status or "OK"
+        ).upper() not in {"QUEBRADA"}:
+            return {
+                "id": c.id,
+                "id_fmt": f"L{c.id:03d}",
+                "nome": c.localizacao,
+                "nivel": round(float(c.nivel_preenchimento or 0), 1),
+            }
+    for c in coletores:
+        if float(c.nivel_preenchimento or 0) >= NIVEL_ATENCAO:
+            return {
+                "id": c.id,
+                "id_fmt": f"L{c.id:03d}",
+                "nome": c.localizacao,
+                "nivel": round(float(c.nivel_preenchimento or 0), 1),
+            }
+    return None
+
+
+def coletas_recentes(db: Session, limite: int = 8) -> List[Dict[str, Any]]:
+    rows = (
+        db.query(Coleta)
+        .options(
+            joinedload(Coleta.coletor),
+            joinedload(Coleta.parceiro),
+        )
+        .order_by(Coleta.data_hora.desc().nullslast())
+        .limit(limite)
+        .all()
+    )
+    out = []
+    for col in rows:
+        loc = col.coletor.localizacao if col.coletor else "—"
+        parc = col.parceiro.nome if col.parceiro else "—"
+        vol = col.volume_estimado
+        km = col.km_percorrido
+        tipo = col.tipo_operacao or "—"
+        meta = f"{km:.1f} km · {tipo.lower()}" if km is not None else tipo.lower()
+        out.append(
+            {
+                "coletor_id": col.coletor_id,
+                "id_short": f"L{col.coletor_id:03d}",
+                "parceiro": parc,
+                "local": loc[:28] + "…" if len(loc) > 28 else loc,
+                "meta": meta,
+                "volume": int(vol) if vol is not None else "—",
+                "data_fmt": _fmt_data(col.data_hora),
+            }
+        )
+    return out
+
+
+def coletores_geojson(db: Session) -> List[Dict[str, Any]]:
+    coletores = coletores_monitoramento(db)
+    feats = []
+    for c in coletores:
+        lat, lng = _coords_mapa(c)
+        cls = classificacao_ui(float(c.nivel_preenchimento or 0), c.status)
+        feats.append(
+            {
+                "id": c.id,
+                "lat": lat,
+                "lng": lng,
+                "label": c.localizacao,
+                "nivel": round(float(c.nivel_preenchimento or 0), 1),
+                "classe": cls,
+                "parceiro": c.parceiro.nome if c.parceiro else "—",
+                "tipo": c.tipo_material.nome if c.tipo_material else "—",
+                "bateria": round(_media_bateria(c.sensores or []), 1)
+                if c.sensores
+                else None,
+                "ultima_coleta": _fmt_data(c.ultima_coleta),
+            }
+        )
+    return feats
+
+
+def detalhe_coletor_mapa(db: Session, coletor_id: int) -> Optional[Dict[str, Any]]:
+    c = (
+        db.query(Coletor)
+        .options(
+            joinedload(Coletor.parceiro),
+            joinedload(Coletor.tipo_material),
+            joinedload(Coletor.sensores),
+        )
+        .filter(Coletor.id == coletor_id)
+        .first()
+    )
+    if not c:
+        return None
+    lat, lng = _coords_mapa(c)
+    cls = classificacao_ui(float(c.nivel_preenchimento or 0), c.status)
+    bat = _media_bateria(c.sensores or [])
+    return {
+        "id": c.id,
+        "id_fmt": f"#L{c.id:03d}",
+        "nome": c.localizacao,
+        "nivel": round(float(c.nivel_preenchimento or 0), 1),
+        "classe": cls,
+        "badge": rotulo_badge(cls),
+        "parceiro": c.parceiro.nome if c.parceiro else "—",
+        "tipo": c.tipo_material.nome if c.tipo_material else "—",
+        "bateria": round(bat, 1) if bat is not None else None,
+        "ultima_coleta": _fmt_data(c.ultima_coleta),
+        "lat": lat,
+        "lng": lng,
+    }
+
+
+@dataclass
+class PeriodoRelatorio:
+    inicio: date
+    fim: date
+
+
+def resolver_periodo(
+    inicio_raw: Optional[str],
+    fim_raw: Optional[str],
+    dias_padrao: int = 30,
+) -> PeriodoRelatorio:
+    fim = date.today()
+    if inicio_raw and fim_raw:
+        try:
+            ini = date.fromisoformat(inicio_raw)
+            fi = date.fromisoformat(fim_raw)
+            if ini <= fi:
+                return PeriodoRelatorio(ini, fi)
+        except ValueError:
+            pass
+    ini = fim - timedelta(days=dias_padrao - 1)
+    return PeriodoRelatorio(ini, fim)
+
+
+def resumo_relatorios(
+    db: Session,
+    periodo: PeriodoRelatorio,
+    parceiro_id: Optional[int] = None,
+) -> Dict[str, Any]:
+    t0 = datetime.combine(periodo.inicio, datetime.min.time())
+    t1 = datetime.combine(periodo.fim + timedelta(days=1), datetime.min.time())
+    q = (
+        db.query(Coleta)
+        .options(joinedload(Coleta.coletor), joinedload(Coleta.parceiro))
+        .filter(Coleta.data_hora >= t0, Coleta.data_hora < t1)
+    )
+    if parceiro_id:
+        q = q.filter(Coleta.parceiro_id == parceiro_id)
+    coletas = q.all()
+
+    n = len(coletas)
+    vol = sum(float(c.volume_estimado or 0) for c in coletas)
+    km = sum(float(c.km_percorrido or 0) for c in coletas)
+    combustivel = sum(
+        float(c.km_percorrido or 0)
+        * float(c.preco_combustivel or 0)
+        / 4.0  # consumo medio placeholder (km/L) — so exibe ordem de grandeza
+        for c in coletas
+        if c.km_percorrido and c.preco_combustivel
+    )
+    lucro_bruto = sum(
+        float(c.lucro_por_kg or 0) * float(c.volume_estimado or 0) for c in coletas
+    )
+
+    por_dia: Dict[date, int] = defaultdict(int)
+    for c in coletas:
+        if c.data_hora:
+            por_dia[c.data_hora.date()] += 1
+    dias_ordenados = sorted(por_dia.keys())
+    serie = [{"data": d.isoformat(), "count": por_dia[d]} for d in dias_ordenados]
+
+    # Top coletores por numero de coletas no periodo
+    por_coletor: Dict[int, int] = defaultdict(int)
+    for c in coletas:
+        por_coletor[c.coletor_id] += 1
+    top_ids = sorted(por_coletor.keys(), key=lambda i: por_coletor[i], reverse=True)[:5]
+    top_list = []
+    for rank, cid in enumerate(top_ids, start=1):
+        col = next((x for x in coletas if x.coletor_id == cid), None)
+        loc = col.coletor.localizacao if col and col.coletor else f"#{cid}"
+        top_list.append(
+            {
+                "rank": rank,
+                "id_fmt": f"L{cid:03d}",
+                "nome": loc[:40],
+                "sub": col.parceiro.nome if col and col.parceiro else "—",
+                "coletas": por_coletor[cid],
+            }
+        )
+
+    # Volume por parceiro (substitui grafico ficticio de regiao)
+    por_parceiro_vol: Dict[str, float] = defaultdict(float)
+    for c in coletas:
+        nome = c.parceiro.nome if c.parceiro else "Sem parceiro"
+        por_parceiro_vol[nome] += float(c.volume_estimado or 0)
+    parceiro_barras = sorted(
+        por_parceiro_vol.items(), key=lambda x: x[1], reverse=True
+    )[:6]
+
+    max_dia = max((s["count"] for s in serie), default=0) or 1
+    kg_max = max((b[1] for b in parceiro_barras), default=0.0) or 1.0
+
+    return {
+        "total_coletas": n,
+        "volume_kg": round(vol, 1),
+        "km_total": round(km, 1),
+        "lucro_bruto": round(lucro_bruto, 2),
+        "custo_combustivel_est": round(combustivel, 2),
+        "media_kg_coleta": round(vol / n, 1) if n else 0.0,
+        "media_km_coleta": round(km / n, 1) if n else 0.0,
+        "serie_diaria": serie,
+        "serie_max_coletas": max_dia,
+        "top_coletores": top_list,
+        "volume_por_parceiro": [
+            {"nome": nome, "kg": round(kg, 1)} for nome, kg in parceiro_barras
+        ],
+        "volume_parceiro_max_kg": round(kg_max, 1) if kg_max else 1.0,
+    }
+
+
+def parceiros_tabela(db: Session) -> List[Dict[str, Any]]:
+    contagem = dict(
+        db.query(Coletor.parceiro_id, func.count(Coletor.id))
+        .group_by(Coletor.parceiro_id)
+        .all()
+    )
+    parceiros = db.query(Parceiro).order_by(Parceiro.nome).all()
+    return [
+        {
+            "id": p.id,
+            "nome": p.nome,
+            "ativo": p.ativo,
+            "n_coletores": int(contagem.get(p.id, 0)),
+        }
+        for p in parceiros
+    ]
+
+
+def listar_parceiros_select(db: Session) -> List[Dict[str, Any]]:
+    rows = (
+        db.query(Parceiro)
+        .filter(Parceiro.ativo.is_(True))
+        .order_by(Parceiro.nome)
+        .all()
+    )
+    return [{"id": p.id, "nome": p.nome} for p in rows]
+
+
+def texto_home_subtitulo(stats: Dict[str, Any], nomes_atencao: List[str]) -> str:
+    total = stats["total_coletores"]
+    alertas = stats["alertas_ativos"]
+    if total == 0:
+        return "Cadastre coletores e sensores para acompanhar a operação aqui."
+    if alertas == 0:
+        return (
+            f"Todos os {total} coletores estão abaixo de {int(NIVEL_ATENCAO)}% de preenchimento "
+            "ou em manutenção planejada. Nível médio "
+            f"{stats['nivel_medio']}%."
+        )
+    amostra = ", ".join(nomes_atencao[:2])
+    extra = f" e outros" if len(nomes_atencao) > 2 else ""
+    return (
+        f"{alertas} coletor(es) com nível ≥ {int(NIVEL_ATENCAO)}%: {amostra}{extra}. "
+        f"Média geral {stats['nivel_medio']}% · {stats['coletas_hoje']} coleta(s) hoje."
+    )
+
+
+_MESES_PT = (
+    "janeiro",
+    "fevereiro",
+    "março",
+    "abril",
+    "maio",
+    "junho",
+    "julho",
+    "agosto",
+    "setembro",
+    "outubro",
+    "novembro",
+    "dezembro",
+)
+
+
+def data_longa_pt(hoje: Optional[date] = None) -> str:
+    d = hoje or date.today()
+    dias = (
+        "Segunda-feira",
+        "Terça-feira",
+        "Quarta-feira",
+        "Quinta-feira",
+        "Sexta-feira",
+        "Sábado",
+        "Domingo",
+    )
+    return f"{dias[d.weekday()]}, {d.day} de {_MESES_PT[d.month - 1]} de {d.year}"
+
+
+def nomes_coletores_atencao(coletores: Sequence[Coletor], limite: int = 4) -> List[str]:
+    cands = [
+        c
+        for c in coletores
+        if float(c.nivel_preenchimento or 0) >= NIVEL_ATENCAO
+        and (c.status or "OK").upper() not in {"QUEBRADA"}
+    ]
+    cands.sort(key=lambda x: float(x.nivel_preenchimento or 0), reverse=True)
+    return [c.localizacao for c in cands[:limite]]

@@ -1,0 +1,169 @@
+{% extends 'preview/base_v2.html' %}
+{% set current = 'relatorios' %}
+{% block title %}Relatórios · Tronik{% endblock %}
+{% block conteudo %}
+<div id="preview-swap-relatorios-block">
+      <div class="page-header">
+        <div class="page-title-group">
+          <h1>Relatórios</h1>
+          <p>Período {{ periodo.inicio.strftime('%d/%m/%Y') }} — {{ periodo.fim.strftime('%d/%m/%Y') }} · dados reais de coletas</p>
+        </div>
+        <div class="page-actions">
+          <button type="button" class="btn" data-href="{{ url_for('paginas.relatorios') }}" onclick="previewToast('Abrindo módulo legado de exportação…', 'ok'); window.location.href=this.dataset.href">
+            <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M12 10v6m0 0l-3-3m3 3l3-3M3 17V7a2 2 0 012-2h6l2 2h6a2 2 0 012 2v8a2 2 0 01-2 2H5a2 2 0 01-2-2z"/></svg>
+            Exportar (legado)
+          </button>
+        </div>
+      </div>
+
+      <div class="rel-layout">
+        <aside class="rel-filters">
+          <h3>Filtros</h3>
+          <p style="font-size:var(--text-xs);color:var(--ink-tertiary);margin-bottom:var(--space-3);">Atalhos ajustam as datas e atualizam filtros + painel.</p>
+          <div class="rel-period-chips" style="margin-bottom:var(--space-4);">
+            <button type="button" class="rel-period-chip" onclick="previewSetRelRange(7)">7d</button>
+            <button type="button" class="rel-period-chip" onclick="previewSetRelRange(30)">30d</button>
+            <button type="button" class="rel-period-chip" onclick="previewSetRelRange(90)">90d</button>
+          </div>
+
+          <div id="rel-spin" class="preview-htmx-spinner" aria-hidden="true">Atualizando…</div>
+
+          <form
+            id="form-rel"
+            method="get"
+            action="{{ url_for('preview.relatorios') }}"
+            hx-get="{{ url_for('preview.relatorios') }}"
+            hx-target="#preview-swap-relatorios-block"
+            hx-select="#preview-swap-relatorios-block"
+            hx-swap="outerHTML"
+            hx-push-url="true"
+            hx-indicator="#rel-spin"
+          >
+            <div class="rel-filter-group">
+              <label for="rel-inicio">De</label>
+              <input id="rel-inicio" type="date" name="inicio" value="{{ periodo.inicio.isoformat() }}">
+            </div>
+            <div class="rel-filter-group">
+              <label for="rel-fim">Até</label>
+              <input id="rel-fim" type="date" name="fim" value="{{ periodo.fim.isoformat() }}">
+            </div>
+            <div class="rel-filter-group">
+              <label for="rel-parc">Parceiro</label>
+              <select id="rel-parc" name="parceiro_id">
+                <option value="">Todos os parceiros</option>
+                {% for p in parceiros %}
+                <option value="{{ p.id }}" {% if parceiro_id == p.id %}selected{% endif %}>{{ p.nome }}</option>
+                {% endfor %}
+              </select>
+            </div>
+            <button type="submit" class="btn btn-primary" style="width:100%; margin-top:var(--space-4); justify-content:center;">Aplicar filtros</button>
+          </form>
+        </aside>
+
+        <div class="rel-main">
+            <div class="rel-hero">
+              <div class="rel-hero-label">Resumo · {{ periodo.inicio.strftime('%d/%m') }} a {{ periodo.fim.strftime('%d/%m/%Y') }}</div>
+              <div class="rel-hero-text">
+                {% if resumo.total_coletas %}
+                Foram registradas <strong>{{ resumo.total_coletas }} coleta(s)</strong> com
+                <strong>{{ resumo.volume_kg }} kg</strong> estimados e
+                <strong>{{ resumo.km_total }} km</strong> percorridos (soma dos lançamentos com quilometragem).
+                {% else %}
+                Não há coletas no período selecionado. Ajuste as datas ou cadastre coletas no sistema.
+                {% endif %}
+              </div>
+              <div class="rel-hero-footnote">
+                Lucro bruto estimado (lucro/kg × volume) R$ {{ '%.2f'|format(resumo.lucro_bruto) }} ·
+                Combustível estimado R$ {{ '%.2f'|format(resumo.custo_combustivel_est) }} (km × preço/L ÷ 4)
+              </div>
+            </div>
+
+            <div class="rel-metric-grid">
+              <div class="rel-metric">
+                <div class="rel-metric-label">Total coletas</div>
+                <div class="rel-metric-value">{{ resumo.total_coletas }}</div>
+              </div>
+              <div class="rel-metric">
+                <div class="rel-metric-label">Volume total</div>
+                <div class="rel-metric-value">{{ resumo.volume_kg }}<em>kg</em></div>
+                <div class="rel-metric-hint">média {{ resumo.media_kg_coleta }} kg/coleta</div>
+              </div>
+              <div class="rel-metric">
+                <div class="rel-metric-label">Quilometragem</div>
+                <div class="rel-metric-value">{{ resumo.km_total }}<em>km</em></div>
+                <div class="rel-metric-hint">média {{ resumo.media_km_coleta }} km/coleta</div>
+              </div>
+              <div class="rel-metric">
+                <div class="rel-metric-label">Lucro bruto (est.)</div>
+                <div class="rel-metric-value">R$ {{ '%.0f'|format(resumo.lucro_bruto) }}</div>
+              </div>
+            </div>
+
+            <div class="rel-charts">
+              <div class="rel-chart-card">
+                <div class="rel-chart-head">
+                  <h3>Coletas por dia</h3>
+                  <span>máx. {{ resumo.serie_max_coletas }} no período</span>
+                </div>
+                <div style="display:flex;flex-direction:column;gap:var(--space-2);padding:var(--space-3) 0;">
+                  {% for p in resumo.serie_diaria[-20:] %}
+                  <div style="display:flex;align-items:center;gap:var(--space-3);font-size:var(--text-sm);">
+                    <span style="width:88px;color:var(--ink-tertiary);font-family:var(--font-mono);">{{ p.data[8:10]}}/{{ p.data[5:7] }}</span>
+                    <div style="flex:1;height:10px;background:var(--paper-sunk);border-radius:99px;overflow:hidden;">
+                      <div class="preview-databar" style="background:var(--tronik);min-width:4px;border-radius:99px;" data-pct="{{ (p.count / resumo.serie_max_coletas * 100)|round(1) }}"></div>
+                    </div>
+                    <span style="width:28px;text-align:right;font-weight:600;">{{ p.count }}</span>
+                  </div>
+                  {% else %}
+                  <p style="color:var(--ink-tertiary);font-size:var(--text-sm);">Sem série diária (nenhuma coleta).</p>
+                  {% endfor %}
+                </div>
+              </div>
+
+              <div class="rel-chart-card">
+                <div class="rel-chart-head">
+                  <h3>Top coletores</h3>
+                  <span>Mais coletas no período</span>
+                </div>
+                <div class="rel-top-list">
+                  {% for item in resumo.top_coletores %}
+                  <div class="rel-top-item">
+                    <div class="rel-top-rank {% if item.rank == 1 %}gold{% endif %}">{{ '%02d'|format(item.rank) }}</div>
+                    <div class="rel-top-body">
+                      <strong>{{ item.id_fmt }} · {{ item.nome }}</strong>
+                      <span>{{ item.sub }}</span>
+                    </div>
+                    <div class="rel-top-value">{{ item.coletas }} coleta(s)</div>
+                  </div>
+                  {% else %}
+                  <p style="padding:var(--space-4);color:var(--ink-tertiary);font-size:var(--text-sm);">Sem dados.</p>
+                  {% endfor %}
+                </div>
+              </div>
+            </div>
+
+            <div class="rel-chart-card">
+              <div class="rel-chart-head">
+                <h3>Volume por parceiro (top)</h3>
+                <span>kg no período</span>
+              </div>
+              <div style="padding:var(--space-3) 0;display:flex;flex-direction:column;gap:var(--space-3);">
+                {% for row in resumo.volume_por_parceiro %}
+                <div>
+                  <div style="display:flex;justify-content:space-between;font-size:var(--text-sm);margin-bottom:var(--space-1);">
+                    <span>{{ row.nome }}</span>
+                    <strong>{{ row.kg }} kg</strong>
+                  </div>
+                  <div style="height:12px;background:var(--paper-sunk);border-radius:var(--radius-sm);overflow:hidden;">
+                    <div class="preview-databar" style="background:var(--accent-indigo);opacity:0.85;border-radius:var(--radius-sm);" data-pct="{{ (row.kg / resumo.volume_parceiro_max_kg * 100)|round(1) }}"></div>
+                  </div>
+                </div>
+                {% else %}
+                <p style="color:var(--ink-tertiary);font-size:var(--text-sm);">Sem volume agregado por parceiro.</p>
+                {% endfor %}
+              </div>
+            </div>
+        </div>
+      </div>
+</div>
+{% endblock %}

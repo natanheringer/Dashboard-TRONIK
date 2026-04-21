@@ -202,88 +202,114 @@ def deletar_sensor(sensor_id):
     finally:
         db.close()
 
-@sensores_bp.route('/sensor/telemetria', methods=['POST'])
+# --------------------------------------------------------------------------
+# Constantes de regra de negocio (centralizar facilita ajuste futuro)
+# --------------------------------------------------------------------------
+LIMIAR_NIVEL_CHEIO = 80.0   # % a partir do qual o coletor vira 'CHEIA'
+LIMIAR_BATERIA_BAIXA = 20.0 # % abaixo do qual vira alerta 'bateria_baixa'
+JANELA_DEDUP_HORAS = 24     # nao recriar a mesma notificacao dentro desse periodo
+
+
+@sensores_bp.route("/sensor/telemetria", methods=["POST"])
 @decorators.rate_limit("100 per minute")
 def receber_telemetria():
-    """Endpoint para receber dados de telemetria dos sensores hardware"""
+    """Recebe telemetria do ESP32 e persiste estado + notificacoes.
+
+    - Valida o payload com `TelemetriaIn` (Pydantic v2) antes de tocar no DB.
+    - Atualiza nivel do Coletor e bateria/ultimo_ping do Sensor.
+    - Gera notificacoes (`lixeira_cheia`, `bateria_baixa`) com dedup por 24h.
+    - Resposta tipada por `TelemetriaOut`.
+    """
+    from datetime import timedelta
+
+    from banco_dados.contratos import TelemetriaIn, TelemetriaOut, parse_ou_erro
+    from banco_dados.modelos import Coletor, Notificacao
+    from banco_dados.notificacoes import criar_notificacao
+
     db = get_db()
     try:
-        dados = request.get_json()
-        if not dados:
-            return jsonify({"erro": "Payload JSON vazio"}), 400
-            
-        sensor_id = dados.get('sensor_id')
-        coletor_id = dados.get('coletor_id')
-        nivel = dados.get('nivel_preenchimento')
-        bateria = dados.get('bateria')
-        
-        if sensor_id is None or coletor_id is None or nivel is None or bateria is None:
-            return jsonify({"erro": "Campos obrigatórios ausentes"}), 400
-            
-        from banco_dados.modelos import Coletor, Notificacao
-        from datetime import timedelta
-        
-        coletor = db.query(Coletor).filter(Coletor.id == coletor_id).first()
-        sensor = db.query(Sensor).filter(Sensor.id == sensor_id).first()
-        
-        if not coletor or not sensor:
-            return jsonify({"erro": "Coletor ou sensor não encontrado"}), 404
-            
-        # Atualizar Coletor
-        coletor.nivel_preenchimento = float(nivel)
-        
-        if coletor.nivel_preenchimento > 80.0:
-            if coletor.status != 'QUEBRADA':
-                coletor.status = 'CHEIA'
-                
-            limite_tempo = utc_now_naive() - timedelta(hours=24)
-            notificacao_recente = db.query(Notificacao).filter(
-                Notificacao.coletor_id == coletor.id,
-                Notificacao.tipo == 'lixeira_cheia',
-                Notificacao.criada_em >= limite_tempo
-            ).first()
-            
-            if not notificacao_recente:
-                from banco_dados.notificacoes import criar_notificacao
-                criar_notificacao(
-                    db=db,
-                    tipo='lixeira_cheia',
-                    titulo=f"Coletor #{coletor.id} - Nível Alto",
-                    mensagem=f"O coletor em {coletor.localizacao} está com {coletor.nivel_preenchimento:.1f}% de preenchimento.",
-                    coletor_id=coletor.id
+        payload = parse_ou_erro(TelemetriaIn, request.get_json(silent=True))
+
+        coletor = db.query(Coletor).filter(Coletor.id == payload.coletor_id).first()
+        sensor = db.query(Sensor).filter(Sensor.id == payload.sensor_id).first()
+        if not coletor:
+            raise ErroNaoEncontrado("Coletor", payload.coletor_id)
+        if not sensor:
+            raise ErroNaoEncontrado("Sensor", payload.sensor_id)
+
+        notificacoes_criadas = 0
+        limite_tempo = utc_now_naive() - timedelta(hours=JANELA_DEDUP_HORAS)
+
+        coletor.nivel_preenchimento = payload.nivel_preenchimento
+        if payload.nivel_preenchimento > LIMIAR_NIVEL_CHEIO:
+            if coletor.status != "QUEBRADA":
+                coletor.status = "CHEIA"
+            ja_existe = (
+                db.query(Notificacao)
+                .filter(
+                    Notificacao.coletor_id == coletor.id,
+                    Notificacao.tipo == "lixeira_cheia",
+                    Notificacao.criada_em >= limite_tempo,
                 )
-        elif coletor.nivel_preenchimento <= 80.0 and coletor.status == 'CHEIA':
-            coletor.status = 'OK'
-            
-        # Atualizar Sensor
-        sensor.bateria = float(bateria)
-        sensor.ultimo_ping = utc_now_naive()
-        
-        if sensor.bateria < 20.0:
-            limite_tempo = utc_now_naive() - timedelta(hours=24)
-            notificacao_bateria = db.query(Notificacao).filter(
-                Notificacao.sensor_id == sensor.id,
-                Notificacao.tipo == 'bateria_baixa',
-                Notificacao.criada_em >= limite_tempo
-            ).first()
-            
-            if not notificacao_bateria:
-                from banco_dados.notificacoes import criar_notificacao
+                .first()
+            )
+            if not ja_existe:
                 criar_notificacao(
                     db=db,
-                    tipo='bateria_baixa',
+                    tipo="lixeira_cheia",
+                    titulo=f"Coletor #{coletor.id} - Nivel Alto",
+                    mensagem=(
+                        f"O coletor em {coletor.localizacao} esta com "
+                        f"{coletor.nivel_preenchimento:.1f}% de preenchimento."
+                    ),
+                    coletor_id=coletor.id,
+                )
+                notificacoes_criadas += 1
+        elif payload.nivel_preenchimento <= LIMIAR_NIVEL_CHEIO and coletor.status == "CHEIA":
+            coletor.status = "OK"
+
+        sensor.bateria = payload.bateria
+        sensor.ultimo_ping = payload.timestamp or utc_now_naive()
+        if payload.bateria < LIMIAR_BATERIA_BAIXA:
+            ja_existe = (
+                db.query(Notificacao)
+                .filter(
+                    Notificacao.sensor_id == sensor.id,
+                    Notificacao.tipo == "bateria_baixa",
+                    Notificacao.criada_em >= limite_tempo,
+                )
+                .first()
+            )
+            if not ja_existe:
+                criar_notificacao(
+                    db=db,
+                    tipo="bateria_baixa",
                     titulo=f"Sensor #{sensor.id} - Bateria Baixa",
-                    mensagem=f"O sensor do coletor em {coletor.localizacao} está com {sensor.bateria:.1f}% de bateria.",
+                    mensagem=(
+                        f"O sensor do coletor em {coletor.localizacao} esta com "
+                        f"{sensor.bateria:.1f}% de bateria."
+                    ),
                     sensor_id=sensor.id,
-                    coletor_id=coletor.id
+                    coletor_id=coletor.id,
                 )
-                
+                notificacoes_criadas += 1
+
         db.commit()
-        return jsonify({"mensagem": "Telemetria registrada com sucesso", "status": "ok"}), 200
-        
+
+        resposta = TelemetriaOut(
+            mensagem="Telemetria registrada com sucesso",
+            coletor_id=coletor.id,
+            sensor_id=sensor.id,
+            nivel_preenchimento=coletor.nivel_preenchimento,
+            status_coletor=coletor.status,
+            bateria=sensor.bateria,
+            notificacoes_criadas=notificacoes_criadas,
+        )
+        return jsonify(resposta.model_dump(mode="json")), 200
+
     except Exception as e:
         db.rollback()
-        logger.error(f"Erro em telemetria: {e}")
+        logger.error("Erro em telemetria: %s", e)
         return tratar_erro_api(e)
     finally:
         db.close()
