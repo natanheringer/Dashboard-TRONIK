@@ -20,7 +20,7 @@
 
       <div class="mapa-container">
         {% if marcadores %}
-        <div id="mapa-preview" class="mapa-fake" style="position:relative;min-height:520px;padding:0;">
+        <div id="mapa-preview" class="mapa-fake mapa-fake--live" style="position:relative;min-height:520px;padding:0;">
           <div id="leaflet-map" style="position:absolute;inset:0;border-radius:var(--radius-lg);z-index:1;"></div>
           {% if detalhe %}
           <div class="mapa-detail" style="z-index:500;">
@@ -61,12 +61,13 @@
       </p>
 {% endblock %}
 {% block scripts_extra %}
-<script src="https://cdn.jsdelivr.net/npm/leaflet@1.9.4/dist/leaflet.js"
-        integrity="sha256-20nQCchB9co0qIjJZRGuk2/Z9VM+kNiyxNV1lvTlZBo="
-        crossorigin=""></script>
-<script src="{{ url_for('static', filename='js/v2/mapa-preview.js') }}?v={{ config.get('ASSET_VERSION','1') }}"></script>
+{# Dados antes do Leaflet e do init — mapa-preview.js lia [] sempre #}
 <script>
   window.__PREVIEW_MAP__ = {{ marcadores|tojson }};
   window.__PREVIEW_SELECTED__ = {{ coletor_selecionado_id or 'null' }};
 </script>
+<script src="https://cdn.jsdelivr.net/npm/leaflet@1.9.4/dist/leaflet.js"
+        integrity="sha256-20nQCchB9co0qIjJZRGuk2/Z9VM+kNiyxNV1lvTlZBo="
+        crossorigin=""></script>
+<script src="{{ url_for('static', filename='js/v2/mapa-preview.js') }}?v={{ config.get('ASSET_VERSION','1') }}"></script>
 {% endblock %}
