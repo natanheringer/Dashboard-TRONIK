@@ -18,10 +18,22 @@
         </div>
       </div>
 
+      {# Sempre renderizar #leaflet-map: lista vazia só mostra tiles (ex. Brasília), não página em branco #}
       <div class="mapa-container">
-        {% if marcadores %}
         <div id="mapa-preview" class="mapa-fake mapa-fake--live" style="position:relative;min-height:520px;padding:0;">
           <div id="leaflet-map" style="position:absolute;inset:0;border-radius:var(--radius-lg);z-index:1;"></div>
+
+          {% if not marcadores %}
+          <div class="map-empty-overlay" aria-live="polite">
+            {% set estado_vazio = true %}
+            {% set titulo = "Nenhum marcador para exibir" %}
+            {% set descricao = "Não há coletores com dados para o mapa neste momento. Cadastre latitude e longitude nos coletores ou verifique os dados na base." %}
+            {% set sugestao = "Mesmo sem marcadores, o mapa OSM aparece abaixo para conferir que tudo carregou." %}
+            {% set icon_type = "mapa" %}
+            {% include 'preview/_partials/_empty_state.html' %}
+          </div>
+          {% endif %}
+
           {% if detalhe %}
           <div class="mapa-detail" style="z-index:500;">
             <div class="detail-head">
@@ -47,21 +59,12 @@
           </div>
           {% endif %}
         </div>
-        {% else %}
-        {% include 'preview/_partials/_empty_state.html' with context %}
-        {% set titulo = "Nenhum coletor com coordenadas" %}
-        {% set descricao = "Cadastre latitude e longitude nos coletores para visualizá-los no mapa." %}
-        {% set sugestao = "Acesse Gestão de coletores e adicione coordenadas." %}
-        {% set icon_type = "mapa" %}
-        {% set estado_vazio = true %}
-        {% endif %}
       </div>
       <p style="margin-top:var(--space-4);font-size:var(--text-sm);color:var(--ink-tertiary);">
         Clique em um marcador para abrir o painel com <code>?coletor_id=</code> na URL. Coletores sem latitude/longitude usam posição estimada próxima a Brasília.
       </p>
 {% endblock %}
 {% block scripts_extra %}
-{# Dados antes do Leaflet e do init — mapa-preview.js lia [] sempre #}
 <script>
   window.__PREVIEW_MAP__ = {{ marcadores|tojson }};
   window.__PREVIEW_SELECTED__ = {{ coletor_selecionado_id or 'null' }};
@@ -69,5 +72,5 @@
 <script src="https://cdn.jsdelivr.net/npm/leaflet@1.9.4/dist/leaflet.js"
         integrity="sha256-20nQCchB9co0qIjJZRGuk2/Z9VM+kNiyxNV1lvTlZBo="
         crossorigin=""></script>
-<script src="{{ url_for('static', filename='js/v2/mapa-preview.js') }}?v={{ config.get('ASSET_VERSION','1') }}"></script>
+<script src="{{ url_for('static', filename='js/v2/mapa-preview.js') }}?v={{ cache_version }}"></script>
 {% endblock %}

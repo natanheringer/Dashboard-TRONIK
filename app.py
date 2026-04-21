@@ -188,11 +188,16 @@ talisman = Talisman(
     strict_transport_security_max_age=31536000,  # 1 ano
     content_security_policy={
         'default-src': "'self'",
+        # unpkg mantido por HTML antigo em cache; Leaflet oficialmente em jsdelivr nos templates atuais
         'script-src': "'self' 'unsafe-inline' https://cdn.jsdelivr.net https://cdn.socket.io https://unpkg.com",
-        'style-src': "'self' 'unsafe-inline' https://cdn.jsdelivr.net https://fonts.googleapis.com",
-        'img-src': "'self' data: https:",
+        'style-src': "'self' 'unsafe-inline' https://cdn.jsdelivr.net https://fonts.googleapis.com https://unpkg.com",
+        'img-src': "'self' data: blob: https:",
         'font-src': "'self' data: https://cdn.jsdelivr.net https://fonts.gstatic.com",
-        'connect-src': "'self' https://cdn.jsdelivr.net https://router.project-osrm.org https://cdn.socket.io",
+        # source maps (.map) podem pedir ao host do CDN + OSM como fallback por fetch em alguns builds
+        'connect-src': (
+            "'self' https://cdn.jsdelivr.net https://router.project-osrm.org "
+            "https://cdn.socket.io https://unpkg.com https://tile.openstreetmap.org"
+        ),
     }
 )
 
