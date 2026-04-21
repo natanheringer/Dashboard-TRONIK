@@ -75,7 +75,7 @@
           <div class="coletores-grid">
             {% for c in cards %}
             <a class="coletor-card-link" href="{{ url_for('preview.mapa', coletor_id=c.id) }}">
-            <article class="coletor-card {{ c.classe }}">
+            <article class="coletor-card {{ c.classe }}" data-coletor-id="{{ c.id }}" data-coletor-nivel="{{ c.nivel }}">
               <div class="coletor-head">
                 <div>
                   <div class="coletor-id">{{ c.id_fmt }}</div>
@@ -145,5 +145,40 @@
           </div>
         </aside>
       </div>
+
+      <!-- Paginação -->
+      {% if paginacao.total_paginas > 1 %}
+      <div class="pagination-bar">
+        <div class="pagination-info">
+          Exibindo <strong>{{ cards|length }}</strong> de <strong>{{ paginacao.total_itens }}</strong> coletores
+          (página <strong>{{ paginacao.pagina_atual }}</strong> de <strong>{{ paginacao.total_paginas }}</strong>)
+        </div>
+        <div class="pagination-controls">
+          {% if paginacao.tem_anterior %}
+          <a class="btn pagination-btn" href="{{ url_for('preview.monitoramento', q=filtro_q, nivel=filtro_nivel, page=paginacao.pagina_atual-1) }}">
+            <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polyline points="15 18 9 12 15 6"></polyline></svg>
+            Anterior
+          </a>
+          {% endif %}
+          <div class="pagination-dots">
+            {% for p in range(1, paginacao.total_paginas + 1) %}
+              {% if p == paginacao.pagina_atual %}
+              <span class="pagination-dot active">{{ p }}</span>
+              {% elif (p == 1) or (p == paginacao.total_paginas) or ((p - paginacao.pagina_atual)|abs <= 1) %}
+              <a class="pagination-dot" href="{{ url_for('preview.monitoramento', q=filtro_q, nivel=filtro_nivel, page=p) }}">{{ p }}</a>
+              {% elif (p == 2 and paginacao.pagina_atual > 3) or (p == paginacao.total_paginas - 1 and paginacao.pagina_atual < paginacao.total_paginas - 2) %}
+              <span class="pagination-dot disabled">…</span>
+              {% endif %}
+            {% endfor %}
+          </div>
+          {% if paginacao.tem_proxima %}
+          <a class="btn pagination-btn" href="{{ url_for('preview.monitoramento', q=filtro_q, nivel=filtro_nivel, page=paginacao.pagina_atual+1) }}">
+            Próxima
+            <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polyline points="9 18 15 12 9 6"></polyline></svg>
+          </a>
+          {% endif %}
+        </div>
+      </div>
+      {% endif %}
 </div>
 {% endblock %}
