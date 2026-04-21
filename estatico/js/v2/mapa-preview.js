@@ -3,7 +3,9 @@
  */
 (function () {
   const data = window.__PREVIEW_MAP__ || [];
-  const selectedId = window.__PREVIEW_SELECTED__;
+  const selectedRaw = window.__PREVIEW_SELECTED__;
+  const selectedId =
+    selectedRaw === null || selectedRaw === undefined ? null : Number(selectedRaw);
 
   function corPin(classe) {
     if (classe === "crit") return "#9b2a1f";
@@ -45,17 +47,41 @@
     });
     circle.addTo(map);
     markers.push(circle);
-    if (selectedId && m.id === selectedId) alvo = m;
+    if (selectedId !== null && Number(m.id) === selectedId) alvo = m;
   });
 
-  if (data.length) {
-    const group = L.featureGroup(markers);
-    map.fitBounds(group.getBounds().pad(0.15));
-  } else {
-    map.setView([-15.793889, -47.882778], 11);
+  function applyView() {
+    if (data.length && markers.length) {
+      try {
+        const group = L.featureGroup(markers);
+        map.fitBounds(group.getBounds().pad(0.15));
+      } catch (_e) {
+        map.setView([-15.793889, -47.882778], 11);
+      }
+    } else {
+      map.setView([-15.793889, -47.882778], 11);
+    }
+    if (alvo) {
+      map.setView([alvo.lat, alvo.lng], 14);
+    }
   }
 
-  if (alvo) {
-    map.setView([alvo.lat, alvo.lng], 14);
+  applyView();
+
+  function reflowMap() {
+    map.invalidateSize();
+    if (data.length && markers.length) {
+      try {
+        map.fitBounds(L.featureGroup(markers).getBounds().pad(0.15));
+      } catch (_e) {
+        /* ignore */
+      }
+    }
+    if (alvo) {
+      map.setView([alvo.lat, alvo.lng], 14);
+    }
   }
+
+  requestAnimationFrame(reflowMap);
+  setTimeout(reflowMap, 250);
 })();

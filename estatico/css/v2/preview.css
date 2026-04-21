@@ -1212,6 +1212,16 @@ ul { list-style: none; }
   pointer-events: none;
 }
 
+/* Leaflet real: sem gradiente/rejilla por cima dos tiles */
+.mapa-fake--live {
+  background: var(--paper-card);
+  display: block;
+}
+
+.mapa-fake--live::before {
+  display: none;
+}
+
 .mapa-pin {
   position: absolute;
   display: grid;
@@ -2367,4 +2377,141 @@ ul { list-style: none; }
   .mobile-topbar {
     display: flex;
   }
+}
+
+/* ============================================================
+   EMPTY STATES
+   ============================================================ */
+.empty-state {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  min-height: 300px;
+  padding: var(--space-10) var(--space-6);
+  background: linear-gradient(135deg, var(--paper-sunk) 0%, var(--paper-card) 100%);
+  border: 2px dashed var(--line-default);
+  border-radius: var(--radius-lg);
+}
+
+.empty-state-content {
+  text-align: center;
+  max-width: 420px;
+}
+
+.empty-state-icon {
+  width: 80px;
+  height: 80px;
+  margin: 0 auto var(--space-5);
+  display: grid;
+  place-items: center;
+  color: var(--ink-tertiary);
+  opacity: 0.6;
+}
+
+.empty-state-title {
+  font-family: var(--font-display);
+  font-size: var(--text-xl);
+  font-weight: 500;
+  color: var(--ink-secondary);
+  margin-bottom: var(--space-2);
+  letter-spacing: -0.01em;
+}
+
+.empty-state-description {
+  font-size: var(--text-sm);
+  color: var(--ink-tertiary);
+  line-height: 1.55;
+  margin-bottom: var(--space-4);
+}
+
+.empty-state-hint {
+  font-size: var(--text-xs);
+  color: var(--ink-tertiary);
+  background: var(--paper-card);
+  padding: var(--space-3) var(--space-4);
+  border-radius: var(--radius-md);
+  border-left: 3px solid var(--tronik);
+  font-style: italic;
+  margin-top: var(--space-4);
+}
+
+/* ============================================================
+   PAGINATION
+   ============================================================ */
+.pagination-bar {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  margin-top: var(--space-8);
+  padding: var(--space-4) var(--space-6);
+  background: var(--paper-card);
+  border: 1px solid var(--line-default);
+  border-radius: var(--radius-lg);
+  flex-wrap: wrap;
+  gap: var(--space-4);
+}
+
+.pagination-info {
+  font-size: var(--text-sm);
+  color: var(--ink-secondary);
+}
+
+.pagination-info strong {
+  color: var(--ink-primary);
+  font-weight: 600;
+}
+
+.pagination-controls {
+  display: flex;
+  align-items: center;
+  gap: var(--space-3);
+  flex-wrap: wrap;
+}
+
+.pagination-btn {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--space-2);
+  padding: var(--space-2) var(--space-3);
+  font-size: var(--text-sm);
+}
+
+.pagination-dots {
+  display: flex;
+  gap: 6px;
+  align-items: center;
+}
+
+.pagination-dot {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 28px;
+  height: 28px;
+  border-radius: var(--radius-sm);
+  background: var(--paper-sunk);
+  color: var(--ink-secondary);
+  font-family: var(--font-mono);
+  font-size: 11px;
+  font-weight: 500;
+  cursor: pointer;
+  transition: all 160ms ease;
+  text-decoration: none;
+}
+
+.pagination-dot:hover {
+  background: var(--paper-elevated);
+  color: var(--ink-primary);
+}
+
+.pagination-dot.active {
+  background: var(--tronik);
+  color: var(--paper-elevated);
+  cursor: default;
+}
+
+.pagination-dot.disabled {
+  cursor: default;
+  color: var(--ink-tertiary);
+  opacity: 0.5;
 }
