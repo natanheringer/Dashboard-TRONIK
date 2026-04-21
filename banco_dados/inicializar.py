@@ -27,7 +27,9 @@ logger = logging.getLogger(__name__)
 
 
 def _ambiente_desenvolvimento() -> bool:
-    return os.getenv("FLASK_ENV", "").strip().lower() in ("development", "dev")
+    """Alinhado a app.py: sem FLASK_ENV no ambiente, assume development."""
+    flask_env = os.getenv("FLASK_ENV", "development").strip().lower()
+    return flask_env in ("development", "dev")
 
 
 def _credenciais_dev_desabilitadas() -> bool:
