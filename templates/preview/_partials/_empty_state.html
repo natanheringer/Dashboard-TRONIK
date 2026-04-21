@@ -1,0 +1,23 @@
+<!-- Empty State Component (reusable across preview) -->
+{% if estado_vazio %}
+<div class="empty-state" role="status">
+  <div class="empty-state-content">
+    <div class="empty-state-icon">
+      {% if icon_type == "mapa" %}
+      <svg width="48" height="48" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5"><path d="M12 2C6.48 2 2 6.48 2 12s4.48 10 10 10 10-4.48 10-10S17.52 2 12 2z"/></svg>
+      {% elif icon_type == "relatorios" %}
+      <svg width="48" height="48" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5"><path d="M9 3H5a2 2 0 00-2 2v14a2 2 0 002 2h14a2 2 0 002-2V9"/><polyline points="9 2 9 9 16 9"/></svg>
+      {% elif icon_type == "sensores" %}
+      <svg width="48" height="48" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5"><path d="M12 2C6.48 2 2 6.48 2 12s4.48 10 10 10 10-4.48 10-10S17.52 2 12 2z"/></svg>
+      {% else %}
+      <svg width="48" height="48" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5"><circle cx="12" cy="12" r="10"/><path d="M12 6v6l4 2"/></svg>
+      {% endif %}
+    </div>
+    <h3 class="empty-state-title">{{ titulo }}</h3>
+    <p class="empty-state-description">{{ descricao }}</p>
+    {% if sugestao %}
+    <p class="empty-state-hint">💡 {{ sugestao }}</p>
+    {% endif %}
+  </div>
+</div>
+{% endif %}
