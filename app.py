@@ -29,7 +29,12 @@ from banco_dados.modelos import (
 )
 
 # Importações do sistema de inicialização
-from banco_dados.inicializar import criar_banco, inserir_dados_iniciais, criar_usuario_admin
+from banco_dados.inicializar import (
+    criar_banco,
+    criar_usuario_admin,
+    garantir_usuario_dev,
+    inserir_dados_iniciais,
+)
 from banco_dados.seed_tipos import popular_tipos
 
 # Importações dos blueprints
@@ -312,6 +317,8 @@ popular_tipos(engine)
 
 # Sempre verificar/criar usuário admin (pode não existir mesmo se o banco existir)
 criar_usuario_admin(engine)
+# Em desenvolvimento: garante login fixo DEV_* mesmo se já existir outro admin no DB
+garantir_usuario_dev(engine)
 
 # ========================================
 # REGISTRAR BLUEPRINTS
