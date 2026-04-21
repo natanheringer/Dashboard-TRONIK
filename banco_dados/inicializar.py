@@ -25,6 +25,15 @@ import logging
 
 logger = logging.getLogger(__name__)
 
+
+def _ambiente_desenvolvimento() -> bool:
+    return os.getenv("FLASK_ENV", "").strip().lower() in ("development", "dev")
+
+
+def _credenciais_dev_desabilitadas() -> bool:
+    return os.getenv("DISABLE_DEV_CREDENTIALS", "").strip().lower() in ("1", "true", "yes")
+
+
 # ----------------------------------------------------------
 # Função: cria o banco de dados SQLite e as tabelas
 # ----------------------------------------------------------
@@ -99,13 +108,13 @@ def resetar_banco(engine):
 def criar_usuario_admin(engine):
     """
     Cria um usuário administrador se não existir.
-    
-    IMPORTANTE: Requer variáveis de ambiente configuradas:
-    - ADMIN_USERNAME (obrigatório)
-    - ADMIN_EMAIL (obrigatório)
-    - ADMIN_PASSWORD (obrigatório)
-    
-    Se as variáveis não estiverem configuradas, o usuário admin não será criado.
+
+    Credenciais:
+    - Preferência: ADMIN_USERNAME, ADMIN_EMAIL, ADMIN_PASSWORD (todos obrigatórios juntos).
+    - Em FLASK_ENV=development, se os três ADMIN_* estiverem ausentes e
+      DISABLE_DEV_CREDENTIALS não for true, usa DEV_USERNAME / DEV_EMAIL / DEV_PASSWORD
+      (padrão: dev / dev@localhost.internal / DevTronik!local).
+    - Se definir só parte de ADMIN_*, nada é criado (evita estado inconsistente).
     """
     Session = sessionmaker(bind=engine)
     session = Session()
@@ -117,22 +126,34 @@ def criar_usuario_admin(engine):
             logger.info(f"Usuário admin já existe: {admin_existente.username}")
             return
         
-        # Obter credenciais do ambiente (OBRIGATÓRIAS)
-        admin_username = os.getenv('ADMIN_USERNAME')
-        admin_email = os.getenv('ADMIN_EMAIL')
-        admin_password = os.getenv('ADMIN_PASSWORD')
-        
-        # Validar que todas as credenciais foram fornecidas
-        if not admin_username or not admin_email or not admin_password:
-            logger.warning(
-                "⚠️  Usuário admin não criado: variáveis de ambiente não configuradas.\n"
-                "   Configure no arquivo .env:\n"
-                "   - ADMIN_USERNAME=seu-usuario\n"
-                "   - ADMIN_EMAIL=seu-email@dominio.com\n"
-                "   - ADMIN_PASSWORD=sua-senha-forte\n"
-                "   Ou crie manualmente via página de registro."
-            )
-            return
+        admin_username = os.getenv("ADMIN_USERNAME")
+        admin_email = os.getenv("ADMIN_EMAIL")
+        admin_password = os.getenv("ADMIN_PASSWORD")
+        tem_admin_completo = bool(admin_username and admin_email and admin_password)
+        tem_algum_admin = bool(admin_username or admin_email or admin_password)
+
+        if not tem_admin_completo:
+            if tem_algum_admin:
+                logger.warning(
+                    "⚠️  ADMIN_USERNAME / ADMIN_EMAIL / ADMIN_PASSWORD incompletos. "
+                    "Defina os três ou remova todos para usar credenciais de desenvolvimento."
+                )
+                return
+            if _ambiente_desenvolvimento() and not _credenciais_dev_desabilitadas():
+                admin_username = os.getenv("DEV_USERNAME", "dev")
+                admin_email = os.getenv("DEV_EMAIL", "dev@localhost.internal")
+                admin_password = os.getenv("DEV_PASSWORD", "DevTronik!local")
+                logger.warning(
+                    "⚠️  Ambiente development: primeiro admin será criado com "
+                    "DEV_USERNAME/DEV_EMAIL/DEV_PASSWORD (ou valores padrão). "
+                    "Desative com DISABLE_DEV_CREDENTIALS=true."
+                )
+            else:
+                logger.warning(
+                    "⚠️  Usuário admin não criado: configure ADMIN_* no .env ou "
+                    "use FLASK_ENV=development para credenciais DEV_* automáticas."
+                )
+                return
         
         # Validar força básica da senha (mais flexível para admin inicial)
         if len(admin_password) < 8:
@@ -168,6 +189,63 @@ def criar_usuario_admin(engine):
     finally:
         session.close()
 
+
+def garantir_usuario_dev(engine):
+    """Em development, garante utilizador DEV_USERNAME (default dev) com senha conhecida.
+
+    Corre mesmo quando já existe outro admin (ex.: base copiada). Assim há sempre um login
+    fixo para testar. Defina DEV_SYNC_PASSWORD=true para repor a senha se já existir.
+    Ignorado em produção ou com DISABLE_DEV_CREDENTIALS=true.
+    """
+    if not _ambiente_desenvolvimento() or _credenciais_dev_desabilitadas():
+        return
+
+    username = (os.getenv("DEV_USERNAME") or "dev").strip()
+    email = (os.getenv("DEV_EMAIL") or "dev@localhost.internal").strip()
+    password = os.getenv("DEV_PASSWORD") or "DevTronik!local"
+    sync = os.getenv("DEV_SYNC_PASSWORD", "").strip().lower() in ("1", "true", "yes")
+
+    if len(password) < 8:
+        logger.warning("DEV_PASSWORD tem menos de 8 caracteres; garantir_usuario_dev ignorado.")
+        return
+
+    Session = sessionmaker(bind=engine)
+    session = Session()
+
+    try:
+        existente = session.query(Usuario).filter(Usuario.username == username).first()
+        if existente is None:
+            email_ocupado = session.query(Usuario).filter(Usuario.email == email).first()
+            if email_ocupado is not None:
+                logger.warning(
+                    "Não foi criado utilizador dev: email %s já está em uso por outro utilizador.",
+                    email,
+                )
+                return
+            u = Usuario(
+                username=username,
+                email=email,
+                nome_completo="Desenvolvimento",
+                ativo=True,
+                admin=True,
+            )
+            u.set_senha(password)
+            session.add(u)
+            session.commit()
+            logger.info("Utilizador de desenvolvimento criado: %s (use esta conta para testes locais)", username)
+            return
+
+        if sync:
+            existente.set_senha(password)
+            session.commit()
+            logger.info("Senha do utilizador dev '%s' atualizada (DEV_SYNC_PASSWORD).", username)
+    except Exception as e:
+        logger.error("Erro em garantir_usuario_dev: %s", e)
+        session.rollback()
+    finally:
+        session.close()
+
+
 # ----------------------------------------------------------
 # Execução direta do script
 # ----------------------------------------------------------
@@ -177,5 +255,6 @@ if __name__ == "__main__":
     popular_tipos(engine)
     inserir_dados_iniciais(engine)
     criar_usuario_admin(engine)
+    garantir_usuario_dev(engine)
 
 
