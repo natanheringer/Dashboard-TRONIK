@@ -1222,6 +1222,23 @@ ul { list-style: none; }
   display: none;
 }
 
+/* Estado vazio sobre mapa Leaflet real (mensagem centrada sem bloquear pan por defeito no fundo) */
+.map-empty-overlay {
+  position: absolute;
+  inset: 0;
+  z-index: 350;
+  display: grid;
+  place-items: center;
+  padding: var(--space-6);
+  pointer-events: none;
+}
+
+.map-empty-overlay .empty-state {
+  pointer-events: auto;
+  max-width: min(440px, 94%);
+  margin: 0 auto;
+}
+
 .mapa-pin {
   position: absolute;
   display: grid;
