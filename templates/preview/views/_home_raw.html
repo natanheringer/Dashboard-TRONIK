@@ -1,0 +1,129 @@
+<main class="home-hero-section" id="home-main" role="region" aria-label="Seção principal do dashboard">
+  <div class="home-hero" id="hero-greeting">
+    <div class="home-eyebrow" aria-label="Data">Terça-feira, 14 de abril</div>
+    <h1 class="home-greeting">Olá, <span class="user-name">Maiara</span>. <em>O que vamos fazer hoje?</em></h1>
+    <p class="home-subtitle">Dois coletores pedem atenção nas próximas 24 horas. A coleta do Taguatinga Shopping está prevista para amanhã. Tudo o mais está nos trilhos.</p>
+  </div>
+
+  <!-- ===================== CARDS DE OPERAÇÃO ===================== -->
+  <section class="home-grid" id="operations-grid" role="region" aria-label="Opções de operação">
+    <article class="destino-card featured" id="card-monitoramento" onclick="ativarView('monit')" role="button" tabindex="0" data-view="monit" data-id="op-01" aria-label="Monitoramento em tempo real">
+      <div class="destino-header">
+        <span class="destino-label">Operação / 01</span>
+        <div class="destino-arrow" aria-hidden="true">
+          <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M5 12h14M12 5l7 7-7 7"/></svg>
+        </div>
+      </div>
+      <h2 class="destino-title">Monitoramento<br>em tempo real</h2>
+      <p class="destino-description">
+        Acompanhe o nível de preenchimento de todos os coletores ativos, receba alertas automáticos e tome decisões de coleta baseadas em dados reais.
+      </p>
+      <div class="destino-stats" role="region" aria-label="Estatísticas de monitoramento">
+        <div class="destino-stat">
+          <strong aria-label="Número de coletores">40</strong>
+          <span>Coletores</span>
+        </div>
+        <div class="destino-stat">
+          <strong aria-label="Alertas ativos">2</strong>
+          <span>Alertas ativos</span>
+        </div>
+        <div class="destino-stat">
+          <strong aria-label="Nível médio de preenchimento">73%</strong>
+          <span>Nível médio</span>
+        </div>
+      </div>
+    </article>
+
+    <article class="destino-card" id="card-mapa" onclick="ativarView('mapa')" role="button" tabindex="0" data-view="mapa" data-id="op-02" aria-label="Mapa e rotas">
+      <div class="destino-header">
+        <span class="destino-label">Operação / 02</span>
+        <div class="destino-arrow" aria-hidden="true">
+          <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M5 12h14M12 5l7 7-7 7"/></svg>
+        </div>
+      </div>
+      <h2 class="destino-title">Mapa<br>e rotas</h2>
+      <p class="destino-description">
+        Visualize a distribuição geográfica e planeje rotas otimizadas.
+      </p>
+    </article>
+
+    <article class="destino-card" id="card-relatorios" role="button" tabindex="0" data-view="relatorios" data-id="op-03" aria-label="Relatórios operacionais">
+      <div class="destino-header">
+        <span class="destino-label">Análise / 03</span>
+        <div class="destino-arrow" aria-hidden="true">
+          <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M5 12h14M12 5l7 7-7 7"/></svg>
+        </div>
+      </div>
+      <h2 class="destino-title">Relatórios<br>operacionais</h2>
+      <p class="destino-description">
+        Volume coletado, rotas feitas, custos e lucro por período.
+      </p>
+    </article>
+  </section>
+
+  <!-- ===================== ATIVIDADE RECENTE ===================== -->
+  <section class="atividade-section" id="recent-activity" role="region" aria-label="Atividades recentes">
+    <div class="atividade-container">
+      <div class="section-head">
+        <h2 class="section-title">Última atividade</h2>
+        <a href="#" class="section-link" data-action="view-all" id="view-all-activities">Ver tudo →</a>
+      </div>
+      <ul class="atividade-list" role="list" id="activities-list">
+        <li class="atividade-item" id="activity-L001" data-status="critical" data-timestamp="12min" data-collector-id="L001">
+          <div class="atividade-dot crit" aria-label="Status crítico" role="img"></div>
+          <div class="atividade-body">
+            <strong>Hotel Royal Tulip — nível crítico</strong>
+            <span>Coletor atingiu 96% de ocupação</span>
+          </div>
+          <div class="atividade-meta">
+            <strong>há 12min</strong>
+            <code>L001</code>
+          </div>
+        </li>
+        <li class="atividade-item" id="activity-L014" data-status="warning" data-timestamp="1h" data-collector-id="L014">
+          <div class="atividade-dot warn" aria-label="Status de atenção" role="img"></div>
+          <div class="atividade-body">
+            <strong>Taguatinga Shopping — atenção</strong>
+            <span>Coletor a 84% e em rota de coleta</span>
+          </div>
+          <div class="atividade-meta">
+            <strong>há 1h</strong>
+            <code>L014</code>
+          </div>
+        </li>
+        <li class="atividade-item" id="activity-L019" data-status="success" data-timestamp="3h" data-collector-id="L019">
+          <div class="atividade-dot ok" aria-label="Status concluído" role="img"></div>
+          <div class="atividade-body">
+            <strong>Coleta concluída — ECOGRANA</strong>
+            <span>71kg coletados, 20,1km de rota</span>
+          </div>
+          <div class="atividade-meta">
+            <strong>há 3h</strong>
+            <code>L019</code>
+          </div>
+        </li>
+        <li class="atividade-item" id="activity-L002" data-status="success" data-timestamp="yesterday" data-collector-id="L002">
+          <div class="atividade-dot ok" aria-label="Status concluído" role="img"></div>
+          <div class="atividade-body">
+            <strong>Novo contrato assinado</strong>
+            <span>Condomínio Central Park · coleta quinzenal</span>
+          </div>
+          <div class="atividade-meta">
+            <strong>ontem</strong>
+            <code>L002</code>
+          </div>
+        </li>
+      </ul>
+    </div>
+
+    <aside class="insight-card" id="monthly-insight" role="region" aria-label="Estatística mensal de coleta">
+      <div class="insight-content">
+        <div class="insight-label">Coletado em abril</div>
+        <div class="insight-value">3.444<em>kg</em></div>
+      </div>
+      <div class="insight-desc">Equivale a aproximadamente 4,96 toneladas de CO₂ evitadas este mês.</div>
+    </aside>
+  </section>
+</main>
+
+<!-- ===================== MONITORAMENTO ===================== -->

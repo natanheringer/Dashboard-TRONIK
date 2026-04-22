@@ -25,61 +25,61 @@ from banco_dados.utils.erros import validar_tipo, validar_range, ErroValidacao
 class TestValidacaoPaginacao:
     """Testes de validação de parâmetros de paginação"""
     
-    def test_paginacao_valida(self, client, db_session, create_lixeira):
+    def test_paginacao_valida(self, auth_client, db_session, create_lixeira):
         """Testa paginação com valores válidos"""
         # Criar algumas coletores
         for i in range(5):
             create_lixeira(localizacao=f"Coletor {i}")
         
         # Testar página 1, 10 por página
-        response = client.get('/api/coletores?pagina=1&por_pagina=10')
+        response = auth_client.get('/api/coletores?pagina=1&por_pagina=10')
         assert response.status_code == 200
         data = response.get_json()
         assert 'dados' in data or isinstance(data, list)
     
-    def test_paginacao_pagina_zero(self, client):
+    def test_paginacao_pagina_zero(self, auth_client):
         """Testa que página 0 é ajustada para 1"""
-        response = client.get('/api/coletores?pagina=0')
+        response = auth_client.get('/api/coletores?pagina=0')
         assert response.status_code == 200
         data = response.get_json()
         # A validação ajusta página 0 para 1
         if 'paginacao' in data:
             assert data['paginacao']['pagina'] == 1
     
-    def test_paginacao_pagina_negativa(self, client):
+    def test_paginacao_pagina_negativa(self, auth_client):
         """Testa que página negativa é ajustada para 1"""
-        response = client.get('/api/coletores?pagina=-1')
+        response = auth_client.get('/api/coletores?pagina=-1')
         assert response.status_code == 200
         data = response.get_json()
         # A validação ajusta página negativa para 1
         if 'paginacao' in data:
             assert data['paginacao']['pagina'] == 1
     
-    def test_paginacao_por_pagina_zero(self, client):
+    def test_paginacao_por_pagina_zero(self, auth_client):
         """Testa que por_pagina 0 é ajustado para 1"""
-        response = client.get('/api/coletores?por_pagina=0')
+        response = auth_client.get('/api/coletores?por_pagina=0')
         assert response.status_code == 200
         data = response.get_json()
         # A validação ajusta por_pagina 0 para 1
         if 'paginacao' in data:
             assert data['paginacao']['por_pagina'] >= 1
     
-    def test_paginacao_por_pagina_maior_que_maximo(self, client):
+    def test_paginacao_por_pagina_maior_que_maximo(self, auth_client):
         """Testa que por_pagina maior que máximo é ajustado"""
-        response = client.get('/api/coletores?por_pagina=200')
+        response = auth_client.get('/api/coletores?por_pagina=200')
         assert response.status_code == 200
         data = response.get_json()
         # A validação ajusta por_pagina para o máximo (500 para coletores)
         if 'paginacao' in data:
             assert data['paginacao']['por_pagina'] <= 500
     
-    def test_paginacao_coletas(self, client, db_session):
+    def test_paginacao_coletas(self, auth_client, db_session):
         """Testa validação de paginação em coletas"""
-        response = client.get('/api/coletas?pagina=0')
+        response = auth_client.get('/api/coletas?pagina=0')
         assert response.status_code == 200
         # Página 0 é ajustada para 1
         
-        response = client.get('/api/coletas?por_pagina=200')
+        response = auth_client.get('/api/coletas?por_pagina=200')
         assert response.status_code == 200
         # por_pagina 200 é ajustado para o máximo
     

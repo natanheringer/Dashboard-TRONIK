@@ -26,6 +26,7 @@ coletas_bp = Blueprint('coletas', __name__)
 
 
 @coletas_bp.route('/coletas', methods=['GET'])
+@login_required
 def listar_coletas():
     """Endpoint para obter coletas com filtros opcionais e paginação"""
     db = get_db()
@@ -73,6 +74,7 @@ def listar_coletas():
 
 
 @coletas_bp.route('/historico', methods=['GET'])
+@login_required
 def obter_historico():
     """Endpoint para obter histórico de coletas com filtro de data"""
     db = get_db()

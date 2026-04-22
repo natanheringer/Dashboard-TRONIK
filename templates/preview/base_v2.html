@@ -1,0 +1,51 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>{% block title %}Tronik · Preview{% endblock %}</title>
+
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Montserrat:ital,wght@0,400;0,500;0,600;0,700;1,400&family=Roboto+Mono:wght@400;500&family=Roboto:wght@300;400;500;700&display=swap" rel="stylesheet">
+
+  <link rel="stylesheet" href="{{ url_for('static', filename='css/v2/tokens.css') }}?v={{ cache_version }}">
+  <link rel="stylesheet" href="{{ url_for('static', filename='css/v2/preview.css') }}?v={{ cache_version }}">
+  <link rel="stylesheet" href="{{ url_for('static', filename='css/v2/motion.css') }}?v={{ cache_version }}">
+  {% block head_extra %}{% endblock %}
+</head>
+<body>
+
+{% if config.get('PREVIEW_SHOW_BADGE', True) %}
+<div class="preview-badge">PREVIEW v2</div>
+{% endif %}
+
+<!-- Mobile topbar -->
+<div class="mobile-topbar">
+  <div style="display:flex; align-items:center; gap:var(--space-3);">
+    <div class="brand-mark">T</div>
+    <div class="mobile-topbar-title">Tronik</div>
+  </div>
+  <button class="mobile-menu-btn" type="button" onclick="togglePreviewSidebar()" aria-label="Abrir menu">
+    <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><line x1="3" y1="12" x2="21" y2="12"/><line x1="3" y1="6" x2="21" y2="6"/><line x1="3" y1="18" x2="21" y2="18"/></svg>
+  </button>
+</div>
+
+<div class="sidebar-backdrop" onclick="togglePreviewSidebar()"></div>
+
+<div class="app">
+  {% include 'preview/_partials/_sidebar.html' %}
+
+  <main class="main">
+    <div class="view active" id="view-{{ current|default('home') }}">
+      {% block conteudo %}{% endblock %}
+    </div>
+  </main>
+</div>
+
+<script src="https://cdn.jsdelivr.net/npm/socket.io-client@4.7.0/dist/socket.io.min.js" crossorigin="anonymous" defer></script>
+<script src="https://cdn.jsdelivr.net/npm/htmx.org@2.0.4/dist/htmx.min.js" crossorigin="anonymous" defer></script>
+<script src="{{ url_for('static', filename='js/v2/preview.js') }}?v={{ cache_version }}" defer></script>
+{% block scripts_extra %}{% endblock %}
+</body>
+</html>

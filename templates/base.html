@@ -7,6 +7,9 @@
     <title>{% block title %}Dashboard-TRONIK{% endblock %}</title>
     <link rel="stylesheet" href="{{ url_for('static', filename='css/estilo.css') }}">
     <link rel="stylesheet" href="{{ url_for('static', filename='css/menu-mobile.css') }}">
+    {% if current_user.is_authenticated and preview_demo_banner_enabled %}
+    <link rel="stylesheet" href="{{ url_for('static', filename='css/preview-announcement.css') }}?v={{ cache_version }}">
+    {% endif %}
     <!-- Leaflet CSS -->
     <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/leaflet@1.9.4/dist/leaflet.css"
           integrity="sha256-p4NxAoJBhIIN+hmNHrzRCf9tD/miZyoHS5obTRR9BMY="
@@ -115,6 +118,39 @@
         {% block content %}{% endblock %}
     </main>
 
+    {% if current_user.is_authenticated and preview_demo_banner_enabled %}
+    <div
+        id="preview-demo-overlay"
+        class="preview-demo-overlay"
+        aria-hidden="true"
+        role="dialog"
+        aria-modal="true"
+        aria-labelledby="preview-demo-title"
+        data-preview-url="{{ url_for('preview.home') }}"
+    >
+        <div class="preview-demo-card-wrap">
+            <button type="button" class="preview-demo-close" id="preview-demo-close" aria-label="Fechar e continuar nesta versão">&times;</button>
+            <div class="preview-demo-card">
+                <div class="preview-demo-badge">Novo · em demonstração</div>
+                <h2 class="preview-demo-title" id="preview-demo-title">Há uma <em>nova dashboard</em> para experimentar</h2>
+                <p class="preview-demo-text">
+                    Estamos evoluindo a interface: visual renovado, dados reais e fluxos mais claros.
+                    Você pode explorar a versão em preview agora ou seguir usando esta tela — quando fechar o navegador, podemos mostrar o aviso de novo.
+                </p>
+                <div class="preview-demo-actions">
+                    <button type="button" class="preview-demo-btn preview-demo-btn--primary" id="preview-demo-btn-preview">
+                        Ir para a nova interface
+                    </button>
+                    <button type="button" class="preview-demo-btn preview-demo-btn--ghost" id="preview-demo-btn-stay">
+                        Ficar na versão atual
+                    </button>
+                </div>
+                <p class="preview-demo-foot">A preview exige o mesmo login. Você pode voltar ao menu clássico a qualquer momento pelo endereço habitual.</p>
+            </div>
+        </div>
+    </div>
+    {% endif %}
+
     <!-- Scripts -->
     <!-- Leaflet JS -->
     <script src="https://cdn.jsdelivr.net/npm/leaflet@1.9.4/dist/leaflet.js"
@@ -152,6 +188,9 @@
     <script src="{{ url_for('static', filename='js/utils/websocket.js') }}?v={{ cache_version }}"></script>
     <script src="{{ url_for('static', filename='js/api.js') }}?v={{ cache_version }}"></script>
     <script src="{{ url_for('static', filename='js/menu.js') }}?v={{ cache_version }}"></script>
+    {% if current_user.is_authenticated and preview_demo_banner_enabled %}
+    <script src="{{ url_for('static', filename='js/preview-announcement.js') }}?v={{ cache_version }}"></script>
+    {% endif %}
     <script src="{{ url_for('static', filename='js/dashboard.js') }}?v={{ cache_version }}"></script>
     <script>
         // Inicializar WebSocket quando a página carregar

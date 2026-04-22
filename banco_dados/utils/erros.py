@@ -2,13 +2,26 @@
 Tratamento de Erros - Dashboard-TRONIK
 =======================================
 Centraliza o tratamento de erros e mensagens de erro seguras.
+
+As classes de erro (ErroAPI e filhas) sao puras: podem ser importadas
+de qualquer camada (contratos, services, rotas) sem puxar Flask junto.
+So a funcao `tratar_erro_api` depende do Flask, e o import e feito
+on-demand dentro dela.
 """
 
-from typing import Dict, Optional
-from flask import jsonify
+from typing import Any, Dict, List, Optional
 import logging
 
 logger = logging.getLogger(__name__)
+
+
+# Envelope padronizado de resposta da API
+# ---------------------------------------
+# Sucesso: {"ok": true,  "dados": <payload>, "erros": null}
+# Erro:    {"ok": false, "dados": null,       "erros": [{codigo, mensagem, campo?}], "erro": "<msg primaria>"}
+#
+# A chave "erro" (singular, string) e mantida no envelope de erro por
+# compatibilidade com clientes antigos. Novos clientes devem consumir "erros".
 
 
 class ErroAPI(Exception):
@@ -41,35 +54,88 @@ class ErroAcessoNegado(ErroAPI):
         super().__init__(mensagem, codigo=403)
 
 
-def tratar_erro_api(erro: Exception) -> tuple:
-    """
-    Trata erros da API e retorna resposta JSON apropriada.
-    
+class ErroNaoAutorizado(ErroAPI):
+    """Autenticação necessária ou credenciais inválidas (401)."""
+
+    def __init__(self, mensagem: str = "Nao autorizado"):
+        super().__init__(mensagem, codigo=401)
+
+
+def _erro_codigo(erro: "ErroAPI") -> str:
+    """Mapeia classe de erro para codigo textual estavel (consumido pelo frontend)."""
+    if isinstance(erro, ErroValidacao):
+        return "VALIDACAO"
+    if isinstance(erro, ErroNaoEncontrado):
+        return "NAO_ENCONTRADO"
+    if isinstance(erro, ErroAcessoNegado):
+        return "ACESSO_NEGADO"
+    if isinstance(erro, ErroNaoAutorizado):
+        return "NAO_AUTORIZADO"
+    return "ERRO_API"
+
+
+def resposta_ok(dados: Any = None, status: int = 200) -> tuple:
+    """Retorna uma resposta de sucesso no envelope padrao.
+
     Args:
-        erro: Exceção capturada
-    
-    Returns:
-        Tuple (jsonify_response, status_code)
+        dados: Qualquer estrutura serializavel (dict, list, modelo Pydantic via .model_dump()).
+        status: HTTP status (default 200).
     """
-    # Se for erro conhecido da API
-    if isinstance(erro, ErroAPI):
-        logger.warning(f"Erro API: {erro.mensagem} (código: {erro.codigo})")
-        resposta = {"erro": erro.mensagem}
-        if erro.detalhes:
-            resposta["detalhes"] = erro.detalhes
-        return jsonify(resposta), erro.codigo
-    
-    # Erro desconhecido - não expor detalhes em produção
-    logger.error(f"Erro interno: {str(erro)}", exc_info=True)
-    
-    # Em produção, não expor detalhes do erro
+    from flask import jsonify
+
+    return jsonify({"ok": True, "dados": dados, "erros": None}), status
+
+
+def resposta_erro(
+    mensagem: str,
+    status: int = 400,
+    codigo: str = "ERRO_API",
+    campo: Optional[str] = None,
+    detalhes: Optional[Dict[str, Any]] = None,
+) -> tuple:
+    """Retorna uma resposta de erro no envelope padrao.
+
+    Mantem a chave legacy "erro" (string) para backward-compat.
+    """
+    from flask import jsonify
+
+    item: Dict[str, Any] = {"codigo": codigo, "mensagem": mensagem}
+    if campo:
+        item["campo"] = campo
+    if detalhes:
+        item["detalhes"] = detalhes
+
+    envelope = {
+        "ok": False,
+        "dados": None,
+        "erros": [item],
+        "erro": mensagem,  # legacy alias
+    }
+    return jsonify(envelope), status
+
+
+def tratar_erro_api(erro: Exception) -> tuple:
+    """Handler global: converte qualquer Exception no envelope padrao da API.
+
+    Registrado em app.py via ``app.register_error_handler(ErroAPI, tratar_erro_api)``
+    e tambem como fallback para Exception. Mantem backward-compat com clientes que
+    consomem a chave "erro" (string).
+    """
     from flask import current_app
-    if current_app.config.get('FLASK_ENV') == 'production':
-        mensagem = "Erro interno do servidor"
-    else:
-        mensagem = f"Erro interno: {str(erro)}"
-    
-    return jsonify({"erro": mensagem}), 500
+
+    if isinstance(erro, ErroAPI):
+        logger.warning("Erro API: %s (codigo HTTP: %s)", erro.mensagem, erro.codigo)
+        return resposta_erro(
+            mensagem=erro.mensagem,
+            status=erro.codigo,
+            codigo=_erro_codigo(erro),
+            detalhes=erro.detalhes or None,
+        )
+
+    logger.error("Erro interno: %s", erro, exc_info=True)
+    em_prod = (current_app.config.get("FLASK_ENV") == "production")
+    mensagem = "Erro interno do servidor" if em_prod else f"Erro interno: {erro}"
+    return resposta_erro(mensagem=mensagem, status=500, codigo="ERRO_INTERNO")
 
 
 def validar_requisicao_json(dados: Optional[Dict]) -> None:

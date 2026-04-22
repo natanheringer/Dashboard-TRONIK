@@ -1,0 +1,184 @@
+{% extends 'preview/base_v2.html' %}
+{% set current = 'monit' %}
+{% block title %}Monitoramento · Tronik{% endblock %}
+{% block conteudo %}
+<div id="preview-swap-monit">
+      <div id="monit-spin" class="preview-htmx-spinner" aria-hidden="true">Atualizando painel…</div>
+
+      <div class="page-header">
+        <div class="page-title-group">
+          <h1>Monitoramento</h1>
+          <p>{{ stats.total_coletores }} coletores · {{ cards|length }} listados após filtros · dados do banco</p>
+        </div>
+        <div class="page-actions">
+          <a class="btn" href="{{ url_for('preview.monitoramento', q=filtro_q, nivel=filtro_nivel) }}">
+            <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15"/></svg>
+            Atualizar página
+          </a>
+          <a class="btn" href="{{ url_for('paginas.relatorios') }}">
+            <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M12 10v6m0 0l-3-3m3 3l3-3M3 17V7a2 2 0 012-2h6l2 2h6a2 2 0 012 2v8a2 2 0 01-2 2H5a2 2 0 01-2-2z"/></svg>
+            Relatórios (legado)
+          </a>
+          <a class="btn btn-primary" href="{{ url_for('paginas.configuracoes') }}">
+            <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M12 4v16m8-8H4"/></svg>
+            Gestão de coletores
+          </a>
+        </div>
+      </div>
+
+      <div class="kpi-row">
+        <div class="kpi">
+          <div class="kpi-label">Total de coletores</div>
+          <div class="kpi-value">{{ stats.total_coletores }}</div>
+          <div class="kpi-delta"><strong>{{ stats.criticos }}</strong> em nível crítico (≥95%)</div>
+        </div>
+        <div class="kpi">
+          <div class="kpi-label">Nível médio</div>
+          <div class="kpi-value">{{ stats.nivel_medio }}<span style="font-size:0.5em;color:var(--ink-tertiary);font-weight:400;">%</span></div>
+          <div class="kpi-delta warn"><strong>{{ stats.alertas_ativos }}</strong> ≥ 80% preenchimento</div>
+        </div>
+        <div class="kpi">
+          <div class="kpi-label">Sensores bateria baixa</div>
+          <div class="kpi-value">{{ stats.sensores_bateria_baixa }}</div>
+          <div class="kpi-delta"><strong>&lt; 20%</strong> de carga</div>
+        </div>
+        <div class="kpi">
+          <div class="kpi-label">Coletas hoje</div>
+          <div class="kpi-value">{{ stats.coletas_hoje }}</div>
+          <div class="kpi-delta">registradas em <strong>hoje</strong></div>
+        </div>
+      </div>
+
+      <div class="monit-grid">
+        <section class="coletores-section">
+          <h2>Coletores <span>/ {{ cards|length }} na lista</span></h2>
+
+          <form
+            id="form-monit"
+            class="filter-bar"
+            method="get"
+            action="{{ url_for('preview.monitoramento') }}"
+            hx-get="{{ url_for('preview.monitoramento') }}"
+            hx-target="#preview-swap-monit"
+            hx-select="#preview-swap-monit"
+            hx-swap="outerHTML"
+            hx-push-url="true"
+            hx-indicator="#monit-spin"
+          >
+            <input type="text" class="filter-input" name="q" value="{{ filtro_q }}" placeholder="Buscar por ID, localização ou parceiro..." autocomplete="off">
+            <button type="submit" name="nivel" value="todos" class="filter-chip {% if filtro_nivel == 'todos' %}active{% endif %}">Todos</button>
+            <button type="submit" name="nivel" value="crit" class="filter-chip {% if filtro_nivel == 'crit' %}active{% endif %}">Crítico</button>
+            <button type="submit" name="nivel" value="warn" class="filter-chip {% if filtro_nivel == 'warn' %}active{% endif %}">Atenção</button>
+            <button type="submit" name="nivel" value="ok" class="filter-chip {% if filtro_nivel == 'ok' %}active{% endif %}">Normal</button>
+          </form>
+
+          <div class="coletores-grid">
+            {% for c in cards %}
+            <a class="coletor-card-link" href="{{ url_for('preview.mapa', coletor_id=c.id) }}">
+            <article class="coletor-card {{ c.classe }}" data-coletor-id="{{ c.id }}" data-coletor-nivel="{{ c.nivel }}">
+              <div class="coletor-head">
+                <div>
+                  <div class="coletor-id">{{ c.id_fmt }}</div>
+                  <div class="coletor-name">{{ c.nome }}</div>
+                </div>
+                <span class="badge {{ c.classe }}">{{ c.badge }}</span>
+              </div>
+              <div class="coletor-meta">
+                <svg fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2"><path stroke-linecap="round" stroke-linejoin="round" d="M17.657 16.657L13.414 20.9a1.998 1.998 0 01-2.827 0l-4.244-4.243a8 8 0 1111.314 0z"/></svg>
+                {{ c.parceiro }} · {{ c.tipo_material }}
+              </div>
+              <div class="coletor-level">
+                <div class="level-head">
+                  <span class="level-label">Preenchimento</span>
+                  <span class="level-value">{{ c.nivel }}%</span>
+                </div>
+                <div class="level-bar"><div class="level-fill" data-pct="{% if c.nivel > 100 %}100{% else %}{{ c.nivel }}{% endif %}"></div></div>
+              </div>
+              {% if c.bateria is not none %}
+              <div class="coletor-meta" style="margin-top:var(--space-2);font-size:var(--text-xs);">
+                Bateria média sensores: <strong>{{ c.bateria }}%</strong> · Última coleta: {{ c.ultima_coleta_fmt }}
+              </div>
+              {% endif %}
+            </article>
+            </a>
+            {% else %}
+            <p class="home-subtitle" style="grid-column:1/-1;">Nenhum coletor corresponde aos filtros. <a href="{{ url_for('preview.monitoramento') }}">Limpar busca</a>.</p>
+            {% endfor %}
+          </div>
+        </section>
+
+        <aside class="side-panel">
+          {% if alerta_destaque %}
+          <div class="alert-card">
+            <div class="alert-head">
+              <div class="alert-icon">!</div>
+              <div class="alert-title">Atenção necessária</div>
+            </div>
+            <p class="alert-text">
+              <strong>{{ alerta_destaque.nome }}</strong> ({{ alerta_destaque.id_fmt }}) está com {{ alerta_destaque.nivel }}% de preenchimento.
+              Priorize rota de coleta ou esvaziamento conforme a operação.
+            </p>
+            <div class="alert-actions">
+              <button type="button" class="btn btn-primary" onclick="previewToast('Use a gestão de coletores para registrar a rota ou coleta.', 'ok')">O que faço?</button>
+              <a class="btn" href="{{ url_for('preview.mapa', coletor_id=alerta_destaque.id) }}">Ver no mapa</a>
+            </div>
+          </div>
+          {% endif %}
+
+          <div class="panel-card">
+            <div class="panel-head">
+              <h3>Coletas recentes</h3>
+              <span>Últimas no banco</span>
+            </div>
+            {% for row in coletas_recentes %}
+            <div class="historico-row">
+              <span class="historico-id">{{ row.id_short }}</span>
+              <div class="historico-info">
+                <strong>{{ row.parceiro }}</strong>
+                <span>{{ row.meta }} · {{ row.data_fmt }}</span>
+              </div>
+              <div class="historico-value">{% if row.volume is number %}{{ row.volume }}<em style="font-style:normal;color:var(--ink-tertiary)">kg</em>{% else %}—{% endif %}</div>
+            </div>
+            {% else %}
+            <p style="padding:var(--space-4);color:var(--ink-tertiary);font-size:var(--text-sm);">Nenhuma coleta registrada ainda.</p>
+            {% endfor %}
+          </div>
+        </aside>
+      </div>
+
+      <!-- Paginação -->
+      {% if paginacao.total_paginas > 1 %}
+      <div class="pagination-bar">
+        <div class="pagination-info">
+          Exibindo <strong>{{ cards|length }}</strong> de <strong>{{ paginacao.total_itens }}</strong> coletores
+          (página <strong>{{ paginacao.pagina_atual }}</strong> de <strong>{{ paginacao.total_paginas }}</strong>)
+        </div>
+        <div class="pagination-controls">
+          {% if paginacao.tem_anterior %}
+          <a class="btn pagination-btn" href="{{ url_for('preview.monitoramento', q=filtro_q, nivel=filtro_nivel, page=paginacao.pagina_atual-1) }}">
+            <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polyline points="15 18 9 12 15 6"></polyline></svg>
+            Anterior
+          </a>
+          {% endif %}
+          <div class="pagination-dots">
+            {% for p in range(1, paginacao.total_paginas + 1) %}
+              {% if p == paginacao.pagina_atual %}
+              <span class="pagination-dot active">{{ p }}</span>
+              {% elif (p == 1) or (p == paginacao.total_paginas) or ((p - paginacao.pagina_atual)|abs <= 1) %}
+              <a class="pagination-dot" href="{{ url_for('preview.monitoramento', q=filtro_q, nivel=filtro_nivel, page=p) }}">{{ p }}</a>
+              {% elif (p == 2 and paginacao.pagina_atual > 3) or (p == paginacao.total_paginas - 1 and paginacao.pagina_atual < paginacao.total_paginas - 2) %}
+              <span class="pagination-dot disabled">…</span>
+              {% endif %}
+            {% endfor %}
+          </div>
+          {% if paginacao.tem_proxima %}
+          <a class="btn pagination-btn" href="{{ url_for('preview.monitoramento', q=filtro_q, nivel=filtro_nivel, page=paginacao.pagina_atual+1) }}">
+            Próxima
+            <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polyline points="9 18 15 12 9 6"></polyline></svg>
+          </a>
+          {% endif %}
+        </div>
+      </div>
+      {% endif %}
+</div>
+{% endblock %}

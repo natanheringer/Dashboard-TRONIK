@@ -44,7 +44,11 @@ def test_db():
     
     # Limpar após os testes
     os.close(db_fd)
-    os.unlink(db_path)
+    try:
+        os.unlink(db_path)
+    except PermissionError:
+        # Windows: o driver SQLite por vezes mantém o ficheiro aberto.
+        pass
 
 
 @pytest.fixture(scope='function')
@@ -72,8 +76,9 @@ def db_session(test_db):
 
 
 @pytest.fixture
-def client(test_db, db_session):
+def client(test_db, db_session, monkeypatch):
     """Cria um cliente de teste Flask"""
+    monkeypatch.setenv("TELEMETRIA_ALLOW_NO_TOKEN", "true")
     # Configurar app para testes
     app.config['TESTING'] = True
     app.config['WTF_CSRF_ENABLED'] = False
@@ -82,23 +87,35 @@ def client(test_db, db_session):
     
     # Substituir sessão do banco pela sessão de teste
     app.config['DATABASE_SESSION'] = lambda: db_session
-    
-    # Garantir que limiter existe para testes
-    from rotas.api import decorators
-    if not hasattr(decorators, 'limiter') or decorators.limiter is None:
-        from flask_limiter import Limiter
-        from flask_limiter.util import get_remote_address
-        decorators.limiter = Limiter(
-            app=app,
-            key_func=get_remote_address,
-            default_limits=[],
-            enabled=False  # Desabilitar em testes
-        )
-    
+
+    # Desabilitar rate limiting em testes (o limiter singleton ja esta ligado ao app)
+    from rotas.api._limiter import limiter as api_limiter
+    api_limiter.enabled = False
+
     # Criar cliente de teste
     with app.test_client() as client:
         with app.app_context():
             yield client
+
+
+@pytest.fixture
+def auth_client(client, db_session):
+    """Cliente Flask com sessão autenticada (usuário comum) para GETs da API."""
+    u = Usuario(
+        username="leitor_api",
+        email="leitor_api@test.local",
+        ativo=True,
+        admin=False,
+    )
+    u.set_senha("LeitorApi123!")
+    db_session.add(u)
+    db_session.commit()
+    r = client.post(
+        "/auth/login",
+        json={"username": "leitor_api", "senha": "LeitorApi123!"},
+    )
+    assert r.status_code == 200, r.get_data(as_text=True)
+    return client
 
 
 @pytest.fixture

@@ -1,0 +1,81 @@
+      <div class="page-header">
+        <div class="page-title-group">
+          <h1>Mapa operacional</h1>
+          <p>40 coletores distribuídos em 14 regiões do DF</p>
+        </div>
+        <div class="page-actions">
+          <button class="btn">Ajustar zoom</button>
+          <button class="btn btn-primary">Planejar rota</button>
+        </div>
+      </div>
+
+      <div class="mapa-container">
+        <div class="mapa-fake">
+          <!-- Overlay superior: busca + controles -->
+          <div class="mapa-overlay">
+            <div class="mapa-search">
+              <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" style="color:var(--ink-tertiary)"><circle cx="11" cy="11" r="8"/><path d="M21 21l-4.35-4.35"/></svg>
+              <input type="text" placeholder="Buscar coletor ou endereço...">
+            </div>
+            <div class="mapa-controls">
+              <button class="mapa-ctrl-btn" title="Zoom in">
+                <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M12 5v14M5 12h14"/></svg>
+              </button>
+              <button class="mapa-ctrl-btn" title="Zoom out">
+                <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M5 12h14"/></svg>
+              </button>
+              <button class="mapa-ctrl-btn" title="Localização atual">
+                <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="3"/><path d="M12 2v3m0 14v3M2 12h3m14 0h3"/></svg>
+              </button>
+            </div>
+          </div>
+
+          <!-- Pins simulados -->
+          <div class="mapa-pin cluster" style="top: 30%; left: 35%;">17</div>
+          <div class="mapa-pin cluster" style="top: 42%; left: 48%;">15</div>
+          <div class="mapa-pin cluster" style="top: 20%; left: 55%;">4</div>
+          <div class="mapa-pin cluster" style="top: 62%; left: 40%;">3</div>
+          <div class="mapa-pin cluster crit" style="top: 38%; left: 62%;">1</div>
+          <div class="mapa-pin single" style="top: 55%; left: 68%;"></div>
+          <div class="mapa-pin single" style="top: 48%; left: 30%;"></div>
+          <div class="mapa-pin single warn" style="top: 35%; left: 25%;"></div>
+
+          <!-- Legenda -->
+          <div class="mapa-legenda">
+            <div class="legenda-item"><div class="legenda-dot ok"></div>Normal</div>
+            <div class="legenda-item"><div class="legenda-dot warn"></div>Atenção (≥80%)</div>
+            <div class="legenda-item"><div class="legenda-dot crit"></div>Crítico (≥95%)</div>
+            <div class="legenda-item"><div class="legenda-dot neutral"></div>Manutenção</div>
+          </div>
+
+          <!-- Painel lateral do coletor selecionado -->
+          <div class="mapa-detail">
+            <div class="detail-head">
+              <div class="coletor-id">#L001 · SELECIONADO</div>
+              <h3>Hotel Royal Tulip</h3>
+              <span class="badge crit">Crítico · 96%</span>
+            </div>
+
+            <div class="detail-fill">
+              <div class="detail-fill-value">96<em>%</em></div>
+              <span class="detail-fill-label">Preenchimento atual</span>
+            </div>
+
+            <div>
+              <div class="detail-row"><span>Parceiro</span><strong>Instituto Arapoti</strong></div>
+              <div class="detail-row"><span>Tipo</span><strong>E-waste misto</strong></div>
+              <div class="detail-row"><span>Distância da sede</span><strong>29,7 km</strong></div>
+              <div class="detail-row"><span>Última coleta</span><strong>há 12 dias</strong></div>
+              <div class="detail-row"><span>Bateria do sensor</span><strong>87%</strong></div>
+            </div>
+
+            <div style="display:flex; gap:var(--space-2); margin-top:auto;">
+              <button class="btn btn-primary" style="flex:1">Agendar coleta</button>
+              <button class="btn">⋯</button>
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <!-- ===================== RELATÓRIOS ===================== -->

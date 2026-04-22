@@ -4,6 +4,8 @@ WebSocket Routes - Dashboard-TRONIK
 Rotas WebSocket para atualizações em tempo real.
 """
 
+import os
+
 from flask import Blueprint
 from flask_socketio import SocketIO, emit, join_room, leave_room
 from flask_login import current_user
@@ -19,6 +21,18 @@ websocket_bp = Blueprint('websocket', __name__)
 socketio = None
 
 
+def _origens_socket_io():
+    """Alinha CORS do Engine.IO a ``CORS_ORIGINS`` (mesma lista da API)."""
+    raw = os.getenv(
+        "CORS_ORIGINS",
+        "http://localhost:5000,http://127.0.0.1:5000",
+    )
+    partes = [p.strip() for p in raw.split(",") if p.strip()]
+    if not partes:
+        return ["http://localhost:5000"]
+    return partes
+
+
 def inicializar_websocket(app):
     """
     Inicializa o SocketIO com a aplicação Flask.
@@ -30,7 +44,7 @@ def inicializar_websocket(app):
     try:
         socketio = SocketIO(
             app,
-            cors_allowed_origins="*",
+            cors_allowed_origins=_origens_socket_io(),
             async_mode='threading',
             logger=False,  # Desabilitar logger para evitar problemas
             engineio_logger=False,  # Desabilitar engineio logger

@@ -1,0 +1,65 @@
+{% extends 'preview/base_v2.html' %}
+{% set current = 'home' %}
+{% block title %}Início · Tronik{% endblock %}
+{% block conteudo %}
+      <div class="home-hero">
+        <div class="home-eyebrow">{{ data_longa }}</div>
+        <h1 class="home-greeting">Olá, {{ usuario_nome }}. <em>O que vamos fazer hoje?</em></h1>
+        <p class="home-subtitle">{{ home_subtitulo }}</p>
+      </div>
+
+      <div class="home-grid preview-home-grid">
+        <a class="destino-card featured" href="{{ url_for('preview.monitoramento') }}" style="text-decoration:none;color:inherit;">
+          <div class="destino-header">
+            <span class="destino-label">Operação / 01</span>
+            <div class="destino-arrow">
+              <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M5 12h14M12 5l7 7-7 7"/></svg>
+            </div>
+          </div>
+          <h2 class="destino-title">Monitoramento<br>em tempo real</h2>
+          <p class="destino-description">
+            Acompanhe o nível de preenchimento de todos os coletores ativos, receba alertas automáticos e tome decisões de coleta baseadas em dados reais.
+          </p>
+          <div class="destino-stats">
+            <div class="destino-stat">
+              <strong>{{ stats.total_coletores }}</strong>
+              <span>Coletores</span>
+            </div>
+            <div class="destino-stat">
+              <strong>{{ stats.alertas_ativos }}</strong>
+              <span>Nível ≥ 80%</span>
+            </div>
+            <div class="destino-stat">
+              <strong>{{ stats.nivel_medio }}%</strong>
+              <span>Nível médio</span>
+            </div>
+          </div>
+        </a>
+
+        <a class="destino-card" href="{{ url_for('preview.mapa') }}" style="text-decoration:none;color:inherit;">
+          <div class="destino-header">
+            <span class="destino-label">Operação / 02</span>
+            <div class="destino-arrow">
+              <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M5 12h14M12 5l7 7-7 7"/></svg>
+            </div>
+          </div>
+          <h2 class="destino-title">Mapa<br>e rotas</h2>
+          <p class="destino-description">
+            Visualize a distribuição geográfica com base nas coordenadas cadastradas (ou posição estimada quando ainda não houver GPS).
+          </p>
+        </a>
+
+        <a class="destino-card" href="{{ url_for('preview.relatorios') }}" style="text-decoration:none;color:inherit;">
+          <div class="destino-header">
+            <span class="destino-label">Análise / 03</span>
+            <div class="destino-arrow">
+              <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M5 12h14M12 5l7 7-7 7"/></svg>
+            </div>
+          </div>
+          <h2 class="destino-title">Relatórios<br>operacionais</h2>
+          <p class="destino-description">
+            Volume coletado, quilometragem e indicadores do período — dados vindos das coletas registradas no sistema.
+          </p>
+        </a>
+      </div>
+{% endblock %}

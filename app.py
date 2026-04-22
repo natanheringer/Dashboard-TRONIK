@@ -10,8 +10,6 @@ Aqui devem ser registradas todas as rotas e configurações básicas.
 from flask import Flask, request
 from flask_cors import CORS
 from flask_login import LoginManager
-from flask_limiter import Limiter
-from flask_limiter.util import get_remote_address
 from flask_talisman import Talisman
 from dotenv import load_dotenv
 import os
@@ -31,12 +29,19 @@ from banco_dados.modelos import (
 )
 
 # Importações do sistema de inicialização
-from banco_dados.inicializar import criar_banco, inserir_dados_iniciais, criar_usuario_admin
+from banco_dados.inicializar import (
+    criar_banco,
+    criar_usuario_admin,
+    garantir_usuario_dev,
+    inserir_dados_iniciais,
+)
 from banco_dados.seed_tipos import popular_tipos
 
 # Importações dos blueprints
 from rotas.api import api_bp
+from rotas.api._limiter import limiter  # singleton compartilhado pelos blueprints
 from rotas.paginas import paginas_bp
+from rotas.preview import preview_bp
 from rotas.auth import auth_bp
 from rotas.websocket import inicializar_websocket
 
@@ -75,7 +80,12 @@ def inject_cache_bust():
     # Em desenvolvimento, usar timestamp para forçar atualização
     # Em produção, usar versão fixa (pode ser atualizada manualmente)
     cache_version = int(time.time()) if FLASK_ENV == 'development' else '1.0.0'
-    return dict(cache_version=cache_version)
+    preview_demo_banner = os.getenv('PREVIEW_DEMO_BANNER', 'true').strip().lower() in (
+        '1',
+        'true',
+        'yes',
+    )
+    return dict(cache_version=cache_version, preview_demo_banner_enabled=preview_demo_banner)
 
 # Desabilitar cache de arquivos estáticos em desenvolvimento
 if FLASK_ENV == 'development':
@@ -148,30 +158,38 @@ def load_user_from_request(request):
 
 @login_manager.user_loader
 def load_user(user_id):
-    """Carrega usuário para sessão"""
+    """Carrega usuário para sessão (SQLAlchemy 2.0: Session.get em vez de Query.get)."""
     db = app.config.get('DATABASE_SESSION')
     if db:
         session = db()
         try:
-            return session.query(Usuario).get(int(user_id))
+            return session.get(Usuario, int(user_id))
         finally:
             session.close()
     return None
 
+
+@login_manager.unauthorized_handler
+def _handle_unauthorized():
+    """Rotas /api/* devolvem JSON 401; páginas HTML continuam com redirect ao login."""
+    from flask import jsonify, redirect, request, url_for
+
+    if request.path.startswith('/api/'):
+        return jsonify({
+            'ok': False,
+            'dados': None,
+            'erros': [{'codigo': 'NAO_AUTORIZADO', 'mensagem': 'Autenticacao necessaria'}],
+            'erro': 'Autenticacao necessaria',
+        }), 401
+    return redirect(url_for('auth.login'))
+
 # ========================================
 # FLASK-LIMITER (Rate Limiting)
 # ========================================
-limiter = Limiter(
-    app=app,
-    key_func=get_remote_address,
-    default_limits=["200 per day", "50 per hour"],
-    storage_uri=os.getenv('RATELIMIT_STORAGE_URL', 'memory://'),
-    enabled=os.getenv('RATELIMIT_ENABLED', 'true').lower() == 'true'
-)
-
-# Tornar limiter disponível para os decorators da API
-from rotas.api import decorators
-decorators.limiter = limiter
+# O `limiter` e um singleton criado em rotas/api/_limiter.py. Aqui apenas
+# vinculamos ele ao app via init_app. Os blueprints da API ja importaram
+# esse mesmo objeto e aplicaram @limiter.limit(...) nos endpoints.
+limiter.init_app(app)
 
 # ========================================
 # FLASK-TALISMAN (Headers de Segurança)
@@ -185,11 +203,16 @@ talisman = Talisman(
     strict_transport_security_max_age=31536000,  # 1 ano
     content_security_policy={
         'default-src': "'self'",
-        'script-src': "'self' 'unsafe-inline' https://cdn.jsdelivr.net https://cdn.socket.io",
-        'style-src': "'self' 'unsafe-inline' https://cdn.jsdelivr.net",
-        'img-src': "'self' data: https:",
-        'font-src': "'self' data: https://cdn.jsdelivr.net",
-        'connect-src': "'self' https://cdn.jsdelivr.net https://router.project-osrm.org https://cdn.socket.io",
+        # unpkg mantido por HTML antigo em cache; Leaflet oficialmente em jsdelivr nos templates atuais
+        'script-src': "'self' 'unsafe-inline' https://cdn.jsdelivr.net https://cdn.socket.io https://unpkg.com",
+        'style-src': "'self' 'unsafe-inline' https://cdn.jsdelivr.net https://fonts.googleapis.com https://unpkg.com",
+        'img-src': "'self' data: blob: https:",
+        'font-src': "'self' data: https://cdn.jsdelivr.net https://fonts.gstatic.com",
+        # source maps (.map) podem pedir ao host do CDN + OSM como fallback por fetch em alguns builds
+        'connect-src': (
+            "'self' https://cdn.jsdelivr.net https://router.project-osrm.org "
+            "https://cdn.socket.io https://unpkg.com https://tile.openstreetmap.org"
+        ),
     }
 )
 
@@ -296,6 +319,20 @@ else:
 # Sempre criar todas as tabelas (SQLAlchemy só cria as que não existem)
 Base.metadata.create_all(engine)
 
+from banco_dados.schema_compat import aplicar_compat_schema
+
+aplicar_compat_schema(engine)
+
+# Aviso se preview público estiver ligado em produção
+if (
+    FLASK_ENV == "production"
+    and os.getenv("PREVIEW_PUBLIC", "").strip().lower() in {"1", "true", "yes"}
+):
+    logger.warning(
+        "PREVIEW_PUBLIC esta ativo em producao: /preview fica sem login. "
+        "Desligue para ambientes expostos na Internet."
+    )
+
 # Sempre popular tipos (seguro, não duplica se já existirem)
 logger.info("Populando tabelas de tipos...")
 popular_tipos(engine)
@@ -314,6 +351,8 @@ popular_tipos(engine)
 
 # Sempre verificar/criar usuário admin (pode não existir mesmo se o banco existir)
 criar_usuario_admin(engine)
+# Em desenvolvimento: garante login fixo DEV_* mesmo se já existir outro admin no DB
+garantir_usuario_dev(engine)
 
 # ========================================
 # REGISTRAR BLUEPRINTS
@@ -321,46 +360,54 @@ criar_usuario_admin(engine)
 app.register_blueprint(auth_bp)  # Autenticação primeiro
 app.register_blueprint(api_bp)
 app.register_blueprint(paginas_bp)
+app.register_blueprint(preview_bp)
 
 # ========================================
 # TRATAMENTO DE ERROS
 # ========================================
+# Handler global: qualquer ErroAPI (ou filha) levantada dentro das rotas
+# cai no envelope padronizado definido em banco_dados.utils.erros.
+from banco_dados.utils.erros import ErroAPI, resposta_erro, tratar_erro_api
+
+app.register_error_handler(ErroAPI, tratar_erro_api)
+
+
 @app.errorhandler(404)
 def not_found(error):
     """Tratamento de páginas não encontradas"""
-    from flask import jsonify
     logger.warning(f"404 - Página não encontrada: {request.path}")
     if request.path.startswith('/api/'):
-        return jsonify({"erro": "Endpoint não encontrado"}), 404
-    else:
-        return "<h1>404 - Página não encontrada</h1><p>A página que você procura não existe.</p>", 404
+        return resposta_erro("Endpoint não encontrado", status=404, codigo="NAO_ENCONTRADO")
+    return "<h1>404 - Página não encontrada</h1><p>A página que você procura não existe.</p>", 404
+
 
 @app.errorhandler(403)
 def forbidden(error):
     """Tratamento de acesso negado"""
-    from flask import jsonify
     logger.warning(f"403 - Acesso negado: {request.path}")
     if request.path.startswith('/api/'):
-        return jsonify({"erro": "Acesso negado"}), 403
-    else:
-        return "<h1>403 - Acesso Negado</h1><p>Você não tem permissão para acessar esta página.</p>", 403
+        return resposta_erro("Acesso negado", status=403, codigo="ACESSO_NEGADO")
+    return "<h1>403 - Acesso Negado</h1><p>Você não tem permissão para acessar esta página.</p>", 403
+
 
 @app.errorhandler(429)
 def ratelimit_handler(e):
     """Tratamento de rate limit excedido"""
-    from flask import jsonify
     logger.warning(f"429 - Rate limit excedido: {request.remote_addr}")
-    return jsonify({"erro": "Muitas requisições. Tente novamente mais tarde."}), 429
+    return resposta_erro(
+        "Muitas requisições. Tente novamente mais tarde.",
+        status=429,
+        codigo="RATE_LIMIT",
+    )
+
 
 @app.errorhandler(500)
 def internal_error(error):
     """Tratamento de erros internos"""
-    from flask import jsonify
-    logger.error(f"500 - Erro interno: {str(error)}")
+    logger.error(f"500 - Erro interno: {error}")
     if request.path.startswith('/api/'):
-        return jsonify({"erro": "Erro interno do servidor"}), 500
-    else:
-        return "<h1>500 - Erro Interno</h1><p>Ocorreu um erro no servidor.</p>", 500 
+        return resposta_erro("Erro interno do servidor", status=500, codigo="ERRO_INTERNO")
+    return "<h1>500 - Erro Interno</h1><p>Ocorreu um erro no servidor.</p>", 500
 
 # ========================================
 # EXECUÇÃO DA APLICAÇÃO

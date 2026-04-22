@@ -1,0 +1,178 @@
+/* Modal “nova dashboard em demo” — legado base.html */
+
+.preview-demo-overlay {
+  position: fixed;
+  inset: 0;
+  z-index: 10050;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 1.25rem;
+  background: rgba(28, 24, 16, 0.45);
+  backdrop-filter: blur(6px);
+  -webkit-backdrop-filter: blur(6px);
+  opacity: 0;
+  visibility: hidden;
+  transition: opacity 0.35s ease, visibility 0.35s ease;
+}
+
+.preview-demo-overlay.is-visible {
+  opacity: 1;
+  visibility: visible;
+}
+
+.preview-demo-overlay.is-visible .preview-demo-card {
+  transform: translateY(0) scale(1);
+  opacity: 1;
+}
+
+.preview-demo-card {
+  width: min(440px, 100%);
+  max-height: min(88vh, 560px);
+  overflow: auto;
+  border-radius: 18px;
+  padding: 1.75rem 1.75rem 1.5rem;
+  background: linear-gradient(155deg, #faf6ea 0%, #f4efe3 45%, #ebe4d2 100%);
+  border: 1px solid #d8cdb2;
+  box-shadow:
+    0 24px 48px rgba(75, 56, 30, 0.18),
+    0 0 0 1px rgba(255, 255, 255, 0.5) inset;
+  transform: translateY(14px) scale(0.96);
+  opacity: 0;
+  transition:
+    transform 0.45s cubic-bezier(0.22, 1, 0.36, 1),
+    opacity 0.4s ease;
+}
+
+.preview-demo-badge {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.35rem;
+  font-size: 0.7rem;
+  font-weight: 700;
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+  color: #fffdf7;
+  background: linear-gradient(135deg, #1a5d3a, #134428);
+  padding: 0.35rem 0.65rem;
+  border-radius: 999px;
+  margin-bottom: 0.85rem;
+  box-shadow: 0 2px 8px rgba(26, 93, 58, 0.35);
+}
+
+.preview-demo-title {
+  font-size: 1.35rem;
+  font-weight: 700;
+  color: #1c1810;
+  line-height: 1.25;
+  margin: 0 0 0.65rem;
+}
+
+.preview-demo-title em {
+  font-style: normal;
+  color: #1a5d3a;
+}
+
+.preview-demo-text {
+  font-size: 0.95rem;
+  line-height: 1.55;
+  color: #4a423a;
+  margin: 0 0 1.35rem;
+}
+
+.preview-demo-actions {
+  display: flex;
+  flex-direction: column;
+  gap: 0.65rem;
+}
+
+@media (min-width: 480px) {
+  .preview-demo-actions {
+    flex-direction: row;
+    flex-wrap: wrap;
+  }
+}
+
+.preview-demo-btn {
+  flex: 1;
+  min-width: 0;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 0.45rem;
+  padding: 0.75rem 1rem;
+  font-size: 0.9rem;
+  font-weight: 600;
+  border-radius: 10px;
+  border: none;
+  cursor: pointer;
+  transition:
+    transform 0.18s ease,
+    box-shadow 0.2s ease,
+    background 0.2s ease;
+}
+
+.preview-demo-btn:active {
+  transform: scale(0.98);
+}
+
+.preview-demo-btn--primary {
+  color: #fffdf7;
+  background: linear-gradient(180deg, #1f6d45, #1a5d3a);
+  box-shadow: 0 4px 14px rgba(26, 93, 58, 0.35);
+}
+
+.preview-demo-btn--primary:hover {
+  box-shadow: 0 6px 20px rgba(26, 93, 58, 0.45);
+}
+
+.preview-demo-btn--ghost {
+  color: #4a423a;
+  background: rgba(255, 253, 247, 0.75);
+  border: 1px solid #d8cdb2;
+}
+
+.preview-demo-btn--ghost:hover {
+  background: #fffdf7;
+}
+
+.preview-demo-foot {
+  margin-top: 1rem;
+  font-size: 0.75rem;
+  color: #87796a;
+  text-align: center;
+}
+
+.preview-demo-close {
+  position: absolute;
+  top: 0.85rem;
+  right: 0.85rem;
+  width: 2rem;
+  height: 2rem;
+  border: none;
+  border-radius: 8px;
+  background: rgba(255, 253, 247, 0.65);
+  color: #4a423a;
+  font-size: 1.25rem;
+  line-height: 1;
+  cursor: pointer;
+  transition: background 0.2s ease;
+}
+
+.preview-demo-close:hover {
+  background: #fffdf7;
+}
+
+.preview-demo-card-wrap {
+  position: relative;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .preview-demo-overlay,
+  .preview-demo-card {
+    transition: none;
+  }
+  .preview-demo-overlay.is-visible .preview-demo-card {
+    transform: none;
+  }
+}

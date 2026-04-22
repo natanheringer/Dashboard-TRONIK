@@ -1,124 +1,51 @@
-# ========================================
-# DASHBOARD-TRONIK - DEPENDÊNCIAS PYTHON
-# ========================================
+# ============================================================================
+# DASHBOARD-TRONIK - Dependencias Python
+# ============================================================================
+# Instalacao:
+#   pip install -r requirements.txt
 #
-# Este arquivo contém todas as dependências necessárias
-# para executar o projeto Dashboard-TRONIK.
-#
-# COMO INSTALAR:
-# 1. Certifique-se de ter Python 3.8+ instalado
-# 2. Abra o terminal na pasta do projeto
-# 3. Execute: pip install -r requirements.txt
-#
-# VERIFICAR INSTALAÇÃO:
-# Execute: python -c "import flask; print('Flask instalado!')"
-#
-# ========================================
+# Verificacao:
+#   python -c "import flask, sqlalchemy, pydantic; print('ok')"
+# ============================================================================
 
-# Framework web principal
-Flask==2.3.3
-# Flask é o framework web que usaremos para criar a API
-# e servir as páginas HTML do dashboard
+# --- Web framework ----------------------------------------------------------
+Flask>=3.1.3,<4.0
+Flask-CORS>=6.0.0,<7.0
+Werkzeug>=3.1.6,<4.0
+gunicorn>=23.0.0,<24.0
 
-# Permite requisições de diferentes origens (CORS)
-Flask-CORS==4.0.0
-# Necessário para o frontend se comunicar com a API
-# sem problemas de CORS no navegador
-
-# ORM para banco de dados
+# --- Banco de dados ---------------------------------------------------------
 SQLAlchemy>=2.0.23
-# SQLAlchemy facilita o trabalho com banco de dados
-# Permite criar modelos e fazer queries de forma simples
-# Versão atualizada para compatibilidade com Python 3.13
-
-# Manipulação de datas
-python-dateutil==2.8.2
-# Facilita trabalhar com datas e horários
-# Útil para timestamps das coletas
-
-# Requisições HTTP (se precisar chamar APIs externas)
-requests==2.31.0
-# Biblioteca para fazer requisições HTTP
-# Pode ser útil para integrações futuras
-
-# Variáveis de ambiente
-python-dotenv==1.0.0
-# Permite carregar configurações de arquivo .env
-# Útil para manter senhas e configurações seguras
-
-# Autenticação e segurança
-Flask-Login==0.6.3
-# Sistema de autenticação de usuários
-# Gerencia sessões de login de forma segura
-
-Flask-Limiter==3.5.0
-# Rate limiting para proteção contra abuso
-# Limita número de requisições por IP/usuário
-
-Werkzeug==3.0.1
-# Necessário para hash de senhas
-# Já incluído com Flask, mas especificamos versão
-
-marshmallow==3.20.1
-# Validação e serialização de dados
-# Protege contra dados inválidos e maliciosos
-
-# Headers de segurança
-Flask-Talisman==1.1.0
-# Adiciona headers de segurança HTTP
-# Proteção contra XSS, clickjacking, etc.
-
-# Envio de emails
-Flask-Mail==0.9.1
-# Sistema de notificações por email
-# Envio de alertas e notificações do sistema
-
-# Agendamento de tarefas
-APScheduler==3.10.4
-# Sistema de agendamento para processar alertas automaticamente
-# Permite executar tarefas em intervalos regulares
-
-# Geração de PDFs
-reportlab==4.0.7
-# Biblioteca para gerar relatórios em PDF
-# Usado para exportação de relatórios financeiros e de coletas
-
-# WebSocket para atualizações em tempo real
-Flask-SocketIO==5.3.6
-# Sistema de WebSocket para atualizações em tempo real
-# Permite notificações push e atualizações sem polling
-
-# Servidor WSGI para produção
-gunicorn==21.2.0
-# Servidor WSGI HTTP para produção
-# Necessário para deploy em Render.com, Heroku, etc.
-
-# Driver PostgreSQL para SQLAlchemy
-# Usando psycopg (psycopg3) que suporta Python 3.13
+# psycopg v3 (suporta Python 3.13+; substituto de psycopg2-binary)
 psycopg[binary]==3.2.13
-# psycopg3 é a versão moderna que suporta Python 3.13
-# Versão 3.2.13 é a mais recente estável
-# Alternativa: psycopg2-binary==2.9.9 (requer Python 3.12 ou inferior)
 
-# ========================================
-# DEPENDÊNCIAS DE DESENVOLVIMENTO (OPCIONAL)
-# ========================================
-# Descomente as linhas abaixo se quiser usar:
+# --- Auth / rate limiting / seguranca --------------------------------------
+Flask-Login==0.6.3
+Flask-Limiter==3.5.0
+Flask-Talisman==1.1.0
 
-# Auto-reload durante desenvolvimento
-# Flask-DebugToolbar==0.13.1
+# --- Validacao / contratos de API ------------------------------------------
+# Pydantic v2 e o contrato oficial dos payloads de endpoint (ver banco_dados/contratos.py).
+pydantic>=2.6,<3.0
 
-# Testes automatizados
-pytest==7.4.2
-pytest-flask==1.2.0
+# --- Notificacoes / agendamento --------------------------------------------
+Flask-Mail==0.9.1
+APScheduler==3.10.4
+
+# --- Realtime ---------------------------------------------------------------
+Flask-SocketIO==5.3.6
+
+# --- Utilidades -------------------------------------------------------------
+python-dateutil==2.8.2
+python-dotenv>=1.2.2,<2.0
+requests>=2.32.4,<3.0
+reportlab==4.0.7
+
+# --- Desenvolvimento e testes ----------------------------------------------
+pytest>=8.3.3,<9.0
+pytest-flask>=1.3.0
 pytest-cov==4.1.0
 
-# Formatação de código
-# black==23.7.0
-# flake8==6.0.0
-
-# ========================================
-# VERIFICAÇÃO DE INSTALAÇÃO
-# ========================================
-# Após instalar, teste com:
-# python -c "import flask, flask_cors, sqlalchemy; print('Todas as dependências instaladas!')"
+# Lint e format (opcional em dev; pre-commit usa as mesmas versoes):
+# ruff>=0.5.0
+# black>=24.3.0

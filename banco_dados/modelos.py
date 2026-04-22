@@ -201,6 +201,8 @@ class Sensor(Base):
     tipo_sensor_id = Column(Integer, ForeignKey("tipo_sensor.id"), nullable=True, index=True)
     bateria = Column(Float, default=100.0)
     ultimo_ping = Column(DateTime, default=utc_now_naive)
+    # Token opaco para POST /api/sensor/telemetria (firmware); nunca expor em listagens.
+    api_token = Column(String(128), nullable=True, index=True)
 
     # Relacionamentos
     coletor = relationship("Coletor", back_populates="sensores")

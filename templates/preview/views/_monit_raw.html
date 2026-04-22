@@ -1,0 +1,249 @@
+      <div class="page-header">
+        <div class="page-title-group">
+          <h1>Monitoramento</h1>
+          <p>40 coletores ativos · sincronizado em tempo real</p>
+        </div>
+        <div class="page-actions">
+          <button class="btn">
+            <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15"/></svg>
+            Atualizar
+          </button>
+          <button class="btn">
+            <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M12 10v6m0 0l-3-3m3 3l3-3M3 17V7a2 2 0 012-2h6l2 2h6a2 2 0 012 2v8a2 2 0 01-2 2H5a2 2 0 01-2-2z"/></svg>
+            Exportar
+          </button>
+          <button class="btn btn-primary">
+            <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M12 4v16m8-8H4"/></svg>
+            Novo coletor
+          </button>
+        </div>
+      </div>
+
+      <!-- KPIs -->
+      <div class="kpi-row">
+        <div class="kpi">
+          <div class="kpi-label">Total de coletores</div>
+          <div class="kpi-value">40</div>
+          <div class="kpi-delta"><strong>+2</strong> nos últimos 30 dias</div>
+          <svg class="kpi-spark" viewBox="0 0 60 24" fill="none"><polyline points="0,18 10,14 20,16 30,10 40,12 50,6 60,8" stroke="#1a5d3a" stroke-width="1.5" fill="none"/></svg>
+        </div>
+        <div class="kpi">
+          <div class="kpi-label">Nível médio</div>
+          <div class="kpi-value">73<span style="font-size:0.5em;color:var(--ink-tertiary);font-weight:400;">%</span></div>
+          <div class="kpi-delta warn"><strong>+12pts</strong> vs. semana passada</div>
+          <svg class="kpi-spark" viewBox="0 0 60 24" fill="none"><polyline points="0,20 10,18 20,16 30,14 40,12 50,8 60,4" stroke="#b0661e" stroke-width="1.5" fill="none"/></svg>
+        </div>
+        <div class="kpi">
+          <div class="kpi-label">Alertas ativos</div>
+          <div class="kpi-value">2</div>
+          <div class="kpi-delta"><strong>1 crítico</strong>, 1 atenção</div>
+          <svg class="kpi-spark" viewBox="0 0 60 24" fill="none"><polyline points="0,20 10,22 20,18 30,20 40,14 50,16 60,8" stroke="#9b2a1f" stroke-width="1.5" fill="none"/></svg>
+        </div>
+        <div class="kpi">
+          <div class="kpi-label">Coletas hoje</div>
+          <div class="kpi-value">3</div>
+          <div class="kpi-delta"><strong>87kg</strong> coletados</div>
+          <svg class="kpi-spark" viewBox="0 0 60 24" fill="none"><polyline points="0,20 10,16 20,18 30,12 40,14 50,10 60,6" stroke="#1a5d3a" stroke-width="1.5" fill="none"/></svg>
+        </div>
+      </div>
+
+      <!-- Grid principal: coletores + painel -->
+      <div class="monit-grid">
+        <section class="coletores-section">
+          <h2>Coletores <span>/ 40 unidades</span></h2>
+
+          <div class="filter-bar">
+            <input type="text" class="filter-input" placeholder="Buscar por ID, localização ou parceiro...">
+            <button class="filter-chip active">Todos</button>
+            <button class="filter-chip">Crítico</button>
+            <button class="filter-chip">Atenção</button>
+            <button class="filter-chip">Normal</button>
+          </div>
+
+          <div class="coletores-grid">
+            <div class="coletor-card crit">
+              <div class="coletor-head">
+                <div>
+                  <div class="coletor-id">#L001</div>
+                  <div class="coletor-name">Hotel Royal Tulip</div>
+                </div>
+                <span class="badge crit">Crítico</span>
+              </div>
+              <div class="coletor-meta">
+                <svg fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2"><path stroke-linecap="round" stroke-linejoin="round" d="M17.657 16.657L13.414 20.9a1.998 1.998 0 01-2.827 0l-4.244-4.243a8 8 0 1111.314 0z"/></svg>
+                Asa Sul · 29,7km da sede
+              </div>
+              <div class="coletor-level">
+                <div class="level-head">
+                  <span class="level-label">Preenchimento</span>
+                  <span class="level-value">96%</span>
+                </div>
+                <div class="level-bar"><div class="level-fill" style="width:96%"></div></div>
+              </div>
+            </div>
+
+            <div class="coletor-card warn">
+              <div class="coletor-head">
+                <div>
+                  <div class="coletor-id">#L014</div>
+                  <div class="coletor-name">Taguatinga Shopping</div>
+                </div>
+                <span class="badge warn">Atenção</span>
+              </div>
+              <div class="coletor-meta">
+                <svg fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2"><path stroke-linecap="round" stroke-linejoin="round" d="M17.657 16.657L13.414 20.9a1.998 1.998 0 01-2.827 0l-4.244-4.243a8 8 0 1111.314 0z"/></svg>
+                Taguatinga · 35,4km da sede
+              </div>
+              <div class="coletor-level">
+                <div class="level-head">
+                  <span class="level-label">Preenchimento</span>
+                  <span class="level-value">84%</span>
+                </div>
+                <div class="level-bar"><div class="level-fill" style="width:84%"></div></div>
+              </div>
+            </div>
+
+            <div class="coletor-card">
+              <div class="coletor-head">
+                <div>
+                  <div class="coletor-id">#L002</div>
+                  <div class="coletor-name">Central Park</div>
+                </div>
+                <span class="badge ok">Normal</span>
+              </div>
+              <div class="coletor-meta">
+                <svg fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2"><path stroke-linecap="round" stroke-linejoin="round" d="M17.657 16.657L13.414 20.9a1.998 1.998 0 01-2.827 0l-4.244-4.243a8 8 0 1111.314 0z"/></svg>
+                Lago Sul · 4,4km da sede
+              </div>
+              <div class="coletor-level">
+                <div class="level-head">
+                  <span class="level-label">Preenchimento</span>
+                  <span class="level-value">42%</span>
+                </div>
+                <div class="level-bar"><div class="level-fill" style="width:42%"></div></div>
+              </div>
+            </div>
+
+            <div class="coletor-card">
+              <div class="coletor-head">
+                <div>
+                  <div class="coletor-id">#L003</div>
+                  <div class="coletor-name">Liliane</div>
+                </div>
+                <span class="badge ok">Normal</span>
+              </div>
+              <div class="coletor-meta">
+                <svg fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2"><path stroke-linecap="round" stroke-linejoin="round" d="M17.657 16.657L13.414 20.9a1.998 1.998 0 01-2.827 0l-4.244-4.243a8 8 0 1111.314 0z"/></svg>
+                Sudoeste · 12,1km da sede
+              </div>
+              <div class="coletor-level">
+                <div class="level-head">
+                  <span class="level-label">Preenchimento</span>
+                  <span class="level-value">38%</span>
+                </div>
+                <div class="level-bar"><div class="level-fill" style="width:38%"></div></div>
+              </div>
+            </div>
+
+            <div class="coletor-card">
+              <div class="coletor-head">
+                <div>
+                  <div class="coletor-id">#L005</div>
+                  <div class="coletor-name">Janaína</div>
+                </div>
+                <span class="badge ok">Normal</span>
+              </div>
+              <div class="coletor-meta">
+                <svg fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2"><path stroke-linecap="round" stroke-linejoin="round" d="M17.657 16.657L13.414 20.9a1.998 1.998 0 01-2.827 0l-4.244-4.243a8 8 0 1111.314 0z"/></svg>
+                Noroeste · 18,0km da sede
+              </div>
+              <div class="coletor-level">
+                <div class="level-head">
+                  <span class="level-label">Preenchimento</span>
+                  <span class="level-value">27%</span>
+                </div>
+                <div class="level-bar"><div class="level-fill" style="width:27%"></div></div>
+              </div>
+            </div>
+
+            <div class="coletor-card">
+              <div class="coletor-head">
+                <div>
+                  <div class="coletor-id">#L007</div>
+                  <div class="coletor-name">Japa BigNet</div>
+                </div>
+                <span class="badge neutral">Manutenção</span>
+              </div>
+              <div class="coletor-meta">
+                <svg fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2"><path stroke-linecap="round" stroke-linejoin="round" d="M17.657 16.657L13.414 20.9a1.998 1.998 0 01-2.827 0l-4.244-4.243a8 8 0 1111.314 0z"/></svg>
+                Águas Claras · 8,8km da sede
+              </div>
+              <div class="coletor-level">
+                <div class="level-head">
+                  <span class="level-label">Preenchimento</span>
+                  <span class="level-value">—</span>
+                </div>
+                <div class="level-bar"><div class="level-fill" style="width:0%"></div></div>
+              </div>
+            </div>
+          </div>
+        </section>
+
+        <aside class="side-panel">
+          <div class="alert-card">
+            <div class="alert-head">
+              <div class="alert-icon">!</div>
+              <div class="alert-title">Atenção necessária</div>
+            </div>
+            <p class="alert-text">
+              O Hotel Royal Tulip (L001) está a 96% de preenchimento e nenhuma coleta está agendada. Recomenda-se ação nas próximas 6 horas.
+            </p>
+            <div class="alert-actions">
+              <button class="btn btn-primary">Agendar coleta</button>
+              <button class="btn">Ver no mapa</button>
+            </div>
+          </div>
+
+          <div class="panel-card">
+            <div class="panel-head">
+              <h3>Histórico recente</h3>
+              <span>Últimas 24h</span>
+            </div>
+            <div class="historico-row">
+              <span class="historico-id">L019</span>
+              <div class="historico-info">
+                <strong>ECOGRANA</strong>
+                <span>20,1km · avulsa</span>
+              </div>
+              <div class="historico-value">71<em style="font-style:normal;color:var(--ink-tertiary)">kg</em></div>
+            </div>
+            <div class="historico-row">
+              <span class="historico-id">L035</span>
+              <div class="historico-info">
+                <strong>MAGDA</strong>
+                <span>38km · avulsa</span>
+              </div>
+              <div class="historico-value">50<em style="font-style:normal;color:var(--ink-tertiary)">kg</em></div>
+            </div>
+            <div class="historico-row">
+              <span class="historico-id">L036</span>
+              <div class="historico-info">
+                <strong>Igreja ADE</strong>
+                <span>3km · avulsa</span>
+              </div>
+              <div class="historico-value">25<em style="font-style:normal;color:var(--ink-tertiary)">kg</em></div>
+            </div>
+            <div class="historico-row">
+              <span class="historico-id">L034</span>
+              <div class="historico-info">
+                <strong>Melina Brasil 21</strong>
+                <span>38km · avulsa</span>
+              </div>
+              <div class="historico-value">750<em style="font-style:normal;color:var(--ink-tertiary)">kg</em></div>
+            </div>
+          </div>
+        </aside>
+      </div>
+    </div>
+
+    <!-- ===================== MAPA ===================== -->

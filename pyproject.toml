@@ -1,0 +1,95 @@
+# ============================================================================
+# Dashboard-TRONIK - Configuracao de tooling Python
+# ============================================================================
+# Este arquivo nao declara a aplicacao como um package instalavel (ainda).
+# Ele existe para centralizar configuracao de ruff, black, pytest e afins,
+# que eram espalhados em arquivos ad-hoc antes.
+# ============================================================================
+
+[tool.ruff]
+line-length = 100
+target-version = "py311"
+extend-exclude = [
+    "documentacao_legado",
+    "db_tronik",
+    "deploy",
+    "docs",
+    "diagrama_arquitetura_dashboard.svg",
+]
+
+[tool.ruff.lint]
+# Regras selecionadas: erros de sintaxe/bugs (E, F), imports (I), pycodestyle warnings (W),
+# pyupgrade (UP), bugbear (B), comprehensions (C4), simplify (SIM), naming (N).
+select = [
+    "E",    # pycodestyle errors
+    "F",    # pyflakes
+    "W",    # pycodestyle warnings
+    "I",    # isort
+    "UP",   # pyupgrade
+    "B",    # flake8-bugbear
+    "C4",   # flake8-comprehensions
+    "SIM",  # flake8-simplify
+    "N",    # pep8-naming
+]
+ignore = [
+    "E501",  # line length: deixamos o formatter resolver
+    "N806",  # vars maiusculas em funcoes (temos SessionLocal, Base, etc.)
+    "N802",  # funcoes em minusculas nao-snake_case (algumas rotas legadas)
+    "B008",  # chamadas no default value (Flask usa esse padrao em alguns decorators)
+    "SIM108", # usar ternario em vez de if/else (nem sempre mais legivel)
+]
+
+[tool.ruff.lint.per-file-ignores]
+"tests/**" = ["B011", "F841", "N802"]
+"scripts/**" = ["T201", "T203"]  # prints sao OK em scripts
+
+[tool.ruff.lint.isort]
+known-first-party = ["banco_dados", "rotas"]
+combine-as-imports = true
+
+[tool.ruff.format]
+quote-style = "double"
+indent-style = "space"
+line-ending = "auto"
+
+# ----------------------------------------------------------------------------
+# Black (fallback caso alguem prefira, mas ruff-format ja cobre)
+# ----------------------------------------------------------------------------
+[tool.black]
+line-length = 100
+target-version = ["py311", "py312"]
+extend-exclude = "documentacao_legado|db_tronik|deploy|docs"
+
+# ----------------------------------------------------------------------------
+# Pytest (complementa pytest.ini existente)
+# ----------------------------------------------------------------------------
+[tool.pytest.ini_options]
+testpaths = ["tests"]
+python_files = ["test_*.py"]
+filterwarnings = [
+    "ignore::DeprecationWarning:flask_limiter.*",
+    "ignore::DeprecationWarning:sqlalchemy.*",
+]
+
+# ----------------------------------------------------------------------------
+# Cobertura (quando rodar com pytest-cov)
+# ----------------------------------------------------------------------------
+[tool.coverage.run]
+source = ["rotas", "banco_dados"]
+branch = true
+omit = [
+    "*/migrar_*.py",
+    "*/importar_csv.py",
+    "*/geocodificar_*.py",
+    "tests/*",
+]
+
+[tool.coverage.report]
+skip_empty = true
+show_missing = true
+precision = 1
+exclude_lines = [
+    "pragma: no cover",
+    "if __name__ == .__main__.:",
+    "raise NotImplementedError",
+]

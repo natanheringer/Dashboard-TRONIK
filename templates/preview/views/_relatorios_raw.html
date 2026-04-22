@@ -1,0 +1,253 @@
+      <div class="page-header">
+        <div class="page-title-group">
+          <h1>Relatórios</h1>
+          <p>Desempenho operacional do período selecionado</p>
+        </div>
+        <div class="page-actions">
+          <button class="btn">
+            <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M12 10v6m0 0l-3-3m3 3l3-3M3 17V7a2 2 0 012-2h6l2 2h6a2 2 0 012 2v8a2 2 0 01-2 2H5a2 2 0 01-2-2z"/></svg>
+            Exportar PDF
+          </button>
+          <button class="btn btn-primary">Gerar relatório</button>
+        </div>
+      </div>
+
+      <div class="rel-layout">
+        <!-- Filtros laterais -->
+        <aside class="rel-filters">
+          <h3>Filtros</h3>
+
+          <div class="rel-filter-group">
+            <label>Período</label>
+            <div class="rel-period-chips">
+              <button class="rel-period-chip">7d</button>
+              <button class="rel-period-chip active">30d</button>
+              <button class="rel-period-chip">90d</button>
+              <button class="rel-period-chip">Ano</button>
+            </div>
+          </div>
+
+          <div class="rel-filter-group">
+            <label>De</label>
+            <input type="date" value="2026-03-15">
+          </div>
+
+          <div class="rel-filter-group">
+            <label>Até</label>
+            <input type="date" value="2026-04-14">
+          </div>
+
+          <div class="rel-filter-group">
+            <label>Parceiro</label>
+            <select>
+              <option>Todos os parceiros</option>
+              <option>Instituto Arapoti</option>
+              <option>ECOGRANA</option>
+              <option>Taguatinga Shopping</option>
+            </select>
+          </div>
+
+          <div class="rel-filter-group">
+            <label>Tipo de operação</label>
+            <select>
+              <option>Todas</option>
+              <option>Avulsa</option>
+              <option>Campanha</option>
+              <option>Recorrente</option>
+            </select>
+          </div>
+
+          <button class="btn btn-primary" style="width:100%; margin-top:var(--space-4); justify-content:center;">Aplicar filtros</button>
+        </aside>
+
+        <!-- Conteúdo principal -->
+        <div class="rel-main">
+          <!-- Hero insight editorial -->
+          <div class="rel-hero">
+            <div class="rel-hero-label">Resumo executivo · Março – Abril</div>
+            <div class="rel-hero-text">
+              Nos últimos 30 dias, a operação coletou <strong>3.444 kg</strong> de resíduos eletrônicos em <strong>50 coletas</strong>, percorrendo <strong>1.511 km</strong> entre 14 regiões do Distrito Federal.
+            </div>
+            <div class="rel-hero-footnote">
+              Resultado operacional bruto de R$ 841,26 · Custo de combustível R$ 2.603,01 · Dados atualizados em tempo real
+            </div>
+          </div>
+
+          <!-- Grade de métricas -->
+          <div class="rel-metric-grid">
+            <div class="rel-metric">
+              <div class="rel-metric-label">Total coletas</div>
+              <div class="rel-metric-value">50</div>
+              <div class="rel-metric-hint">+12 vs. período anterior</div>
+            </div>
+            <div class="rel-metric">
+              <div class="rel-metric-label">Volume total</div>
+              <div class="rel-metric-value">3.444<em>kg</em></div>
+              <div class="rel-metric-hint">média 68,9kg/coleta</div>
+            </div>
+            <div class="rel-metric">
+              <div class="rel-metric-label">Quilometragem</div>
+              <div class="rel-metric-value">1.511<em>km</em></div>
+              <div class="rel-metric-hint">30,2km/coleta</div>
+            </div>
+            <div class="rel-metric">
+              <div class="rel-metric-label">Resultado bruto</div>
+              <div class="rel-metric-value">R$ 841</div>
+              <div class="rel-metric-hint">R$ 16,83/coleta</div>
+            </div>
+            <div class="rel-metric">
+              <div class="rel-metric-label">CO₂ evitado</div>
+              <div class="rel-metric-value">4,96<em>t</em></div>
+              <div class="rel-metric-hint">equiv. 25 árvores/ano</div>
+            </div>
+          </div>
+
+          <!-- Gráficos -->
+          <div class="rel-charts">
+            <div class="rel-chart-card">
+              <div class="rel-chart-head">
+                <h3>Evolução de coletas</h3>
+                <span>30 dias</span>
+              </div>
+              <svg class="rel-line-chart" viewBox="0 0 600 220" preserveAspectRatio="none">
+                <!-- Grid lines -->
+                <line x1="40" y1="30" x2="580" y2="30" stroke="#e4d9bd" stroke-width="1"/>
+                <line x1="40" y1="75" x2="580" y2="75" stroke="#e4d9bd" stroke-width="1"/>
+                <line x1="40" y1="120" x2="580" y2="120" stroke="#e4d9bd" stroke-width="1"/>
+                <line x1="40" y1="165" x2="580" y2="165" stroke="#e4d9bd" stroke-width="1"/>
+                <line x1="40" y1="210" x2="580" y2="210" stroke="#d8cdb2" stroke-width="1"/>
+
+                <!-- Y labels -->
+                <text x="30" y="35" font-family="IBM Plex Mono" font-size="9" fill="#87796a" text-anchor="end">6</text>
+                <text x="30" y="80" font-family="IBM Plex Mono" font-size="9" fill="#87796a" text-anchor="end">4</text>
+                <text x="30" y="125" font-family="IBM Plex Mono" font-size="9" fill="#87796a" text-anchor="end">2</text>
+                <text x="30" y="170" font-family="IBM Plex Mono" font-size="9" fill="#87796a" text-anchor="end">1</text>
+                <text x="30" y="215" font-family="IBM Plex Mono" font-size="9" fill="#87796a" text-anchor="end">0</text>
+
+                <!-- Area fill -->
+                <path d="M 40 185 L 80 170 L 120 165 L 160 150 L 200 155 L 240 130 L 280 135 L 320 115 L 360 125 L 400 100 L 440 90 L 480 75 L 520 60 L 560 45 L 580 40 L 580 210 L 40 210 Z"
+                      fill="url(#grad)" opacity="0.3"/>
+
+                <!-- Gradient -->
+                <defs>
+                  <linearGradient id="grad" x1="0%" y1="0%" x2="0%" y2="100%">
+                    <stop offset="0%" stop-color="#1a5d3a" stop-opacity="0.4"/>
+                    <stop offset="100%" stop-color="#1a5d3a" stop-opacity="0"/>
+                  </linearGradient>
+                </defs>
+
+                <!-- Line -->
+                <polyline points="40,185 80,170 120,165 160,150 200,155 240,130 280,135 320,115 360,125 400,100 440,90 480,75 520,60 560,45 580,40"
+                          fill="none" stroke="#1a5d3a" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/>
+
+                <!-- Points -->
+                <circle cx="580" cy="40" r="4" fill="#1a5d3a"/>
+                <circle cx="580" cy="40" r="7" fill="#1a5d3a" opacity="0.2"/>
+
+                <!-- X labels -->
+                <text x="40" y="228" font-family="IBM Plex Mono" font-size="9" fill="#87796a">15/mar</text>
+                <text x="260" y="228" font-family="IBM Plex Mono" font-size="9" fill="#87796a" text-anchor="middle">30/mar</text>
+                <text x="460" y="228" font-family="IBM Plex Mono" font-size="9" fill="#87796a" text-anchor="middle">07/abr</text>
+                <text x="580" y="228" font-family="IBM Plex Mono" font-size="9" fill="#87796a" text-anchor="end">14/abr</text>
+              </svg>
+            </div>
+
+            <div class="rel-chart-card">
+              <div class="rel-chart-head">
+                <h3>Top coletores</h3>
+                <span>Mais coletados</span>
+              </div>
+              <div class="rel-top-list">
+                <div class="rel-top-item">
+                  <div class="rel-top-rank gold">01</div>
+                  <div class="rel-top-body">
+                    <strong>L016 · Gamaggiore</strong>
+                    <span>Condomínio Residencial</span>
+                  </div>
+                  <div class="rel-top-value">4 coletas</div>
+                </div>
+                <div class="rel-top-item">
+                  <div class="rel-top-rank">02</div>
+                  <div class="rel-top-body">
+                    <strong>L019 · ECOGRANA</strong>
+                    <span>Parceiro recorrente</span>
+                  </div>
+                  <div class="rel-top-value">3 coletas</div>
+                </div>
+                <div class="rel-top-item">
+                  <div class="rel-top-rank">03</div>
+                  <div class="rel-top-body">
+                    <strong>L021 · Shopping Conjunto</strong>
+                    <span>Campanha especial</span>
+                  </div>
+                  <div class="rel-top-value">3 coletas</div>
+                </div>
+                <div class="rel-top-item">
+                  <div class="rel-top-rank">04</div>
+                  <div class="rel-top-body">
+                    <strong>L032 · Vila Rica</strong>
+                    <span>UP Organizadora</span>
+                  </div>
+                  <div class="rel-top-value">3 coletas</div>
+                </div>
+                <div class="rel-top-item">
+                  <div class="rel-top-rank">05</div>
+                  <div class="rel-top-body">
+                    <strong>L013 · Jardim Europa II</strong>
+                    <span>Condomínio</span>
+                  </div>
+                  <div class="rel-top-value">3 coletas</div>
+                </div>
+              </div>
+            </div>
+          </div>
+
+          <!-- Volume por região -->
+          <div class="rel-chart-card">
+            <div class="rel-chart-head">
+              <h3>Volume coletado por região</h3>
+              <span>Abril 2026</span>
+            </div>
+            <svg class="rel-bar-chart" viewBox="0 0 600 220" preserveAspectRatio="none">
+              <!-- Eixo X -->
+              <line x1="40" y1="180" x2="580" y2="180" stroke="#d8cdb2" stroke-width="1"/>
+
+              <!-- Y labels -->
+              <text x="30" y="45" font-family="IBM Plex Mono" font-size="9" fill="#87796a" text-anchor="end">800kg</text>
+              <text x="30" y="90" font-family="IBM Plex Mono" font-size="9" fill="#87796a" text-anchor="end">600kg</text>
+              <text x="30" y="135" font-family="IBM Plex Mono" font-size="9" fill="#87796a" text-anchor="end">400kg</text>
+              <text x="30" y="180" font-family="IBM Plex Mono" font-size="9" fill="#87796a" text-anchor="end">0</text>
+
+              <!-- Grid -->
+              <line x1="40" y1="45" x2="580" y2="45" stroke="#e4d9bd" stroke-width="1" stroke-dasharray="2,3"/>
+              <line x1="40" y1="90" x2="580" y2="90" stroke="#e4d9bd" stroke-width="1" stroke-dasharray="2,3"/>
+              <line x1="40" y1="135" x2="580" y2="135" stroke="#e4d9bd" stroke-width="1" stroke-dasharray="2,3"/>
+
+              <!-- Bars -->
+              <rect x="60" y="50" width="55" height="130" rx="3" fill="#1a5d3a" opacity="0.85"/>
+              <text x="87" y="200" font-family="IBM Plex Mono" font-size="9" fill="#4a423a" text-anchor="middle">Taguatinga</text>
+
+              <rect x="135" y="75" width="55" height="105" rx="3" fill="#1a5d3a" opacity="0.8"/>
+              <text x="162" y="200" font-family="IBM Plex Mono" font-size="9" fill="#4a423a" text-anchor="middle">Asa Sul</text>
+
+              <rect x="210" y="95" width="55" height="85" rx="3" fill="#1a5d3a" opacity="0.75"/>
+              <text x="237" y="200" font-family="IBM Plex Mono" font-size="9" fill="#4a423a" text-anchor="middle">Lago Sul</text>
+
+              <rect x="285" y="110" width="55" height="70" rx="3" fill="#1a5d3a" opacity="0.7"/>
+              <text x="312" y="200" font-family="IBM Plex Mono" font-size="9" fill="#4a423a" text-anchor="middle">Sudoeste</text>
+
+              <rect x="360" y="125" width="55" height="55" rx="3" fill="#1a5d3a" opacity="0.65"/>
+              <text x="387" y="200" font-family="IBM Plex Mono" font-size="9" fill="#4a423a" text-anchor="middle">Noroeste</text>
+
+              <rect x="435" y="145" width="55" height="35" rx="3" fill="#1a5d3a" opacity="0.55"/>
+              <text x="462" y="200" font-family="IBM Plex Mono" font-size="9" fill="#4a423a" text-anchor="middle">Águas Claras</text>
+
+              <rect x="510" y="155" width="55" height="25" rx="3" fill="#1a5d3a" opacity="0.5"/>
+              <text x="537" y="200" font-family="IBM Plex Mono" font-size="9" fill="#4a423a" text-anchor="middle">Plano</text>
+            </svg>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <!-- ===================== PAINEL DO PARCEIRO (ROADMAP) ===================== -->

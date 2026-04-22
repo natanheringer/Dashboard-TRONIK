@@ -17,9 +17,9 @@ from banco_dados.utils import utc_now_naive
 class TestListarColetas:
     """Testes de listagem de coletas"""
     
-    def test_listar_coletas_empty(self, client, db_session):
+    def test_listar_coletas_empty(self, auth_client, db_session):
         """Testa listar coletas quando não há nenhuma"""
-        response = client.get('/api/coletas')
+        response = auth_client.get('/api/coletas')
         assert response.status_code == 200
         data = response.get_json()
         # Ajustar para formato paginado
@@ -30,7 +30,7 @@ class TestListarColetas:
             assert isinstance(data, list)
             assert len(data) == 0
     
-    def test_listar_coletas_with_data(self, client, db_session):
+    def test_listar_coletas_with_data(self, auth_client, db_session):
         """Testa listar coletas com dados"""
         # Criar coletor, parceiro e tipo coletor
         tipo_material = db_session.query(TipoMaterial).first()
@@ -77,7 +77,7 @@ class TestListarColetas:
         db_session.commit()
         
         # Listar coletas
-        response = client.get('/api/coletas')
+        response = auth_client.get('/api/coletas')
         assert response.status_code == 200
         data = response.get_json()
         # Ajustar para formato paginado
@@ -89,7 +89,7 @@ class TestListarColetas:
         assert coletas[0]['volume_estimado'] == 100.0
         assert coletas[0]['tipo_operacao'] == 'Avulsa'
     
-    def test_listar_coletas_filter_by_lixeira(self, client, db_session):
+    def test_listar_coletas_filter_by_lixeira(self, auth_client, db_session):
         """Testa filtrar coletas por coletor"""
         # Criar duas coletores
         tipo_material = db_session.query(TipoMaterial).first()
@@ -138,7 +138,7 @@ class TestListarColetas:
         db_session.commit()
         
         # Filtrar por coletor 1
-        response = client.get(f'/api/coletas?coletor_id={lixeira1.id}')
+        response = auth_client.get(f'/api/coletas?coletor_id={lixeira1.id}')
         assert response.status_code == 200
         data = response.get_json()
         # Ajustar para formato paginado
@@ -149,7 +149,7 @@ class TestListarColetas:
         assert len(coletas) == 1
         assert coletas[0]['coletor_id'] == lixeira1.id
     
-    def test_listar_coletas_filter_by_date(self, client, db_session):
+    def test_listar_coletas_filter_by_date(self, auth_client, db_session):
         """Testa filtrar coletas por data"""
         # Criar coletor
         tipo_material = db_session.query(TipoMaterial).first()
@@ -181,7 +181,7 @@ class TestListarColetas:
         db_session.commit()
         
         # Filtrar por data
-        response = client.get('/api/coletas?data_inicio=2025-11-20&data_fim=2025-11-20')
+        response = auth_client.get('/api/coletas?data_inicio=2025-11-20&data_fim=2025-11-20')
         assert response.status_code == 200
         data = response.get_json()
         assert len(data) >= 1
@@ -314,9 +314,9 @@ class TestCriarColeta:
 class TestHistorico:
     """Testes de histórico de coletas"""
     
-    def test_obter_historico_empty(self, client, db_session):
+    def test_obter_historico_empty(self, auth_client, db_session):
         """Testa obter histórico quando não há coletas"""
-        response = client.get('/api/historico')
+        response = auth_client.get('/api/historico')
         assert response.status_code == 200
         data = response.get_json()
         # Ajustar para formato paginado
@@ -327,7 +327,7 @@ class TestHistorico:
             assert isinstance(data, list)
             assert len(data) == 0
     
-    def test_obter_historico_with_data(self, client, db_session):
+    def test_obter_historico_with_data(self, auth_client, db_session):
         """Testa obter histórico com dados"""
         # Criar coletor e coleta
         tipo_material = db_session.query(TipoMaterial).first()
@@ -357,12 +357,12 @@ class TestHistorico:
         db_session.commit()
         
         # Obter histórico
-        response = client.get('/api/historico')
+        response = auth_client.get('/api/historico')
         assert response.status_code == 200
         data = response.get_json()
         assert len(data) >= 1
     
-    def test_obter_historico_filter_by_date(self, client, db_session):
+    def test_obter_historico_filter_by_date(self, auth_client, db_session):
         """Testa filtrar histórico por data"""
         # Criar coletor
         tipo_material = db_session.query(TipoMaterial).first()
@@ -394,7 +394,7 @@ class TestHistorico:
         db_session.commit()
         
         # Filtrar por data
-        response = client.get('/api/historico?data=2025-11-20')
+        response = auth_client.get('/api/historico?data=2025-11-20')
         assert response.status_code == 200
         data = response.get_json()
         assert len(data) >= 1

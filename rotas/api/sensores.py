@@ -4,6 +4,8 @@ Rotas de Sensores - Dashboard-TRONIK
 Endpoints para operações CRUD de sensores.
 """
 
+import secrets
+
 from flask import Blueprint, jsonify, request
 from flask_login import login_required
 from rotas.api.decorators import admin_required, get_db
@@ -12,7 +14,13 @@ from banco_dados.modelos import Sensor
 from banco_dados.serializers import sensor_para_dict
 from banco_dados.seguranca import validar_sensor
 from banco_dados.utils import utc_now_naive
-from banco_dados.utils.erros import tratar_erro_api, ErroNaoEncontrado, ErroValidacao, validar_requisicao_json
+from banco_dados.telemetria_auth import validar_telemetria
+from banco_dados.utils.erros import (
+    tratar_erro_api,
+    ErroNaoEncontrado,
+    ErroValidacao,
+    validar_requisicao_json,
+)
 from banco_dados.utils.logger import obter_logger
 from sqlalchemy.orm import joinedload
 from datetime import datetime
@@ -24,6 +32,7 @@ sensores_bp = Blueprint('sensores', __name__)
 
 
 @sensores_bp.route('/sensores', methods=['GET'])
+@login_required
 @decorators.rate_limit("30 per minute")
 def listar_sensores():
     """Endpoint para listar todos os sensores com filtros opcionais"""
@@ -59,6 +68,7 @@ def listar_sensores():
 
 
 @sensores_bp.route('/sensor/<int:sensor_id>', methods=['GET'])
+@login_required
 def obter_sensor(sensor_id):
     """Endpoint para obter um sensor específico"""
     db = get_db()
@@ -100,12 +110,13 @@ def criar_sensor():
         if erros:
             raise ErroValidacao("Erros de validação", {"detalhes": erros})
         
-        # Criar novo sensor
+        # Criar novo sensor (token opaco para telemetria; mostrado só nesta resposta)
         novo_sensor = Sensor(
             coletor_id=dados['coletor_id'],
             tipo_sensor_id=dados.get('tipo_sensor_id'),
             bateria=dados.get('bateria', 100.0),
-            ultimo_ping=utc_now_naive()
+            ultimo_ping=utc_now_naive(),
+            api_token=secrets.token_urlsafe(32)[:128],
         )
         
         db.add(novo_sensor)
@@ -118,7 +129,9 @@ def criar_sensor():
             joinedload(Sensor.tipo_sensor)
         ).filter(Sensor.id == novo_sensor.id).first()
         
-        return jsonify(sensor_para_dict(novo_sensor)), 201
+        out = sensor_para_dict(novo_sensor)
+        out["api_token"] = novo_sensor.api_token
+        return jsonify(out), 201
     except Exception as e:
         db.rollback()
         return tratar_erro_api(e)
@@ -202,3 +215,121 @@ def deletar_sensor(sensor_id):
     finally:
         db.close()
 
+# --------------------------------------------------------------------------
+# Constantes de regra de negocio (centralizar facilita ajuste futuro)
+# --------------------------------------------------------------------------
+LIMIAR_NIVEL_CHEIO = 80.0   # % a partir do qual o coletor vira 'CHEIA'
+LIMIAR_BATERIA_BAIXA = 20.0 # % abaixo do qual vira alerta 'bateria_baixa'
+JANELA_DEDUP_HORAS = 24     # nao recriar a mesma notificacao dentro desse periodo
+
+
+@sensores_bp.route("/sensor/telemetria", methods=["POST"])
+@decorators.rate_limit("100 per minute")
+def receber_telemetria():
+    """Recebe telemetria do ESP32 e persiste estado + notificacoes.
+
+    - Valida o payload com `TelemetriaIn` (Pydantic v2) antes de tocar no DB.
+    - Atualiza nivel do Coletor e bateria/ultimo_ping do Sensor.
+    - Gera notificacoes (`lixeira_cheia`, `bateria_baixa`) com dedup por 24h.
+    - Resposta tipada por `TelemetriaOut`.
+    """
+    from datetime import timedelta
+
+    from banco_dados.contratos import TelemetriaIn, TelemetriaOut, parse_ou_erro
+    from banco_dados.modelos import Coletor, Notificacao
+    from banco_dados.notificacoes import criar_notificacao
+
+    db = get_db()
+    try:
+        payload = parse_ou_erro(TelemetriaIn, request.get_json(silent=True))
+
+        coletor = db.query(Coletor).filter(Coletor.id == payload.coletor_id).first()
+        sensor = db.query(Sensor).filter(Sensor.id == payload.sensor_id).first()
+        if not coletor:
+            raise ErroNaoEncontrado("Coletor", payload.coletor_id)
+        if not sensor:
+            raise ErroNaoEncontrado("Sensor", payload.sensor_id)
+        if sensor.coletor_id != coletor.id:
+            raise ErroValidacao(
+                "sensor_id nao pertence ao coletor_id informado",
+                {"detalhes": {"coletor_id": payload.coletor_id, "sensor_id": payload.sensor_id}},
+            )
+
+        validar_telemetria(sensor, payload.api_key)
+
+        notificacoes_criadas = 0
+        limite_tempo = utc_now_naive() - timedelta(hours=JANELA_DEDUP_HORAS)
+
+        coletor.nivel_preenchimento = payload.nivel_preenchimento
+        if payload.nivel_preenchimento > LIMIAR_NIVEL_CHEIO:
+            if coletor.status != "QUEBRADA":
+                coletor.status = "CHEIA"
+            ja_existe = (
+                db.query(Notificacao)
+                .filter(
+                    Notificacao.coletor_id == coletor.id,
+                    Notificacao.tipo == "lixeira_cheia",
+                    Notificacao.criada_em >= limite_tempo,
+                )
+                .first()
+            )
+            if not ja_existe:
+                criar_notificacao(
+                    db=db,
+                    tipo="lixeira_cheia",
+                    titulo=f"Coletor #{coletor.id} - Nivel Alto",
+                    mensagem=(
+                        f"O coletor em {coletor.localizacao} esta com "
+                        f"{coletor.nivel_preenchimento:.1f}% de preenchimento."
+                    ),
+                    coletor_id=coletor.id,
+                )
+                notificacoes_criadas += 1
+        elif payload.nivel_preenchimento <= LIMIAR_NIVEL_CHEIO and coletor.status == "CHEIA":
+            coletor.status = "OK"
+
+        sensor.bateria = payload.bateria
+        sensor.ultimo_ping = payload.timestamp or utc_now_naive()
+        if payload.bateria < LIMIAR_BATERIA_BAIXA:
+            ja_existe = (
+                db.query(Notificacao)
+                .filter(
+                    Notificacao.sensor_id == sensor.id,
+                    Notificacao.tipo == "bateria_baixa",
+                    Notificacao.criada_em >= limite_tempo,
+                )
+                .first()
+            )
+            if not ja_existe:
+                criar_notificacao(
+                    db=db,
+                    tipo="bateria_baixa",
+                    titulo=f"Sensor #{sensor.id} - Bateria Baixa",
+                    mensagem=(
+                        f"O sensor do coletor em {coletor.localizacao} esta com "
+                        f"{sensor.bateria:.1f}% de bateria."
+                    ),
+                    sensor_id=sensor.id,
+                    coletor_id=coletor.id,
+                )
+                notificacoes_criadas += 1
+
+        db.commit()
+
+        resposta = TelemetriaOut(
+            mensagem="Telemetria registrada com sucesso",
+            coletor_id=coletor.id,
+            sensor_id=sensor.id,
+            nivel_preenchimento=coletor.nivel_preenchimento,
+            status_coletor=coletor.status,
+            bateria=sensor.bateria,
+            notificacoes_criadas=notificacoes_criadas,
+        )
+        return jsonify(resposta.model_dump(mode="json")), 200
+
+    except Exception as e:
+        db.rollback()
+        logger.error("Erro em telemetria: %s", e)
+        return tratar_erro_api(e)
+    finally:
+        db.close()
