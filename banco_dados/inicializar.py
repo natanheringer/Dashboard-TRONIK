@@ -61,7 +61,7 @@ def inserir_dados_iniciais(engine, caminho_json="banco_dados/dados/sensores_mock
 
         # --- INSERIR LIXEIRAS ---
         print("Inserindo coletores...")
-        for item in dados["coletores"]:
+        for item in dados["lixeiras"]:
             coletor = Coletor(
                 localizacao=item["localizacao"],
                 nivel_preenchimento=item["nivel_preenchimento"],

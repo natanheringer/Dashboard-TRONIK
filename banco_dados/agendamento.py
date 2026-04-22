@@ -54,12 +54,58 @@ def inicializar_agendamento(app):
         replace_existing=True,
         max_instances=1  # Evitar execuções simultâneas
     )
-    
+
+    # ========================================
+    # JOBS DE MACHINE LEARNING
+    # ========================================
+
+    # Módulo 1: Predição de enchimento (2x/dia — a cada 12h)
+    ml_predicao_enabled = os.getenv('ML_PREDICAO_ENABLED', 'true').lower() == 'true'
+    if ml_predicao_enabled:
+        scheduler.add_job(
+            func=_job_ml_predicao,
+            trigger=IntervalTrigger(hours=12),
+            id='ml_predicao',
+            name='ML - Predição de Enchimento',
+            replace_existing=True,
+            max_instances=1,
+        )
+
+    # Módulo 2: TRONIK Score (1x/dia — a cada 24h)
+    ml_score_enabled = os.getenv('ML_SCORE_ENABLED', 'true').lower() == 'true'
+    if ml_score_enabled:
+        scheduler.add_job(
+            func=_job_ml_score,
+            trigger=IntervalTrigger(hours=24),
+            id='ml_score',
+            name='ML - TRONIK Score',
+            replace_existing=True,
+            max_instances=1,
+        )
+
+    # Módulo 4: Prospecção geográfica (1x/semana — a cada 168h)
+    ml_prospeccao_enabled = os.getenv('ML_PROSPECCAO_ENABLED', 'true').lower() == 'true'
+    if ml_prospeccao_enabled:
+        scheduler.add_job(
+            func=_job_ml_prospeccao,
+            trigger=IntervalTrigger(hours=168),
+            id='ml_prospeccao',
+            name='ML - Prospecção Geográfica',
+            replace_existing=True,
+            max_instances=1,
+        )
+
     # Iniciar scheduler
     scheduler.start()
-    
+
     logger.info(f"✅ Sistema de agendamento ativado")
-    logger.info(f"   Intervalo: {intervalo_minutos} minutos")
+    logger.info(f"   Intervalo alertas: {intervalo_minutos} minutos")
+    if ml_predicao_enabled:
+        logger.info(f"   ML Predição: a cada 12h")
+    if ml_score_enabled:
+        logger.info(f"   ML Score: a cada 24h")
+    if ml_prospeccao_enabled:
+        logger.info(f"   ML Prospecção: semanal")
     logger.info(f"   Próxima execução: {scheduler.get_job('processar_alertas').next_run_time}")
 
 
@@ -104,6 +150,62 @@ def processar_alertas_job():
         logger.error(f"❌ Erro ao processar alertas automaticamente: {e}", exc_info=True)
 
 
+def _criar_sessao_ml():
+    """Cria sessão de banco para jobs ML (isolada do app context)."""
+    database_url = os.getenv('DATABASE_URL', 'sqlite:///tronik.db')
+    if database_url.startswith('postgresql://') and '+psycopg' not in database_url:
+        database_url = database_url.replace('postgresql://', 'postgresql+psycopg://')
+    if database_url.startswith('postgres://') and '+psycopg' not in database_url:
+        database_url = database_url.replace('postgres://', 'postgresql+psycopg://')
+    engine = create_engine(database_url, echo=False)
+    return sessionmaker(bind=engine)()
+
+
+def _job_ml_predicao():
+    """Job: Módulo 1 — Recalcula predições de enchimento para todos os coletores."""
+    try:
+        logger.info("🔄 [ML] Iniciando predição de enchimento...")
+        from banco_dados.services.ml_predicao import recalcular_predicoes_todos
+        db = _criar_sessao_ml()
+        try:
+            stats = recalcular_predicoes_todos(db)
+            logger.info(f"✅ [ML] Predição concluída: {stats}")
+        finally:
+            db.close()
+    except Exception as e:
+        logger.error(f"❌ [ML] Erro na predição: {e}", exc_info=True)
+
+
+def _job_ml_score():
+    """Job: Módulo 2 — Recalcula TRONIK Score para todos os coletores."""
+    try:
+        logger.info("🔄 [ML] Iniciando cálculo de TRONIK Score...")
+        from banco_dados.services.ml_score import recalcular_scores_todos
+        db = _criar_sessao_ml()
+        try:
+            stats = recalcular_scores_todos(db)
+            logger.info(f"✅ [ML] Score concluído: {stats}")
+        finally:
+            db.close()
+    except Exception as e:
+        logger.error(f"❌ [ML] Erro no score: {e}", exc_info=True)
+
+
+def _job_ml_prospeccao():
+    """Job: Módulo 4 — Recalcula scores de prospecção geográfica."""
+    try:
+        logger.info("🔄 [ML] Iniciando recálculo de prospecção...")
+        from banco_dados.services.ml_prospeccao import recalcular_scores_prospeccao
+        db = _criar_sessao_ml()
+        try:
+            stats = recalcular_scores_prospeccao(db)
+            logger.info(f"✅ [ML] Prospecção concluída: {stats}")
+        finally:
+            db.close()
+    except Exception as e:
+        logger.error(f"❌ [ML] Erro na prospecção: {e}", exc_info=True)
+
+
 def parar_agendamento():
     """
     Para o sistema de agendamento.
@@ -137,13 +239,21 @@ def obter_status_agendamento():
             'ativo': False,
             'mensagem': 'Job de processamento não encontrado'
         }
-    
+
+    # Incluir status dos jobs ML
+    ml_jobs = {}
+    for job_id in ['ml_predicao', 'ml_score', 'ml_prospeccao']:
+        ml_job = scheduler.get_job(job_id)
+        if ml_job:
+            ml_jobs[job_id] = {
+                'ativo': True,
+                'proxima_execucao': ml_job.next_run_time.isoformat() if ml_job.next_run_time else None,
+            }
+
     return {
         'ativo': True,
         'proxima_execucao': job.next_run_time.isoformat() if job.next_run_time else None,
         'ultima_execucao': None,  # APScheduler não armazena isso por padrão
-        'intervalo_minutos': int(os.getenv('AGENDAMENTO_INTERVALO_MINUTOS', '60'))
+        'intervalo_minutos': int(os.getenv('AGENDAMENTO_INTERVALO_MINUTOS', '60')),
+        'jobs_ml': ml_jobs,
     }
-
-
-

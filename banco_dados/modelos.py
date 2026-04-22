@@ -647,3 +647,273 @@ class ContratoRecorrente(Base):
 
     def __repr__(self):
         return f"<ContratoRecorrente(id={self.id}, coletor_id={self.coletor_id}, valor=R${self.valor_mensal:.2f}/mês, status='{self.status}')>"
+
+
+# ==============================================================
+# MODELOS DE MACHINE LEARNING
+# ==============================================================
+
+
+# ----------------------------------------------------------
+# TABELA: Leituras do Sensor (série temporal para ML)
+# ----------------------------------------------------------
+class LeituraSensor(Base):
+    """Série temporal de leituras dos sensores (alimentada pelo ESP32).
+
+    Cada registro representa uma leitura a cada ~15 min.
+    Usado pelo Módulo 1 (predição de enchimento) como input.
+    """
+    __tablename__ = "leituras_sensor"
+    __table_args__ = (
+        Index('idx_leitura_sensor_ts', 'sensor_id', 'timestamp'),
+        Index('idx_leitura_coletor_ts', 'coletor_id', 'timestamp'),
+    )
+
+    id = Column(Integer, primary_key=True, autoincrement=True)
+    sensor_id = Column(Integer, ForeignKey("sensores.id"), nullable=False, index=True)
+    coletor_id = Column(Integer, ForeignKey("coletores.id"), nullable=False, index=True)
+    nivel = Column(Float, nullable=False)          # 0.0 a 100.0
+    bateria = Column(Float)
+    temperatura = Column(Float)                     # MPU6050 pode fornecer
+    timestamp = Column(DateTime, default=utc_now_naive, index=True)
+
+    # Relacionamentos
+    sensor = relationship("Sensor", backref="leituras")
+    coletor = relationship("Coletor", backref="leituras_sensor")
+
+    def to_dict(self):
+        return {
+            'id': self.id,
+            'sensor_id': self.sensor_id,
+            'coletor_id': self.coletor_id,
+            'nivel': self.nivel,
+            'bateria': self.bateria,
+            'temperatura': self.temperatura,
+            'timestamp': self.timestamp.isoformat() if self.timestamp else None,
+        }
+
+    def __repr__(self):
+        return f"<LeituraSensor(id={self.id}, coletor={self.coletor_id}, nivel={self.nivel}%, ts={self.timestamp})>"
+
+
+# ----------------------------------------------------------
+# TABELA: Predição de enchimento (output Módulo 1)
+# ----------------------------------------------------------
+class PredicaoEnchimento(Base):
+    """Previsão de quando cada coletor atingirá nível crítico.
+
+    Gerado pelo Módulo 1 (séries temporais) via APScheduler 2x/dia.
+    Algoritmo: statsforecast AutoETS (leve, sem compilação C++).
+    """
+    __tablename__ = "predicoes_enchimento"
+    __table_args__ = (
+        Index('idx_predicao_coletor', 'coletor_id'),
+    )
+
+    id = Column(Integer, primary_key=True, autoincrement=True)
+    coletor_id = Column(Integer, ForeignKey("coletores.id"), nullable=False, unique=True, index=True)
+    predicted_full_at = Column(DateTime)             # quando atinge 90%
+    horas_restantes = Column(Float)                  # horas até encher
+    confianca_lower = Column(DateTime)               # intervalo inferior
+    confianca_upper = Column(DateTime)               # intervalo superior
+    velocidade_enchimento = Column(Float)             # %/hora (derivada)
+    modelo_usado = Column(String(50))                # 'autoets', 'linear', 'arima'
+    erro_medio = Column(Float)                       # MAPE do modelo
+    dados_suficientes = Column(Boolean, default=True)
+    calculado_em = Column(DateTime, default=utc_now_naive)
+
+    # Relacionamento
+    coletor = relationship("Coletor", backref="predicao_enchimento")
+
+    def to_dict(self):
+        return {
+            'id': self.id,
+            'coletor_id': self.coletor_id,
+            'predicted_full_at': self.predicted_full_at.isoformat() if self.predicted_full_at else None,
+            'horas_restantes': self.horas_restantes,
+            'confianca_lower': self.confianca_lower.isoformat() if self.confianca_lower else None,
+            'confianca_upper': self.confianca_upper.isoformat() if self.confianca_upper else None,
+            'velocidade_enchimento': self.velocidade_enchimento,
+            'modelo_usado': self.modelo_usado,
+            'erro_medio': self.erro_medio,
+            'dados_suficientes': self.dados_suficientes,
+            'calculado_em': self.calculado_em.isoformat() if self.calculado_em else None,
+        }
+
+    def __repr__(self):
+        return f"<PredicaoEnchimento(coletor={self.coletor_id}, full_at={self.predicted_full_at}, modelo={self.modelo_usado})>"
+
+
+# ----------------------------------------------------------
+# TABELA: TRONIK Score (output Módulo 2)
+# ----------------------------------------------------------
+class TronikScore(Base):
+    """Score de prioridade 0-100 por coletor (urgência × viabilidade × valor).
+
+    Fase 1: heurística ponderada (domain expertise).
+    Fase 2: XGBoost quando count(coletas) >= 200.
+    Gerado via APScheduler 1x/dia.
+    """
+    __tablename__ = "tronik_scores"
+    __table_args__ = (
+        Index('idx_score_coletor', 'coletor_id'),
+        Index('idx_score_valor', 'score'),
+    )
+
+    id = Column(Integer, primary_key=True, autoincrement=True)
+    coletor_id = Column(Integer, ForeignKey("coletores.id"), nullable=False, unique=True, index=True)
+    score = Column(Float, nullable=False)             # 0-100
+    features_json = Column(String(2000))              # JSON com features usadas
+    modelo_usado = Column(String(50))                 # 'heuristica', 'xgboost'
+    calculado_em = Column(DateTime, default=utc_now_naive)
+
+    # Relacionamento
+    coletor = relationship("Coletor", backref="tronik_score")
+
+    def to_dict(self):
+        import json
+        return {
+            'id': self.id,
+            'coletor_id': self.coletor_id,
+            'score': self.score,
+            'features': json.loads(self.features_json) if self.features_json else {},
+            'modelo_usado': self.modelo_usado,
+            'calculado_em': self.calculado_em.isoformat() if self.calculado_em else None,
+        }
+
+    def __repr__(self):
+        return f"<TronikScore(coletor={self.coletor_id}, score={self.score:.1f}, modelo={self.modelo_usado})>"
+
+
+# ----------------------------------------------------------
+# TABELA: Narrativa Gerada (output Módulo 3)
+# ----------------------------------------------------------
+class NarrativaGerada(Base):
+    """Texto narrativo de impacto ESG gerado por IA.
+
+    Chain de LLM: Groq (primário) → Ollama (fallback) → Gemini (fallback 2).
+    Gerado via APScheduler 1x/mês ou sob demanda.
+    """
+    __tablename__ = "narrativas_geradas"
+    __table_args__ = (
+        Index('idx_narrativa_parceiro', 'parceiro_id'),
+        Index('idx_narrativa_periodo', 'periodo_inicio', 'periodo_fim'),
+    )
+
+    id = Column(Integer, primary_key=True, autoincrement=True)
+    parceiro_id = Column(Integer, ForeignKey("parceiros.id"), nullable=False, index=True)
+    periodo_inicio = Column(DateTime, nullable=False)
+    periodo_fim = Column(DateTime, nullable=False)
+    texto = Column(String(5000), nullable=False)
+    dados_input_json = Column(String(2000))           # dados usados para gerar
+    modelo_usado = Column(String(100))                # 'groq/llama-3.1-70b', 'ollama/deepseek-r1:8b', etc.
+    provider_usado = Column(String(50))               # 'groq', 'ollama', 'gemini'
+    tempo_geracao_ms = Column(Integer)                 # latência
+    validacao_ok = Column(Boolean, default=True)       # números batem com input?
+    gerado_em = Column(DateTime, default=utc_now_naive)
+
+    # Relacionamento
+    parceiro = relationship("Parceiro", backref="narrativas")
+
+    def to_dict(self):
+        import json
+        return {
+            'id': self.id,
+            'parceiro_id': self.parceiro_id,
+            'periodo_inicio': self.periodo_inicio.isoformat() if self.periodo_inicio else None,
+            'periodo_fim': self.periodo_fim.isoformat() if self.periodo_fim else None,
+            'texto': self.texto,
+            'dados_input': json.loads(self.dados_input_json) if self.dados_input_json else {},
+            'modelo_usado': self.modelo_usado,
+            'provider_usado': self.provider_usado,
+            'tempo_geracao_ms': self.tempo_geracao_ms,
+            'validacao_ok': self.validacao_ok,
+            'gerado_em': self.gerado_em.isoformat() if self.gerado_em else None,
+        }
+
+    def __repr__(self):
+        preview = self.texto[:60] + '...' if self.texto and len(self.texto) > 60 else self.texto
+        return f"<NarrativaGerada(parceiro={self.parceiro_id}, provider={self.provider_usado}, texto='{preview}')>"
+
+
+# ----------------------------------------------------------
+# TABELA: Locais de Prospecção (Módulo 4 — ML geográfico)
+# ----------------------------------------------------------
+class LocalProspeccao(Base):
+    """Candidatos a novos clientes/coletores identificados por ML geográfico.
+
+    Fontes: CNPJ (Receita Federal), OpenStreetMap (Overpass API), IBGE Censo.
+    Scoring: Fase 1 heurística → Fase 2 MLP (MLPClassifier).
+    """
+    __tablename__ = "locais_prospeccao"
+    __table_args__ = (
+        Index('idx_prosp_lat_lng', 'latitude', 'longitude'),
+        Index('idx_prosp_score', 'score_prospeccao'),
+        Index('idx_prosp_cnae', 'cnae_principal'),
+        Index('idx_prosp_fonte', 'fonte'),
+    )
+
+    id = Column(Integer, primary_key=True, autoincrement=True)
+    nome = Column(String(300), nullable=False)
+    cnpj = Column(String(18))                          # opcional (só para fonte CNPJ)
+    cnae_principal = Column(String(10))                # ex: "4713-0/01"
+    cnae_descricao = Column(String(200))
+    endereco = Column(String(500))
+    latitude = Column(Float, nullable=False)
+    longitude = Column(Float, nullable=False)
+
+    # Features calculadas
+    distancia_sede_km = Column(Float)
+    distancia_coletor_proximo_km = Column(Float)
+    n_coletores_raio_5km = Column(Integer, default=0)
+    populacao_setor = Column(Integer)
+    renda_media_setor = Column(Float)
+    n_empresas_proximas = Column(Integer, default=0)
+    tipo_score = Column(Float)                         # score base pelo CNAE
+
+    # Output do modelo
+    score_prospeccao = Column(Float)                   # 0-100
+    modelo_usado = Column(String(50))                  # 'heuristica', 'mlp'
+
+    # Metadata e CRM
+    fonte = Column(String(50))                         # 'cnpj', 'osm', 'manual'
+    categoria = Column(String(100))                    # 'shopping', 'condominio', 'universidade', etc.
+    ja_contatado = Column(Boolean, default=False)
+    convertido = Column(Boolean, default=False)        # virou parceiro?
+    parceiro_id = Column(Integer, ForeignKey("parceiros.id"), nullable=True)
+    observacoes = Column(String(1000))
+    calculado_em = Column(DateTime, default=utc_now_naive)
+
+    # Relacionamento
+    parceiro = relationship("Parceiro", backref="prospeccoes")
+
+    def to_dict(self):
+        return {
+            'id': self.id,
+            'nome': self.nome,
+            'cnpj': self.cnpj,
+            'cnae_principal': self.cnae_principal,
+            'cnae_descricao': self.cnae_descricao,
+            'endereco': self.endereco,
+            'latitude': self.latitude,
+            'longitude': self.longitude,
+            'distancia_sede_km': self.distancia_sede_km,
+            'distancia_coletor_proximo_km': self.distancia_coletor_proximo_km,
+            'n_coletores_raio_5km': self.n_coletores_raio_5km,
+            'populacao_setor': self.populacao_setor,
+            'renda_media_setor': self.renda_media_setor,
+            'n_empresas_proximas': self.n_empresas_proximas,
+            'tipo_score': self.tipo_score,
+            'score_prospeccao': self.score_prospeccao,
+            'modelo_usado': self.modelo_usado,
+            'fonte': self.fonte,
+            'categoria': self.categoria,
+            'ja_contatado': self.ja_contatado,
+            'convertido': self.convertido,
+            'parceiro_id': self.parceiro_id,
+            'observacoes': self.observacoes,
+            'calculado_em': self.calculado_em.isoformat() if self.calculado_em else None,
+        }
+
+    def __repr__(self):
+        return f"<LocalProspeccao(id={self.id}, nome='{self.nome[:40]}', score={self.score_prospeccao}, fonte={self.fonte})>"

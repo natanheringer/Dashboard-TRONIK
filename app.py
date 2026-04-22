@@ -25,7 +25,10 @@ from sqlalchemy.orm import sessionmaker, scoped_session
 from banco_dados.modelos import (
     Base, Usuario, Coletor, Sensor, Coleta,
     Parceiro, TipoMaterial, TipoSensor, TipoColetor, Notificacao,
-    MetaComercial, Pipeline, Interacao, Tarefa, ContratoRecorrente
+    MetaComercial, Pipeline, Interacao, Tarefa, ContratoRecorrente,
+    # Modelos ML (Módulos 1-4)
+    LeituraSensor, PredicaoEnchimento, TronikScore,
+    NarrativaGerada, LocalProspeccao,
 )
 
 # Importações do sistema de inicialização
@@ -318,6 +321,9 @@ else:
 
 # Sempre criar todas as tabelas (SQLAlchemy só cria as que não existem)
 Base.metadata.create_all(engine)
+
+# Garantir diretório para modelos ML serializados
+os.makedirs('banco_dados/ml_models', exist_ok=True)
 
 from banco_dados.schema_compat import aplicar_compat_schema
 

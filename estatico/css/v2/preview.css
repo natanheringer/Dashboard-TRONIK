@@ -2601,3 +2601,53 @@ ul { list-style: none; }
   color: var(--ink-tertiary);
   opacity: 0.5;
 }
+
+/* ============================================================
+   ML TAGS & BADGES
+   ============================================================ */
+.ml-tag {
+  display: inline-flex;
+  align-items: center;
+  gap: 3px;
+  padding: 2px 7px;
+  border-radius: var(--radius-sm);
+  font-size: 11px;
+  font-weight: 600;
+  font-family: var(--font-mono);
+  line-height: 1.3;
+  white-space: nowrap;
+}
+
+.ml-tag svg {
+  flex-shrink: 0;
+}
+
+.ml-tag--predicao {
+  background: var(--accent-indigo);
+  color: #d6e4f0;
+}
+
+.ml-tag--score {
+  background: var(--tronik);
+  color: var(--paper-elevated);
+}
+
+.ml-tag--narrativa {
+  background: var(--accent-clay);
+  color: #fef0e8;
+}
+
+.ml-tag--prospeccao {
+  background: var(--signal-warn);
+  color: #fef5e8;
+}
+
+/* Animated glow for ML tags on hover */
+.coletor-card:hover .ml-tag--score {
+  box-shadow: 0 0 8px var(--tronik-soft);
+}
+
+.coletor-card:hover .ml-tag--predicao {
+  box-shadow: 0 0 8px rgba(46, 75, 107, 0.3);
+}
+

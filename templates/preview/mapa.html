@@ -7,6 +7,15 @@
       crossorigin="" />
 <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/leaflet.markercluster@1.5.3/dist/MarkerCluster.css" crossorigin="" />
 <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/leaflet.markercluster@1.5.3/dist/MarkerCluster.Default.css" crossorigin="" />
+<style>
+  .prospect-toggle { display:flex; align-items:center; gap:6px; }
+  .prospect-toggle input[type=checkbox] { accent-color:var(--accent, #23c45e); width:16px; height:16px; }
+  .prospect-legend { display:inline-flex; align-items:center; gap:4px; font-size:var(--text-xs); color:var(--ink-tertiary); }
+  .prospect-legend i { display:inline-block; width:10px; height:10px; border-radius:50%; }
+  .prospect-legend i.ok { background:#1a5d3a; }
+  .prospect-legend i.prospect { background:#e6a817; }
+  .prospect-legend i.heatmap { background:linear-gradient(90deg,#2ecc71,#e67e22,#e74c3c); width:40px; border-radius:3px; height:6px; }
+</style>
 {% endblock %}
 {% block conteudo %}
       <div class="page-header">
@@ -49,6 +58,16 @@
             <input type="search" name="q" value="{{ filtro_mapa_q or '' }}" placeholder="ID, nome, parceiro…" autocomplete="off" />
           </label>
           <button type="submit" class="btn btn-primary preview-map-submit">Aplicar</button>
+        </div>
+        <div style="display:flex;align-items:center;gap:var(--space-4);margin-top:var(--space-2);flex-wrap:wrap;">
+          <label class="prospect-toggle">
+            <input type="checkbox" id="toggle-prospects" {% if show_prospects %}checked{% endif %} />
+            <span style="font-size:var(--text-sm);">Mostrar oportunidades ML</span>
+          </label>
+          <span class="prospect-legend"><i class="ok"></i> Coletores</span>
+          <span class="prospect-legend"><i class="prospect"></i> Prospects</span>
+          <span class="prospect-legend"><i class="heatmap"></i> Heatmap</span>
+          {% if prospects %}<span style="font-size:var(--text-xs);color:var(--ink-tertiary);">{{ prospects|length }} oportunidades</span>{% endif %}
         </div>
       </form>
 
@@ -102,10 +121,58 @@
   window.__PREVIEW_MAP__ = {{ marcadores|tojson }};
   window.__PREVIEW_SELECTED__ = {{ coletor_selecionado_id or 'null' }};
   window.__PREVIEW_SEDE__ = {{ sede_mapa|tojson }};
+  window.__PREVIEW_PROSPECTS__ = {{ prospects|tojson }};
 </script>
 <script src="https://cdn.jsdelivr.net/npm/leaflet@1.9.4/dist/leaflet.js"
         integrity="sha256-20nQCchB9co0qIjJZRGuk2/Z9VM+kNiyxNV1lvTlZBo="
         crossorigin=""></script>
 <script src="https://cdn.jsdelivr.net/npm/leaflet.markercluster@1.5.3/dist/leaflet.markercluster.js" crossorigin=""></script>
+<script src="https://cdn.jsdelivr.net/npm/leaflet.heat@0.2.0/dist/leaflet-heat.js" crossorigin=""></script>
 <script src="{{ url_for('static', filename='js/v2/mapa-preview.js') }}?v={{ cache_version }}"></script>
+<script>
+/* Camada de prospecção ML */
+(function(){
+  var prospects = window.__PREVIEW_PROSPECTS__ || [];
+  if (!prospects.length || typeof L === 'undefined' || !window.PreviewMapa) return;
+  var map = window.PreviewMapa.map;
+
+  /* Heatmap layer */
+  var heatData = prospects.map(function(p){ return [p.lat, p.lng, (p.score||50)/100]; });
+  var heat = typeof L.heatLayer === 'function'
+    ? L.heatLayer(heatData, {radius:25, blur:20, maxZoom:15, gradient:{0.2:'#2ecc71',0.5:'#f39c12',0.8:'#e74c3c',1:'#c0392b'}})
+    : null;
+
+  /* Marcadores de prospect */
+  var prospectLayer = L.layerGroup();
+  prospects.forEach(function(p){
+    var color = p.score >= 70 ? '#e67e22' : p.score >= 40 ? '#f1c40f' : '#95a5a6';
+    var circle = L.circleMarker([p.lat, p.lng], {
+      radius: 6, color: color, fillColor: color, fillOpacity: 0.7, weight: 1,
+    });
+    circle.bindPopup(
+      '<strong>'+p.nome+'</strong><br/>'+
+      '<span style="color:#888;">'+p.categoria+' · Score: '+Math.round(p.score)+'</span><br/>'+
+      '<span style="font-size:11px;">'+p.endereco+'</span>'+
+      (p.cnae ? '<br/><span style="font-size:10px;color:#aaa;">'+p.cnae+'</span>' : '')
+    );
+    prospectLayer.addLayer(circle);
+  });
+
+  /* Toggle */
+  var toggle = document.getElementById('toggle-prospects');
+  function updateLayers(){
+    if (toggle && toggle.checked){
+      prospectLayer.addTo(map);
+      if (heat) heat.addTo(map);
+    } else {
+      map.removeLayer(prospectLayer);
+      if (heat) map.removeLayer(heat);
+    }
+  }
+  if (toggle){
+    toggle.addEventListener('change', updateLayers);
+    {% if show_prospects %}updateLayers();{% endif %}
+  }
+})();
+</script>
 {% endblock %}

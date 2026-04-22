@@ -89,6 +89,23 @@ def monitoramento():
         alerta = pv.primeiro_alerta_critico(coletores_pagina)
         recentes = pv.coletas_recentes(db, 8)
         
+        # --- ML: TRONIK Score ranking (Módulo 2) ---
+        ranking_ml = _obter_ranking_ml(db)
+
+        # --- ML: Predições rápidas (Módulo 1) ---
+        predicoes_map = _obter_predicoes_map(db)
+
+        # Enriquecer cards com dados ML
+        for card in cards:
+            cid = card.get('id')
+            if cid in predicoes_map:
+                card['ml_predicao'] = predicoes_map[cid]
+            # Score do ranking
+            for r in ranking_ml:
+                if r.get('coletor_id') == cid:
+                    card['ml_score'] = r.get('score')
+                    break
+
         # Pagination info
         per_page = 50
         total_pages = (total_coletores + per_page - 1) // per_page
@@ -103,6 +120,7 @@ def monitoramento():
             "filtro_nivel": nivel,
             "alerta_destaque": alerta,
             "coletas_recentes": recentes,
+            "ranking_ml": ranking_ml[:5],
             "paginacao": {
                 "pagina_atual": page,
                 "total_paginas": total_pages,
@@ -136,6 +154,10 @@ def mapa():
         sel_id = request.args.get("coletor_id", type=int)
         detalhe = pv.detalhe_coletor_mapa(db, sel_id) if sel_id else None
 
+        # --- ML: Prospecção geográfica (Módulo 4) ---
+        prospects = _obter_marcadores_prospeccao(db)
+        show_prospects = request.args.get("prospects", "false").lower() in ("1", "true")
+
         ctx = {
             "current": "mapa",
             "total_coletores": stats["total_coletores"],
@@ -149,6 +171,8 @@ def mapa():
             "sede_mapa": sede,
             "detalhe": detalhe,
             "coletor_selecionado_id": detalhe["id"] if detalhe else None,
+            "prospects": prospects,
+            "show_prospects": show_prospects,
         }
         return render_template("preview/mapa.html", **ctx)
     finally:
@@ -189,6 +213,11 @@ def parceiro():
     try:
         stats = pv.estatisticas_resumo(db)
         parceiros_rows = pv.parceiros_tabela(db)
+
+        # --- ML: Narrativa de impacto (Módulo 3) ---
+        for p in parceiros_rows:
+            p['narrativa'] = _obter_narrativa_parceiro(db, p.get('id'))
+
         ctx = {
             "current": "parceiro",
             "total_coletores": stats["total_coletores"],
@@ -198,3 +227,109 @@ def parceiro():
         return render_template("preview/parceiro.html", **ctx)
     finally:
         db.close()
+
+
+@preview_bp.route("/prospeccao")
+@auth_preview
+def prospeccao():
+    """Página dedicada de prospecção geográfica (Módulo 4)."""
+    db = get_db()
+    try:
+        stats = pv.estatisticas_resumo(db)
+        prospects = _obter_marcadores_prospeccao(db)
+        sede = pv.coordenadas_sede_mapa()
+
+        # Filtros
+        cat_f = request.args.get("categoria", "").strip()
+        score_min = request.args.get("score_min", 0, type=float)
+
+        if cat_f:
+            prospects = [p for p in prospects if p.get('categoria') == cat_f]
+        if score_min > 0:
+            prospects = [p for p in prospects if (p.get('score') or 0) >= score_min]
+
+        # Categorias únicas
+        categorias_todas = sorted(set(p.get('categoria', '') for p in _obter_marcadores_prospeccao(db) if p.get('categoria')))
+
+        ctx = {
+            "current": "prospeccao",
+            "total_coletores": stats["total_coletores"],
+            "stats": stats,
+            "prospects": prospects,
+            "sede_mapa": sede,
+            "categorias": categorias_todas,
+            "filtro_categoria": cat_f,
+            "filtro_score_min": score_min,
+        }
+        return render_template("preview/prospeccao.html", **ctx)
+    finally:
+        db.close()
+
+
+# ==============================================================
+# HELPERS ML (queries leves, com try/except para não quebrar views)
+# ==============================================================
+
+def _obter_ranking_ml(db):
+    """Retorna ranking do TRONIK Score, ou [] se tabela não existir."""
+    try:
+        from banco_dados.services.ml_score import obter_ranking
+        return obter_ranking(db, limite=50)
+    except Exception:
+        return []
+
+
+def _obter_predicoes_map(db):
+    """Retorna dict {coletor_id: predicao_dict} com predições ativas."""
+    try:
+        from banco_dados.modelos import PredicaoEnchimento
+        preds = db.query(PredicaoEnchimento).filter(
+            PredicaoEnchimento.dados_suficientes.is_(True)
+        ).all()
+        result = {}
+        for p in preds:
+            result[p.coletor_id] = {
+                'horas_restantes': p.horas_restantes,
+                'velocidade': p.velocidade_enchimento,
+                'modelo': p.modelo_usado,
+            }
+        return result
+    except Exception:
+        return {}
+
+
+def _obter_marcadores_prospeccao(db):
+    """Retorna lista de prospects como dicts para o mapa."""
+    try:
+        from banco_dados.modelos import LocalProspeccao
+        locais = db.query(LocalProspeccao).filter(
+            LocalProspeccao.score_prospeccao > 0
+        ).order_by(LocalProspeccao.score_prospeccao.desc()).limit(200).all()
+        return [
+            {
+                'id': l.id,
+                'nome': l.nome,
+                'lat': l.latitude,
+                'lng': l.longitude,
+                'score': l.score_prospeccao,
+                'categoria': l.categoria,
+                'cnae': l.cnae_descricao or '',
+                'endereco': l.endereco or '',
+                'fonte': l.fonte,
+                'ja_contatado': l.ja_contatado,
+            }
+            for l in locais
+        ]
+    except Exception:
+        return []
+
+
+def _obter_narrativa_parceiro(db, parceiro_id):
+    """Retorna última narrativa gerada para um parceiro, ou None."""
+    if not parceiro_id:
+        return None
+    try:
+        from banco_dados.services.ml_narrativa import obter_ultima_narrativa
+        return obter_ultima_narrativa(db, parceiro_id)
+    except Exception:
+        return None

@@ -1,0 +1,184 @@
+{% extends 'preview/base_v2.html' %}
+{% set current = 'prospeccao' %}
+{% block title %}Prospecção ML · Tronik{% endblock %}
+{% block head_extra %}
+<link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/leaflet@1.9.4/dist/leaflet.css"
+      integrity="sha256-p4NxAoJBhIIN+hmNHrzRCf9tD/miZyoHS5obTRR9BMY="
+      crossorigin="" />
+<style>
+  .prosp-grid { display:grid; grid-template-columns:1fr 380px; gap:var(--space-4); margin-top:var(--space-4); }
+  @media(max-width:900px){ .prosp-grid { grid-template-columns:1fr; } }
+  .prosp-mapa { position:relative; min-height:500px; border-radius:var(--radius-lg); overflow:hidden; }
+  .prosp-mapa #prosp-leaflet { position:absolute; inset:0; z-index:1; }
+  .prosp-list { max-height:600px; overflow-y:auto; }
+  .prosp-item { display:flex; gap:var(--space-3); padding:var(--space-3); border-bottom:1px solid var(--line-subtle); transition: background .15s ease; cursor:default; }
+  .prosp-item:hover { background:var(--bg-elevated, #f8f9fa); }
+  .prosp-score { display:flex; align-items:center; justify-content:center; width:42px; height:42px; border-radius:var(--radius-md); font-weight:700; font-size:var(--text-sm); flex-shrink:0; }
+  .prosp-score.high { background:#27ae6020; color:#1a5d3a; }
+  .prosp-score.mid { background:#f39c1220; color:#b0661e; }
+  .prosp-score.low { background:#95a5a620; color:#6b6254; }
+  .prosp-info { flex:1; min-width:0; }
+  .prosp-info strong { display:block; font-size:var(--text-sm); white-space:nowrap; overflow:hidden; text-overflow:ellipsis; }
+  .prosp-info span { font-size:var(--text-xs); color:var(--ink-tertiary); }
+  .prosp-cat { display:inline-flex; align-items:center; gap:3px; padding:1px 6px; border-radius:var(--radius-sm); font-size:10px; font-weight:500; text-transform:uppercase; letter-spacing:0.05em; }
+  .prosp-cat.shopping { background:#9b59b620; color:#8e44ad; }
+  .prosp-cat.universidade { background:#3498db20; color:#2980b9; }
+  .prosp-cat.condominio { background:#2ecc7120; color:#1a5d3a; }
+  .prosp-cat.escritorio { background:#f39c1220; color:#d68910; }
+  .prosp-cat.governo { background:#e74c3c20; color:#c0392b; }
+  .prosp-cat.hospital { background:#1abc9c20; color:#16a085; }
+  .prosp-cat.comercio_eletronico { background:#e67e2220; color:#d35400; }
+  .prosp-kpi-row { display:flex; gap:var(--space-3); flex-wrap:wrap; }
+  .prosp-kpi { flex:1; min-width:140px; }
+</style>
+{% endblock %}
+{% block conteudo %}
+      <div class="page-header">
+        <div class="page-title-group">
+          <h1>Prospecção Geográfica <span class="ml-tag ml-tag--score" style="font-size:11px;vertical-align:middle;">ML</span></h1>
+          <p>{{ prospects|length }} oportunidades identificadas · Score por heurística + MLP</p>
+        </div>
+        <div class="page-actions">
+          <a class="btn" href="{{ url_for('preview.mapa', prospects='true') }}">Ver no mapa operacional</a>
+        </div>
+      </div>
+
+      <div class="prosp-kpi-row" style="margin-top:var(--space-4);">
+        <div class="kpi prosp-kpi">
+          <div class="kpi-label">Oportunidades</div>
+          <div class="kpi-value">{{ prospects|length }}</div>
+          <div class="kpi-delta">locais com score > 0</div>
+        </div>
+        <div class="kpi prosp-kpi">
+          <div class="kpi-label">Score médio</div>
+          <div class="kpi-value">{% if prospects %}{{ (prospects|sum(attribute='score') / prospects|length)|round(0)|int }}{% else %}—{% endif %}</div>
+          <div class="kpi-delta">de 0 a 100</div>
+        </div>
+        <div class="kpi prosp-kpi">
+          <div class="kpi-label">Categorias</div>
+          <div class="kpi-value">{{ categorias|length }}</div>
+          <div class="kpi-delta">tipos de estabelecimento</div>
+        </div>
+        <div class="kpi prosp-kpi">
+          <div class="kpi-label">Top score</div>
+          <div class="kpi-value">{% if prospects %}{{ prospects[0].score|round(0)|int }}{% else %}—{% endif %}</div>
+          <div class="kpi-delta">{% if prospects %}{{ prospects[0].nome[:20] }}{% endif %}</div>
+        </div>
+      </div>
+
+      <form class="filter-bar" method="get" action="{{ url_for('preview.prospeccao') }}" style="margin-top:var(--space-4);">
+        <select name="categoria" style="min-width:140px;">
+          <option value="">Todas categorias</option>
+          {% for cat in categorias %}
+          <option value="{{ cat }}" {% if filtro_categoria == cat %}selected{% endif %}>{{ cat|capitalize }}</option>
+          {% endfor %}
+        </select>
+        <label style="display:flex;align-items:center;gap:var(--space-2);font-size:var(--text-sm);">
+          Score mín:
+          <input type="number" name="score_min" value="{{ filtro_score_min }}" min="0" max="100" step="5" style="width:60px;" />
+        </label>
+        <button type="submit" class="btn btn-primary">Filtrar</button>
+        <a class="btn" href="{{ url_for('preview.prospeccao') }}">Limpar</a>
+      </form>
+
+      <div class="prosp-grid">
+        <!-- Mapa -->
+        <div class="prosp-mapa panel-card" style="padding:0;">
+          <div id="prosp-leaflet"></div>
+        </div>
+
+        <!-- Lista de prospects -->
+        <div class="panel-card prosp-list" style="padding:0;">
+          <div class="panel-head" style="position:sticky;top:0;background:var(--bg-card);z-index:2;border-bottom:1px solid var(--line-subtle);">
+            <h3>Ranking</h3>
+            <span>{{ prospects|length }} resultados</span>
+          </div>
+          {% for p in prospects %}
+          <div class="prosp-item" data-lat="{{ p.lat }}" data-lng="{{ p.lng }}" onclick="prospFocusMap({{ p.lat }},{{ p.lng }})">
+            <div class="prosp-score {% if p.score >= 70 %}high{% elif p.score >= 40 %}mid{% else %}low{% endif %}">
+              {{ p.score|round(0)|int }}
+            </div>
+            <div class="prosp-info">
+              <strong>{{ p.nome }}</strong>
+              <span>
+                <span class="prosp-cat {{ p.categoria or '' }}">{{ p.categoria or '—' }}</span>
+                · {{ p.endereco[:40] }}{% if p.endereco|length > 40 %}…{% endif %}
+              </span>
+              {% if p.cnae %}<span style="display:block;font-size:10px;color:var(--ink-tertiary);margin-top:2px;">{{ p.cnae }}</span>{% endif %}
+            </div>
+          </div>
+          {% else %}
+          <p style="padding:var(--space-6);color:var(--ink-tertiary);text-align:center;">Nenhuma oportunidade encontrada. <a href="{{ url_for('preview.prospeccao') }}">Limpar filtros</a>.</p>
+          {% endfor %}
+        </div>
+      </div>
+{% endblock %}
+{% block scripts_extra %}
+<script src="https://cdn.jsdelivr.net/npm/leaflet@1.9.4/dist/leaflet.js"
+        integrity="sha256-20nQCchB9co0qIjJZRGuk2/Z9VM+kNiyxNV1lvTlZBo="
+        crossorigin=""></script>
+<script src="https://cdn.jsdelivr.net/npm/leaflet.heat@0.2.0/dist/leaflet-heat.js" crossorigin=""></script>
+<script>
+(function(){
+  var prospects = {{ prospects|tojson }};
+  var sede = {{ sede_mapa|tojson }};
+  var el = document.getElementById('prosp-leaflet');
+  if (!el || typeof L === 'undefined') return;
+
+  var map = L.map(el, {scrollWheelZoom:true});
+  L.tileLayer('https://tile.openstreetmap.org/{z}/{x}/{y}.png', {
+    maxZoom:19, attribution:'&copy; OpenStreetMap'
+  }).addTo(map);
+
+  /* Sede */
+  if (sede && sede.lat && sede.lng){
+    L.marker([sede.lat, sede.lng], {
+      icon: L.divIcon({className:'',html:'<span style="font-size:20px;">🏢</span>',iconSize:[24,24],iconAnchor:[12,24]})
+    }).addTo(map).bindPopup('<strong>'+(sede.label||'Sede TRONIK')+'</strong>');
+  }
+
+  /* Heatmap */
+  if (prospects.length && typeof L.heatLayer === 'function'){
+    var heatData = prospects.map(function(p){ return [p.lat,p.lng,(p.score||50)/100]; });
+    L.heatLayer(heatData, {radius:30,blur:25,maxZoom:14,
+      gradient:{0.2:'#2ecc71',0.5:'#f39c12',0.8:'#e74c3c',1:'#c0392b'}
+    }).addTo(map);
+  }
+
+  /* Marcadores */
+  var markers = [];
+  prospects.forEach(function(p){
+    var color = p.score >= 70 ? '#e67e22' : p.score >= 40 ? '#f1c40f' : '#95a5a6';
+    var c = L.circleMarker([p.lat,p.lng], {
+      radius:7, color:color, fillColor:color, fillOpacity:0.8, weight:1
+    });
+    c.bindPopup(
+      '<strong>'+p.nome+'</strong><br/>'+
+      '<span style="color:#888;">'+p.categoria+' · Score: '+Math.round(p.score)+'</span><br/>'+
+      '<span style="font-size:11px;">'+p.endereco+'</span>'
+    );
+    c.addTo(map);
+    markers.push(c);
+  });
+
+  /* View */
+  if (markers.length){
+    try { map.fitBounds(L.featureGroup(markers).getBounds().pad(0.15)); }
+    catch(e){ map.setView([-15.79,-47.88],11); }
+  } else {
+    map.setView([-15.79,-47.88],11);
+  }
+
+  /* Focus from list */
+  window.prospFocusMap = function(lat,lng){
+    map.setView([lat,lng],15);
+    // Flash effect
+    var flash = L.circleMarker([lat,lng],{radius:20,color:'#e67e22',fillOpacity:.3,weight:2}).addTo(map);
+    setTimeout(function(){ map.removeLayer(flash); },1500);
+  };
+
+  requestAnimationFrame(function(){ map.invalidateSize(); });
+  setTimeout(function(){ map.invalidateSize(); },250);
+})();
+</script>
+{% endblock %}

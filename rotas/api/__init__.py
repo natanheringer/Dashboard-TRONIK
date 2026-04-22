@@ -19,6 +19,7 @@ from rotas.api import (
     comercial,
     contratos,
     crm,
+    ml,
     notificacoes,
     relatorios,
     sensores,
@@ -38,3 +39,7 @@ api_bp.register_blueprint(auxiliares.auxiliares_bp)
 api_bp.register_blueprint(comercial.comercial_bp)
 api_bp.register_blueprint(crm.crm_bp)
 api_bp.register_blueprint(contratos.contratos_bp)
+
+# Machine Learning
+api_bp.register_blueprint(ml.ml_bp)
+
