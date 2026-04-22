@@ -29,6 +29,7 @@ coletores_bp = Blueprint('coletores', __name__)
 
 
 @coletores_bp.route('/coletores', methods=['GET'])
+@login_required
 def listar_coletores():
     """Endpoint para obter todas as coletores com filtros opcionais e paginação"""
     db = get_db()
@@ -67,6 +68,7 @@ def listar_coletores():
 
 
 @coletores_bp.route('/coletor/<int:coletor_id>', methods=['GET'])
+@login_required
 def obter_lixeira(coletor_id):
     """Endpoint para obter uma coletor específica"""
     db = get_db()

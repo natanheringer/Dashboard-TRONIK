@@ -15,20 +15,14 @@ from banco_dados.modelos import Coletor, Parceiro, TipoMaterial, Usuario
 class TestListarLixeiras:
     """Testes de listagem de coletores"""
     
-    def test_listar_lixeiras_no_auth_required(self, client):
-        """Testa que listar coletores não requer autenticação (comportamento atual)"""
+    def test_listar_lixeiras_requires_login(self, client):
+        """Listagem exige sessão autenticada."""
         response = client.get('/api/coletores')
-        assert response.status_code == 200
-        data = response.get_json()
-        # Ajustar para formato paginado
-        if isinstance(data, dict) and 'dados' in data:
-            assert isinstance(data['dados'], list)
-        else:
-            assert isinstance(data, list)
+        assert response.status_code == 401
     
-    def test_listar_lixeiras_empty(self, client, db_session):
+    def test_listar_lixeiras_empty(self, auth_client, db_session):
         """Testa listar coletores quando não há nenhuma"""
-        response = client.get('/api/coletores')
+        response = auth_client.get('/api/coletores')
         assert response.status_code == 200
         data = response.get_json()
         # Ajustar para formato paginado
@@ -39,7 +33,7 @@ class TestListarLixeiras:
             assert isinstance(data, list)
             assert len(data) == 0
     
-    def test_listar_lixeiras_with_data(self, client, db_session, sample_lixeira_data):
+    def test_listar_lixeiras_with_data(self, auth_client, db_session, sample_lixeira_data):
         """Testa listar coletores com dados"""
         # Usar tipos existentes do seed ou criar novos únicos
         # Buscar primeiro tipo de material existente
@@ -68,7 +62,7 @@ class TestListarLixeiras:
         db_session.commit()
         
         # Listar coletores
-        response = client.get('/api/coletores')
+        response = auth_client.get('/api/coletores')
         assert response.status_code == 200
         data = response.get_json()
         # Ajustar para formato paginado
@@ -207,12 +201,12 @@ class TestCriarLixeira:
 class TestObterLixeira:
     """Testes de obter coletor específica"""
     
-    def test_obter_lixeira_not_found(self, client):
+    def test_obter_lixeira_not_found(self, auth_client):
         """Testa obter coletor inexistente"""
-        response = client.get('/api/coletor/999')
+        response = auth_client.get('/api/coletor/999')
         assert response.status_code == 404
     
-    def test_obter_lixeira_success(self, client, db_session, sample_lixeira_data):
+    def test_obter_lixeira_success(self, auth_client, db_session, sample_lixeira_data):
         """Testa obter coletor existente"""
         # Usar tipos existentes do seed ou criar novos únicos
         # Buscar primeiro tipo de material existente
@@ -241,34 +235,34 @@ class TestObterLixeira:
         db_session.commit()
         
         # Obter coletor
-        response = client.get(f'/api/coletor/{coletor.id}')
+        response = auth_client.get(f'/api/coletor/{coletor.id}')
         assert response.status_code == 200
         data = response.get_json()
         assert data['localizacao'] == sample_lixeira_data['localizacao']
         assert data['id'] == coletor.id
     
-    def test_criar_lixeira_paginacao_valida(self, client, db_session, create_lixeira):
+    def test_criar_lixeira_paginacao_valida(self, auth_client, db_session, create_lixeira):
         """Testa listagem com paginação válida"""
         for i in range(5):
             create_lixeira(localizacao=f"Coletor {i}")
         
-        response = client.get('/api/coletores?pagina=1&por_pagina=10')
+        response = auth_client.get('/api/coletores?pagina=1&por_pagina=10')
         assert response.status_code == 200
     
-    def test_criar_lixeira_paginacao_invalida(self, client):
+    def test_criar_lixeira_paginacao_invalida(self, auth_client):
         """Testa validação de paginação inválida (valores são ajustados)"""
-        response = client.get('/api/coletores?pagina=0')
+        response = auth_client.get('/api/coletores?pagina=0')
         assert response.status_code == 200
         # Página 0 é ajustada para 1
         
-        response = client.get('/api/coletores?por_pagina=200')
+        response = auth_client.get('/api/coletores?por_pagina=200')
         assert response.status_code == 200
         # por_pagina 200 é ajustado para o máximo
     
-    def test_criar_lixeira_coordenadas_invalidas(self, client, auth_headers):
+    def test_criar_lixeira_coordenadas_invalidas(self, auth_client, auth_headers):
         """Testa criação com coordenadas inválidas"""
         # Latitude fora do range
-        response = client.post('/api/coletor', json={
+        response = auth_client.post('/api/coletor', json={
             'localizacao': 'Teste',
             'nivel_preenchimento': 50.0,
             'latitude': 91.0,
@@ -277,7 +271,7 @@ class TestObterLixeira:
         assert response.status_code == 400
         
         # Longitude fora do range
-        response = client.post('/api/coletor', json={
+        response = auth_client.post('/api/coletor', json={
             'localizacao': 'Teste',
             'nivel_preenchimento': 50.0,
             'latitude': -15.7942,
@@ -285,34 +279,34 @@ class TestObterLixeira:
         })
         assert response.status_code == 400
     
-    def test_criar_lixeira_tipo_invalido(self, client, auth_headers):
+    def test_criar_lixeira_tipo_invalido(self, auth_client, auth_headers):
         """Testa criação com tipos inválidos"""
         # Nível como string
-        response = client.post('/api/coletor', json={
+        response = auth_client.post('/api/coletor', json={
             'localizacao': 'Teste',
             'nivel_preenchimento': 'invalid'
         })
         assert response.status_code == 400
         
         # Latitude como string
-        response = client.post('/api/coletor', json={
+        response = auth_client.post('/api/coletor', json={
             'localizacao': 'Teste',
             'nivel_preenchimento': 50.0,
             'latitude': 'invalid'
         })
         assert response.status_code == 400
     
-    def test_criar_lixeira_range_invalido(self, client, auth_headers):
+    def test_criar_lixeira_range_invalido(self, auth_client, auth_headers):
         """Testa criação com ranges inválidos"""
         # Nível > 100
-        response = client.post('/api/coletor', json={
+        response = auth_client.post('/api/coletor', json={
             'localizacao': 'Teste',
             'nivel_preenchimento': 150.0
         })
         assert response.status_code == 400
         
         # Nível < 0
-        response = client.post('/api/coletor', json={
+        response = auth_client.post('/api/coletor', json={
             'localizacao': 'Teste',
             'nivel_preenchimento': -10.0
         })

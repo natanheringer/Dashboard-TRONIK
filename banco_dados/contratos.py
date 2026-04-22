@@ -50,9 +50,8 @@ class TelemetriaIn(BaseModel):
 
     - `nivel_preenchimento` e `bateria` sao porcentagens 0-100.
     - `leituras_tof` e opcional (lista crua do ToF, para debug / media).
-    - `api_key` e recebido mas nao validado aqui - a autenticacao real
-      deve ser feita por middleware separado (TODO: endpoint autenticado
-      por device token na proxima iteracao).
+    - `api_key`: validado em ``rotas.api.sensores.receber_telemetria`` contra
+      ``Sensor.api_token`` ou ``TELEMETRY_SHARED_SECRET`` (ver ``telemetria_auth``).
     """
 
     model_config = ConfigDict(extra="ignore", str_strip_whitespace=True)
@@ -65,7 +64,10 @@ class TelemetriaIn(BaseModel):
         default=None,
         description="Leituras cruas do ToF (cm) para debug; ignoradas pelo server",
     )
-    api_key: Optional[str] = Field(default=None, description="Token do device (validado fora)")
+    api_key: Optional[str] = Field(
+        default=None,
+        description="Token do device (Sensor.api_token ou secret global TELEMETRY_SHARED_SECRET)",
+    )
     firmware_version: Optional[str] = Field(default=None, max_length=32)
     timestamp: Optional[datetime] = Field(
         default=None,

@@ -24,6 +24,8 @@ apos alteracoes. Os testes automatizados vivem em tests/.
 from __future__ import annotations
 
 import json
+import os
+import secrets
 import sqlite3
 import sys
 import urllib.error
@@ -35,8 +37,9 @@ REPO_ROOT = Path(__file__).resolve().parent.parent
 DB_PATH = REPO_ROOT / "tronik.db"
 URL = "http://localhost:5000/api/sensor/telemetria"
 
-PAYLOAD = {
-    "api_key": "tronik-isu-mvp-2026",
+# Preenchido após garantir_seed() (api_token alinhado ao sensor#1)
+PAYLOAD: dict = {
+    "api_key": "",
     "sensor_id": 1,
     "coletor_id": 1,
     "nivel_preenchimento": 85.0,
@@ -45,9 +48,20 @@ PAYLOAD = {
 }
 
 
-def garantir_seed() -> None:
+def _garantir_coluna_api_token(conn: sqlite3.Connection) -> None:
+    cur = conn.cursor()
+    cur.execute("PRAGMA table_info(sensores)")
+    colunas = {row[1] for row in cur.fetchall()}
+    if "api_token" not in colunas:
+        cur.execute("ALTER TABLE sensores ADD COLUMN api_token VARCHAR(128)")
+
+
+def garantir_seed() -> str:
+    """Cria id=1 se faltar e grava ``api_token`` do sensor#1. Retorna o token usado no payload."""
+    global PAYLOAD
     conn = sqlite3.connect(DB_PATH)
     try:
+        _garantir_coluna_api_token(conn)
         cur = conn.cursor()
         cur.execute(
             "INSERT OR IGNORE INTO coletores (id, localizacao, nivel_preenchimento, status) "
@@ -56,7 +70,13 @@ def garantir_seed() -> None:
         cur.execute(
             "INSERT OR IGNORE INTO sensores (id, coletor_id, bateria) VALUES (1, 1, 100.0)"
         )
+        token = os.environ.get("TELEMETRY_SHARED_SECRET", "").strip()
+        if not token:
+            token = secrets.token_urlsafe(24)[:120]
+        cur.execute("UPDATE sensores SET api_token = ? WHERE id = 1", (token,))
         conn.commit()
+        PAYLOAD["api_key"] = token
+        return token
     finally:
         conn.close()
 
@@ -108,6 +128,9 @@ def main() -> int:
         print(f"[erro] banco nao encontrado em {DB_PATH}. Rode `python app.py` ao menos uma vez.")
         return 2
     garantir_seed()
+    if not PAYLOAD.get("api_key"):
+        print("[erro] nao foi possivel definir api_key (garantir_seed).")
+        return 2
 
     print("--- PRIMEIRA EXECUCAO ---")
     if not enviar():
