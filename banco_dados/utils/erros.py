@@ -54,6 +54,13 @@ class ErroAcessoNegado(ErroAPI):
         super().__init__(mensagem, codigo=403)
 
 
+class ErroNaoAutorizado(ErroAPI):
+    """Autenticação necessária ou credenciais inválidas (401)."""
+
+    def __init__(self, mensagem: str = "Nao autorizado"):
+        super().__init__(mensagem, codigo=401)
+
+
 def _erro_codigo(erro: "ErroAPI") -> str:
     """Mapeia classe de erro para codigo textual estavel (consumido pelo frontend)."""
     if isinstance(erro, ErroValidacao):
@@ -62,6 +69,8 @@ def _erro_codigo(erro: "ErroAPI") -> str:
         return "NAO_ENCONTRADO"
     if isinstance(erro, ErroAcessoNegado):
         return "ACESSO_NEGADO"
+    if isinstance(erro, ErroNaoAutorizado):
+        return "NAO_AUTORIZADO"
     return "ERRO_API"
 
 

@@ -168,6 +168,21 @@ def load_user(user_id):
             session.close()
     return None
 
+
+@login_manager.unauthorized_handler
+def _handle_unauthorized():
+    """Rotas /api/* devolvem JSON 401; páginas HTML continuam com redirect ao login."""
+    from flask import jsonify, redirect, request, url_for
+
+    if request.path.startswith('/api/'):
+        return jsonify({
+            'ok': False,
+            'dados': None,
+            'erros': [{'codigo': 'NAO_AUTORIZADO', 'mensagem': 'Autenticacao necessaria'}],
+            'erro': 'Autenticacao necessaria',
+        }), 401
+    return redirect(url_for('auth.login'))
+
 # ========================================
 # FLASK-LIMITER (Rate Limiting)
 # ========================================
@@ -303,6 +318,20 @@ else:
 
 # Sempre criar todas as tabelas (SQLAlchemy só cria as que não existem)
 Base.metadata.create_all(engine)
+
+from banco_dados.schema_compat import aplicar_compat_schema
+
+aplicar_compat_schema(engine)
+
+# Aviso se preview público estiver ligado em produção
+if (
+    FLASK_ENV == "production"
+    and os.getenv("PREVIEW_PUBLIC", "").strip().lower() in {"1", "true", "yes"}
+):
+    logger.warning(
+        "PREVIEW_PUBLIC esta ativo em producao: /preview fica sem login. "
+        "Desligue para ambientes expostos na Internet."
+    )
 
 # Sempre popular tipos (seguro, não duplica se já existirem)
 logger.info("Populando tabelas de tipos...")

@@ -4,6 +4,8 @@ Rotas de Sensores - Dashboard-TRONIK
 Endpoints para operações CRUD de sensores.
 """
 
+import secrets
+
 from flask import Blueprint, jsonify, request
 from flask_login import login_required
 from rotas.api.decorators import admin_required, get_db
@@ -12,7 +14,13 @@ from banco_dados.modelos import Sensor
 from banco_dados.serializers import sensor_para_dict
 from banco_dados.seguranca import validar_sensor
 from banco_dados.utils import utc_now_naive
-from banco_dados.utils.erros import tratar_erro_api, ErroNaoEncontrado, ErroValidacao, validar_requisicao_json
+from banco_dados.telemetria_auth import validar_telemetria
+from banco_dados.utils.erros import (
+    tratar_erro_api,
+    ErroNaoEncontrado,
+    ErroValidacao,
+    validar_requisicao_json,
+)
 from banco_dados.utils.logger import obter_logger
 from sqlalchemy.orm import joinedload
 from datetime import datetime
@@ -24,6 +32,7 @@ sensores_bp = Blueprint('sensores', __name__)
 
 
 @sensores_bp.route('/sensores', methods=['GET'])
+@login_required
 @decorators.rate_limit("30 per minute")
 def listar_sensores():
     """Endpoint para listar todos os sensores com filtros opcionais"""
@@ -59,6 +68,7 @@ def listar_sensores():
 
 
 @sensores_bp.route('/sensor/<int:sensor_id>', methods=['GET'])
+@login_required
 def obter_sensor(sensor_id):
     """Endpoint para obter um sensor específico"""
     db = get_db()
@@ -100,12 +110,13 @@ def criar_sensor():
         if erros:
             raise ErroValidacao("Erros de validação", {"detalhes": erros})
         
-        # Criar novo sensor
+        # Criar novo sensor (token opaco para telemetria; mostrado só nesta resposta)
         novo_sensor = Sensor(
             coletor_id=dados['coletor_id'],
             tipo_sensor_id=dados.get('tipo_sensor_id'),
             bateria=dados.get('bateria', 100.0),
-            ultimo_ping=utc_now_naive()
+            ultimo_ping=utc_now_naive(),
+            api_token=secrets.token_urlsafe(32)[:128],
         )
         
         db.add(novo_sensor)
@@ -118,7 +129,9 @@ def criar_sensor():
             joinedload(Sensor.tipo_sensor)
         ).filter(Sensor.id == novo_sensor.id).first()
         
-        return jsonify(sensor_para_dict(novo_sensor)), 201
+        out = sensor_para_dict(novo_sensor)
+        out["api_token"] = novo_sensor.api_token
+        return jsonify(out), 201
     except Exception as e:
         db.rollback()
         return tratar_erro_api(e)
@@ -236,6 +249,13 @@ def receber_telemetria():
             raise ErroNaoEncontrado("Coletor", payload.coletor_id)
         if not sensor:
             raise ErroNaoEncontrado("Sensor", payload.sensor_id)
+        if sensor.coletor_id != coletor.id:
+            raise ErroValidacao(
+                "sensor_id nao pertence ao coletor_id informado",
+                {"detalhes": {"coletor_id": payload.coletor_id, "sensor_id": payload.sensor_id}},
+            )
+
+        validar_telemetria(sensor, payload.api_key)
 
         notificacoes_criadas = 0
         limite_tempo = utc_now_naive() - timedelta(hours=JANELA_DEDUP_HORAS)
