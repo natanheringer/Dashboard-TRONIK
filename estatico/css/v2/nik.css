@@ -1,0 +1,261 @@
+.nik-container {
+  margin-top: var(--space-4);
+}
+
+.nik-loading {
+  padding: var(--space-3) var(--space-4);
+  border-radius: 18px;
+  background: var(--paper-card);
+  border: 1px solid var(--line-default);
+  color: var(--ink-secondary);
+  font-size: 0.95rem;
+  animation: preview-pulse-soft 2s ease-in-out infinite;
+}
+
+.nik-card {
+  border-radius: 22px;
+  border: 1px solid var(--line-default);
+  background: var(--paper-card);
+  box-shadow: var(--shadow-md);
+  padding: var(--space-5) var(--space-6);
+}
+
+.nik-card-head {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  margin-bottom: 10px;
+  padding-bottom: 10px;
+  border-bottom: 1px solid var(--line-subtle);
+}
+
+.nik-badge {
+  display: inline-flex;
+  align-items: center;
+  padding: var(--space-2) var(--space-3);
+  border-radius: 999px;
+  font-size: 0.72rem;
+  font-weight: 600;
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+  font-family: var(--font-mono);
+}
+
+.nik-chat-user .nik-badge {
+  background: var(--paper-sunk);
+  color: var(--ink-secondary);
+}
+
+.nik-chat-assistant .nik-badge {
+  background: var(--accent-indigo);
+  color: #ffffff;
+}
+
+.nik-status {
+  display: inline-flex;
+  align-items: center;
+  padding: var(--space-2) var(--space-3);
+  border-radius: 999px;
+  font-size: 0.72rem;
+  font-weight: 600;
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+  background: var(--tronik-soft);
+  color: var(--tronik);
+  font-family: var(--font-mono);
+}
+
+.nik-card-text,
+.nik-card p,
+.nik-card blockquote,
+.nik-card cite {
+  margin: 0;
+  color: var(--ink-primary);
+  font-family: var(--font-body);
+  line-height: 1.5;
+}
+
+.nik-card h3 {
+  margin: 0 0 10px;
+  color: var(--ink-primary);
+  font-family: var(--font-display);
+}
+
+.nik-card-subtle {
+  margin-top: 10px !important;
+  color: var(--ink-tertiary) !important;
+}
+
+.nik-card blockquote {
+  padding-left: var(--space-4);
+  border-left: 3px solid var(--tronik);
+  margin-left: 0;
+  margin-bottom: var(--space-2);
+  font-style: italic;
+}
+
+.nik-card cite {
+  display: block;
+  margin-top: var(--space-2);
+  font-size: var(--text-sm);
+  font-style: normal;
+}
+
+.nik-chat-user {
+  background: var(--paper-elevated);
+  border-left: 3px solid var(--accent-indigo);
+  border-right: none;
+  border-top: none;
+  border-bottom: none;
+}
+
+.nik-chat-assistant {
+  background: var(--paper-card);
+  border-left: 3px solid var(--tronik);
+  border-right: none;
+  border-top: none;
+  border-bottom: none;
+}
+
+.nik-chat-input {
+  width: 100%;
+  border-radius: 18px;
+  border: 1px solid var(--line-default);
+  padding: var(--space-3) var(--space-4);
+  font: inherit;
+  font-family: var(--font-body);
+  resize: vertical;
+  min-height: 110px;
+  background: var(--paper-sunk);
+  color: var(--ink-primary);
+  transition: border-color 0.2s ease, box-shadow 0.2s ease;
+}
+
+.nik-chat-input:focus {
+  outline: none;
+  border-color: var(--tronik);
+  box-shadow: 0 0 0 3px rgba(26, 93, 58, 0.1);
+}
+
+.nik-chat-input::placeholder {
+  color: var(--ink-muted);
+}
+
+.nik-chat-form {
+  display: grid;
+  gap: var(--space-3);
+}
+
+.nik-chat-thread {
+  display: grid;
+  gap: var(--space-3);
+  margin-bottom: var(--space-3);
+}
+
+.nik-chat-actions {
+  display: flex;
+  gap: var(--space-3);
+  flex-wrap: wrap;
+}
+
+.nik-metric {
+  font-size: 1.1rem;
+  font-weight: 700;
+  color: var(--tronik);
+  margin-bottom: 8px;
+}
+
+/* Typing indicator animation */
+@keyframes nik-typing-dot {
+  0%, 60%, 100% {
+    opacity: 0.4;
+    transform: translateY(0);
+  }
+  30% {
+    opacity: 1;
+    transform: translateY(-8px);
+  }
+}
+
+.nik-typing {
+  padding: var(--space-3) var(--space-4);
+  font-size: 0.95rem;
+  color: var(--ink-secondary);
+  display: flex;
+  align-items: center;
+  gap: 4px;
+}
+
+.nik-typing::after {
+  content: '';
+  width: 4px;
+  height: 4px;
+  background: var(--ink-secondary);
+  border-radius: 50%;
+  display: inline-block;
+  animation: nik-typing-dot 1.4s infinite;
+}
+
+.nik-typing::before {
+  content: '';
+  width: 4px;
+  height: 4px;
+  background: var(--ink-secondary);
+  border-radius: 50%;
+  display: inline-block;
+  animation: nik-typing-dot 1.4s infinite 0.2s;
+}
+
+.nik-landing-shell {
+  min-height: 100vh;
+  background:
+    radial-gradient(circle at top right, rgba(26, 93, 58, 0.08), transparent 32%),
+    linear-gradient(180deg, var(--paper-page) 0%, var(--paper-muted) 100%);
+  color: var(--ink-primary);
+}
+
+.nik-landing-hero,
+.nik-landing-grid {
+  width: min(1100px, calc(100% - 40px));
+  margin: 0 auto;
+}
+
+.nik-landing-hero {
+  padding: var(--space-20) 0 var(--space-8);
+}
+
+.nik-landing-kicker {
+  text-transform: uppercase;
+  letter-spacing: 0.12em;
+  font-size: var(--text-xs);
+  color: var(--ink-tertiary);
+  font-family: var(--font-mono);
+}
+
+.nik-landing-hero h1 {
+  font-size: clamp(2.2rem, 6vw, 4.5rem);
+  line-height: 0.98;
+  margin: var(--space-3) 0 var(--space-4);
+  font-family: var(--font-display);
+  color: var(--ink-primary);
+}
+
+.nik-landing-hero p {
+  max-width: 760px;
+  font-size: var(--text-md);
+  color: var(--ink-secondary);
+  line-height: 1.6;
+}
+
+.nik-landing-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(240px, 1fr));
+  gap: var(--space-5);
+  padding: var(--space-5) 0 var(--space-12);
+}
+
+@media (max-width: 640px) {
+  .nik-landing-hero {
+    padding-top: var(--space-10);
+  }
+}

@@ -1,0 +1,239 @@
+{% extends 'preview/base_v2.html' %}
+{% set current = 'nik' %}
+{% block title %}Nik · Tronik{% endblock %}
+{% block conteudo %}
+<div class="page-header">
+  <div class="page-title-group">
+    <div style="display: flex; align-items: center; gap: 12px; margin-bottom: 8px;">
+      <h1 style="margin: 0;">Nik</h1>
+      <span class="ml-tag ml-tag--predicao" style="margin-top: 4px;">IA</span>
+    </div>
+    <p>Analise operacional em tempo real. Converse com a Nik sobre coletores, alertas e próximos passos. Ou gere um relatório estruturado para a Maiara.</p>
+  </div>
+</div>
+
+<div class="rel-layout">
+  <aside class="rel-filters">
+    <h3>Relatório Executivo</h3>
+    <p class="rel-filter-help">A Nik analisa o contexto operacional e monta um relatório estruturado para decisões estratégicas. Exporte em JSON ou Markdown.</p>
+
+    <form id="nik-maiara-form">
+      <div class="rel-filter-group">
+        <label for="maiara-inicio">De</label>
+        <input id="maiara-inicio" type="date" name="inicio">
+      </div>
+      <div class="rel-filter-group">
+        <label for="maiara-fim">Até</label>
+        <input id="maiara-fim" type="date" name="fim">
+      </div>
+      <div class="rel-filter-group">
+        <label for="maiara-parceiro">Parceiro</label>
+        <select id="maiara-parceiro" name="parceiro_id">
+          <option value="">Todos os parceiros</option>
+          {% for p in parceiros %}
+          <option value="{{ p.id }}">{{ p.nome }}</option>
+          {% endfor %}
+        </select>
+      </div>
+      <button type="submit" class="btn btn-primary rel-apply-btn">Gerar relatório</button>
+    </form>
+
+    <div id="maiara-export-actions" class="nik-chat-actions" style="margin-top:12px; display:none;">
+      <a id="maiara-export-json" class="btn" href="#">Exportar JSON</a>
+      <a id="maiara-export-md" class="btn" href="#">Exportar Markdown</a>
+    </div>
+  </aside>
+
+  <div class="rel-main">
+    <section class="nik-card nik-card-landing">
+      <h3>Converse com a Nik</h3>
+      <p>Pergunte sobre o estado operacional, coletores específicos, tendências, recomendações de rota, ou o que fazer agora. A Nik conhece o contexto completo e sugerirá os próximos passos práticos.</p>
+      <p class="nik-card-subtle">Em desenvolvimento, a Nik usa dados de exemplo para continuar útil enquanto a base local não está populada.</p>
+    </section>
+
+    <div class="nik-container">
+      <div id="nik-chat-thread" class="nik-chat-thread">
+        <section class="nik-card nik-card-ops nik-chat-assistant">
+          <div class="nik-card-head"><span class="nik-badge">Nik</span></div>
+          <p class="nik-card-text">Oi. Sou a Nik. Consigo ajudar com perguntas operacionais: qual coletor precisa de atenção, por quê esse alerta importa, como os dados se conectam. Também monto relatórios executivos para a Maiara. O que precisa agora?</p>
+        </section>
+        {% for item in historico_nik|reverse %}
+        <section class="nik-card nik-card-ops nik-chat-user">
+          <div class="nik-card-head"><span class="nik-badge">Você</span></div>
+          <p class="nik-card-text">{{ item.pergunta }}</p>
+        </section>
+        <section class="nik-card nik-card-ops nik-chat-assistant">
+          <div class="nik-card-head">
+            <span class="nik-badge">Nik</span>
+            <span class="nik-status">{{ item.contexto_modo }}</span>
+          </div>
+          <p class="nik-card-text">{{ item.resposta }}</p>
+        </section>
+        {% endfor %}
+      </div>
+
+      <div id="nik-typing-indicator" class="nik-typing" style="display:none;">
+        <span>Nik analisando</span>
+        <span></span>
+      </div>
+
+      <form id="nik-chat-form" class="nik-chat-form">
+        <textarea id="nik-chat-input" class="nik-chat-input" rows="4" placeholder="Ex.: Quais coletores precisam de coleta emergencial hoje?" aria-label="Pergunta para a Nik"></textarea>
+        <div class="nik-chat-actions">
+          <button type="submit" class="btn btn-primary">Enviar</button>
+          <button type="button" class="btn" data-nik-seed>Usar dados de exemplo</button>
+        </div>
+      </form>
+      <div id="nik-chat-help" class="nik-card-subtle" style="margin-top:10px;"></div>
+    </div>
+
+    <div id="maiara-report-shell" class="nik-container" style="display:none;">
+      <section class="nik-card nik-card-landing">
+        <div class="nik-card-head">
+          <span class="nik-badge">Maiara</span>
+          <span id="maiara-report-fonte" class="nik-status"></span>
+        </div>
+        <h3 id="maiara-report-title"></h3>
+        <p id="maiara-report-summary" class="nik-card-text"></p>
+      </section>
+
+      <div class="rel-charts">
+        <div class="rel-chart-card">
+          <div class="rel-chart-head"><h3>Riscos</h3></div>
+          <div id="maiara-riscos" class="rel-top-list"></div>
+        </div>
+        <div class="rel-chart-card">
+          <div class="rel-chart-head"><h3>Oportunidades</h3></div>
+          <div id="maiara-oportunidades" class="rel-top-list"></div>
+        </div>
+      </div>
+
+      <div class="rel-chart-card">
+        <div class="rel-chart-head"><h3>Recomendações</h3></div>
+        <div id="maiara-recomendacoes" class="rel-top-list"></div>
+      </div>
+
+      <div class="rel-chart-card">
+        <div class="rel-chart-head"><h3>Métricas-chave</h3></div>
+        <div id="maiara-metricas" class="rel-top-list"></div>
+      </div>
+    </div>
+  </div>
+</div>
+{% endblock %}
+{% block scripts_extra %}
+<script>
+  (function () {
+    function esc(value) {
+      var div = document.createElement("div");
+      div.textContent = String(value || "");
+      return div.innerHTML;
+    }
+
+    function appendMessage(label, text, cls, status) {
+      var thread = document.getElementById("nik-chat-thread");
+      var section = document.createElement("section");
+      section.className = "nik-card nik-card-ops" + (cls ? " " + cls : "");
+      section.innerHTML =
+        '<div class="nik-card-head"><span class="nik-badge">' + esc(label) + '</span>' +
+        (status ? '<span class="nik-status">' + esc(status) + '</span>' : '') +
+        "</div>" +
+        '<p class="nik-card-text">' + esc(text) + "</p>";
+      thread.appendChild(section);
+      thread.scrollTop = thread.scrollHeight;
+    }
+
+    function renderSimpleList(containerId, items) {
+      var host = document.getElementById(containerId);
+      host.innerHTML = "";
+      (items || []).forEach(function (item, idx) {
+        var row = document.createElement("div");
+        row.className = "rel-top-item";
+        row.innerHTML =
+          '<div class="rel-top-rank">' + String(idx + 1).padStart(2, "0") + '</div>' +
+          '<div class="rel-top-body"><strong>' + esc(item) + '</strong></div>';
+        host.appendChild(row);
+      });
+    }
+
+    function renderMetricas(items) {
+      var host = document.getElementById("maiara-metricas");
+      host.innerHTML = "";
+      (items || []).forEach(function (item, idx) {
+        var row = document.createElement("div");
+        row.className = "rel-top-item";
+        row.innerHTML =
+          '<div class="rel-top-rank">' + String(idx + 1).padStart(2, "0") + '</div>' +
+          '<div class="rel-top-body"><strong>' + esc(item.nome) + " · " + esc(item.valor) + '</strong><span>' + esc(item.insight || "") + '</span></div>';
+        host.appendChild(row);
+      });
+    }
+
+    var form = document.getElementById("nik-chat-form");
+    var input = document.getElementById("nik-chat-input");
+    var help = document.getElementById("nik-chat-help");
+
+    form.addEventListener("submit", async function (event) {
+      event.preventDefault();
+      var mensagem = input.value.trim();
+      if (!mensagem) return;
+      appendMessage("Você", mensagem, "nik-chat-user");
+      input.value = "";
+      document.getElementById("nik-typing-indicator").style.display = "";
+      help.textContent = "";
+      try {
+        var resp = await fetch("/api/nik/ops/conversa", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          credentials: "same-origin",
+          body: JSON.stringify({ mensagem: mensagem })
+        });
+        var data = await resp.json();
+        document.getElementById("nik-typing-indicator").style.display = "none";
+        appendMessage("Nik", data.texto || "Não consegui gerar uma resposta.", "nik-chat-assistant", data.modo_contexto);
+        help.textContent = data.modo_contexto === "mock"
+          ? "Contexto atual: dados de exemplo (desenvolvimento)"
+          : "Contexto atual: dados da base local";
+      } catch (err) {
+        document.getElementById("nik-typing-indicator").style.display = "none";
+        appendMessage("Nik", "Tente novamente em poucos instantes.", "nik-chat-assistant");
+        help.textContent = "";
+      }
+    });
+
+    document.querySelector("[data-nik-seed]").addEventListener("click", function () {
+      appendMessage(
+        "Nik",
+        "Para carregar dados de exemplo, rode no terminal: python -m banco_dados.popular_mock_preview — depois recarregue a página e eu terei contexto real para analisar.",
+        "nik-chat-assistant"
+      );
+    });
+
+    document.getElementById("nik-maiara-form").addEventListener("submit", async function (event) {
+      event.preventDefault();
+      var params = new URLSearchParams(new FormData(event.target));
+      help.textContent = "Nik está analisando o contexto...";
+      try {
+        var resp = await fetch("/api/nik/maiara/relatorio?" + params.toString(), { credentials: "same-origin" });
+        var data = await resp.json();
+        var conteudo = data.conteudo || {};
+        document.getElementById("maiara-report-shell").style.display = "";
+        document.getElementById("maiara-report-title").textContent = conteudo.titulo || "Relatório Executivo";
+        document.getElementById("maiara-report-summary").textContent = conteudo.resumo_executivo || "";
+        document.getElementById("maiara-report-fonte").textContent = data.fonte || "IA";
+        renderSimpleList("maiara-riscos", conteudo.riscos || []);
+        renderSimpleList("maiara-oportunidades", conteudo.oportunidades || []);
+        renderSimpleList("maiara-recomendacoes", conteudo.recomendacoes || []);
+        renderMetricas(conteudo.metricas_chave || []);
+
+        document.getElementById("maiara-export-actions").style.display = "flex";
+        document.getElementById("maiara-export-json").href = "/api/nik/maiara/relatorio/" + data.id + "/export?formato=json";
+        document.getElementById("maiara-export-md").href = "/api/nik/maiara/relatorio/" + data.id + "/export?formato=md";
+        help.textContent = "Relatório pronto.";
+      } catch (err) {
+        help.textContent = "Tente novamente em poucos instantes.";
+      }
+    });
+  })();
+</script>
+{% endblock %}
