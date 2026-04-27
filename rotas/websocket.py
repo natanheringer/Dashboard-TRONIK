@@ -42,14 +42,19 @@ def inicializar_websocket(app):
     from flask_socketio import SocketIO
     
     try:
+        # Em async_mode=threading com Werkzeug (dev), upgrade para WebSocket
+        # costuma gerar erros intermitentes. Mantemos polling estável no dev.
+        is_dev = os.getenv("FLASK_ENV", "development").strip().lower() == "development"
         socketio = SocketIO(
             app,
             cors_allowed_origins=_origens_socket_io(),
             async_mode='threading',
+            manage_session=False,
             logger=False,  # Desabilitar logger para evitar problemas
             engineio_logger=False,  # Desabilitar engineio logger
             ping_timeout=60,
-            ping_interval=25
+            ping_interval=25,
+            allow_upgrades=not is_dev,
         )
         
         # Registrar handlers após inicializar socketio

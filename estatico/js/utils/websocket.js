@@ -28,7 +28,8 @@ const WebSocketClient = (function() {
         
         try {
             socket = io({
-                transports: ['websocket', 'polling'],
+                transports: ['polling'],
+                upgrade: false,
                 reconnection: true,
                 reconnectionDelay: DELAY_RECONEXAO,
                 reconnectionAttempts: MAX_TENTATIVAS
@@ -160,7 +161,7 @@ const WebSocketClient = (function() {
     function inscreverEmAtualizacoes() {
         if (!socket || !conectado) return;
         
-        socket.emit('subscribe_coletores');
+        socket.emit('subscribe_lixeiras');
         socket.emit('subscribe_sensores');
         socket.emit('subscribe_notificacoes');
         

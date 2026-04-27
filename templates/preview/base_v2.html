@@ -12,6 +12,7 @@
   <link rel="stylesheet" href="{{ url_for('static', filename='css/v2/tokens.css') }}?v={{ cache_version }}">
   <link rel="stylesheet" href="{{ url_for('static', filename='css/v2/preview.css') }}?v={{ cache_version }}">
   <link rel="stylesheet" href="{{ url_for('static', filename='css/v2/motion.css') }}?v={{ cache_version }}">
+  <link rel="stylesheet" href="{{ url_for('static', filename='css/v2/nik.css') }}?v={{ cache_version }}">
   {% block head_extra %}{% endblock %}
 </head>
 <body>
@@ -22,7 +23,7 @@
 
 <!-- Mobile topbar -->
 <div class="mobile-topbar">
-  <div style="display:flex; align-items:center; gap:var(--space-3);">
+  <div class="mobile-topbar-brand-row">
     <div class="brand-mark">T</div>
     <div class="mobile-topbar-title">Tronik</div>
   </div>
@@ -46,6 +47,7 @@
 <script src="https://cdn.jsdelivr.net/npm/socket.io-client@4.7.0/dist/socket.io.min.js" crossorigin="anonymous" defer></script>
 <script src="https://cdn.jsdelivr.net/npm/htmx.org@2.0.4/dist/htmx.min.js" crossorigin="anonymous" defer></script>
 <script src="{{ url_for('static', filename='js/v2/preview.js') }}?v={{ cache_version }}" defer></script>
+<script src="{{ url_for('static', filename='js/v2/nik-loader.js') }}?v={{ cache_version }}" defer></script>
 {% block scripts_extra %}{% endblock %}
 </body>
 </html>

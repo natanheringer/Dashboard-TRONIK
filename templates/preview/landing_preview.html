@@ -1,0 +1,224 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Landing Preview · Tronik</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Montserrat:ital,wght@0,400;0,500;0,600;0,700;1,400&family=Roboto+Mono:wght@400;500&family=Roboto:wght@300;400;500;700&display=swap" rel="stylesheet">
+
+  <link rel="stylesheet" href="{{ url_for('static', filename='css/v2/tokens.css') }}?v={{ cache_version }}">
+  <link rel="stylesheet" href="{{ url_for('static', filename='css/v2/preview-landing.css') }}?v={{ cache_version }}">
+</head>
+<body class="lp-body">
+  <nav class="lp-nav">
+    <div class="lp-nav-inner">
+      <a href="#" class="lp-brand">
+        <img src="{{ url_for('preview.nik_assets', filename='tronik_logo_only_nobg.svg') }}" alt="Tronik" class="lp-brand-logo" />
+        <span>Tronik <em>Recicla</em></span>
+      </a>
+      <div class="lp-nav-links">
+        <div class="lp-nav-item">
+          <button type="button">Soluções</button>
+          <div class="lp-dropdown">
+            <a href="#solucoes">Coleta corporativa</a>
+            <a href="#solucoes">Coleta residencial</a>
+            <a href="#solucoes">Engenharia reversa</a>
+          </div>
+        </div>
+        <div class="lp-nav-item">
+          <button type="button">Tecnologia</button>
+          <div class="lp-dropdown">
+            <a href="{{ url_for('preview.monitoramento') }}">Dashboard</a>
+            <a href="{{ url_for('preview.nik') }}">Nik, a inteligência da operação Tronik</a>
+            <a href="{{ url_for('preview.mapa') }}">Mapa operacional</a>
+          </div>
+        </div>
+        <a href="#impacto">Impacto</a>
+        <a href="#sobre">Sobre</a>
+      </div>
+      <a class="lp-pill-btn" href="{{ url_for('preview.monitoramento') }}">Solicitar coleta</a>
+    </div>
+  </nav>
+
+  <main>
+    <section class="lp-hero">
+      <div class="lp-hero-glow" aria-hidden="true"></div>
+      <div class="lp-hero-inner">
+        <div class="lp-hero-content">
+          <div class="lp-kicker">Economia circular · Brasília, DF</div>
+          <h1>Recicle eletrônicos. <span>Gere valor real.</span></h1>
+          <p>Coletamos, rastreamos e reaproveitamos eletrônicos com tecnologia IoT — reduzindo custos e impacto ambiental.</p>
+          <div class="lp-actions">
+            <a class="lp-btn lp-btn-primary" href="{{ url_for('preview.monitoramento') }}">Solicitar coleta</a>
+            <a class="lp-btn" href="{{ url_for('auth.login', next=url_for('preview.dashboard_home')) }}">Ver dashboard</a>
+          </div>
+        </div>
+        <div class="lp-hero-mark" aria-hidden="true">
+          <div class="lp-hero-orbit lp-hero-orbit--a"></div>
+          <div class="lp-hero-orbit lp-hero-orbit--b"></div>
+          <img
+            class="lp-hero-logo"
+            src="{{ url_for('preview.nik_assets', filename='tronik_logo_only_nobg.svg') }}"
+            width="420"
+            height="420"
+            alt=""
+          />
+        </div>
+      </div>
+    </section>
+
+    <section class="lp-impact" id="impacto">
+      <div class="lp-impact-header">
+        <span class="lp-label">Nosso impacto</span>
+        <h2>O Brasil descarta milhões.<br><span>Transformamos isso em valor.</span></h2>
+      </div>
+    
+      <div class="lp-impact-grid">
+        
+        <article class="lp-impact-card">
+          <div class="lp-impact-number">
+            2,4 <span>mi</span>
+          </div>
+          <p>toneladas de e-lixo por ano</p>
+          <small>Brasil é o 5º maior gerador global</small>
+        </article>
+    
+        <article class="lp-impact-card highlight">
+          <div class="lp-impact-number">
+            97<span>%</span>
+          </div>
+          <p>do lixo eletrônico não é reciclado corretamente</p>
+          <small>maior oportunidade do setor</small>
+        </article>
+    
+        <article class="lp-impact-card">
+          <h3 class="lp-impact-title">Mineração urbana</h3>
+          <p>a mais rica em terras raras</p>
+          <small>materiais críticos para a economia digital</small>
+        </article>
+    
+      </div>
+    
+      <div class="lp-impact-footer">
+        <p>É esse valor que a Tronik recupera com tecnologia.</p>
+      </div>
+    </section>  
+
+    <section class="lp-about" id="sobre">
+      <article class="lp-about-card">
+        <div class="lp-label lp-label-dark">Sobre a Tronik</div>
+        <h3>Inovação e consciência em busca de um futuro sustentável.</h3>
+        <p>A Tronik Recicla conecta pessoas, empresas e pontos de coleta a uma operação mais inteligente de descarte, triagem e destinação responsável.</p>
+      </article>
+      <p class="lp-about-text">Com coletores inteligentes em Brasília e Entorno, o ecossistema da Tronik Recicla opera uma rede independente de coleta de e-waste com rastreabilidade e economia circular.</p>
+    </section>
+
+    <section class="lp-solutions" id="solucoes">
+      <div class="lp-label lp-label-dark">Soluções</div>
+      <h2>Do coletor ao componente.</h2>
+      <div class="lp-sol-grid">
+        <article><h4>Coletores inteligentes</h4><p>Sensores ultrassônicos medem preenchimento em tempo real.</p></article>
+        <article><h4>Logística reversa</h4><p>Rotas otimizadas com rastreabilidade de km e kg coletados.</p></article>
+        <article><h4>Engenharia reversa</h4><p>vidro, plástico, cobre, alumínio e placas em fluxo de reciclagem.</p></article>
+        <article><h4>Nik — inteligência da operação Tronik</h4><p>A Nik analisa dados operacionais, logística e reciclagem em tempo real.</p></article>
+      </div>
+    </section>
+
+    <section class="lp-nik lp-nik--dark-ia">
+      <div class="lp-nik-intro">
+        <div class="lp-label">Nik · assistente operacional</div>
+        <h2>Inteligência que <span class="lp-nik-accent">interpreta</span> o impacto operacional.</h2>
+        <p class="lp-nik-lead">Por dentro da Tronik</p>
+        <blockquote class="lp-nik-quote">
+          <p>A Tronik nasceu para transformar lixo eletrônico em valor real. Nossa operação combina coleta inteligente, logística otimizada e engenharia reversa.</p>
+        </blockquote>
+        <p class="lp-nik-attrib"><cite>Maiara Gualberto</cite> · fundadora</p>
+        <div class="lp-nik-actions">
+          <a class="lp-btn lp-btn-tech" href="{{ url_for('paginas.nik_public') }}">Documentação Nik</a>
+        </div>
+        <div class="lp-nik-visual">
+          <div class="lp-wave-wrap">
+            <video
+              class="lp-nik-wave-video"
+              autoplay
+              loop
+              muted
+              playsinline
+              preload="auto"
+              poster="{{ url_for('preview.nik_assets', filename='nik_cannon.png') }}"
+            >
+              <source src="{{ url_for('preview.nik_assets', filename='nik_cannon_animated_bg.mp4') }}" type="video/mp4">
+              <source src="{{ url_for('preview.nik_assets', filename='nik_cannon_animated_bg.webm') }}" type="video/webm">
+            </video>
+            <img
+              src="{{ url_for('preview.nik_assets', filename='nik_cannon.png') }}"
+              alt=""
+              class="lp-nik-wave lp-nik-wave-fallback"
+            />
+          </div>
+        </div>
+      </div>
+      <article class="lp-nik-panel" aria-labelledby="lp-insight-title">
+        <header><span class="dot" aria-hidden="true"></span> <span class="lp-nik-panel-tag">signal · live</span> Nik analisa</header>
+        <h4 id="lp-insight-title">O Brasil descarta 2,4 milhões de toneladas por ano</h4>
+        <p id="lp-insight-body">Menos de 3% recebe tratamento adequado. A Tronik atua coletor por coletor para mudar esse cenário.</p>
+        <small id="lp-insight-highlight">800g de ouro por tonelada de placas recicladas.</small>
+      </article>
+    </section>
+
+    <section class="lp-cta">
+      <h2>Seu e-waste tem mais valor do que você imagina.</h2>
+      <p>Residências, empresas e faculdades em Brasília e Entorno.</p>
+      <div class="lp-actions lp-actions-center">
+        <a class="lp-btn lp-btn-dark" href="{{ url_for('preview.mapa') }}">Ver mapa</a>
+        <a class="lp-btn lp-btn-dark-ghost" href="{{ url_for('preview.parceiro') }}">Falar com a equipe</a>
+      </div>
+    </section>
+  </main>
+
+  <script>
+    (function () {
+      var insights = [
+        {
+          title: "O Brasil descarta 2,4 milhões de toneladas por ano",
+          body: "Menos de 3% recebe tratamento adequado. A Tronik atua coletor por coletor para mudar esse cenário.",
+          highlight: "800g de ouro por tonelada de placas recicladas."
+        },
+        {
+          title: "Mineração urbana pode ser até 160x mais eficiente",
+          body: "Placas eletrônicas têm densidade de metais maior que a mineração convencional.",
+          highlight: "O lixo eletrônico pode valer mais que ouro."
+        },
+        {
+          title: "IoT + IA para decisão em tempo real",
+          body: "Sensores monitoram preenchimento e bateria; a Nik recomenda ação antes do transbordo.",
+          highlight: "Tecnologia aplicada à sustentabilidade operacional."
+        }
+      ];
+      var i = 0;
+      var title = document.getElementById("lp-insight-title");
+      var body = document.getElementById("lp-insight-body");
+      var highlight = document.getElementById("lp-insight-highlight");
+      if (!title || !body || !highlight) return;
+      var waveVideo = document.querySelector(".lp-nik-wave-video");
+      var waveFallback = document.querySelector(".lp-nik-wave-fallback");
+      if (waveVideo && waveFallback) {
+        waveVideo.addEventListener("canplay", function () {
+          waveFallback.style.display = "none";
+        });
+        waveVideo.addEventListener("error", function () {
+          waveFallback.style.display = "block";
+        });
+      }
+      setInterval(function () {
+        i = (i + 1) % insights.length;
+        title.textContent = insights[i].title;
+        body.textContent = insights[i].body;
+        highlight.textContent = insights[i].highlight;
+      }, 5200);
+    })();
+  </script>
+</body>
+</html>

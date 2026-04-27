@@ -1,15 +1,19 @@
 {% extends 'preview/base_v2.html' %}
 {% set current = 'home' %}
 {% block title %}Início · Tronik{% endblock %}
+{% block head_extra %}
+<link rel="stylesheet" href="{{ url_for('static', filename='css/v2/preview-home.css') }}?v={{ cache_version }}">
+{% endblock %}
 {% block conteudo %}
       <div class="home-hero">
         <div class="home-eyebrow">{{ data_longa }}</div>
         <h1 class="home-greeting">Olá, {{ usuario_nome }}. <em>O que vamos fazer hoje?</em></h1>
         <p class="home-subtitle">{{ home_subtitulo }}</p>
+        <div id="nik-ops-resumo" class="nik-container"></div>
       </div>
 
       <div class="home-grid preview-home-grid">
-        <a class="destino-card featured" href="{{ url_for('preview.monitoramento') }}" style="text-decoration:none;color:inherit;">
+        <a class="destino-card featured preview-link-reset" href="{{ url_for('preview.monitoramento') }}">
           <div class="destino-header">
             <span class="destino-label">Operação / 01</span>
             <div class="destino-arrow">
@@ -36,7 +40,7 @@
           </div>
         </a>
 
-        <a class="destino-card" href="{{ url_for('preview.mapa') }}" style="text-decoration:none;color:inherit;">
+        <a class="destino-card preview-link-reset" href="{{ url_for('preview.mapa') }}">
           <div class="destino-header">
             <span class="destino-label">Operação / 02</span>
             <div class="destino-arrow">
@@ -49,7 +53,7 @@
           </p>
         </a>
 
-        <a class="destino-card" href="{{ url_for('preview.relatorios') }}" style="text-decoration:none;color:inherit;">
+        <a class="destino-card preview-link-reset" href="{{ url_for('preview.relatorios') }}">
           <div class="destino-header">
             <span class="destino-label">Análise / 03</span>
             <div class="destino-arrow">
@@ -62,4 +66,15 @@
           </p>
         </a>
       </div>
+{% endblock %}
+{% block scripts_extra %}
+<script>
+  document.addEventListener("DOMContentLoaded", function () {
+    if (window.NikLoader) {
+      window.NikLoader.carregarNikOps("/ops/resumo", "nik-ops-resumo", {
+        fallbackText: {{ home_subtitulo|tojson }}
+      });
+    }
+  });
+</script>
 {% endblock %}

@@ -19,6 +19,17 @@ logger = logging.getLogger(__name__)
 scheduler = None
 
 
+def _criar_sessao_padrao():
+    """Cria sessão de banco para jobs isolados do app context."""
+    database_url = os.getenv('DATABASE_URL', 'sqlite:///tronik.db')
+    if database_url.startswith('postgresql://') and '+psycopg' not in database_url:
+        database_url = database_url.replace('postgresql://', 'postgresql+psycopg://')
+    if database_url.startswith('postgres://') and '+psycopg' not in database_url:
+        database_url = database_url.replace('postgres://', 'postgresql+psycopg://')
+    engine = create_engine(database_url, echo=False)
+    return sessionmaker(bind=engine)()
+
+
 def inicializar_agendamento(app):
     """
     Inicializa o sistema de agendamento.
@@ -95,6 +106,18 @@ def inicializar_agendamento(app):
             max_instances=1,
         )
 
+    nik_enabled = os.getenv('NIK_PRE_GERACAO_ENABLED', 'false').lower() == 'true'
+    if nik_enabled:
+        nik_intervalo = int(os.getenv('NIK_PRE_GERACAO_INTERVALO_MIN', '60'))
+        scheduler.add_job(
+            func=pre_gerar_nik_job,
+            trigger=IntervalTrigger(minutes=nik_intervalo),
+            id='pre_gerar_nik',
+            name='Pré-gerar conteúdo Nik',
+            replace_existing=True,
+            max_instances=1,
+        )
+
     # Iniciar scheduler
     scheduler.start()
 
@@ -106,6 +129,8 @@ def inicializar_agendamento(app):
         logger.info(f"   ML Score: a cada 24h")
     if ml_prospeccao_enabled:
         logger.info(f"   ML Prospecção: semanal")
+    if nik_enabled:
+        logger.info(f"   Nik pré-geração: a cada {nik_intervalo} minutos")
     logger.info(f"   Próxima execução: {scheduler.get_job('processar_alertas').next_run_time}")
 
 
@@ -152,13 +177,35 @@ def processar_alertas_job():
 
 def _criar_sessao_ml():
     """Cria sessão de banco para jobs ML (isolada do app context)."""
-    database_url = os.getenv('DATABASE_URL', 'sqlite:///tronik.db')
-    if database_url.startswith('postgresql://') and '+psycopg' not in database_url:
-        database_url = database_url.replace('postgresql://', 'postgresql+psycopg://')
-    if database_url.startswith('postgres://') and '+psycopg' not in database_url:
-        database_url = database_url.replace('postgres://', 'postgresql+psycopg://')
-    engine = create_engine(database_url, echo=False)
-    return sessionmaker(bind=engine)()
+    return _criar_sessao_padrao()
+
+
+def pre_gerar_nik_job():
+    """Pré-popula cache da Nik para landing e blocos ops mais acessados."""
+    try:
+        logger.info("[Nik] Iniciando pré-geração de conteúdo...")
+        from banco_dados.services import nik_service as nik
+
+        tipos_landing = [
+            "fala_nik",
+            "fato_reciclagem",
+            "impacto_tronik",
+            "pergunta_guiada",
+            "nik_explica",
+        ]
+        for tipo in tipos_landing:
+            resultado = nik.gerar_bloco_landing(tipo)
+            logger.info("[Nik] Landing %s: %s", tipo, resultado.get("fonte"))
+
+        db = _criar_sessao_padrao()
+        try:
+            logger.info("[Nik] Ops resumo: %s", nik.resumo_operacional(db).get("fonte"))
+            logger.info("[Nik] Ops alerta: %s", nik.analise_alerta(db).get("fonte"))
+        finally:
+            db.close()
+        logger.info("[Nik] Pré-geração concluída")
+    except Exception as exc:
+        logger.error("[Nik] Erro na pré-geração: %s", exc, exc_info=True)
 
 
 def _job_ml_predicao():

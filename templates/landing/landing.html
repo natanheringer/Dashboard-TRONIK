@@ -1,0 +1,421 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Nik Pública · Tronik Recicla</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Montserrat:ital,wght@0,400;0,500;0,600;0,700;1,400&family=Roboto+Mono:wght@400;500&family=Roboto:wght@300;400;500;700&display=swap" rel="stylesheet">
+  <link rel="stylesheet" href="{{ url_for('static', filename='css/v2/tokens.css') }}?v={{ cache_version }}">
+  <link rel="stylesheet" href="{{ url_for('static', filename='css/v2/preview-landing.css') }}?v={{ cache_version }}">
+  <link rel="stylesheet" href="{{ url_for('static', filename='css/v2/nik-public.css') }}?v={{ cache_version }}">
+  {# fallback PNG se nik_cannon.png não existir no servidor local #}
+  {% set cannon_png_fb = url_for('preview.nik_assets', filename='nik_cannon_1.png') %}
+</head>
+<body class="lp-body nikpub-page">
+  <nav class="lp-nav">
+    <div class="lp-nav-inner">
+      <a href="{{ url_for('preview.landing_preview') }}" class="lp-brand">
+        <img src="{{ url_for('preview.nik_assets', filename='tronik_logo_only_nobg.svg') }}" alt="Tronik" class="lp-brand-logo" />
+        <span>Tronik <em>Recicla</em></span>
+      </a>
+      <div class="lp-nav-links">
+        <a href="{{ url_for('preview.landing_preview') }}">Landing</a>
+        <a href="{{ url_for('preview.monitoramento') }}">Dashboard</a>
+        <a href="{{ url_for('preview.nik') }}">Nik Ops</a>
+      </div>
+      <a class="lp-pill-btn" href="{{ url_for('preview.mapa') }}">Mapa</a>
+    </div>
+  </nav>
+
+  <main>
+    <section class="nikpub-hero">
+      <div class="nikpub-hero-inner">
+        <div class="nikpub-hero-copy">
+          <div class="lp-kicker">Nik Pública · Tronik Recicla</div>
+          <h1>Reciclagem eletrônica com <span>inteligência</span>, impacto e rota de volta.</h1>
+          <p class="nikpub-hero-lead">
+            A Nik traduz o que a Tronik faz no chão da operação para quem quer entender melhor lixo eletrônico,
+            logística reversa e economia circular — e apoia a equipe com leitura consistente de dados, alertas e rotas.
+          </p>
+        </div>
+        <div class="nikpub-hero-visual" aria-hidden="true">
+          <div class="nikpub-cannon-frame">
+            <div class="nikpub-cannon-wrap">
+              <video
+                id="nikpub-hero-cannon-video"
+                class="nikpub-cannon-video"
+                autoplay
+                loop
+                muted
+                playsinline
+                preload="auto"
+                poster="{{ url_for('preview.nik_assets', filename='nik_cannon.png') }}"
+              >
+                <source src="{{ url_for('preview.nik_assets', filename='nik_cannon_animated_bg.mp4') }}" type="video/mp4">
+                <source src="{{ url_for('preview.nik_assets', filename='nik_cannon_animated_bg.webm') }}" type="video/webm">
+              </video>
+              <img
+                src="{{ url_for('preview.nik_assets', filename='nik_cannon.png') }}"
+                alt=""
+                class="nikpub-cannon-fallback"
+                loading="eager"
+                decoding="async"
+                width="360"
+                height="440"
+                onerror="if(!this.dataset.fallback){this.dataset.fallback='1';this.src='{{ cannon_png_fb }}';}"
+              >
+            </div>
+          </div>
+        </div>
+      </div>
+    </section>
+
+    <section class="nikpub-section nikpub-section--elevated" id="operacao">
+      <div class="nikpub-section-head">
+        <div class="lp-label">Operação Tronik hoje</div>
+        <h2>O que a Nik é capaz de fazer na operação atual</h2>
+        <p>
+          A Nik não substitui sensores nem o ERP: ela organiza leitura, priorização e linguagem para decisão.
+          Na stack atual (coletores IoT, dados de coleta, contexto de parceiros e rotas), ela atua como camada de inteligência operacional.
+        </p>
+      </div>
+      <div class="nikpub-cap-grid">
+        <article class="nikpub-cap-card">
+          <h3>Priorização de coletores</h3>
+          <p>
+            Cruza níveis de preenchimento, histórico e sinais de risco para indicar onde agir antes do transbordo ou da falha logística.
+          </p>
+        </article>
+        <article class="nikpub-cap-card">
+          <h3>Alertas em linguagem operacional</h3>
+          <p>
+            Transforma métricas e alarmes em explicações curtas: o que significa, por que importa e qual o próximo passo sugerido.
+          </p>
+        </article>
+        <article class="nikpub-cap-card">
+          <h3>Logística reversa contextualizada</h3>
+          <p>
+            Relaciona rotas, volumes e materiais para dar contexto à coleta — útil para planejamento e comunicação com parceiros.
+          </p>
+        </article>
+        <article class="nikpub-cap-card">
+          <h3>Síntese para relatórios</h3>
+          <p>
+            Apoia relatórios executivos e fluxos como Maiara: estrutura o que os dados dizem sem perder o fio da operação real.
+          </p>
+        </article>
+        <article class="nikpub-cap-card">
+          <h3>Continuidade na conversa</h3>
+          <p>
+            Mantém o fio da thread operacional no chat para não repetir contexto a cada pergunta — adequado a turnos e times distribuídos.
+          </p>
+        </article>
+      </div>
+    </section>
+
+    <section class="nikpub-section nikpub-section--dark" id="stream">
+      <div class="nikpub-section-head">
+        <div class="lp-label">Sinal em tempo real</div>
+        <h2>Nik · insight rotativo</h2>
+        <p>
+          Textos curados que simulam a leitura contínua da operação — atualizados nesta página sem novo clique e sem chamada ao modelo ao alternar.
+        </p>
+      </div>
+      <div class="nikpub-stream-grid">
+        <div class="nikpub-terminal">
+          <div class="nikpub-terminal-bar">
+            <span class="nikpub-dot" aria-hidden="true"></span>
+            nik.stream · local · rotativo
+          </div>
+          <div class="nikpub-terminal-body">
+            <span id="nikpub-stream-text"></span><span class="cursor" aria-hidden="true"></span>
+          </div>
+          <p class="nikpub-stream-note" style="padding: 0 18px 14px;">
+            Conteúdo pré-definido no navegador — sem rate limit ao servidor e sem novo pedido ao provedor ao trocar de linha.
+          </p>
+        </div>
+        <div class="nikpub-faq-panel nikpub-faq-panel--stream" id="nikpub-faq-panel" aria-live="polite">
+          <div class="nikpub-faq-panel-bar">
+            <span class="nikpub-dot" aria-hidden="true"></span>
+            nik.cache · stream local
+          </div>
+          <div class="nikpub-faq-panel-inner">
+            <h3 id="nikpub-faq-title"><span id="nikpub-faq-title-text"></span></h3>
+            <div class="nikpub-faq-body" id="nikpub-faq-body"></div>
+            <span id="nikpub-faq-stream-cursor" class="cursor nikpub-faq-stream-cursor" aria-hidden="true"></span>
+            <p class="nikpub-faq-hint">Resposta servida do bundle desta página — zero round-trip ao modelo ao alternar chips.</p>
+          </div>
+        </div>
+        <div class="nikpub-faq-ask">
+          <div class="lp-label">pergunte para a nik...</div>
+          <p class="nikpub-faq-ask-lead">
+            Respostas embutidas nesta página para temas de e-waste, ESG e tratamento corporativo. Ao clicar, só lemos texto em cache local — nenhuma inferência nova.
+          </p>
+          <div class="nikpub-faq-chips" role="tablist" aria-label="Temas educativos">
+            <button type="button" class="nikpub-chip is-active" role="tab" data-faq="ewaste" aria-selected="true">E-waste na empresa</button>
+            <button type="button" class="nikpub-chip" role="tab" data-faq="esg" aria-selected="false">ESG &amp; rastreabilidade</button>
+            <button type="button" class="nikpub-chip" role="tab" data-faq="tratamento" aria-selected="false">Tratamento corporativo</button>
+          </div>
+        </div>
+      </div>
+    </section>
+
+    <section class="nikpub-section" id="blocos">
+      <div class="nikpub-section-head">
+        <div class="lp-label">Conteúdo dinâmico (servidor)</div>
+        <h2>Blocos educativos gerados pela Nik</h2>
+        <p>
+          Mesmo fluxo de sempre: o backend usa cache com TTL; a primeira resposta pode vir do modelo ou do fallback,
+          e as seguintes leem cache — carregamento escalonado abaixo para não disparar tudo em paralelo.
+        </p>
+      </div>
+      <div class="nikpub-blocos-grid">
+        <div id="nik-fala" class="nik-container"></div>
+        <div id="nik-fato" class="nik-container"></div>
+        <div id="nik-impacto" class="nik-container"></div>
+        <div id="nik-pergunta" class="nik-container"></div>
+        <div id="nik-explica" class="nik-container"></div>
+      </div>
+      <p class="nikpub-api-note">
+        Os blocos acima chamam <code style="font-family: var(--font-mono); font-size: 11px;">GET /api/nik/landing/&lt;tipo&gt;</code> com intervalo entre pedidos.
+        No servidor, resultados ficam em cache (ex.: TTL configurável) — não há segundo pedido ao provedor enquanto a chave estiver válida.
+      </p>
+    </section>
+  </main>
+
+  <script src="{{ url_for('static', filename='js/v2/nik-loader.js') }}?v={{ cache_version }}"></script>
+  <script>
+    (function () {
+      /* --- FAQ local (sem API no clique) --- */
+      var FAQ = {
+        ewaste: {
+          title: "Por que o e-waste importa na operação da empresa?",
+          paragraphs: [
+            "Resíduos eletrônicos concentram metais valiosos e substâncias sensíveis; misturá-los ao lixo comum aumenta passivo ambiental, multas e perda de material recuperável.",
+            "Na Tronik, a leitura operacional (sensores + logística) existe para saber onde está o volume, qual rota compensa e como reduzir exposição — a Nik torna isso narrável para quem não vive o chão da coleta.",
+            "Tratar e-waste com rastreabilidade não é só compliance: é custo evitado, matéria-prima reintroduzida e narrativa defensável para clientes e investidores."
+          ]
+        },
+        esg: {
+          title: "ESG: onde a reciclagem eletrônica entra no relatório?",
+          paragraphs: [
+            "Indicadores ESG ganham peso quando há evidência: quilos destinados corretamente, CO₂ evitado quando comparável, e cadeia de destino auditável.",
+            "Sem dados integrados, o discurso ESG fica genérico. Com coleta inteligente e destinos rastreados, a organização mostra métricas por parceiro, material e período — matéria-prima para disclosure e metas.",
+            "A Nik ajuda a equipe a extrair histórias consistentes dos números que já existem na operação Tronik, sem reinventar o processo físico."
+          ]
+        },
+        tratamento: {
+          title: "Por que a empresa precisa de tratamento específico de e-waste?",
+          paragraphs: [
+            "Descarte misturado ou terceirizado sem critério transfere risco legal e reputacional: órgãos cobram cadeia de custódia e destino final adequado.",
+            "Tratamento especializado separa perigos, maximiza reciclagem de frações nobres e documenta fluxos — requisito para contratos corporativos e grandes licitações.",
+            "A Tronik posiciona coleta, triagem e engenharia reversa como sistema; a Nik reduz atrito cognitivo para times que precisam decidir rápido com base nesse sistema."
+          ]
+        }
+      };
+
+      var FAQ_STREAM_MS = 22;
+      var FAQ_PAUSE_MS = 200;
+      var faqStreamTimer = null;
+
+      function cancelFaqStream() {
+        if (faqStreamTimer !== null) {
+          clearTimeout(faqStreamTimer);
+          faqStreamTimer = null;
+        }
+      }
+
+      function finishFaqStream(panel) {
+        panel.classList.remove("is-streaming");
+      }
+
+      /** Depois do 1º stream o cursor não pode ser removido do DOM — senão getElementById falha nos próximos chips. */
+      function ensureFaqCursor(panelInner) {
+        var el = document.getElementById("nikpub-faq-stream-cursor");
+        if (el) return el;
+        el = document.createElement("span");
+        el.id = "nikpub-faq-stream-cursor";
+        el.className = "cursor nikpub-faq-stream-cursor";
+        el.setAttribute("aria-hidden", "true");
+        var hint = panelInner.querySelector(".nikpub-faq-hint");
+        if (hint) panelInner.insertBefore(el, hint);
+        else panelInner.appendChild(el);
+        return el;
+      }
+
+      function scheduleFaq(ms, fn) {
+        cancelFaqStream();
+        faqStreamTimer = setTimeout(function () {
+          faqStreamTimer = null;
+          fn();
+        }, ms);
+      }
+
+      function streamFaq(key) {
+        cancelFaqStream();
+        var data = FAQ[key];
+        if (!data) return;
+
+        var panel = document.getElementById("nikpub-faq-panel");
+        var panelInner = panel && panel.querySelector(".nikpub-faq-panel-inner");
+        var titleTextEl = document.getElementById("nikpub-faq-title-text");
+        var titleShell = document.getElementById("nikpub-faq-title");
+        var bodyEl = document.getElementById("nikpub-faq-body");
+        var cursorEl = panelInner ? ensureFaqCursor(panelInner) : document.getElementById("nikpub-faq-stream-cursor");
+
+        if (!panel || !titleTextEl || !titleShell || !bodyEl || !cursorEl) return;
+
+        panel.classList.remove("is-streaming");
+        if (cursorEl.parentNode) cursorEl.parentNode.removeChild(cursorEl);
+        titleTextEl.textContent = "";
+        bodyEl.innerHTML = "";
+        panel.classList.add("is-streaming");
+        titleShell.appendChild(cursorEl);
+
+        var title = data.title;
+        var paras = data.paragraphs;
+        var ti = 0;
+        var pi = 0;
+        var ci = 0;
+        var phase = "title";
+
+        function run() {
+          if (phase === "title") {
+            if (ti < title.length) {
+              titleTextEl.textContent = title.slice(0, ti + 1);
+              ti++;
+              scheduleFaq(FAQ_STREAM_MS, run);
+              return;
+            }
+            phase = "body";
+            if (cursorEl.parentNode) cursorEl.parentNode.removeChild(cursorEl);
+            scheduleFaq(120, run);
+            return;
+          }
+
+          if (phase === "body") {
+            if (pi >= paras.length) {
+              finishFaqStream(panel);
+              return;
+            }
+
+            var line = paras[pi];
+            var pEl = bodyEl.children[pi];
+            if (!pEl) {
+              pEl = document.createElement("p");
+              var tn = document.createTextNode("");
+              pEl.appendChild(tn);
+              bodyEl.appendChild(pEl);
+              pEl.appendChild(cursorEl);
+            }
+
+            var textNode = pEl.firstChild;
+            if (ci < line.length) {
+              textNode.nodeValue = line.slice(0, ci + 1);
+              ci++;
+              scheduleFaq(FAQ_STREAM_MS, run);
+              return;
+            }
+
+            if (cursorEl.parentNode) cursorEl.parentNode.removeChild(cursorEl);
+            pi++;
+            ci = 0;
+            scheduleFaq(FAQ_PAUSE_MS, run);
+          }
+        }
+
+        run();
+      }
+
+      document.querySelectorAll(".nikpub-chip").forEach(function (btn) {
+        btn.addEventListener("click", function () {
+          var key = btn.getAttribute("data-faq");
+          document.querySelectorAll(".nikpub-chip").forEach(function (b) {
+            b.classList.toggle("is-active", b === btn);
+            b.setAttribute("aria-selected", b === btn ? "true" : "false");
+          });
+          streamFaq(key);
+        });
+      });
+      streamFaq("ewaste");
+
+      /* --- Terminal rotativo (só cliente) --- */
+      var STREAM_LINES = [
+        "[ops] Correlação coletor × rota: prioridade sugerida para 3 unidades acima do limiar semanal.",
+        "[ops] Alerta traduzido: queda de telemetria em sensor ultrassônico — verificar bateria antes de remanejar rota.",
+        "[ops] Resumo turno: +12% volume reciclável vs. média móvel; destino triagem B dentro do SLA.",
+        "[ops] Insight Maiara: síntese executiva pronta — destaques em metal nobre e plástico técnico.",
+        "[ops] Parceiro priorizado: contrato com meta ESG — documentar toneladas com trilha de destino."
+      ];
+      var streamEl = document.getElementById("nikpub-stream-text");
+      var lineIndex = 0;
+      var charIndex = 0;
+
+      function tickStream() {
+        if (!streamEl) return;
+        var line = STREAM_LINES[lineIndex];
+        if (charIndex <= line.length) {
+          streamEl.textContent = line.slice(0, charIndex);
+          charIndex++;
+          setTimeout(tickStream, charIndex > line.length ? 2200 : 28);
+        } else {
+          lineIndex = (lineIndex + 1) % STREAM_LINES.length;
+          charIndex = 0;
+          streamEl.textContent = "";
+          setTimeout(tickStream, 400);
+        }
+      }
+      tickStream();
+
+      /* --- Hero: vídeo cannon — PNG visível até o vídeo reproduzir --- */
+      (function wireHeroCannon() {
+        var v = document.getElementById("nikpub-hero-cannon-video");
+        var img = document.querySelector(".nikpub-cannon-fallback");
+        if (!v || !img) return;
+        function showVideo() {
+          v.classList.add("is-media-ready");
+          img.style.opacity = "0";
+        }
+        v.addEventListener("playing", showVideo);
+        v.addEventListener("canplay", function () {
+          if (v.readyState >= 2) showVideo();
+        });
+        v.addEventListener("error", function () {
+          v.style.display = "none";
+          img.style.opacity = "1";
+        });
+      })();
+
+      /* --- Blocos landing: sequencial para suavizar burst --- */
+      var BLOCO_FILA = [
+        { tipo: "fala_nik", id: "nik-fala" },
+        { tipo: "fato_reciclagem", id: "nik-fato" },
+        { tipo: "impacto_tronik", id: "nik-impacto" },
+        { tipo: "pergunta_guiada", id: "nik-pergunta" },
+        { tipo: "nik_explica", id: "nik-explica" }
+      ];
+      var delayMs = 500;
+
+      function carregarProximo(i) {
+        if (i >= BLOCO_FILA.length) return;
+        var item = BLOCO_FILA[i];
+        if (window.NikLoader && NikLoader.carregarNikLanding) {
+          NikLoader.carregarNikLanding(item.tipo, item.id);
+        }
+        setTimeout(function () {
+          carregarProximo(i + 1);
+        }, delayMs);
+      }
+      if (document.readyState === "loading") {
+        document.addEventListener("DOMContentLoaded", function () {
+          carregarProximo(0);
+        });
+      } else {
+        carregarProximo(0);
+      }
+    })();
+  </script>
+</body>
+</html>

@@ -1,261 +1,1060 @@
-.nik-container {
-  margin-top: var(--space-4);
-}
+/* ============================================================
+   NIK CHAT STYLES (MANUS STYLE)
+   ============================================================ */
 
-.nik-loading {
-  padding: var(--space-3) var(--space-4);
-  border-radius: 18px;
-  background: var(--paper-card);
-  border: 1px solid var(--line-default);
-  color: var(--ink-secondary);
-  font-size: 0.95rem;
-  animation: preview-pulse-soft 2s ease-in-out infinite;
-}
-
-.nik-card {
-  border-radius: 22px;
-  border: 1px solid var(--line-default);
-  background: var(--paper-card);
-  box-shadow: var(--shadow-md);
-  padding: var(--space-5) var(--space-6);
-}
-
-.nik-card-head {
+/* Full layout constraint */
+.nik-app-layout {
   display: flex;
-  align-items: center;
-  gap: 10px;
-  margin-bottom: 10px;
-  padding-bottom: 10px;
+  height: 100vh;
+  width: 100%;
+  background: var(--paper-page);
+  overflow: hidden;
+}
+
+/* ============================================================
+   INTERNAL SIDEBAR
+   ============================================================ */
+.nik-sidebar {
+  width: 260px;
+  background: var(--paper-card);
+  border-right: 1px solid var(--line-default);
+  display: flex;
+  flex-direction: column;
+  flex-shrink: 0;
+}
+
+.nik-sidebar-header {
+  padding: var(--space-4);
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-3);
   border-bottom: 1px solid var(--line-subtle);
 }
 
-.nik-badge {
-  display: inline-flex;
+.nik-new-chat-btn,
+.nik-new-agent-btn {
+  display: flex;
   align-items: center;
-  padding: var(--space-2) var(--space-3);
-  border-radius: 999px;
-  font-size: 0.72rem;
-  font-weight: 600;
-  letter-spacing: 0.06em;
-  text-transform: uppercase;
-  font-family: var(--font-mono);
-}
-
-.nik-chat-user .nik-badge {
-  background: var(--paper-sunk);
-  color: var(--ink-secondary);
-}
-
-.nik-chat-assistant .nik-badge {
-  background: var(--accent-indigo);
-  color: #ffffff;
-}
-
-.nik-status {
-  display: inline-flex;
-  align-items: center;
-  padding: var(--space-2) var(--space-3);
-  border-radius: 999px;
-  font-size: 0.72rem;
-  font-weight: 600;
-  letter-spacing: 0.06em;
-  text-transform: uppercase;
-  background: var(--tronik-soft);
-  color: var(--tronik);
-  font-family: var(--font-mono);
-}
-
-.nik-card-text,
-.nik-card p,
-.nik-card blockquote,
-.nik-card cite {
-  margin: 0;
-  color: var(--ink-primary);
-  font-family: var(--font-body);
-  line-height: 1.5;
-}
-
-.nik-card h3 {
-  margin: 0 0 10px;
-  color: var(--ink-primary);
-  font-family: var(--font-display);
-}
-
-.nik-card-subtle {
-  margin-top: 10px !important;
-  color: var(--ink-tertiary) !important;
-}
-
-.nik-card blockquote {
-  padding-left: var(--space-4);
-  border-left: 3px solid var(--tronik);
-  margin-left: 0;
-  margin-bottom: var(--space-2);
-  font-style: italic;
-}
-
-.nik-card cite {
-  display: block;
-  margin-top: var(--space-2);
-  font-size: var(--text-sm);
-  font-style: normal;
-}
-
-.nik-chat-user {
-  background: var(--paper-elevated);
-  border-left: 3px solid var(--accent-indigo);
-  border-right: none;
-  border-top: none;
-  border-bottom: none;
-}
-
-.nik-chat-assistant {
-  background: var(--paper-card);
-  border-left: 3px solid var(--tronik);
-  border-right: none;
-  border-top: none;
-  border-bottom: none;
-}
-
-.nik-chat-input {
+  gap: 8px;
   width: 100%;
-  border-radius: 18px;
+  padding: 10px 14px;
+  background: var(--paper-elevated);
   border: 1px solid var(--line-default);
-  padding: var(--space-3) var(--space-4);
-  font: inherit;
+  border-radius: var(--radius-md);
+  color: var(--ink-primary);
   font-family: var(--font-body);
-  resize: vertical;
-  min-height: 110px;
+  font-size: var(--text-sm);
+  font-weight: 500;
+  cursor: pointer;
+  transition: all 150ms ease;
+}
+
+.nik-new-chat-btn:hover,
+.nik-new-agent-btn:hover {
+  background: #ffffff;
+  border-color: var(--line-strong);
+  box-shadow: var(--shadow-sm);
+}
+
+.nik-badge-new {
+  font-size: 9px;
+  text-transform: uppercase;
+  color: var(--tronik);
+  background: var(--tronik-soft);
+  padding: 2px 6px;
+  border-radius: 4px;
+  margin-left: auto;
+  font-family: var(--font-mono);
+  font-weight: 600;
+}
+
+.nik-search-box {
+  position: relative;
+  display: flex;
+  align-items: center;
+}
+
+.nik-search-box svg {
+  position: absolute;
+  left: 10px;
+  color: var(--ink-tertiary);
+}
+
+.nik-search-box input {
+  width: 100%;
+  padding: 8px 10px 8px 32px;
+  border-radius: var(--radius-md);
+  border: 1px solid transparent;
   background: var(--paper-sunk);
   color: var(--ink-primary);
+  font-size: var(--text-sm);
+  transition: all 150ms ease;
+  font-family: var(--font-body);
+}
+
+.nik-search-box input::placeholder {
+  color: var(--ink-tertiary);
+}
+
+.nik-search-box input:focus {
+  outline: none;
+  background: var(--paper-elevated);
+  border-color: var(--tronik);
+}
+
+.nik-sidebar-scroll {
+  flex: 1;
+  overflow-y: auto;
+  padding: var(--space-4) var(--space-2);
+}
+
+.nik-sidebar-scroll::-webkit-scrollbar {
+  width: 4px;
+}
+.nik-sidebar-scroll::-webkit-scrollbar-thumb {
+  background: var(--line-strong);
+  border-radius: 4px;
+}
+
+.nik-sidebar-section {
+  margin-bottom: var(--space-6);
+}
+
+.nik-sidebar-label {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  padding: 0 var(--space-2);
+  margin-bottom: var(--space-2);
+  font-size: 11px;
+  text-transform: uppercase;
+  letter-spacing: 0.05em;
+  color: var(--ink-tertiary);
+  font-weight: 600;
+}
+
+.nik-icon-btn-small {
+  background: none;
+  border: none;
+  color: var(--ink-tertiary);
+  cursor: pointer;
+  padding: 2px;
+  border-radius: 4px;
+}
+.nik-icon-btn-small:hover {
+  background: var(--paper-sunk);
+  color: var(--ink-primary);
+}
+
+.nik-sidebar-item {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: 8px 10px;
+  border-radius: var(--radius-md);
+  color: var(--ink-secondary);
+  font-size: var(--text-sm);
+  cursor: pointer;
+  transition: all 150ms ease;
+  margin-bottom: 2px;
+}
+
+.nik-sidebar-item svg {
+  color: var(--ink-tertiary);
+  flex-shrink: 0;
+}
+
+.nik-sidebar-item.ghost {
+  opacity: 0.7;
+}
+
+.nik-sidebar-item:hover {
+  background: var(--paper-sunk);
+  color: var(--ink-primary);
+}
+
+.nik-sidebar-item.active {
+  background: var(--paper-elevated);
+  color: var(--ink-primary);
+  font-weight: 500;
+  box-shadow: 0 1px 2px rgba(0,0,0,0.03);
+  border: 1px solid var(--line-subtle);
+}
+.nik-sidebar-item.active svg {
+  color: var(--tronik);
+}
+
+.nik-truncate {
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.nik-sidebar-footer {
+  padding: var(--space-4);
+  border-top: 1px solid var(--line-subtle);
+}
+
+.nik-credits-box {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 10px;
+  background: var(--paper-sunk);
+  border-radius: var(--radius-md);
+  font-size: 11px;
+  color: var(--ink-secondary);
+  cursor: pointer;
+}
+.nik-credits-box:hover {
+  background: var(--line-subtle);
+}
+
+/* ============================================================
+   MAIN CHAT AREA
+   ============================================================ */
+.nik-main-area {
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+  position: relative;
+  background: var(--paper-page);
+  min-width: 0;
+  min-height: 0;
+}
+
+.nik-main-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  padding: var(--space-3) var(--space-5);
+  border-bottom: 1px solid var(--line-subtle);
+  background: rgba(244, 239, 227, 0.8);
+  backdrop-filter: blur(8px);
+  z-index: 10;
+}
+
+/* Faixa compacta, sem cartão branco — vídeo webm transparente integra ao fundo da página */
+.nik-chat-presence {
+  margin: 0 auto var(--space-5);
+  max-width: 800px;
+  width: 100%;
+  padding: 4px 0 14px;
+  border: none;
+  border-radius: 0;
+  background: transparent;
+  border-bottom: 1px solid var(--line-subtle);
+  display: flex;
+  align-items: flex-end;
+  gap: 10px;
+  flex-shrink: 0;
+}
+
+.nik-presence-visual {
+  position: relative;
+  flex-shrink: 0;
+  width: 96px;
+  height: 104px;
+  max-width: min(96px, 26vw);
+  align-self: center;
+  animation: nik-float 2.8s ease-in-out infinite;
+  background: transparent;
+  line-height: 0;
+}
+
+.nik-presence-img {
+  position: absolute;
+  inset: 0;
+  z-index: 0;
+  width: 100%;
+  height: 100%;
+  object-fit: contain;
+  object-position: bottom center;
+  display: block;
+  pointer-events: none;
+  filter: drop-shadow(0 6px 14px rgba(0, 0, 0, 0.12));
+  background: transparent;
+}
+
+.nik-presence-video {
+  position: absolute;
+  inset: 0;
+  z-index: 1;
+  width: 100%;
+  height: 100%;
+  object-fit: contain;
+  object-position: bottom center;
+  display: block;
+  filter: drop-shadow(0 6px 14px rgba(0, 0, 0, 0.12));
+  opacity: 0;
+  transition: opacity 0.35s ease;
+  /* Área do <video> sem “letterbox” branco quando o codec preenche o retângulo */
+  background-color: transparent !important;
+}
+
+.nik-presence-video.is-media-ready {
+  opacity: 1;
+}
+
+.nik-presence-visual video::-webkit-media-controls {
+  display: none !important;
+}
+
+.nik-presence-text {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+}
+
+.nik-presence-text strong {
+  font-size: 15px;
+  color: var(--ink-primary);
+}
+
+.nik-presence-text span {
+  font-size: 13px;
+  color: var(--ink-tertiary);
+}
+
+.nik-header-title {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+}
+
+.nik-header-title h2 {
+  font-size: var(--text-md);
+  font-weight: 600;
+  color: var(--ink-primary);
+  font-family: var(--font-body);
+}
+
+.nik-badge-soft {
+  background: var(--paper-sunk);
+  color: var(--ink-tertiary);
+  font-size: 10px;
+  padding: 2px 6px;
+  border-radius: 4px;
+  font-family: var(--font-mono);
+  font-weight: 500;
+}
+
+.nik-header-actions {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.nik-btn-text {
+  background: none;
+  border: none;
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  color: var(--tronik);
+  font-size: var(--text-sm);
+  font-weight: 500;
+  cursor: pointer;
+  padding: 6px 10px;
+  border-radius: var(--radius-md);
+  transition: all 150ms ease;
+}
+
+.nik-btn-text:hover {
+  background: var(--tronik-soft);
+}
+
+.nik-chat-scroll-area {
+  flex: 1;
+  overflow-y: auto;
+  overflow-x: hidden;
+  padding: var(--space-5);
+  padding-top: var(--space-4);
+  display: flex;
+  flex-direction: column;
+  scroll-behavior: smooth;
+  min-height: 0;
+}
+
+.nik-chat-content-inner {
+  max-width: 800px;
+  width: 100%;
+  margin: 0 auto;
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-6);
+}
+
+.nik-bottom-spacer {
+  height: 40px; /* space before input area */
+}
+
+/* ============================================================
+   MESSAGES
+   ============================================================ */
+.nik-message {
+  display: flex;
+  gap: var(--space-4);
+  width: 100%;
+  align-items: flex-start;
+}
+
+.nik-message-avatar {
+  border-radius: 10px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  flex-shrink: 0;
+  font-size: 12px;
+  font-weight: 600;
+  font-family: var(--font-display);
+  position: relative;
+  overflow: hidden;
+  width: 44px;
+  height: 44px;
+}
+
+.nik-message-avatar.tronik-avatar {
+  position: relative;
+  width: 112px;
+  height: 136px;
+  min-height: 136px;
+  border-radius: 0;
+  align-items: stretch;
+  overflow: hidden;
+  padding-bottom: 0;
+}
+
+/* No thread + indicador “digitando”: coluna mais estreita; vídeo e PNG partilham o mesmo retângulo (object-fit contain + bottom). */
+.nik-chat-content-inner > .nik-message.assistant,
+#nik-typing-indicator .nik-message {
+  gap: 8px;
+  align-items: flex-end;
+}
+
+.nik-chat-content-inner > .nik-message.assistant .nik-message-avatar.tronik-avatar,
+#nik-typing-indicator .nik-message-avatar.tronik-avatar {
+  width: 72px;
+  height: 88px;
+  min-height: 88px;
+  overflow: hidden;
+}
+
+.nik-avatar-img {
+  width: 100%;
+  height: 100%;
+  object-fit: contain;
+  border-radius: 6px;
+}
+
+.tronik-avatar .nik-avatar-img {
+  position: absolute;
+  inset: 0;
+  z-index: 0;
+  width: 100%;
+  height: 100%;
+  border-radius: 0;
+  object-fit: contain;
+  object-position: bottom center;
+  pointer-events: none;
+  filter: drop-shadow(0 6px 14px rgba(0, 0, 0, 0.1));
+  background: transparent;
+}
+
+.nik-avatar-video {
+  width: 100%;
+  height: 100%;
+  object-fit: contain;
+  display: block;
+  background-color: transparent !important;
+}
+
+.tronik-avatar .nik-avatar-video {
+  position: absolute;
+  left: 0;
+  right: 0;
+  bottom: 0;
+  top: 0;
+  z-index: 1;
+  width: 100%;
+  height: 100%;
+  max-height: 100%;
+  object-fit: contain;
+  object-position: bottom center;
+  filter: drop-shadow(0 6px 14px rgba(0, 0, 0, 0.1));
+  opacity: 0;
+  transition: opacity 0.25s ease;
+}
+
+.tronik-avatar .nik-avatar-video.is-media-ready {
+  opacity: 1;
+}
+
+.nik-chat-content-inner > .nik-message.assistant .tronik-avatar .nik-avatar-img,
+.nik-chat-content-inner > .nik-message.assistant .tronik-avatar .nik-avatar-video,
+#nik-typing-indicator .tronik-avatar .nik-avatar-img,
+#nik-typing-indicator .tronik-avatar .nik-avatar-video {
+  filter: drop-shadow(0 4px 14px rgba(0, 0, 0, 0.35));
+}
+
+.tronik-avatar .nik-avatar-video::-webkit-media-controls {
+  display: none !important;
+}
+
+.nik-avatar-img--typing {
+  animation: nik-typing-pulse 1.1s ease-in-out infinite;
+}
+
+.user-avatar {
+  background: var(--ink-secondary);
+  color: #fff;
+}
+
+.tronik-avatar {
+  background: transparent;
+  border: none;
+  box-shadow: none;
+}
+
+.nik-message-body {
+  flex: 1;
+  min-width: 0;
+  padding-top: 6px;
+}
+
+.nik-message-author {
+  font-size: var(--text-sm);
+  font-weight: 600;
+  color: var(--ink-primary);
+  margin-bottom: 4px;
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.nik-badge-lite {
+  font-size: 10px;
+  background: var(--paper-sunk);
+  padding: 2px 6px;
+  border-radius: 4px;
+  color: var(--ink-tertiary);
+  font-weight: 500;
+  font-family: var(--font-mono);
+  text-transform: uppercase;
+}
+
+.nik-status-tag {
+  font-size: 10px;
+  background: var(--signal-ok-soft);
+  color: var(--signal-ok);
+  padding: 2px 6px;
+  border-radius: 4px;
+  font-weight: 600;
+  font-family: var(--font-mono);
+  text-transform: uppercase;
+}
+
+.nik-message-text {
+  font-size: 15px;
+  line-height: 1.6;
+  color: var(--ink-primary);
+  white-space: pre-wrap;
+}
+
+.nik-message-text--rich {
+  white-space: normal;
+}
+
+.nik-message-text--rich .nik-msg-p {
+  margin: 0 0 0.95em;
+  font-size: 15px;
+  line-height: 1.7;
+  color: var(--ink-primary);
+}
+
+.nik-message-text--rich .nik-msg-p:last-child {
+  margin-bottom: 0;
+}
+
+.nik-message-text--rich .nik-msg-topic {
+  margin: 1em 0 0.5em;
+  font-size: 15px;
+  font-weight: 600;
+  line-height: 1.45;
+  color: var(--ink-primary);
+}
+
+.nik-message-text--rich .nik-msg-topic:first-child {
+  margin-top: 0;
+}
+
+.nik-message-text--rich .nik-msg-list {
+  margin: 0.35em 0 1em;
+  padding: 0.25em 0 0.25em 0.35rem;
+  border-left: 3px solid var(--tronik-soft);
+}
+
+.nik-message-text--rich .nik-msg-li {
+  margin: 0.45em 0;
+  padding-left: 0.5rem;
+  font-size: 15px;
+  line-height: 1.65;
+  color: var(--ink-primary);
+}
+
+.nik-message-text--rich .nik-msg-li:first-child {
+  margin-top: 0.15em;
+}
+
+.nik-message-text--rich strong {
+  font-weight: 600;
+  color: var(--ink-primary);
+}
+
+.user .nik-message-text {
+  color: var(--ink-primary);
+}
+
+/* Balões — só nas mensagens do thread (não no indicador “digitando”) */
+.nik-chat-content-inner > .nik-message.user {
+  justify-content: flex-end;
+  align-items: flex-end;
+}
+
+.nik-chat-content-inner > .nik-message.user .nik-message-avatar {
+  display: none;
+}
+
+.nik-chat-content-inner > .nik-message.user .nik-message-body {
+  flex: 0 1 auto;
+  max-width: min(560px, 92%);
+  margin-left: auto;
+  padding: 14px 16px 16px;
+  border-radius: 16px;
+  border: 1px solid rgba(122, 232, 196, 0.28);
+  background: rgba(94, 233, 168, 0.1);
+  box-shadow: 0 8px 28px rgba(0, 0, 0, 0.22);
+}
+
+.nik-chat-content-inner > .nik-message.assistant .nik-message-body {
+  flex: 1;
+  min-width: 0;
+  max-width: min(820px, 100%);
+  padding: 12px 18px 18px;
+  border-radius: 16px;
+  border: 1px solid rgba(122, 232, 196, 0.14);
+  background: rgba(12, 18, 15, 0.85);
+  box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.04), 0 10px 32px rgba(0, 0, 0, 0.28);
+}
+
+.nik-chat-content-inner > .nik-message.assistant .nik-message-author {
+  margin-bottom: 10px;
+}
+
+.nik-chat-content-inner > .nik-message.user .nik-message-body .nik-message-text:last-child {
+  margin-bottom: 0;
+}
+
+.nik-message-step-ui {
+  border: 1px solid var(--line-default);
+  border-radius: var(--radius-md);
+  margin-bottom: var(--space-3);
+  background: var(--paper-card);
+  overflow: hidden;
+}
+
+.nik-step-header {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 10px 14px;
+  font-size: var(--text-sm);
+  font-weight: 500;
+  color: var(--ink-secondary);
+  background: var(--paper-sunk);
+  cursor: pointer;
+}
+
+.nik-step-header .chevron {
+  margin-left: auto;
+  color: var(--ink-tertiary);
+}
+
+.nik-step-body {
+  padding: 10px 14px;
+  font-family: var(--font-mono);
+  font-size: 11px;
+  color: var(--ink-tertiary);
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+
+.nik-step-trace {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.nik-message-attachments {
+  display: flex;
+  gap: 10px;
+  margin-top: 12px;
+  flex-wrap: nowrap;
+  overflow-x: auto;
+  padding-bottom: 4px;
+}
+
+.nik-attachment-card {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  padding: 12px;
+  border: 1px solid var(--line-default);
+  border-radius: var(--radius-md);
+  background: var(--paper-card);
+  min-width: 250px;
+  max-width: 280px;
+  flex: 0 0 auto;
+  transition: all 150ms ease;
+  text-decoration: none;
+}
+
+.nik-attachment-card:hover {
+  background: var(--paper-elevated);
+  border-color: var(--line-strong);
+}
+
+.nik-attachment-icon {
+  width: 32px;
+  height: 32px;
+  border-radius: 4px;
+  background: #E84C3D; /* PDF red / File color */
+  color: #fff;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+
+.nik-attachment-info {
+  display: flex;
+  flex-direction: column;
+}
+
+.nik-attachment-title {
+  font-size: var(--text-sm);
+  font-weight: 500;
+  color: var(--ink-primary);
+}
+
+.nik-attachment-meta {
+  font-size: 11px;
+  color: var(--ink-tertiary);
+}
+
+/* ============================================================
+   INPUT AREA
+   ============================================================ */
+.nik-input-area {
+  padding: 0 var(--space-5) var(--space-4);
+  max-width: 840px;
+  width: 100%;
+  margin: 0 auto;
+}
+
+.nik-suggestions {
+  display: flex;
+  gap: 8px;
+  margin-bottom: 12px;
+  overflow-x: auto;
+  padding-bottom: 4px;
+}
+
+.nik-suggestions::-webkit-scrollbar {
+  height: 0;
+}
+
+.nik-suggestion-chip {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  padding: 8px 14px;
+  border: 1px solid var(--line-default);
+  border-radius: 20px;
+  background: var(--paper-card);
+  color: var(--ink-secondary);
+  font-size: 12px;
+  white-space: nowrap;
+  cursor: pointer;
+  transition: all 150ms ease;
+}
+
+.nik-suggestion-chip:hover {
+  background: var(--paper-elevated);
+  border-color: var(--tronik);
+  color: var(--tronik);
+}
+
+.nik-input-wrapper {
+  background: var(--paper-card);
+  border: 1px solid var(--line-default);
+  border-radius: 16px;
+  box-shadow: 0 4px 12px rgba(0,0,0,0.02);
   transition: border-color 0.2s ease, box-shadow 0.2s ease;
 }
 
-.nik-chat-input:focus {
-  outline: none;
-  border-color: var(--tronik);
-  box-shadow: 0 0 0 3px rgba(26, 93, 58, 0.1);
+.nik-input-wrapper:focus-within {
+  border-color: var(--line-strong);
+  box-shadow: 0 8px 24px rgba(0,0,0,0.04);
 }
 
-.nik-chat-input::placeholder {
+.nik-chat-form-box {
+  display: flex;
+  flex-direction: column;
+}
+
+.nik-chat-form-top {
+  padding: 12px 16px;
+}
+
+.nik-chat-input-field {
+  width: 100%;
+  border: none;
+  background: transparent;
+  resize: none;
+  font-family: var(--font-body);
+  font-size: 15px;
+  color: var(--ink-primary);
+  line-height: 1.5;
+  outline: none;
+  max-height: 200px;
+}
+
+.nik-chat-input-field::placeholder {
   color: var(--ink-muted);
 }
 
-.nik-chat-form {
-  display: grid;
-  gap: var(--space-3);
-}
-
-.nik-chat-thread {
-  display: grid;
-  gap: var(--space-3);
-  margin-bottom: var(--space-3);
-}
-
-.nik-chat-actions {
+.nik-chat-form-bottom {
   display: flex;
-  gap: var(--space-3);
-  flex-wrap: wrap;
+  justify-content: space-between;
+  align-items: center;
+  padding: 8px 12px;
+  border-top: 1px solid var(--line-subtle);
 }
 
-.nik-metric {
-  font-size: 1.1rem;
-  font-weight: 700;
-  color: var(--tronik);
-  margin-bottom: 8px;
-}
-
-/* Typing indicator animation */
-@keyframes nik-typing-dot {
-  0%, 60%, 100% {
-    opacity: 0.4;
-    transform: translateY(0);
-  }
-  30% {
-    opacity: 1;
-    transform: translateY(-8px);
-  }
-}
-
-.nik-typing {
-  padding: var(--space-3) var(--space-4);
-  font-size: 0.95rem;
-  color: var(--ink-secondary);
+.nik-chat-actions-left,
+.nik-chat-actions-right {
   display: flex;
   align-items: center;
   gap: 4px;
 }
 
-.nik-typing::after {
-  content: '';
-  width: 4px;
-  height: 4px;
-  background: var(--ink-secondary);
-  border-radius: 50%;
-  display: inline-block;
-  animation: nik-typing-dot 1.4s infinite;
+.nik-icon-btn {
+  background: none;
+  border: none;
+  width: 32px;
+  height: 32px;
+  border-radius: 6px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  color: var(--ink-tertiary);
+  cursor: pointer;
+  transition: all 150ms ease;
 }
 
-.nik-typing::before {
-  content: '';
-  width: 4px;
-  height: 4px;
-  background: var(--ink-secondary);
-  border-radius: 50%;
-  display: inline-block;
-  animation: nik-typing-dot 1.4s infinite 0.2s;
-}
-
-.nik-landing-shell {
-  min-height: 100vh;
-  background:
-    radial-gradient(circle at top right, rgba(26, 93, 58, 0.08), transparent 32%),
-    linear-gradient(180deg, var(--paper-page) 0%, var(--paper-muted) 100%);
+.nik-icon-btn:hover {
+  background: var(--paper-sunk);
   color: var(--ink-primary);
 }
 
-.nik-landing-hero,
-.nik-landing-grid {
-  width: min(1100px, calc(100% - 40px));
-  margin: 0 auto;
+.nik-submit-btn {
+  background: var(--paper-sunk);
+  border: none;
+  width: 32px;
+  height: 32px;
+  border-radius: 50%;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  color: var(--ink-secondary);
+  cursor: pointer;
+  transition: all 150ms ease;
 }
 
-.nik-landing-hero {
-  padding: var(--space-20) 0 var(--space-8);
+.nik-submit-btn:hover {
+  background: var(--tronik);
+  color: #fff;
 }
 
-.nik-landing-kicker {
+.nik-footer-disclaimer {
+  text-align: center;
+  font-size: 11px;
+  color: var(--ink-tertiary);
+  margin-top: 8px;
+}
+
+/* ============================================================
+   TYPING INDICATOR (MANUS STYLE)
+   ============================================================ */
+.nik-typing-dots {
+  display: flex;
+  align-items: center;
+  gap: 4px;
+  padding: 8px 0;
+}
+
+.nik-typing-dots span {
+  width: 6px;
+  height: 6px;
+  border-radius: 50%;
+  background: var(--ink-tertiary);
+  animation: bounce 1.4s infinite ease-in-out both;
+}
+
+.nik-typing-dots span:nth-child(1) { animation-delay: -0.32s; }
+.nik-typing-dots span:nth-child(2) { animation-delay: -0.16s; }
+
+@keyframes bounce {
+  0%, 80%, 100% { transform: scale(0); }
+  40% { transform: scale(1); }
+}
+
+@keyframes nik-typing-pulse {
+  0%, 100% { transform: scale(1); filter: saturate(0.95); }
+  50% { transform: scale(1.06); filter: saturate(1.1); }
+}
+
+@keyframes nik-float {
+  0%, 100% { transform: translateY(0); }
+  50% { transform: translateY(-3px); }
+}
+
+.nik-runtime-status {
+  margin-top: 8px;
+  font-size: 11px;
+  color: var(--ink-tertiary);
+  font-family: var(--font-mono);
+  letter-spacing: 0.01em;
+}
+
+.nik-doc-card {
+  margin-top: 12px;
+  padding: 14px 16px;
+  border: 1px solid var(--tronik-soft);
+  border-radius: var(--radius-md);
+  background: var(--paper-elevated);
+  box-shadow: 0 10px 24px rgba(0, 0, 0, 0.06);
+  position: relative;
+}
+
+.nik-doc-card::before {
+  content: "";
+  position: absolute;
+  left: 0;
+  top: 10px;
+  bottom: 10px;
+  width: 3px;
+  border-radius: 3px;
+  background: var(--tronik);
+}
+
+.nik-doc-card h3 {
+  margin: 0 0 8px;
+  font-size: var(--text-md);
+}
+
+.nik-doc-subtitle {
+  margin-top: 10px;
+  margin-bottom: 4px;
+  font-size: 11px;
   text-transform: uppercase;
-  letter-spacing: 0.12em;
-  font-size: var(--text-xs);
+  letter-spacing: 0.05em;
   color: var(--ink-tertiary);
   font-family: var(--font-mono);
 }
 
-.nik-landing-hero h1 {
-  font-size: clamp(2.2rem, 6vw, 4.5rem);
-  line-height: 0.98;
-  margin: var(--space-3) 0 var(--space-4);
-  font-family: var(--font-display);
+.nik-doc-card p,
+.nik-doc-card li {
+  font-size: var(--text-sm);
   color: var(--ink-primary);
+  line-height: 1.5;
 }
 
-.nik-landing-hero p {
-  max-width: 760px;
-  font-size: var(--text-md);
-  color: var(--ink-secondary);
-  line-height: 1.6;
+.nik-doc-card ol,
+.nik-doc-card ul {
+  margin: 0;
+  padding-left: 18px;
 }
 
-.nik-landing-grid {
-  display: grid;
-  grid-template-columns: repeat(auto-fit, minmax(240px, 1fr));
-  gap: var(--space-5);
-  padding: var(--space-5) 0 var(--space-12);
+.nik-doc-section {
+  margin-top: 8px;
 }
 
-@media (max-width: 640px) {
-  .nik-landing-hero {
-    padding-top: var(--space-10);
-  }
+.nik-doc-section h4 {
+  margin: 0 0 4px;
+  font-size: var(--text-sm);
+}
+
+/* ============================================================
+   TEMA ESCURO — chat Nik (fundo preto + mídia cannon)
+   ============================================================ */
+.nik-app-layout--dark-chat {
+  --paper-page: #010101;
+  --paper-card: #080b09;
+  --paper-elevated: #0e1511;
+  --paper-sunk: #050806;
+  --paper-muted: #070b08;
+  --ink-primary: #e8f1ec;
+  --ink-secondary: #a8b8b0;
+  --ink-tertiary: #6b7a72;
+  --ink-muted: #4a5a52;
+  --line-default: rgba(122, 232, 196, 0.16);
+  --line-subtle: rgba(122, 232, 196, 0.1);
+  --line-strong: rgba(122, 232, 196, 0.28);
+  --tronik-soft: rgba(26, 93, 58, 0.32);
+  --shadow-sm: 0 1px 2px rgba(0, 0, 0, 0.4);
+  --shadow-md: 0 4px 20px rgba(0, 0, 0, 0.45);
+}
+
+.nik-app-layout--dark-chat .nik-main-header {
+  background: rgba(1, 4, 3, 0.94);
+  border-bottom-color: rgba(122, 232, 196, 0.12);
+  backdrop-filter: blur(12px);
+}
+
+.nik-app-layout--dark-chat .nik-btn-text {
+  color: #5ee9a8;
+}
+
+.nik-app-layout--dark-chat .nik-btn-text:hover {
+  background: rgba(94, 233, 168, 0.1);
+}
+
+.nik-app-layout--dark-chat .nik-chat-presence {
+  border-bottom-color: rgba(122, 232, 196, 0.12);
+}
+
+.nik-app-layout--dark-chat .nik-presence-visual {
+  animation: none;
+}
+
+.nik-app-layout--dark-chat .nik-presence-video,
+.nik-app-layout--dark-chat .nik-presence-img {
+  filter: drop-shadow(0 4px 20px rgba(46, 229, 181, 0.18));
+}
+
+.nik-app-layout--dark-chat .tronik-avatar .nik-avatar-video,
+.nik-app-layout--dark-chat .tronik-avatar .nik-avatar-img {
+  filter: drop-shadow(0 10px 28px rgba(0, 0, 0, 0.55))
+    drop-shadow(0 0 28px rgba(46, 229, 181, 0.07));
+}
+
+.nik-app-layout--dark-chat .nik-input-wrapper {
+  box-shadow: 0 10px 32px rgba(0, 0, 0, 0.45);
+}
+
+.nik-app-layout--dark-chat .nik-new-chat-btn:hover,
+.nik-app-layout--dark-chat .nik-new-agent-btn:hover {
+  background: var(--paper-elevated);
 }

@@ -20,6 +20,7 @@ from rotas.api import (
     contratos,
     crm,
     ml,
+    nik,
     notificacoes,
     relatorios,
     sensores,
@@ -34,6 +35,7 @@ api_bp.register_blueprint(sensores.sensores_bp)
 api_bp.register_blueprint(notificacoes.notificacoes_bp)
 api_bp.register_blueprint(relatorios.relatorios_bp)
 api_bp.register_blueprint(auxiliares.auxiliares_bp)
+api_bp.register_blueprint(nik.nik_bp)
 
 # Comercial
 api_bp.register_blueprint(comercial.comercial_bp)

@@ -1,0 +1,483 @@
+/* Nik Pública — alinhado à preview landing (dark / sci‑fi B2B) */
+
+.nikpub-page main {
+  padding-top: 88px;
+}
+
+.nikpub-hero {
+  position: relative;
+  padding: clamp(48px, 10vh, 96px) clamp(24px, 5vw, 82px) clamp(56px, 8vh, 88px);
+  background: #020202;
+  overflow: hidden;
+}
+
+.nikpub-hero::before {
+  content: "";
+  position: absolute;
+  inset: 0;
+  background:
+    radial-gradient(ellipse 70% 50% at 75% 30%, rgba(46, 229, 181, 0.12) 0%, transparent 55%),
+    radial-gradient(ellipse 45% 40% at 10% 80%, rgba(26, 93, 58, 0.2) 0%, transparent 60%);
+  pointer-events: none;
+}
+
+.nikpub-hero-inner {
+  position: relative;
+  z-index: 1;
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) minmax(220px, 380px);
+  gap: clamp(28px, 5vw, 56px);
+  align-items: center;
+  max-width: 1120px;
+  margin: 0 auto;
+}
+
+.nikpub-hero-copy {
+  min-width: 0;
+}
+
+.nikpub-hero-visual {
+  min-width: 0;
+}
+
+.nikpub-cannon-frame {
+  width: 100%;
+  max-width: 380px;
+  margin-left: auto;
+}
+
+.nikpub-cannon-wrap {
+  position: relative;
+  width: 100%;
+  aspect-ratio: 4 / 5;
+  max-height: min(520px, 58vh);
+  border-radius: 14px;
+  overflow: hidden;
+  background: #000000;
+  border: 1px solid rgba(122, 232, 196, 0.22);
+  box-shadow:
+    inset 0 1px 0 rgba(255, 255, 255, 0.04),
+    0 16px 48px rgba(0, 0, 0, 0.5);
+}
+
+.nikpub-cannon-video,
+.nikpub-cannon-fallback {
+  position: absolute;
+  inset: 0;
+  width: 100%;
+  height: 100%;
+  object-fit: contain;
+  object-position: bottom center;
+}
+
+.nikpub-cannon-video {
+  z-index: 1;
+  opacity: 0;
+  transition: opacity 0.35s ease;
+}
+
+.nikpub-cannon-video.is-media-ready {
+  opacity: 1;
+}
+
+.nikpub-cannon-fallback {
+  z-index: 0;
+  filter: drop-shadow(0 8px 24px rgba(46, 229, 181, 0.12));
+}
+
+@media (max-width: 900px) {
+  .nikpub-hero-inner {
+    grid-template-columns: 1fr;
+  }
+
+  .nikpub-cannon-frame {
+    margin: 12px auto 0;
+    max-width: min(320px, 88vw);
+  }
+}
+
+.nikpub-hero h1 {
+  font-family: var(--font-display);
+  font-size: clamp(28px, 4vw, 44px);
+  font-weight: 600;
+  letter-spacing: -0.03em;
+  line-height: 1.15;
+  margin: 16px 0 18px;
+}
+
+.nikpub-hero h1 span {
+  color: #7ae8c4;
+  font-weight: 600;
+}
+
+.nikpub-hero-lead {
+  margin: 0;
+  font-size: clamp(15px, 1.5vw, 17px);
+  line-height: 1.7;
+  color: rgba(232, 241, 236, 0.78);
+  max-width: 640px;
+}
+
+.nikpub-section {
+  padding: clamp(56px, 8vh, 96px) clamp(24px, 5vw, 82px);
+}
+
+.nikpub-section--dark {
+  background: #000000;
+  border-top: 1px solid rgba(122, 232, 196, 0.12);
+}
+
+.nikpub-section--elevated {
+  background: #0a0e0c;
+  border-top: 1px solid rgba(122, 232, 196, 0.08);
+}
+
+.nikpub-section-head {
+  max-width: 720px;
+  margin-bottom: 36px;
+}
+
+.nikpub-section-head h2 {
+  font-family: var(--font-display);
+  font-size: clamp(24px, 3vw, 34px);
+  font-weight: 600;
+  margin: 12px 0 0;
+  letter-spacing: -0.02em;
+}
+
+.nikpub-section-head p {
+  margin: 14px 0 0;
+  font-size: 15px;
+  line-height: 1.65;
+  color: rgba(200, 214, 206, 0.72);
+}
+
+.nikpub-cap-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(240px, 1fr));
+  gap: 18px;
+  max-width: 1120px;
+  margin: 0 auto;
+}
+
+.nikpub-cap-card {
+  padding: 22px 20px;
+  border-radius: 10px;
+  border: 1px solid rgba(122, 232, 196, 0.18);
+  background: linear-gradient(165deg, rgba(14, 22, 18, 0.95) 0%, rgba(6, 12, 10, 0.98) 100%);
+  box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.03);
+}
+
+.nikpub-cap-card h3 {
+  margin: 0 0 10px;
+  font-size: 15px;
+  font-weight: 600;
+  color: #e8f4ee;
+  font-family: var(--font-display);
+}
+
+.nikpub-cap-card p {
+  margin: 0;
+  font-size: 14px;
+  line-height: 1.55;
+  color: rgba(180, 200, 190, 0.82);
+}
+
+.nikpub-stream-grid {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr);
+  gap: 28px;
+  max-width: 1120px;
+  margin: 0 auto;
+}
+
+@media (min-width: 960px) {
+  .nikpub-stream-grid {
+    grid-template-columns: 1fr 1fr;
+    align-items: start;
+  }
+
+  .nikpub-terminal {
+    grid-column: 1;
+    grid-row: 1;
+  }
+
+  .nikpub-faq-panel--stream {
+    grid-column: 2;
+    grid-row: 1;
+  }
+
+  .nikpub-faq-ask {
+    grid-column: 1 / -1;
+    grid-row: 2;
+  }
+}
+
+.nikpub-terminal {
+  border-radius: 10px;
+  border: 1px solid rgba(122, 232, 196, 0.22);
+  background: #030806;
+  overflow: hidden;
+  box-shadow: 0 16px 48px rgba(0, 0, 0, 0.5);
+}
+
+.nikpub-terminal-bar {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: 10px 14px;
+  border-bottom: 1px solid rgba(122, 232, 196, 0.12);
+  font-family: var(--font-mono);
+  font-size: 11px;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  color: rgba(122, 232, 196, 0.75);
+}
+
+.nikpub-terminal-bar .nikpub-dot {
+  width: 7px;
+  height: 7px;
+  border-radius: 1px;
+  background: #5ee9a8;
+  box-shadow: 0 0 8px rgba(94, 233, 168, 0.6);
+}
+
+.nikpub-terminal-body {
+  padding: 18px 18px 22px;
+  min-height: 160px;
+  font-family: var(--font-mono);
+  font-size: 13px;
+  line-height: 1.65;
+  color: rgba(210, 232, 220, 0.88);
+}
+
+.nikpub-terminal-body .cursor {
+  display: inline-block;
+  width: 8px;
+  height: 1.1em;
+  margin-left: 2px;
+  background: #7ae8c4;
+  animation: nikpub-cursor-blink 1s step-end infinite;
+  vertical-align: text-bottom;
+}
+
+@keyframes nikpub-cursor-blink {
+  50% {
+    opacity: 0;
+  }
+}
+
+.nikpub-stream-note {
+  margin-top: 12px;
+  font-size: 12px;
+  color: rgba(140, 160, 150, 0.65);
+  font-family: var(--font-mono);
+  line-height: 1.5;
+}
+
+.nikpub-faq-ask {
+  padding-top: 4px;
+}
+
+.nikpub-faq-ask-lead {
+  margin: 10px 0 18px;
+  font-size: 14px;
+  line-height: 1.6;
+  color: rgba(200, 214, 206, 0.78);
+  max-width: 720px;
+}
+
+.nikpub-faq-chips {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 10px;
+}
+
+.nikpub-chip {
+  cursor: pointer;
+  border: 1px solid rgba(122, 232, 196, 0.35);
+  background: rgba(8, 14, 12, 0.9);
+  color: #c8f5e6;
+  font-family: var(--font-mono);
+  font-size: 11px;
+  letter-spacing: 0.05em;
+  text-transform: uppercase;
+  padding: 10px 14px;
+  border-radius: 6px;
+  transition: border-color 0.2s, background 0.2s;
+}
+
+.nikpub-chip:hover,
+.nikpub-chip:focus-visible {
+  outline: none;
+  border-color: rgba(122, 232, 196, 0.65);
+  background: rgba(122, 232, 196, 0.08);
+}
+
+.nikpub-chip.is-active {
+  border-color: #5ee9a8;
+  background: rgba(94, 233, 168, 0.1);
+}
+
+.nikpub-faq-panel {
+  padding: 22px 22px 26px;
+  border-radius: 10px;
+  border: 1px solid rgba(122, 232, 196, 0.16);
+  background: rgba(6, 12, 10, 0.85);
+  min-height: 120px;
+}
+
+.nikpub-faq-panel--stream {
+  padding: 0;
+  overflow: hidden;
+  box-shadow: 0 16px 48px rgba(0, 0, 0, 0.45);
+}
+
+.nikpub-faq-panel-bar {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: 10px 14px;
+  border-bottom: 1px solid rgba(122, 232, 196, 0.12);
+  font-family: var(--font-mono);
+  font-size: 11px;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  color: rgba(122, 232, 196, 0.75);
+}
+
+.nikpub-faq-panel-bar .nikpub-dot {
+  width: 7px;
+  height: 7px;
+  border-radius: 1px;
+  background: #e2c76a;
+  box-shadow: 0 0 8px rgba(226, 199, 106, 0.45);
+}
+
+.nikpub-faq-panel-inner {
+  padding: 18px 22px 22px;
+  min-height: 160px;
+}
+
+.nikpub-faq-panel h3 {
+  margin: 0 0 12px;
+  font-size: 17px;
+  font-weight: 600;
+  color: #e2c76a;
+  font-family: var(--font-display);
+}
+
+.nikpub-faq-panel .nikpub-faq-body {
+  margin: 0;
+  font-size: 15px;
+  line-height: 1.65;
+  color: rgba(228, 236, 231, 0.88);
+}
+
+.nikpub-faq-panel .nikpub-faq-body p + p {
+  margin-top: 12px;
+}
+
+#nikpub-faq-stream-cursor {
+  display: none;
+}
+
+.nikpub-faq-panel.is-streaming #nikpub-faq-stream-cursor {
+  display: inline-block;
+  vertical-align: text-bottom;
+  margin-left: 2px;
+}
+
+.nikpub-faq-hint {
+  margin-top: 14px;
+  font-size: 11px;
+  font-family: var(--font-mono);
+  color: rgba(122, 232, 196, 0.45);
+}
+
+.nikpub-blocos-grid {
+  display: flex;
+  flex-direction: column;
+  gap: 20px;
+  max-width: 1120px;
+  margin: 0 auto;
+}
+
+.nikpub-blocos-grid .nik-container {
+  min-height: 48px;
+}
+
+.nikpub-blocos-grid .nik-loading {
+  font-family: var(--font-mono);
+  font-size: 12px;
+  color: rgba(122, 232, 196, 0.55);
+  padding: 12px 0;
+}
+
+.nikpub-blocos-grid .nik-card {
+  border-radius: 10px;
+  border: 1px solid rgba(122, 232, 196, 0.15);
+  padding: 22px 22px 24px;
+  background: rgba(10, 16, 14, 0.75);
+}
+
+.nikpub-blocos-grid .nik-card h3 {
+  margin: 0 0 10px;
+  font-size: 18px;
+  font-weight: 600;
+  color: #f0f7f3;
+  font-family: var(--font-display);
+}
+
+.nikpub-blocos-grid .nik-card p {
+  margin: 0;
+  font-size: 14px;
+  line-height: 1.65;
+  color: rgba(210, 224, 216, 0.85);
+}
+
+.nikpub-blocos-grid .nik-card-subtle {
+  margin-top: 10px;
+  font-size: 13px;
+  color: rgba(160, 180, 170, 0.75);
+}
+
+.nikpub-blocos-grid .nik-card blockquote {
+  margin: 10px 0;
+  padding-left: 14px;
+  border-left: 2px solid rgba(122, 232, 196, 0.35);
+  font-style: normal;
+  color: rgba(220, 232, 226, 0.9);
+}
+
+.nikpub-blocos-grid .nik-metric {
+  font-size: 28px;
+  font-weight: 600;
+  color: #7ae8c4;
+  margin: 8px 0;
+  font-family: var(--font-display);
+}
+
+.nikpub-api-note {
+  margin-top: 16px;
+  font-size: 12px;
+  color: rgba(140, 155, 148, 0.65);
+  max-width: 1120px;
+  margin-left: auto;
+  margin-right: auto;
+}
+
+@media (max-width: 700px) {
+  .nikpub-page main {
+    padding-top: 72px;
+  }
+
+  .nikpub-faq-chips {
+    flex-direction: column;
+  }
+
+  .nikpub-chip {
+    width: 100%;
+    text-align: left;
+  }
+}

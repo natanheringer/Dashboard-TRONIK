@@ -36,13 +36,13 @@
                     <span></span>
                 </button>
                 <div class="logo"></div>
-                <a href="{{ url_for('paginas.index') }}" class="logo-link">
+                <a href="{{ url_for('paginas.dashboard') }}" class="logo-link">
                     <h1 class="logo-text">Dashboard-TRONIK</h1>
                 </a>
             </div>
             <!-- Menu Principal (sempre visível) -->
             <nav class="nav-links nav-main" role="navigation" aria-label="Menu principal">
-                <a href="{{ url_for('paginas.index') }}" class="nav-link" aria-label="Ir para o dashboard">Dashboard</a>
+                <a href="{{ url_for('paginas.dashboard') }}" class="nav-link" aria-label="Ir para o dashboard">Dashboard</a>
                 <a href="{{ url_for('paginas.mapa') }}" class="nav-link" aria-label="Ir para o mapa de coletores">Mapa</a>
                 <a href="{{ url_for('paginas.relatorios') }}" class="nav-link" aria-label="Ir para os relatórios">Relatórios</a>
                 <a href="{{ url_for('paginas.comercial') }}" class="nav-link" aria-label="Ir para o dashboard comercial">Comercial</a>

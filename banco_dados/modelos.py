@@ -917,3 +917,86 @@ class LocalProspeccao(Base):
 
     def __repr__(self):
         return f"<LocalProspeccao(id={self.id}, nome='{self.nome[:40]}', score={self.score_prospeccao}, fonte={self.fonte})>"
+
+
+# ----------------------------------------------------------
+# TABELA: Conversas da Nik
+# ----------------------------------------------------------
+class NikConversa(Base):
+    """Histórico persistido das interações da Nik por usuário."""
+    __tablename__ = "nik_conversas"
+    __table_args__ = (
+        Index('idx_nik_conversa_usuario', 'usuario_id'),
+        Index('idx_nik_conversa_thread', 'thread_id'),
+        Index('idx_nik_conversa_criado_em', 'criado_em'),
+    )
+
+    id = Column(Integer, primary_key=True, autoincrement=True)
+    usuario_id = Column(Integer, ForeignKey("usuarios.id"), nullable=True, index=True)
+    thread_id = Column(String(80), default='main', index=True)
+    pergunta = Column(String(4000), nullable=False)
+    resposta = Column(String(8000), nullable=False)
+    contexto_modo = Column(String(20), default='real')
+    modelo_usado = Column(String(120))
+    fonte = Column(String(20), default='modelo')
+    criado_em = Column(DateTime, default=utc_now_naive, index=True)
+
+    usuario = relationship("Usuario", backref="nik_conversas")
+
+    def to_dict(self):
+        return {
+            'id': self.id,
+            'usuario_id': self.usuario_id,
+            'thread_id': self.thread_id,
+            'pergunta': self.pergunta,
+            'resposta': self.resposta,
+            'contexto_modo': self.contexto_modo,
+            'modelo_usado': self.modelo_usado,
+            'fonte': self.fonte,
+            'criado_em': self.criado_em.isoformat() if self.criado_em else None,
+        }
+
+
+# ----------------------------------------------------------
+# TABELA: Relatórios executivos da Nik
+# ----------------------------------------------------------
+class NikRelatorioGerado(Base):
+    """Relatórios executivos estruturados gerados pela Nik para uso interno."""
+    __tablename__ = "nik_relatorios_gerados"
+    __table_args__ = (
+        Index('idx_nik_rel_usuario', 'usuario_id'),
+        Index('idx_nik_rel_periodo', 'periodo_inicio', 'periodo_fim'),
+    )
+
+    id = Column(Integer, primary_key=True, autoincrement=True)
+    usuario_id = Column(Integer, ForeignKey("usuarios.id"), nullable=True, index=True)
+    parceiro_id = Column(Integer, ForeignKey("parceiros.id"), nullable=True, index=True)
+    periodo_inicio = Column(DateTime, nullable=False)
+    periodo_fim = Column(DateTime, nullable=False)
+    formato = Column(String(20), default='json')
+    titulo = Column(String(200), nullable=False)
+    conteudo_json = Column(String(12000), nullable=False)
+    conteudo_markdown = Column(String(12000))
+    modelo_usado = Column(String(120))
+    fonte = Column(String(20), default='modelo')
+    criado_em = Column(DateTime, default=utc_now_naive, index=True)
+
+    usuario = relationship("Usuario", backref="nik_relatorios")
+    parceiro = relationship("Parceiro", backref="nik_relatorios")
+
+    def to_dict(self):
+        import json
+        return {
+            'id': self.id,
+            'usuario_id': self.usuario_id,
+            'parceiro_id': self.parceiro_id,
+            'periodo_inicio': self.periodo_inicio.isoformat() if self.periodo_inicio else None,
+            'periodo_fim': self.periodo_fim.isoformat() if self.periodo_fim else None,
+            'formato': self.formato,
+            'titulo': self.titulo,
+            'conteudo': json.loads(self.conteudo_json) if self.conteudo_json else {},
+            'conteudo_markdown': self.conteudo_markdown,
+            'modelo_usado': self.modelo_usado,
+            'fonte': self.fonte,
+            'criado_em': self.criado_em.isoformat() if self.criado_em else None,
+        }

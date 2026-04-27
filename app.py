@@ -15,6 +15,7 @@ from dotenv import load_dotenv
 import os
 import secrets
 import logging
+from pathlib import Path
 
 # Importações do SQLAlchemy
 from sqlalchemy import create_engine
@@ -28,7 +29,7 @@ from banco_dados.modelos import (
     MetaComercial, Pipeline, Interacao, Tarefa, ContratoRecorrente,
     # Modelos ML (Módulos 1-4)
     LeituraSensor, PredicaoEnchimento, TronikScore,
-    NarrativaGerada, LocalProspeccao,
+    NarrativaGerada, LocalProspeccao, NikConversa, NikRelatorioGerado,
 )
 
 # Importações do sistema de inicialização
@@ -53,6 +54,21 @@ from banco_dados.utils.logger import configurar_logging
 
 # Carregar variáveis de ambiente
 load_dotenv()
+
+
+def _carregar_config_nik_dev() -> None:
+    """Carrega config local da Nik em desenvolvimento.
+
+    Permite centralizar configuracoes de dev em `nik_bot/config_nik_dev.env`
+    sem depender de um `.env` global. O arquivo local sobrescreve valores
+    anteriores para facilitar teste iterativo.
+    """
+    caminho = Path(__file__).resolve().parent / "nik_bot" / "config_nik_dev.env"
+    if caminho.exists():
+        load_dotenv(caminho, override=True)
+
+
+_carregar_config_nik_dev()
 
 # Configuração de ambiente (deve estar antes de criar o app)
 FLASK_ENV = os.getenv('FLASK_ENV', 'development')
@@ -149,7 +165,17 @@ login_manager.init_app(app)
 login_manager.login_view = 'auth.login'
 login_manager.login_message = 'Por favor, faça login para acessar esta página.'
 login_manager.login_message_category = 'info'
-login_manager.session_protection = 'strong'  # Proteção contra session fixation
+# "strong" invalida a sessão se IP ou User-Agent mudarem — em dev isso gera 401 intermitente
+# (ex.: alternar 127.0.0.1 / LAN, VPN, extensões). Em produção mantenha "strong".
+_login_prot = os.getenv("FLASK_LOGIN_SESSION_PROTECTION", "").strip().lower()
+if _login_prot in {"false", "0", "no", "none"}:
+    login_manager.session_protection = False
+elif _login_prot in {"basic", "strong"}:
+    login_manager.session_protection = _login_prot
+elif FLASK_ENV == "development":
+    login_manager.session_protection = "basic"
+else:
+    login_manager.session_protection = "strong"
 
 # Não redirecionar health check para login
 @login_manager.request_loader

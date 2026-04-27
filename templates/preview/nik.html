@@ -1,203 +1,697 @@
 {% extends 'preview/base_v2.html' %}
 {% set current = 'nik' %}
+{% set cannon_png_fb = url_for('preview.nik_assets', filename='nik_cannon_1.png') %}
 {% block title %}Nik · Tronik{% endblock %}
+{% block head_extra %}
+<style>
+  /* Remove padding from the global .main container to let the chat app expand full height */
+  .main { padding: 0 !important; display: flex; flex-direction: column; height: 100vh; overflow: hidden; }
+  .main > .view.active {
+    flex: 1;
+    min-height: 0;
+    display: flex !important;
+    flex-direction: column;
+    overflow: hidden;
+  }
+  .nik-app-layout.nik-app-layout--dark-chat {
+    flex: 1;
+    min-height: 0;
+    height: auto !important;
+  }
+</style>
+{% endblock %}
+
 {% block conteudo %}
-<div class="page-header">
-  <div class="page-title-group">
-    <div style="display: flex; align-items: center; gap: 12px; margin-bottom: 8px;">
-      <h1 style="margin: 0;">Nik</h1>
-      <span class="ml-tag ml-tag--predicao" style="margin-top: 4px;">IA</span>
+<div class="nik-app-layout nik-app-layout--dark-chat">
+  <!-- Internal Sidebar -->
+  <aside class="nik-sidebar">
+    <div class="nik-sidebar-header">
+      <button class="nik-new-chat-btn">
+        <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><line x1="12" y1="5" x2="12" y2="19"></line><line x1="5" y1="12" x2="19" y2="12"></line></svg>
+        Nova tarefa
+      </button>
+      
+      <button class="nik-new-agent-btn">
+        <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="10"></circle><line x1="12" y1="16" x2="12" y2="12"></line><line x1="12" y1="8" x2="12.01" y2="8"></line></svg>
+        Agent <span class="nik-badge-new">Novo</span>
+      </button>
+
+      <div class="nik-search-box">
+        <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="11" cy="11" r="8"></circle><line x1="21" y1="21" x2="16.65" y2="16.65"></line></svg>
+        <input type="text" placeholder="Pesquisar..." />
+      </div>
     </div>
-    <p>Analise operacional em tempo real. Converse com a Nik sobre coletores, alertas e próximos passos. Ou gere um relatório estruturado para a Maiara.</p>
-  </div>
-</div>
-
-<div class="rel-layout">
-  <aside class="rel-filters">
-    <h3>Relatório Executivo</h3>
-    <p class="rel-filter-help">A Nik analisa o contexto operacional e monta um relatório estruturado para decisões estratégicas. Exporte em JSON ou Markdown.</p>
-
-    <form id="nik-maiara-form">
-      <div class="rel-filter-group">
-        <label for="maiara-inicio">De</label>
-        <input id="maiara-inicio" type="date" name="inicio">
+    
+    <div class="nik-sidebar-scroll">
+      <div class="nik-sidebar-section">
+        <div class="nik-sidebar-label">
+          Projetos
+          <button class="nik-icon-btn-small"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><line x1="12" y1="5" x2="12" y2="19"></line><line x1="5" y1="12" x2="19" y2="12"></line></svg></button>
+        </div>
+        <div class="nik-sidebar-item" onclick="document.getElementById('nik-chat-input').value='Gerar relatório Maiara'; document.getElementById('nik-chat-form').dispatchEvent(new Event('submit', { cancelable: true, bubbles: true }));">
+          <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M22 19a2 2 0 0 1-2 2H4a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h5l2 3h9a2 2 0 0 1 2 2z"></path></svg> 
+          <span class="nik-truncate">Relatórios Maiara</span>
+        </div>
       </div>
-      <div class="rel-filter-group">
-        <label for="maiara-fim">Até</label>
-        <input id="maiara-fim" type="date" name="fim">
-      </div>
-      <div class="rel-filter-group">
-        <label for="maiara-parceiro">Parceiro</label>
-        <select id="maiara-parceiro" name="parceiro_id">
-          <option value="">Todos os parceiros</option>
-          {% for p in parceiros %}
-          <option value="{{ p.id }}">{{ p.nome }}</option>
-          {% endfor %}
-        </select>
-      </div>
-      <button type="submit" class="btn btn-primary rel-apply-btn">Gerar relatório</button>
-    </form>
 
-    <div id="maiara-export-actions" class="nik-chat-actions" style="margin-top:12px; display:none;">
-      <a id="maiara-export-json" class="btn" href="#">Exportar JSON</a>
-      <a id="maiara-export-md" class="btn" href="#">Exportar Markdown</a>
+      <div class="nik-sidebar-section">
+        <div class="nik-sidebar-label">
+          Todas as tarefas
+          <button class="nik-icon-btn-small"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><line x1="4" y1="6" x2="20" y2="6"></line><line x1="4" y1="12" x2="20" y2="12"></line><line x1="4" y1="18" x2="20" y2="18"></line></svg></button>
+        </div>
+        <div class="nik-sidebar-item active">
+          <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z"></path></svg> 
+          <span class="nik-truncate">Discussão Geral Nik</span>
+        </div>
+        <div class="nik-sidebar-item ghost">
+          <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z"></path></svg>
+          <span class="nik-truncate">Análise de Risco Operacional</span>
+        </div>
+        <div class="nik-sidebar-item ghost">
+          <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z"></path></svg>
+          <span class="nik-truncate">Planejamento de Rotas</span>
+        </div>
+      </div>
+    </div>
+    
+    <div class="nik-sidebar-footer">
+      <div class="nik-footer-credits">
+        <div class="nik-credits-box">
+          <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="2" y="3" width="20" height="14" rx="2" ry="2"></rect><line x1="8" y1="21" x2="16" y2="21"></line><line x1="12" y1="17" x2="12" y2="21"></line></svg>
+          <span>Compartilhe Nik com a equipe</span>
+        </div>
+      </div>
     </div>
   </aside>
 
-  <div class="rel-main">
-    <section class="nik-card nik-card-landing">
-      <h3>Converse com a Nik</h3>
-      <p>Pergunte sobre o estado operacional, coletores específicos, tendências, recomendações de rota, ou o que fazer agora. A Nik conhece o contexto completo e sugerirá os próximos passos práticos.</p>
-      <p class="nik-card-subtle">Em desenvolvimento, a Nik usa dados de exemplo para continuar útil enquanto a base local não está populada.</p>
-    </section>
+  <!-- Main Chat Area -->
+  <main class="nik-main-area">
+    <header class="nik-main-header">
+      <div class="nik-header-title">
+        <h2>Nik Lite</h2>
+      </div>
+      <div class="nik-header-actions">
+        <button class="nik-btn-text"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polygon points="5 3 19 12 5 21 5 3"></polygon></svg> Iniciar teste gratuito</button>
+        <button class="nik-btn-text"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M4 12v8a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2v-8"></path><polyline points="16 6 12 2 8 6"></polyline><line x1="12" y1="2" x2="12" y2="15"></line></svg> Compartilhar</button>
+        <button class="nik-icon-btn-small"><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="1"></circle><circle cx="19" cy="12" r="1"></circle><circle cx="5" cy="12" r="1"></circle></svg></button>
+      </div>
+    </header>
 
-    <div class="nik-container">
-      <div id="nik-chat-thread" class="nik-chat-thread">
-        <section class="nik-card nik-card-ops nik-chat-assistant">
-          <div class="nik-card-head"><span class="nik-badge">Nik</span></div>
-          <p class="nik-card-text">Oi. Sou a Nik. Consigo ajudar com perguntas operacionais: qual coletor precisa de atenção, por quê esse alerta importa, como os dados se conectam. Também monto relatórios executivos para a Maiara. O que precisa agora?</p>
-        </section>
-        {% for item in historico_nik|reverse %}
-        <section class="nik-card nik-card-ops nik-chat-user">
-          <div class="nik-card-head"><span class="nik-badge">Você</span></div>
-          <p class="nik-card-text">{{ item.pergunta }}</p>
-        </section>
-        <section class="nik-card nik-card-ops nik-chat-assistant">
-          <div class="nik-card-head">
-            <span class="nik-badge">Nik</span>
-            <span class="nik-status">{{ item.contexto_modo }}</span>
+    <div class="nik-chat-scroll-area" id="nik-chat-thread">
+      <div class="nik-chat-presence" id="nik-presence-root" data-nik-presence-state="wave">
+        <div class="nik-presence-visual" aria-hidden="true">
+          <video
+            class="nik-presence-video"
+            loop
+            muted
+            playsinline
+            preload="metadata"
+            poster="{{ url_for('preview.nik_assets', filename='nik_cannon.png') }}"
+          >
+          </video>
+          <img
+            src="{{ url_for('preview.nik_assets', filename='nik_cannon.png') }}"
+            alt=""
+            class="nik-presence-img"
+            width="112"
+            height="120"
+            loading="eager"
+            decoding="async"
+            onerror="if(!this.dataset.fallback){this.dataset.fallback='1';this.src='{{ cannon_png_fb }}';}"
+          >
+        </div>
+        <div class="nik-presence-text">
+          <strong id="nik-presence-title">Nik está online</strong>
+          <span id="nik-presence-subtitle">Foco em respostas operacionais e análise em tempo real.</span>
+        </div>
+      </div>
+
+      <div class="nik-chat-content-inner">
+        <!-- Messages -->
+        <div class="nik-message assistant">
+          <div class="nik-message-avatar tronik-avatar tronik-avatar--static" title="Nik">
+             <img
+               src="{{ url_for('preview.nik_assets', filename='nik_cannon.png') }}"
+               alt="Nik"
+               class="nik-avatar-img"
+               width="112"
+               height="136"
+               loading="eager"
+               decoding="async"
+               onerror="if(!this.dataset.fallback){this.dataset.fallback='1';this.src='{{ cannon_png_fb }}';}"
+             >
           </div>
-          <p class="nik-card-text">{{ item.resposta }}</p>
-        </section>
+          <div class="nik-message-body">
+            <div class="nik-message-author">Nik <span class="nik-badge-lite">Lite</span></div>
+            <div class="nik-message-text">Olá! Sou a Nik. Consigo ajudar com perguntas operacionais: qual coletor precisa de atenção, por quê esse alerta importa, como os dados se conectam. O que precisa agora?</div>
+          </div>
+        </div>
+        
+        <!-- Loop historico -->
+        {% for item in historico_nik|reverse %}
+        <div class="nik-message user">
+          <div class="nik-message-avatar user-avatar">V</div>
+          <div class="nik-message-body">
+            <div class="nik-message-text">{{ item.pergunta }}</div>
+          </div>
+        </div>
+        <div class="nik-message assistant">
+          <div class="nik-message-avatar tronik-avatar tronik-avatar--static" title="Nik">
+             <img src="{{ url_for('preview.nik_assets', filename='nik_cannon.png') }}" alt="Nik" class="nik-avatar-img" loading="lazy" decoding="async" onerror="if(!this.dataset.fallback){this.dataset.fallback='1';this.src='{{ cannon_png_fb }}';}">
+          </div>
+          <div class="nik-message-body">
+            <div class="nik-message-author">Nik <span class="nik-badge-lite">{{ item.contexto_modo }}</span></div>
+            <div class="nik-message-text">{{ item.resposta|e }}</div>
+          </div>
+        </div>
         {% endfor %}
-      </div>
 
-      <div id="nik-typing-indicator" class="nik-typing" style="display:none;">
-        <span>Nik analisando</span>
-        <span></span>
-      </div>
-
-      <form id="nik-chat-form" class="nik-chat-form">
-        <textarea id="nik-chat-input" class="nik-chat-input" rows="4" placeholder="Ex.: Quais coletores precisam de coleta emergencial hoje?" aria-label="Pergunta para a Nik"></textarea>
-        <div class="nik-chat-actions">
-          <button type="submit" class="btn btn-primary">Enviar</button>
-          <button type="button" class="btn" data-nik-seed>Usar dados de exemplo</button>
+        <div id="nik-typing-indicator" class="nik-typing-container" style="display:none;" aria-live="polite">
+          <div class="nik-message assistant">
+            <div class="nik-message-avatar tronik-avatar tronik-avatar--typing">
+               <video class="nik-avatar-video" loop muted playsinline preload="auto">
+                 <source src="{{ url_for('preview.nik_assets', filename='nik_cannon_animated_bg.mp4') }}" type="video/mp4">
+                 <source src="{{ url_for('preview.nik_assets', filename='nik_cannon_animated_bg.webm') }}" type="video/webm">
+               </video>
+               <img src="{{ url_for('preview.nik_assets', filename='nik_cannon.png') }}" alt="" class="nik-avatar-img" width="112" height="136" onerror="if(!this.dataset.fallback){this.dataset.fallback='1';this.src='{{ cannon_png_fb }}';}">
+            </div>
+            <div class="nik-message-body">
+              <div class="nik-typing-dots">
+                <span></span><span></span><span></span>
+              </div>
+            </div>
+          </div>
         </div>
-      </form>
-      <div id="nik-chat-help" class="nik-card-subtle" style="margin-top:10px;"></div>
+      </div>
+
+      <div class="nik-bottom-spacer"></div>
     </div>
 
-    <div id="maiara-report-shell" class="nik-container" style="display:none;">
-      <section class="nik-card nik-card-landing">
-        <div class="nik-card-head">
-          <span class="nik-badge">Maiara</span>
-          <span id="maiara-report-fonte" class="nik-status"></span>
-        </div>
-        <h3 id="maiara-report-title"></h3>
-        <p id="maiara-report-summary" class="nik-card-text"></p>
-      </section>
-
-      <div class="rel-charts">
-        <div class="rel-chart-card">
-          <div class="rel-chart-head"><h3>Riscos</h3></div>
-          <div id="maiara-riscos" class="rel-top-list"></div>
-        </div>
-        <div class="rel-chart-card">
-          <div class="rel-chart-head"><h3>Oportunidades</h3></div>
-          <div id="maiara-oportunidades" class="rel-top-list"></div>
-        </div>
+    <div class="nik-input-area">
+      <div class="nik-suggestions">
+        <button class="nik-suggestion-chip" onclick="document.getElementById('nik-chat-input').value='Quais são as principais iniciativas operacionais?'; document.getElementById('nik-chat-form').dispatchEvent(new Event('submit', { cancelable: true, bubbles: true }));">
+           <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z"></path></svg>
+           Quais são as principais iniciativas operacionais hoje?
+        </button>
+        <button class="nik-suggestion-chip" onclick="document.getElementById('nik-chat-input').value='Gere um relatório executivo para a Maiara'; document.getElementById('nik-chat-form').dispatchEvent(new Event('submit', { cancelable: true, bubbles: true }));">
+           <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"></path><polyline points="14 2 14 8 20 8"></polyline><line x1="16" y1="13" x2="8" y2="13"></line><line x1="16" y1="17" x2="8" y2="17"></line><polyline points="10 9 9 9 8 9"></polyline></svg>
+           Gerar um relatório executivo para a Maiara
+        </button>
       </div>
-
-      <div class="rel-chart-card">
-        <div class="rel-chart-head"><h3>Recomendações</h3></div>
-        <div id="maiara-recomendacoes" class="rel-top-list"></div>
+      
+      <div class="nik-input-wrapper">
+        <form id="nik-chat-form" class="nik-chat-form-box">
+          <input type="hidden" id="nik-thread-id" value="main">
+          
+          <div class="nik-chat-form-top">
+            <textarea id="nik-chat-input" class="nik-chat-input-field" rows="1" placeholder="Pergunte para a Nik…" aria-label="Pergunte para a Nik"></textarea>
+          </div>
+          
+          <div class="nik-chat-form-bottom">
+            <div class="nik-chat-actions-left">
+              <button type="button" class="nik-icon-btn" title="Anexar arquivo"><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M21.44 11.05l-9.19 9.19a6 6 0 0 1-8.49-8.49l9.19-9.19a4 4 0 0 1 5.66 5.66l-9.2 9.19a2 2 0 0 1-2.83-2.83l8.49-8.48"></path></svg></button>
+              <button type="button" class="nik-icon-btn" data-nik-seed title="Configurar dados de exemplo"><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M22 12h-4l-3 9L9 3l-3 9H2"></path></svg></button>
+              <button type="button" class="nik-icon-btn" title="Entrada por voz"><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M12 1a3 3 0 0 0-3 3v8a3 3 0 0 0 6 0V4a3 3 0 0 0-3-3z"></path><path d="M19 10v2a7 7 0 0 1-14 0v-2"></path><line x1="12" y1="19" x2="12" y2="23"></line><line x1="8" y1="23" x2="16" y2="23"></line></svg></button>
+            </div>
+            
+            <div class="nik-chat-actions-right">
+              <button type="submit" class="nik-submit-btn"><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><line x1="12" y1="19" x2="12" y2="5"></line><polyline points="5 12 12 5 19 12"></polyline></svg></button>
+            </div>
+          </div>
+        </form>
       </div>
-
-      <div class="rel-chart-card">
-        <div class="rel-chart-head"><h3>Métricas-chave</h3></div>
-        <div id="maiara-metricas" class="rel-top-list"></div>
-      </div>
+      <div id="nik-runtime-status" class="nik-runtime-status">Routing: aguardando...</div>
+      <div class="nik-footer-disclaimer">Tronik Nik pode cometer erros. Verifique informações importantes.</div>
     </div>
-  </div>
+  </main>
 </div>
 {% endblock %}
+
 {% block scripts_extra %}
 <script>
   (function () {
+    /** Cannon estático (PNG) no chat; animação só na faixa de presença + indicador “digitando”. */
+    var CANNON_PNG_URL = "{{ url_for('preview.nik_assets', filename='nik_cannon.png') }}";
+    var CANNON_BG_MP4 = "{{ url_for('preview.nik_assets', filename='nik_cannon_animated_bg.mp4') }}";
+    var CANNON_BG_WEBM = "{{ url_for('preview.nik_assets', filename='nik_cannon_animated_bg.webm') }}";
+
+    /** Estados com vídeo: sempre o mesmo clip cannon com fundo (pergunta em andamento → resposta). */
+    var NIK_VIDEO = {
+      doubt: CANNON_BG_WEBM,
+      thinking: CANNON_BG_WEBM,
+      success: CANNON_BG_WEBM
+    };
+    var NIK_VIDEO_MP4 = {
+      doubt: CANNON_BG_MP4,
+      thinking: CANNON_BG_MP4,
+      success: CANNON_BG_MP4
+    };
+    var NIK_SVG = {
+      wave: CANNON_PNG_URL,
+      doubt: CANNON_PNG_URL,
+      thinking: CANNON_PNG_URL,
+      success: CANNON_PNG_URL
+    };
+
+    var PRESENCE_COPY = {
+      wave: {
+        title: "Nik está online",
+        subtitle: "Foco em respostas operacionais e análise em tempo real."
+      },
+      doubt: {
+        title: "Entendendo sua pergunta",
+        subtitle: "Interpretando o que você precisa antes de buscar a resposta."
+      },
+      thinking: {
+        title: "Nik está pensando",
+        subtitle: "Consultando contexto operacional e dados disponíveis."
+      },
+      success: {
+        title: "Resposta encontrada",
+        subtitle: "Veja a mensagem abaixo com o que encontrei."
+      }
+    };
+
+    function applyPresenceVideoSources(video, state) {
+      if (!video || state === "wave") return;
+      var webm = NIK_VIDEO[state];
+      var mp4 = NIK_VIDEO_MP4[state];
+      if (!webm) return;
+      video.innerHTML = "";
+      if (mp4) {
+        var m = document.createElement("source");
+        m.src = mp4;
+        m.type = "video/mp4";
+        video.appendChild(m);
+      }
+      var w = document.createElement("source");
+      w.src = webm;
+      w.type = "video/webm";
+      video.appendChild(w);
+    }
+
+    function setPresenceState(state) {
+      var root = document.getElementById("nik-presence-root");
+      if (!root || !PRESENCE_COPY[state]) return;
+      if (state !== "wave" && !NIK_VIDEO[state]) return;
+
+      root.dataset.nikPresenceState = state;
+      var video = root.querySelector(".nik-presence-video");
+      var img = root.querySelector(".nik-presence-img");
+      var titleEl = document.getElementById("nik-presence-title");
+      var subEl = document.getElementById("nik-presence-subtitle");
+      if (titleEl) titleEl.textContent = PRESENCE_COPY[state].title;
+      if (subEl) subEl.textContent = PRESENCE_COPY[state].subtitle;
+
+      if (!video || !img) return;
+
+      if (state === "wave") {
+        video.classList.remove("is-media-ready");
+        video.innerHTML = "";
+        try {
+          video.pause();
+        } catch (e) {}
+        video.style.display = "none";
+        img.src = NIK_SVG.wave;
+        img.style.display = "block";
+        return;
+      }
+
+      video.classList.remove("is-media-ready");
+      applyPresenceVideoSources(video, state);
+      img.src = NIK_SVG.wave;
+      img.style.display = "block";
+      video.style.display = "";
+      video.load();
+      video.play().catch(function () {});
+      if (!video.dataset.revealWired) {
+        video.dataset.revealWired = "1";
+        wireNikRevealVideo(video, img);
+      }
+    }
+
+    /** PNG fica visível por baixo até o vídeo ter dimensões / estar a reproduzir (evita “caixa preta”). */
+    function wireNikRevealVideo(video, img) {
+      if (!video) return;
+      function reveal() {
+        video.classList.add("is-media-ready");
+      }
+      video.addEventListener("playing", reveal);
+      video.addEventListener("loadeddata", function () {
+        if (video.videoWidth > 0) reveal();
+      });
+      video.addEventListener("error", function () {
+        video.style.display = "none";
+        video.classList.remove("is-media-ready");
+      });
+    }
+
+    function initPresenceIdle() {
+      setPresenceState("wave");
+    }
+
     function esc(value) {
       var div = document.createElement("div");
       div.textContent = String(value || "");
       return div.innerHTML;
     }
 
-    function appendMessage(label, text, cls, status) {
-      var thread = document.getElementById("nik-chat-thread");
-      var section = document.createElement("section");
-      section.className = "nik-card nik-card-ops" + (cls ? " " + cls : "");
-      section.innerHTML =
-        '<div class="nik-card-head"><span class="nik-badge">' + esc(label) + '</span>' +
-        (status ? '<span class="nik-status">' + esc(status) + '</span>' : '') +
-        "</div>" +
-        '<p class="nik-card-text">' + esc(text) + "</p>";
-      thread.appendChild(section);
-      thread.scrollTop = thread.scrollHeight;
+    /**
+     * Insere quebras de parágrafo onde o modelo colou tudo em uma linha só:
+     * pergunta → lista, dois-pontos → corpo, frase. Nova frase com maiúscula.
+     */
+    function preprocessTopicBreaks(t) {
+      t = String(t || "").replace(/\r\n/g, "\n").replace(/\r/g, "\n");
+      t = t.split("\n").map(function (ln) {
+        return ln.replace(/^\s+/, "");
+      }).join("\n");
+      t = t.replace(/\?\s*\n(\s*[-*•–—])/gm, "?\n\n$1");
+      t = t.replace(/\?\s+([-*•–—])\s+/g, "?\n\n$1 ");
+      t = t.replace(/([^\n])\n(\s*[-*•–—]\s)/g, "$1\n\n$2");
+      t = t.replace(/:\s+(?=[A-ZÁÉÍÓÚÂÊÔÇ])/g, ":\n\n");
+      t = t.replace(/([.!?])\s{1,2}(?=[A-ZÁÉÍÓÚÂÊÔÇ][a-záéíóúâêôçãõ])/g, "$1\n\n");
+      t = t.replace(/([.!?])\s*\n+(\s*)(?=[A-ZÁÉÍÓÚÂÊÔÇ])/g, "$1\n\n$2");
+      t = t.replace(/\n{5,}/g, "\n\n\n\n");
+      return t;
     }
 
-    function renderSimpleList(containerId, items) {
-      var host = document.getElementById(containerId);
-      host.innerHTML = "";
-      (items || []).forEach(function (item, idx) {
-        var row = document.createElement("div");
-        row.className = "rel-top-item";
-        row.innerHTML =
-          '<div class="rel-top-rank">' + String(idx + 1).padStart(2, "0") + '</div>' +
-          '<div class="rel-top-body"><strong>' + esc(item) + '</strong></div>';
-        host.appendChild(row);
+    function normalizeBulletLines(s) {
+      return s
+        .split("\n")
+        .map(function (line) {
+          var m = line.match(/^(\s*)([\*•\-–—])\s+(.*)$/);
+          if (m && m[2] !== "•") return m[1] + "• " + m[3];
+          return line;
+        })
+        .join("\n");
+    }
+
+    function isBulletLine(line) {
+      return /^\s*•\s/.test(line);
+    }
+
+    /**
+     * Texto da Nik → HTML seguro: tópicos, listas, **negrito**, parágrafos.
+     */
+    function formatNikPlainTextForChat(raw) {
+      var t = preprocessTopicBreaks(raw);
+      var s = esc(t);
+      s = s.replace(/\*\*([^*]{1,400})\*\*/g, "<strong>$1</strong>");
+      s = normalizeBulletLines(s);
+      var chunks = s
+        .split(/\n{2,}/)
+        .map(function (x) {
+          return x.trim();
+        })
+        .filter(Boolean);
+      if (!chunks.length) return '<p class="nik-msg-p">' + s + "</p>";
+      var parts = [];
+      for (var c = 0; c < chunks.length; c++) {
+        var chunk = chunks[c];
+        var lines = chunk
+          .split(/\n/)
+          .map(function (l) {
+            return l.trim();
+          })
+          .filter(function (l) {
+            return l.length;
+          });
+        var allBullets =
+          lines.length > 0 &&
+          lines.every(function (l) {
+            return isBulletLine(l);
+          });
+        if (allBullets) {
+          parts.push('<div class="nik-msg-list" role="list">');
+          for (var i = 0; i < lines.length; i++) {
+            var inner = lines[i].replace(/^\s*•\s+/, "");
+            parts.push('<div class="nik-msg-li" role="listitem">' + inner + "</div>");
+          }
+          parts.push("</div>");
+          continue;
+        }
+        var restBullets =
+          lines.length > 1 &&
+          /\?\s*$/.test(lines[0]) &&
+          lines[0].length < 180 &&
+          !isBulletLine(lines[0]) &&
+          lines.slice(1).every(function (l) {
+            return isBulletLine(l);
+          });
+        if (restBullets) {
+          parts.push('<p class="nik-msg-topic">' + lines[0] + "</p>");
+          parts.push('<div class="nik-msg-list" role="list">');
+          for (var j = 1; j < lines.length; j++) {
+            var inner2 = lines[j].replace(/^\s*•\s+/, "");
+            parts.push('<div class="nik-msg-li" role="listitem">' + inner2 + "</div>");
+          }
+          parts.push("</div>");
+          continue;
+        }
+        if (
+          lines.length === 1 &&
+          /\?\s*$/.test(lines[0]) &&
+          lines[0].length < 180 &&
+          !isBulletLine(lines[0])
+        ) {
+          parts.push('<p class="nik-msg-topic">' + lines[0] + "</p>");
+          continue;
+        }
+        parts.push('<p class="nik-msg-p">' + chunk.replace(/\n/g, "<br>") + "</p>");
+      }
+      return parts.join("");
+    }
+
+    function enrichHistoricoAssistantMessages() {
+      document.querySelectorAll(".nik-chat-content-inner .nik-message.assistant .nik-message-text").forEach(function (el) {
+        if (el.dataset.nikFormatted === "1") return;
+        var raw = el.textContent;
+        if (!raw || !String(raw).trim()) return;
+        el.innerHTML = formatNikPlainTextForChat(raw);
+        el.classList.add("nik-message-text--rich");
+        el.dataset.nikFormatted = "1";
       });
     }
 
-    function renderMetricas(items) {
-      var host = document.getElementById("maiara-metricas");
-      host.innerHTML = "";
-      (items || []).forEach(function (item, idx) {
-        var row = document.createElement("div");
-        row.className = "rel-top-item";
-        row.innerHTML =
-          '<div class="rel-top-rank">' + String(idx + 1).padStart(2, "0") + '</div>' +
-          '<div class="rel-top-body"><strong>' + esc(item.nome) + " · " + esc(item.valor) + '</strong><span>' + esc(item.insight || "") + '</span></div>';
-        host.appendChild(row);
+    function wireMediaFallback(root) {
+      var scope = root || document;
+      scope.querySelectorAll(".nik-message-avatar").forEach(function (box) {
+        var video = box.querySelector(".nik-avatar-video");
+        var img = box.querySelector(".nik-avatar-img");
+        if (!video || !img || box.dataset.mediaReady === "1") return;
+        wireNikRevealVideo(video, img);
+        box.dataset.mediaReady = "1";
       });
+    }
+
+    function syncTypingIndicatorVideo(play) {
+      var tv = document.querySelector("#nik-typing-indicator .nik-avatar-video");
+      if (!tv) return;
+      if (play) {
+        tv.currentTime = 0;
+        tv.play().catch(function () {});
+      } else {
+        try {
+          tv.pause();
+        } catch (e) {}
+      }
+    }
+    
+    var textarea = document.getElementById('nik-chat-input');
+    textarea.addEventListener('input', function() {
+      this.style.height = 'auto';
+      this.style.height = Math.min(this.scrollHeight, 200) + 'px';
+      if(this.value === '') {
+        this.style.height = 'auto';
+      }
+    });
+    
+    textarea.addEventListener('keydown', function(e) {
+      if (e.key === 'Enter' && !e.shiftKey) {
+        e.preventDefault();
+        document.getElementById('nik-chat-form').dispatchEvent(new Event('submit', { cancelable: true, bubbles: true }));
+      }
+    });
+
+    function appendMessage(label, text, cls, status, fontesWeb, documento, nikAnimKey) {
+      var thread = document.getElementById("nik-chat-thread").querySelector(".nik-chat-content-inner");
+      var msgDiv = document.createElement("div");
+      
+      var isUser = cls === "nik-chat-user";
+      msgDiv.className = "nik-message " + (isUser ? "user" : "assistant");
+      
+      var avatarHtml = isUser
+        ? '<div class="nik-message-avatar user-avatar">V</div>'
+        : '<div class="nik-message-avatar tronik-avatar tronik-avatar--static" title="Nik">' +
+            '<img src="' + esc(CANNON_PNG_URL) + '" alt="Nik" class="nik-avatar-img">' +
+          '</div>';
+        
+      var headerHtml = isUser 
+        ? '' 
+        : '<div class="nik-message-author">Nik ' + (status ? '<span class="nik-badge-lite">' + esc(status) + '</span>' : '<span class="nik-badge-lite">Lite</span>') + '</div>';
+
+      var attachmentsHtml = "";
+      if (fontesWeb && fontesWeb.length > 0) {
+        attachmentsHtml = '<div class="nik-message-attachments">';
+        fontesWeb.forEach(function(src) {
+           var titulo = src.titulo || src.fonte || 'Fonte Web';
+           attachmentsHtml += `
+             <a class="nik-attachment-card" href="${esc(src.url)}" target="_blank">
+                <div class="nik-attachment-icon"><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M10 13a5 5 0 0 0 7.54.54l3-3a5 5 0 0 0-7.07-7.07l-1.72 1.71"></path><path d="M14 11a5 5 0 0 0-7.54-.54l-3 3a5 5 0 0 0 7.07 7.07l1.71-1.71"></path></svg></div>
+                <div class="nik-attachment-info">
+                   <div class="nik-attachment-title">${esc(titulo)}</div>
+                   <div class="nik-attachment-meta">Link externo</div>
+                </div>
+             </a>`;
+        });
+        attachmentsHtml += '</div>';
+      }
+
+      var documentoHtml = "";
+      if (documento && documento.titulo) {
+        var sumario = (documento.sumario || []).map(function(s) { return '<li>' + esc(s) + '</li>'; }).join('');
+        var secoes = (documento.secoes || []).map(function(sec) {
+          var corpo = esc(sec.conteudo || "").replace(/\n/g, "<br>");
+          return '<div class="nik-doc-section"><h4>' + esc(sec.titulo) + '</h4><p>' + corpo + '</p></div>';
+        }).join('');
+        var proximos = (documento.proximos_passos || []).map(function(p) { return '<li>' + esc(p) + '</li>'; }).join('');
+        documentoHtml =
+          '<div class="nik-doc-card">' +
+            '<h3>' + esc(documento.titulo) + '</h3>' +
+            '<div class="nik-doc-subtitle">Sumário</div><ol>' + sumario + '</ol>' +
+            secoes +
+            '<div class="nik-doc-subtitle">Conclusão</div><p>' + esc(documento.conclusao || '') + '</p>' +
+            '<div class="nik-doc-subtitle">Próximos passos</div><ul>' + proximos + '</ul>' +
+          '</div>';
+      }
+
+      var bodyHtml = isUser ? esc(text) : formatNikPlainTextForChat(text);
+      var bodyClass = isUser ? "nik-message-text" : "nik-message-text nik-message-text--rich";
+
+      msgDiv.innerHTML = avatarHtml + 
+        '<div class="nik-message-body">' + 
+          headerHtml + 
+          '<div class="' + bodyClass + '">' + bodyHtml + '</div>' + 
+          documentoHtml +
+          attachmentsHtml + 
+        '</div>';
+        
+      thread.appendChild(msgDiv);
+      wireMediaFallback(msgDiv);
+      scrollToBottom();
+    }
+    
+    function scrollToBottom() {
+      var scrollArea = document.getElementById("nik-chat-thread");
+      scrollArea.scrollTop = scrollArea.scrollHeight;
+    }
+
+    function sleep(ms) {
+      return new Promise(function (resolve) { setTimeout(resolve, ms); });
+    }
+
+    /** Fetch com retries leves para falhas transitórias de rede / upstream. */
+    async function fetchComRetry(url, init, maxTries) {
+      maxTries = maxTries || 3;
+      var lastErr = null;
+      for (var t = 0; t < maxTries; t++) {
+        if (t > 0) {
+          await sleep(Math.min(2500, Math.round(350 * Math.pow(1.75, t - 1))));
+        }
+        try {
+          var resp = await fetch(url, init);
+          if (resp.status === 502 || resp.status === 503 || resp.status === 504) {
+            lastErr = new Error("upstream " + resp.status);
+            continue;
+          }
+          return resp;
+        } catch (e) {
+          lastErr = e;
+        }
+      }
+      throw lastErr || new Error("fetch failed");
     }
 
     var form = document.getElementById("nik-chat-form");
     var input = document.getElementById("nik-chat-input");
-    var help = document.getElementById("nik-chat-help");
+    var threadInput = document.getElementById("nik-thread-id");
+    var runtimeStatus = document.getElementById("nik-runtime-status");
+    
+    var savedThread = localStorage.getItem("nik_thread_id");
+    if (savedThread) threadInput.value = savedThread;
 
     form.addEventListener("submit", async function (event) {
       event.preventDefault();
       var mensagem = input.value.trim();
       if (!mensagem) return;
+      
+      var threadId = (threadInput.value || "main").trim() || "main";
+      localStorage.setItem("nik_thread_id", threadId);
+      
       appendMessage("Você", mensagem, "nik-chat-user");
+      
       input.value = "";
-      document.getElementById("nik-typing-indicator").style.display = "";
-      help.textContent = "";
+      input.style.height = 'auto'; 
+      scrollToBottom();
+      
+      setPresenceState("doubt");
+      await sleep(380);
+      setPresenceState("thinking");
+      document.getElementById("nik-typing-indicator").style.display = "block";
+      syncTypingIndicatorVideo(true);
+      scrollToBottom();
+      
       try {
-        var resp = await fetch("/api/nik/ops/conversa", {
+        var resp = await fetchComRetry("/api/nik/ops/conversa", {
           method: "POST",
           headers: { "Content-Type": "application/json" },
           credentials: "same-origin",
-          body: JSON.stringify({ mensagem: mensagem })
-        });
-        var data = await resp.json();
+          body: JSON.stringify({ mensagem: mensagem, thread_id: threadId })
+        }, 3);
         document.getElementById("nik-typing-indicator").style.display = "none";
-        appendMessage("Nik", data.texto || "Não consegui gerar uma resposta.", "nik-chat-assistant", data.modo_contexto);
-        help.textContent = data.modo_contexto === "mock"
-          ? "Contexto atual: dados de exemplo (desenvolvimento)"
-          : "Contexto atual: dados da base local";
+        syncTypingIndicatorVideo(false);
+        if (resp.status === 401) {
+          setPresenceState("doubt");
+          appendMessage(
+            "Nik",
+            "Sua sessão expirou ou não está autenticado. Abra o login e volte ao chat.",
+            "nik-chat-assistant"
+          );
+          runtimeStatus.textContent = "Routing: sessão (401) — faça login novamente";
+          setTimeout(function () {
+            window.location.href = "/auth/login?next=" + encodeURIComponent(window.location.pathname);
+          }, 1200);
+          return;
+        }
+        var data = await resp.json();
+        
+        var replyText = data.texto || "Não consegui gerar uma resposta.";
+        var replyIsDoubt =
+          /não consegui|erro|sessão expirou|não está autenticado|tente novamente/i.test(String(replyText || ""));
+        setPresenceState(replyIsDoubt ? "doubt" : "success");
+        appendMessage(
+          "Nik",
+          replyText,
+          "nik-chat-assistant",
+          data.modo_contexto,
+          data.fontes_web || [],
+          data.documento || null
+        );
+        var routeMode = data.routing_mode || "n/a";
+        var plannedModel = data.routing_model || "n/a";
+        var usedModel = data.modelo || plannedModel;
+        var webStatus = data.web_status && data.web_status !== "n/a" ? " · web: " + data.web_status : "";
+        runtimeStatus.textContent = "Routing: " + routeMode + " -> " + usedModel + webStatus;
+        await sleep(replyIsDoubt ? 2400 : 1700);
+        setPresenceState("wave");
       } catch (err) {
         document.getElementById("nik-typing-indicator").style.display = "none";
+        syncTypingIndicatorVideo(false);
+        setPresenceState("doubt");
         appendMessage("Nik", "Tente novamente em poucos instantes.", "nik-chat-assistant");
-        help.textContent = "";
+        runtimeStatus.textContent = "Routing: erro de conexão";
+        await sleep(2200);
+        setPresenceState("wave");
       }
     });
 
@@ -208,32 +702,13 @@
         "nik-chat-assistant"
       );
     });
-
-    document.getElementById("nik-maiara-form").addEventListener("submit", async function (event) {
-      event.preventDefault();
-      var params = new URLSearchParams(new FormData(event.target));
-      help.textContent = "Nik está analisando o contexto...";
-      try {
-        var resp = await fetch("/api/nik/maiara/relatorio?" + params.toString(), { credentials: "same-origin" });
-        var data = await resp.json();
-        var conteudo = data.conteudo || {};
-        document.getElementById("maiara-report-shell").style.display = "";
-        document.getElementById("maiara-report-title").textContent = conteudo.titulo || "Relatório Executivo";
-        document.getElementById("maiara-report-summary").textContent = conteudo.resumo_executivo || "";
-        document.getElementById("maiara-report-fonte").textContent = data.fonte || "IA";
-        renderSimpleList("maiara-riscos", conteudo.riscos || []);
-        renderSimpleList("maiara-oportunidades", conteudo.oportunidades || []);
-        renderSimpleList("maiara-recomendacoes", conteudo.recomendacoes || []);
-        renderMetricas(conteudo.metricas_chave || []);
-
-        document.getElementById("maiara-export-actions").style.display = "flex";
-        document.getElementById("maiara-export-json").href = "/api/nik/maiara/relatorio/" + data.id + "/export?formato=json";
-        document.getElementById("maiara-export-md").href = "/api/nik/maiara/relatorio/" + data.id + "/export?formato=md";
-        help.textContent = "Relatório pronto.";
-      } catch (err) {
-        help.textContent = "Tente novamente em poucos instantes.";
-      }
-    });
+    
+    setTimeout(function () {
+      scrollToBottom();
+      enrichHistoricoAssistantMessages();
+      initPresenceIdle();
+      wireMediaFallback(document);
+    }, 100);
   })();
 </script>
 {% endblock %}

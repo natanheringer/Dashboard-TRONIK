@@ -8,15 +8,34 @@ Acesso: login por padrao; ``PREVIEW_PUBLIC=true`` libera sem autenticacao
 from __future__ import annotations
 
 import os
+from pathlib import Path
 from functools import wraps
 
-from flask import Blueprint, render_template, request
+from flask import Blueprint, abort, redirect, render_template, request, send_from_directory, url_for
 from flask_login import current_user, login_required
 
 from banco_dados.services import preview_service as pv
+from banco_dados.services import nik_service
 from rotas.api.decorators import get_db
 
 preview_bp = Blueprint("preview", __name__, url_prefix="/preview")
+_NIK_ASSETS_DIR = Path(__file__).resolve().parents[1] / "nik_bot"
+_NIK_ASSETS_ALLOWLIST = {
+    "Nik_normal.svg",
+    "Nik_escrevendo.svg",
+    "Nik_encontra_resposta_no_bg.svg",
+    "nik_duvida_nobg.svg",
+    "tronik_logo_only_nobg.svg",
+    "nik-acenando-lbadev.webm",
+    "nik-pensando-lbadev.webm",
+    "nik-encontra-resposta-lbadev.webm",
+    "nik_duvida-lbadev.webm",
+    "nik_cannon.png",
+    "nik_cannon_1.png",
+    "nik_cannon_animated_bg.webm",
+    "nik_cannon_animated_bg.mp4",
+    "nik_cannon_animated_nobg.webm",
+}
 
 
 def _preview_publico() -> bool:
@@ -47,6 +66,12 @@ def _nome_usuario() -> str:
 @preview_bp.route("/")
 @auth_preview
 def home():
+    return redirect(url_for("preview.landing_preview"))
+
+
+@preview_bp.route("/home")
+@auth_preview
+def dashboard_home():
     db = get_db()
     try:
         stats = pv.estatisticas_resumo(db)
@@ -264,6 +289,60 @@ def prospeccao():
         return render_template("preview/prospeccao.html", **ctx)
     finally:
         db.close()
+
+
+@preview_bp.route("/nik")
+@auth_preview
+def nik():
+    db = get_db()
+    try:
+        stats = pv.estatisticas_resumo(db)
+        parceiros = pv.listar_parceiros_select(db)
+        historico = nik_service.listar_conversas_ops(
+            db,
+            current_user.id if current_user.is_authenticated else None,
+            limite=12,
+        )
+    except Exception:
+        stats = {"total_coletores": 0}
+        parceiros = []
+        historico = []
+    finally:
+        db.close()
+    return render_template(
+        "preview/nik.html",
+        current="nik",
+        total_coletores=stats.get("total_coletores", 0),
+        stats=stats,
+        usuario_nome=_nome_usuario(),
+        parceiros=parceiros,
+        historico_nik=historico,
+    )
+
+
+@preview_bp.route("/landing")
+def landing_preview():
+    db = get_db()
+    try:
+        stats = pv.estatisticas_resumo(db)
+    except Exception:
+        stats = {"total_coletores": 0}
+    finally:
+        db.close()
+    return render_template(
+        "preview/landing_preview.html",
+        current="landing_preview",
+        total_coletores=stats.get("total_coletores", 0),
+        stats=stats,
+        usuario_nome=_nome_usuario(),
+    )
+
+
+@preview_bp.route("/assets/nik/<path:filename>")
+def nik_assets(filename: str):
+    if filename not in _NIK_ASSETS_ALLOWLIST:
+        abort(404)
+    return send_from_directory(_NIK_ASSETS_DIR, filename)
 
 
 # ==============================================================

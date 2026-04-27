@@ -6,16 +6,22 @@ Rotas para as páginas web do dashboard.
 Gerencia a navegação e renderização das páginas.
 """
 
-from flask import Blueprint, render_template
+from flask import Blueprint, render_template, redirect, url_for
 from flask_login import login_required
 
 # Criar blueprint das páginas
 paginas_bp = Blueprint('paginas', __name__)
 
 @paginas_bp.route('/')
-@login_required
 def index():
-    """Renderiza a página principal do dashboard"""
+    """Primeira página do site: landing de preview (marketing v2)."""
+    return redirect(url_for('preview.landing_preview'))
+
+
+@paginas_bp.route('/dashboard')
+@login_required
+def dashboard():
+    """Renderiza a página principal do dashboard (protegida por login)."""
     return render_template('index.html')
 
 @paginas_bp.route('/relatorios')
@@ -40,6 +46,17 @@ def mapa():
 def sobre():
     """Renderiza a página sobre o projeto (pública)"""
     return render_template('sobre.html')
+
+@paginas_bp.route('/nik-public')
+def nik_public():
+    """Nik Pública — blocos educativos gerados (antes /landing)."""
+    return render_template('landing/landing.html')
+
+
+@paginas_bp.route('/landing')
+def landing_redirect():
+    """Compatibilidade: antiga URL da Nik pública."""
+    return redirect(url_for('paginas.nik_public'), code=301)
 
 @paginas_bp.route('/notificacoes')
 @login_required

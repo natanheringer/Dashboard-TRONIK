@@ -1,0 +1,426 @@
+.parc-roadmap-banner {
+  background: linear-gradient(135deg, var(--accent-clay) 0%, #8a4a24 100%);
+  color: var(--paper-elevated);
+  padding: var(--space-4) var(--space-6);
+  border-radius: var(--radius-md);
+  display: flex;
+  align-items: center;
+  gap: var(--space-4);
+  margin-bottom: var(--space-8);
+  box-shadow: var(--shadow-md);
+}
+
+.parc-roadmap-banner svg {
+  width: 22px;
+  height: 22px;
+  flex-shrink: 0;
+}
+
+.parc-roadmap-banner strong {
+  font-weight: 600;
+  display: block;
+  margin-bottom: 2px;
+  font-size: var(--text-sm);
+}
+
+.parc-roadmap-banner span {
+  font-size: var(--text-xs);
+  opacity: 0.9;
+}
+
+.parc-hero {
+  background: linear-gradient(180deg, var(--paper-card) 0%, var(--paper-elevated) 100%);
+  border: 1px solid var(--line-default);
+  border-radius: var(--radius-xl);
+  padding: var(--space-16) var(--space-12);
+  position: relative;
+  overflow: hidden;
+  margin-bottom: var(--space-8);
+}
+
+.parc-hero::before {
+  content: "";
+  position: absolute;
+  left: -10%;
+  bottom: -50%;
+  width: 500px;
+  height: 500px;
+  background: radial-gradient(ellipse at center, var(--tronik-soft) 0%, transparent 65%);
+  opacity: 0.6;
+  pointer-events: none;
+}
+
+.parc-hero::after {
+  content: "";
+  position: absolute;
+  right: -5%;
+  top: -30%;
+  width: 400px;
+  height: 400px;
+  background: radial-gradient(ellipse at center, rgba(196, 102, 58, 0.12) 0%, transparent 65%);
+  pointer-events: none;
+}
+
+.parc-hero-inner {
+  position: relative;
+  z-index: 1;
+  max-width: 780px;
+}
+
+.parc-hero-eyebrow {
+  font-family: var(--font-mono);
+  font-size: 11px;
+  text-transform: uppercase;
+  letter-spacing: 0.12em;
+  color: var(--ink-tertiary);
+  margin-bottom: var(--space-5);
+  display: inline-flex;
+  align-items: center;
+  gap: var(--space-2);
+}
+
+.parc-hero-eyebrow::before {
+  content: "";
+  width: 24px;
+  height: 1px;
+  background: var(--line-strong);
+}
+
+.parc-hero-title {
+  font-family: var(--font-display);
+  font-size: clamp(2.5rem, 5vw, 4rem);
+  font-weight: 400;
+  line-height: 1.05;
+  letter-spacing: -0.035em;
+  color: var(--ink-primary);
+  margin-bottom: var(--space-4);
+}
+
+.parc-hero-title em {
+  font-style: italic;
+  color: var(--tronik);
+  font-weight: 300;
+}
+
+.parc-hero-sub {
+  font-size: var(--text-md);
+  color: var(--ink-secondary);
+  max-width: 560px;
+  line-height: 1.6;
+}
+
+.parc-impact {
+  display: grid;
+  grid-template-columns: 1.3fr 1fr;
+  gap: var(--space-6);
+  margin-bottom: var(--space-8);
+}
+
+.parc-impact-main {
+  background: var(--paper-card);
+  border: 1px solid var(--line-default);
+  border-radius: var(--radius-xl);
+  padding: var(--space-10);
+  position: relative;
+  overflow: hidden;
+}
+
+.parc-impact-main::after {
+  content: "";
+  position: absolute;
+  right: -80px;
+  bottom: -80px;
+  width: 360px;
+  height: 360px;
+  background: radial-gradient(circle, var(--tronik-ghost) 0%, transparent 70%);
+}
+
+.parc-impact-label {
+  font-family: var(--font-mono);
+  font-size: 11px;
+  text-transform: uppercase;
+  letter-spacing: 0.1em;
+  color: var(--ink-tertiary);
+  margin-bottom: var(--space-4);
+  position: relative;
+  z-index: 1;
+}
+
+.parc-impact-value {
+  font-family: var(--font-display);
+  font-size: clamp(4rem, 9vw, 7.5rem);
+  font-weight: 300;
+  line-height: 0.9;
+  letter-spacing: -0.05em;
+  color: var(--ink-primary);
+  font-variant-numeric: tabular-nums;
+  margin-bottom: var(--space-5);
+  position: relative;
+  z-index: 1;
+}
+
+.parc-impact-value em {
+  font-style: italic;
+  font-weight: 300;
+  color: var(--tronik);
+  font-size: 0.45em;
+  vertical-align: baseline;
+  margin-left: var(--space-2);
+}
+
+.parc-impact-caption {
+  font-family: var(--font-display);
+  font-size: var(--text-md);
+  font-style: italic;
+  color: var(--ink-secondary);
+  max-width: 400px;
+  line-height: 1.5;
+  position: relative;
+  z-index: 1;
+  font-weight: 300;
+}
+
+.parc-equiv {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-3);
+}
+
+.parc-equiv-card {
+  background: var(--paper-card);
+  border: 1px solid var(--line-default);
+  border-radius: var(--radius-lg);
+  padding: var(--space-5) var(--space-6);
+  display: flex;
+  align-items: center;
+  gap: var(--space-4);
+  transition: all 220ms ease;
+}
+
+.parc-equiv-card:hover {
+  background: var(--paper-elevated);
+  transform: translateX(4px);
+}
+
+.parc-equiv-icon {
+  width: 48px;
+  height: 48px;
+  border-radius: 12px;
+  background: var(--tronik-soft);
+  color: var(--tronik);
+  display: grid;
+  place-items: center;
+  flex-shrink: 0;
+}
+
+.parc-equiv-icon svg {
+  width: 24px;
+  height: 24px;
+}
+
+.parc-equiv-body {
+  flex: 1;
+}
+
+.parc-equiv-value {
+  font-family: var(--font-display);
+  font-size: var(--text-xl);
+  font-weight: 500;
+  color: var(--ink-primary);
+  letter-spacing: -0.02em;
+  line-height: 1;
+  margin-bottom: 4px;
+  font-variant-numeric: tabular-nums;
+}
+
+.parc-equiv-label {
+  font-size: var(--text-xs);
+  color: var(--ink-tertiary);
+  line-height: 1.4;
+}
+
+.parc-timeline {
+  background: var(--paper-card);
+  border: 1px solid var(--line-default);
+  border-radius: var(--radius-lg);
+  padding: var(--space-8);
+}
+
+.parc-timeline-head {
+  display: flex;
+  justify-content: space-between;
+  align-items: baseline;
+  margin-bottom: var(--space-8);
+  padding-bottom: var(--space-5);
+  border-bottom: 1px solid var(--line-subtle);
+}
+
+.parc-timeline-head h3 {
+  font-family: var(--font-display);
+  font-size: var(--text-xl);
+  font-weight: 500;
+  color: var(--ink-primary);
+  letter-spacing: -0.01em;
+}
+
+.parc-timeline-head span {
+  font-family: var(--font-mono);
+  font-size: 10px;
+  color: var(--ink-tertiary);
+  text-transform: uppercase;
+  letter-spacing: 0.08em;
+}
+
+.parc-timeline-list {
+  position: relative;
+  padding-left: var(--space-6);
+}
+
+.parc-timeline-list::before {
+  content: "";
+  position: absolute;
+  left: 7px;
+  top: 6px;
+  bottom: 6px;
+  width: 1px;
+  background: var(--line-default);
+}
+
+.parc-timeline-item {
+  position: relative;
+  padding-bottom: var(--space-5);
+  padding-left: var(--space-5);
+}
+
+.parc-timeline-item:last-child {
+  padding-bottom: 0;
+}
+
+.parc-timeline-item::before {
+  content: "";
+  position: absolute;
+  left: -24px;
+  top: 6px;
+  width: 15px;
+  height: 15px;
+  border-radius: 50%;
+  background: var(--paper-elevated);
+  border: 2px solid var(--tronik);
+}
+
+.parc-timeline-item-date {
+  font-family: var(--font-mono);
+  font-size: 10px;
+  color: var(--ink-tertiary);
+  text-transform: uppercase;
+  letter-spacing: 0.08em;
+  margin-bottom: 4px;
+}
+
+.parc-timeline-item-title {
+  font-family: var(--font-display);
+  font-size: var(--text-md);
+  font-weight: 500;
+  color: var(--ink-primary);
+  letter-spacing: -0.01em;
+  margin-bottom: var(--space-1);
+}
+
+.parc-timeline-item-desc {
+  font-size: var(--text-sm);
+  color: var(--ink-secondary);
+  line-height: 1.5;
+}
+
+.parc-timeline-item-desc strong {
+  color: var(--tronik);
+  font-weight: 600;
+}
+
+.parceiro-table-wrap {
+  margin-top: var(--space-4);
+  overflow: auto;
+}
+
+.parceiro-table {
+  width: 100%;
+  border-collapse: collapse;
+  font-size: var(--text-sm);
+}
+
+.parceiro-table-head-row {
+  text-align: left;
+  border-bottom: 1px solid var(--line-default);
+  color: var(--ink-tertiary);
+}
+
+.parceiro-table-cell {
+  padding: var(--space-3);
+}
+
+.parceiro-table-data-row {
+  border-bottom: 1px solid var(--line-subtle);
+  transition: background 0.2s ease;
+}
+
+.parceiro-table-name {
+  font-weight: 500;
+}
+
+.parceiro-table-mono {
+  font-family: var(--font-mono);
+}
+
+.parceiro-narrativa-row {
+  background: var(--paper-elevated);
+}
+
+.parceiro-narrativa-cell {
+  padding: var(--space-3) var(--space-4);
+}
+
+.parceiro-narrativa-wrap {
+  display: flex;
+  gap: var(--space-3);
+  align-items: flex-start;
+}
+
+.parceiro-narrativa-tag-wrap {
+  flex-shrink: 0;
+  margin-top: 2px;
+}
+
+.parceiro-narrativa-tag {
+  font-size: 10px;
+  white-space: nowrap;
+}
+
+.parceiro-narrativa-text {
+  margin: 0;
+  font-size: var(--text-sm);
+  color: var(--ink-secondary);
+  line-height: 1.5;
+}
+
+.parceiro-empty-cell {
+  padding: var(--space-6);
+  color: var(--ink-tertiary);
+}
+
+@media (max-width: 768px) {
+  .parc-hero {
+    padding: var(--space-8) var(--space-5);
+  }
+
+  .parc-hero-title {
+    font-size: 2rem;
+  }
+
+  .parc-impact-main {
+    padding: var(--space-6);
+  }
+
+  .parc-impact-value {
+    font-size: 4.5rem;
+  }
+}

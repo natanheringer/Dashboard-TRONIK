@@ -20,17 +20,26 @@ def aplicar_compat_schema(engine) -> None:
         return
 
     cols = {c["name"] for c in insp.get_columns("sensores")}
-    if "api_token" in cols:
-        return
-
     dialect = engine.dialect.name
-    with engine.begin() as conn:
-        if dialect == "sqlite":
-            conn.execute(text("ALTER TABLE sensores ADD COLUMN api_token VARCHAR(128)"))
-        elif dialect in ("postgresql", "postgres"):
-            conn.execute(
-                text("ALTER TABLE sensores ADD COLUMN api_token VARCHAR(128) NULL")
-            )
+
+    def _add_column_if_missing(table: str, column: str, ddl: str) -> None:
+        if table not in insp.get_table_names():
+            return
+        table_cols = {c["name"] for c in insp.get_columns(table)}
+        if column in table_cols:
+            return
+        with engine.begin() as conn:
+            conn.execute(text(f"ALTER TABLE {table} ADD COLUMN {column} {ddl}"))
+        logger.info("Schema compat: coluna %s.%s adicionada.", table, column)
+
+    if "api_token" not in cols:
+        if dialect in ("postgresql", "postgres"):
+            _add_column_if_missing("sensores", "api_token", "VARCHAR(128) NULL")
         else:
-            conn.execute(text("ALTER TABLE sensores ADD COLUMN api_token VARCHAR(128)"))
-    logger.info("Schema compat: coluna sensores.api_token adicionada.")
+            _add_column_if_missing("sensores", "api_token", "VARCHAR(128)")
+
+    # Conversas da Nik: thread para memória por tópico
+    if dialect in ("postgresql", "postgres"):
+        _add_column_if_missing("nik_conversas", "thread_id", "VARCHAR(80) NULL")
+    else:
+        _add_column_if_missing("nik_conversas", "thread_id", "VARCHAR(80)")
