@@ -198,3 +198,20 @@ def parceiro():
         return render_template("preview/parceiro.html", **ctx)
     finally:
         db.close()
+
+
+@preview_bp.route("/gestao")
+@auth_preview
+def gestao():
+    db = get_db()
+    try:
+        stats = pv.estatisticas_resumo(db)
+        ctx = {
+            "current": "gestao",
+            "total_coletores": stats["total_coletores"],
+            "stats": stats,
+            "usuario_nome": _nome_usuario(),
+        }
+        return render_template("preview/gestao.html", **ctx)
+    finally:
+        db.close()
