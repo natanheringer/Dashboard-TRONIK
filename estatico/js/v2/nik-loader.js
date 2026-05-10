@@ -54,7 +54,12 @@
   async function carregarNikLanding(tipoBloco, containerId) {
     var container = document.getElementById(containerId);
     if (!container) return;
-    container.innerHTML = '<div class="nik-loading">Nik preparando...</div>';
+    container.innerHTML =
+      '<div class="nik-loading">' +
+      '<span class="nik-loading-dot"></span>' +
+      '<span class="nik-loading-dot"></span>' +
+      '<span class="nik-loading-dot"></span>' +
+      '</div>';
     try {
       var resp = await fetch(NIK_API + "/landing/" + tipoBloco, { credentials: "same-origin" });
       if (!resp.ok) throw new Error("HTTP " + resp.status);
@@ -69,28 +74,73 @@
     }
   }
 
+  function streamText(el, text, speedMs, onDone) {
+    var i = 0;
+    var cursor = document.createElement("span");
+    cursor.className = "nik-stream-cursor";
+    cursor.setAttribute("aria-hidden", "true");
+    el.appendChild(cursor);
+    function step() {
+      if (i <= text.length) {
+        el.firstChild.nodeValue = text.slice(0, i);
+        i++;
+        setTimeout(step, speedMs);
+        return;
+      }
+      if (cursor.parentNode) cursor.parentNode.removeChild(cursor);
+      if (onDone) onDone();
+    }
+    el.insertBefore(document.createTextNode(""), cursor);
+    step();
+  }
+
   function renderizarBlocoLanding(container, tipo, bloco) {
-    var html = "";
+    var titulo = "";
+    var corpo = "";
+    var extra = "";
+
     if (tipo === "fala_nik") {
-      html = "<h3>" + esc(bloco.titulo) + "</h3><p>" + esc(bloco.corpo) + "</p>" +
-        (bloco.destaque ? '<p class="nik-card-subtle">' + esc(bloco.destaque) + "</p>" : "");
+      titulo = esc(bloco.titulo);
+      corpo = bloco.corpo || "";
+      extra = bloco.destaque ? '<p class="nik-card-subtle">' + esc(bloco.destaque) + "</p>" : "";
     } else if (tipo === "fato_reciclagem") {
-      html = '<h3>Fato rápido</h3><blockquote>' + esc(bloco.fato) + "</blockquote>" +
-        (bloco.fonte ? "<cite>" + esc(bloco.fonte) + "</cite>" : "");
+      titulo = "Fato rápido";
+      corpo = bloco.fato || "";
+      extra = bloco.fonte ? "<cite>" + esc(bloco.fonte) + "</cite>" : "";
     } else if (tipo === "impacto_tronik") {
-      html = "<h3>" + esc(bloco.titulo) + '</h3><div class="nik-metric">' + esc(bloco.metrica) +
-        "</div><p>" + esc(bloco.explicacao || "") + "</p>";
+      titulo = esc(bloco.titulo);
+      corpo = bloco.explicacao || "";
+      extra = bloco.metrica ? '<div class="nik-metric">' + esc(bloco.metrica) + "</div>" : "";
     } else if (tipo === "pergunta_guiada") {
-      html = "<h3>" + esc(bloco.pergunta) + "</h3><p>" + esc(bloco.resposta_curta) + "</p>";
+      titulo = esc(bloco.pergunta);
+      corpo = bloco.resposta_curta || "";
     } else if (tipo === "nik_explica") {
-      html = "<h3>" + esc(bloco.titulo) + "</h3><p>" + esc(bloco.corpo) + "</p>" +
-        (bloco.analogia ? '<p class="nik-card-subtle">' + esc(bloco.analogia) + "</p>" : "");
+      titulo = esc(bloco.titulo);
+      corpo = bloco.corpo || "";
+      extra = bloco.analogia ? '<p class="nik-card-subtle">' + esc(bloco.analogia) + "</p>" : "";
     }
 
+    var bodyId = "nik-stream-body-" + tipo;
+    var isFato = tipo === "fato_reciclagem";
+    var bodyTag = isFato ? "blockquote" : "p";
+
     container.innerHTML =
-      '<section class="nik-card nik-card-landing nik-chat-assistant nik-card-' + esc(tipo) + '">' +
-      html +
+      '<section class="nik-card nik-card-landing nik-chat-assistant nik-card-' + esc(tipo) + ' is-streaming">' +
+      "<h3>" + titulo + "</h3>" +
+      (tipo === "impacto_tronik" && extra ? extra : "") +
+      "<" + bodyTag + ' id="' + bodyId + '" class="nik-stream-body"></' + bodyTag + ">" +
+      '<span class="nik-card-extra-slot"></span>' +
       "</section>";
+
+    var bodyEl = document.getElementById(bodyId);
+    if (!bodyEl) return;
+
+    streamText(bodyEl, corpo, 14, function () {
+      var card = container.querySelector(".nik-card");
+      if (card) card.classList.remove("is-streaming");
+      var slot = container.querySelector(".nik-card-extra-slot");
+      if (slot && extra && tipo !== "impacto_tronik") slot.outerHTML = extra;
+    });
   }
 
   window.NikLoader = {

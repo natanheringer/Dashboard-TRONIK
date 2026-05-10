@@ -21,11 +21,11 @@
         <span>Tronik <em>Recicla</em></span>
       </a>
       <div class="lp-nav-links">
-        <a href="{{ url_for('preview.landing_preview') }}">Landing</a>
-        <a href="{{ url_for('preview.monitoramento') }}">Dashboard</a>
-        <a href="{{ url_for('preview.nik') }}">Nik Ops</a>
+        <a href="{{ url_for('preview.landing_preview') }}">Início</a>
+        <a href="{{ url_for('paginas.nik_public') }}#operacao">Operação</a>
+        <a href="{{ url_for('paginas.nik_public') }}#stream">Tecnologia</a>
       </div>
-      <a class="lp-pill-btn" href="{{ url_for('preview.mapa') }}">Mapa</a>
+      <a class="lp-pill-btn" href="{{ url_for('preview.landing_preview') }}#solicitar">Solicitar coletor</a>
     </div>
   </nav>
 
@@ -36,7 +36,7 @@
           <div class="lp-kicker">Nik Pública · Tronik Recicla</div>
           <h1>Reciclagem eletrônica com <span>inteligência</span>, impacto e rota de volta.</h1>
           <p class="nikpub-hero-lead">
-            A Nik traduz o que a Tronik faz no chão da operação para quem quer entender melhor lixo eletrônico,
+            A Nik traduz o que a Tronik faz no chão da operação para quem quer entender melhor resíduos eletrônicos,
             logística reversa e economia circular — e apoia a equipe com leitura consistente de dados, alertas e rotas.
           </p>
         </div>
@@ -59,7 +59,7 @@
               <img
                 src="{{ url_for('preview.nik_assets', filename='nik_cannon.png') }}"
                 alt=""
-                class="nikpub-cannon-fallback"
+                class="nikpub-cannon-fallback nikpub-cannon-static"
                 loading="eager"
                 decoding="async"
                 width="360"
@@ -73,45 +73,42 @@
     </section>
 
     <section class="nikpub-section nikpub-section--elevated" id="operacao">
-      <div class="nikpub-section-head">
-        <div class="lp-label">Operação Tronik hoje</div>
-        <h2>O que a Nik é capaz de fazer na operação atual</h2>
-        <p>
-          A Nik não substitui sensores nem o ERP: ela organiza leitura, priorização e linguagem para decisão.
-          Na stack atual (coletores IoT, dados de coleta, contexto de parceiros e rotas), ela atua como camada de inteligência operacional.
-        </p>
-      </div>
-      <div class="nikpub-cap-grid">
-        <article class="nikpub-cap-card">
-          <h3>Priorização de coletores</h3>
-          <p>
-            Cruza níveis de preenchimento, histórico e sinais de risco para indicar onde agir antes do transbordo ou da falha logística.
-          </p>
-        </article>
-        <article class="nikpub-cap-card">
-          <h3>Alertas em linguagem operacional</h3>
-          <p>
-            Transforma métricas e alarmes em explicações curtas: o que significa, por que importa e qual o próximo passo sugerido.
-          </p>
-        </article>
-        <article class="nikpub-cap-card">
-          <h3>Logística reversa contextualizada</h3>
-          <p>
-            Relaciona rotas, volumes e materiais para dar contexto à coleta — útil para planejamento e comunicação com parceiros.
-          </p>
-        </article>
-        <article class="nikpub-cap-card">
-          <h3>Síntese para relatórios</h3>
-          <p>
-            Apoia relatórios executivos e fluxos como Maiara: estrutura o que os dados dizem sem perder o fio da operação real.
-          </p>
-        </article>
-        <article class="nikpub-cap-card">
-          <h3>Continuidade na conversa</h3>
-          <p>
-            Mantém o fio da thread operacional no chat para não repetir contexto a cada pergunta — adequado a turnos e times distribuídos.
-          </p>
-        </article>
+      <div class="nikpub-op-layout">
+        <aside class="nikpub-op-intro">
+          <div class="nikpub-op-intro-copy">
+            <div class="lp-label">Operação Tronik hoje</div>
+            <h2>O que a Nik é capaz de fazer na operação atual</h2>
+            <p class="nikpub-op-lead">
+              A Nik está integrada à operação da Tronik, processando dados internos e dos sensores IoT.
+              Entrega apoio logístico, coordenação de dados e auxílio na tomada de decisão.
+            </p>
+          </div>
+          <div class="nikpub-op-brand">
+            <img
+              src="{{ url_for('preview.nik_assets', filename='nik_cannon.png') }}"
+              alt=""
+              class="nikpub-op-avatar"
+              width="72"
+              height="72"
+              loading="eager"
+              decoding="async"
+              onerror="if(!this.dataset.fallback){this.dataset.fallback='1';this.src='{{ cannon_png_fb }}';}"
+            >
+            <span class="nikpub-op-brand-caption">Nik · leitura operacional</span>
+          </div>
+        </aside>
+        <div class="nikpub-op-response" id="nikpub-op-stream-panel">
+          <div class="nikpub-op-stream" aria-live="polite">
+            <div class="nikpub-op-stream-bar">
+              <span class="nikpub-dot" aria-hidden="true"></span>
+              nik.ops
+            </div>
+            <div class="nikpub-op-stream-body">
+              <h3>A Nik organiza os tópicos operacionais em tempo real</h3>
+              <div id="nikpub-op-stream-text" class="nikpub-op-stream-content"></div>
+            </div>
+          </div>
+        </div>
       </div>
     </section>
 
@@ -119,9 +116,6 @@
       <div class="nikpub-section-head">
         <div class="lp-label">Sinal em tempo real</div>
         <h2>Nik · insight rotativo</h2>
-        <p>
-          Textos curados que simulam a leitura contínua da operação — atualizados nesta página sem novo clique e sem chamada ao modelo ao alternar.
-        </p>
       </div>
       <div class="nikpub-stream-grid">
         <div class="nikpub-terminal">
@@ -132,14 +126,11 @@
           <div class="nikpub-terminal-body">
             <span id="nikpub-stream-text"></span><span class="cursor" aria-hidden="true"></span>
           </div>
-          <p class="nikpub-stream-note" style="padding: 0 18px 14px;">
-            Conteúdo pré-definido no navegador — sem rate limit ao servidor e sem novo pedido ao provedor ao trocar de linha.
-          </p>
         </div>
         <div class="nikpub-faq-panel nikpub-faq-panel--stream" id="nikpub-faq-panel" aria-live="polite">
           <div class="nikpub-faq-panel-bar">
             <span class="nikpub-dot" aria-hidden="true"></span>
-            nik.cache · stream local
+            nik · stream 
           </div>
           <div class="nikpub-faq-panel-inner">
             <h3 id="nikpub-faq-title"><span id="nikpub-faq-title-text"></span></h3>
@@ -150,9 +141,7 @@
         </div>
         <div class="nikpub-faq-ask">
           <div class="lp-label">pergunte para a nik...</div>
-          <p class="nikpub-faq-ask-lead">
-            Respostas embutidas nesta página para temas de e-waste, ESG e tratamento corporativo. Ao clicar, só lemos texto em cache local — nenhuma inferência nova.
-          </p>
+
           <div class="nikpub-faq-chips" role="tablist" aria-label="Temas educativos">
             <button type="button" class="nikpub-chip is-active" role="tab" data-faq="ewaste" aria-selected="true">E-waste na empresa</button>
             <button type="button" class="nikpub-chip" role="tab" data-faq="esg" aria-selected="false">ESG &amp; rastreabilidade</button>
@@ -164,12 +153,12 @@
 
     <section class="nikpub-section" id="blocos">
       <div class="nikpub-section-head">
-        <div class="lp-label">Conteúdo dinâmico (servidor)</div>
-        <h2>Blocos educativos gerados pela Nik</h2>
-        <p>
-          Mesmo fluxo de sempre: o backend usa cache com TTL; a primeira resposta pode vir do modelo ou do fallback,
-          e as seguintes leem cache — carregamento escalonado abaixo para não disparar tudo em paralelo.
-        </p>
+        <div class="lp-label">Nik · editorial</div>
+        <h2>Leitura contínua do sistema e das condições que influenciam desempenho e valor recuperável.</h2>
+      </div>
+      <div class="nikpub-blocos-meta">
+        <span class="nikpub-blocos-meta-dot" aria-hidden="true"></span>
+        <span class="nikpub-blocos-meta-label">nik.editorial</span>
       </div>
       <div class="nikpub-blocos-grid">
         <div id="nik-fala" class="nik-container"></div>
@@ -178,16 +167,64 @@
         <div id="nik-pergunta" class="nik-container"></div>
         <div id="nik-explica" class="nik-container"></div>
       </div>
-      <p class="nikpub-api-note">
-        Os blocos acima chamam <code style="font-family: var(--font-mono); font-size: 11px;">GET /api/nik/landing/&lt;tipo&gt;</code> com intervalo entre pedidos.
-        No servidor, resultados ficam em cache (ex.: TTL configurável) — não há segundo pedido ao provedor enquanto a chave estiver válida.
-      </p>
     </section>
   </main>
 
   <script src="{{ url_for('static', filename='js/v2/nik-loader.js') }}?v={{ cache_version }}"></script>
   <script>
     (function () {
+      /* --- Bloco operação: stream rápido com cache local --- */
+      var OP_CAPABILITIES = [
+        {
+          title: "Priorização de coletores",
+          body: "Cruza níveis de preenchimento, histórico e sinais de risco para indicar onde agir antes do transbordo ou da falha logística."
+        },
+        {
+          title: "Alertas em linguagem operacional",
+          body: "Transforma métricas e alarmes em explicações curtas: o que significa, por que importa e qual o próximo passo sugerido."
+        },
+        {
+          title: "Logística reversa contextualizada",
+          body: "Relaciona rotas, volumes e materiais para dar contexto à coleta — útil para planejamento e comunicação com parceiros."
+        },
+        {
+          title: "Síntese para relatórios",
+          body: "Apoia relatórios executivos e fluxos como Maiara: estrutura o que os dados dizem sem perder o fio da operação real."
+        }
+      ];
+      function escapeHtml(s) {
+        var d = document.createElement("div");
+        d.textContent = s;
+        return d.innerHTML;
+      }
+
+      function streamOperationBlock() {
+        var root = document.getElementById("nikpub-op-stream-text");
+        if (!root) return;
+        root.innerHTML = "";
+        var ol = document.createElement("ol");
+        ol.className = "nikpub-op-list";
+        root.appendChild(ol);
+        OP_CAPABILITIES.forEach(function (item, idx) {
+          var li = document.createElement("li");
+          li.className = "nikpub-op-item";
+          li.style.opacity = "0";
+          li.style.transform = "translateY(8px)";
+          li.innerHTML =
+            "<strong class=\"nikpub-op-li-title\">" +
+            escapeHtml(item.title) +
+            "</strong><span class=\"nikpub-op-li-desc\">" +
+            escapeHtml(item.body) +
+            "</span>";
+          ol.appendChild(li);
+          setTimeout(function () {
+            li.style.transition = "opacity 0.4s ease, transform 0.4s ease";
+            li.style.opacity = "1";
+            li.style.transform = "translateY(0)";
+          }, 40 + idx * 100);
+        });
+      }
+
       /* --- FAQ local (sem API no clique) --- */
       var FAQ = {
         ewaste: {
@@ -339,6 +376,7 @@
           streamFaq(key);
         });
       });
+      streamOperationBlock();
       streamFaq("ewaste");
 
       /* --- Terminal rotativo (só cliente) --- */
@@ -369,7 +407,7 @@
       }
       tickStream();
 
-      /* --- Hero: vídeo cannon — PNG visível até o vídeo reproduzir --- */
+      /* --- Hero: vídeo cannon — mantém tamanho atual e usa PNG até tocar --- */
       (function wireHeroCannon() {
         var v = document.getElementById("nikpub-hero-cannon-video");
         var img = document.querySelector(".nikpub-cannon-fallback");

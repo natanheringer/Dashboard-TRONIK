@@ -17,8 +17,10 @@ from flask_login import current_user, login_required
 from banco_dados.services import preview_service as pv
 from banco_dados.services import nik_service
 from rotas.api.decorators import get_db
+from rotas.api._limiter import limiter
 
 preview_bp = Blueprint("preview", __name__, url_prefix="/preview")
+limiter.exempt(preview_bp)
 _NIK_ASSETS_DIR = Path(__file__).resolve().parents[1] / "nik_bot"
 _NIK_ASSETS_ALLOWLIST = {
     "Nik_normal.svg",
@@ -35,6 +37,7 @@ _NIK_ASSETS_ALLOWLIST = {
     "nik_cannon_animated_bg.webm",
     "nik_cannon_animated_bg.mp4",
     "nik_cannon_animated_nobg.webm",
+    "operation_tronik.png",
 }
 
 
@@ -54,6 +57,21 @@ def auth_preview(view):
     return wrapper
 
 
+def admin_preview(view):
+    """Restringe acesso apenas para usuários administradores."""
+    protegido = auth_preview(view)
+
+    @wraps(view)
+    def wrapper(*args, **kwargs):
+        if _preview_publico():
+            return view(*args, **kwargs)
+        if current_user.is_authenticated and not current_user.admin:
+            return redirect(url_for('preview.parceiro'))
+        return protegido(*args, **kwargs)
+
+    return wrapper
+
+
 def _nome_usuario() -> str:
     if current_user.is_authenticated:
         return (
@@ -61,6 +79,44 @@ def _nome_usuario() -> str:
             or "Operador"
         )
     return "Visitante"
+
+
+@preview_bp.route("/solicitar-coletor", methods=["POST"])
+def solicitar_coletor():
+    """Rota pública para receber solicitações de novos coletores da landing."""
+    from banco_dados.modelos import SolicitacaoColetor
+    from flask import jsonify
+
+    try:
+        dados = request.get_json()
+        if not dados:
+            return jsonify({"ok": False, "erro": "Nenhum dado recebido"}), 400
+
+        nome = str(dados.get("nome", "")).strip()
+        email = str(dados.get("email", "")).strip()
+        localizacao = str(dados.get("localizacao", "")).strip()
+
+        if not nome or not email or not localizacao:
+            return jsonify({"ok": False, "erro": "Nome, e-mail e localização são obrigatórios"}), 400
+
+        db = get_db()
+        try:
+            nova_solicitacao = SolicitacaoColetor(
+                nome=nome,
+                email=email,
+                empresa=str(dados.get("empresa", "")).strip(),
+                localizacao=localizacao,
+                mensagem=str(dados.get("mensagem", "")).strip()[:1000]
+            )
+            db.add(nova_solicitacao)
+            db.commit()
+            return jsonify({"ok": True})
+        finally:
+            db.close()
+    except Exception as e:
+        import logging
+        logging.error(f"Erro ao salvar solicitação: {e}")
+        return jsonify({"ok": False, "erro": "Erro interno no servidor"}), 500
 
 
 @preview_bp.route("/")
@@ -72,6 +128,10 @@ def home():
 @preview_bp.route("/home")
 @auth_preview
 def dashboard_home():
+    # Se não for admin, direciona para o portal de parceiro
+    if current_user.is_authenticated and not current_user.admin:
+        return redirect(url_for("preview.parceiro"))
+
     db = get_db()
     try:
         stats = pv.estatisticas_resumo(db)
@@ -92,7 +152,7 @@ def dashboard_home():
 
 
 @preview_bp.route("/monitoramento")
-@auth_preview
+@admin_preview
 def monitoramento():
     db = get_db()
     try:
@@ -161,7 +221,7 @@ def monitoramento():
 
 
 @preview_bp.route("/mapa")
-@auth_preview
+@admin_preview
 def mapa():
     db = get_db()
     try:
@@ -205,7 +265,7 @@ def mapa():
 
 
 @preview_bp.route("/relatorios")
-@auth_preview
+@admin_preview
 def relatorios():
     db = get_db()
     try:
@@ -237,7 +297,10 @@ def parceiro():
     db = get_db()
     try:
         stats = pv.estatisticas_resumo(db)
+        # Parceiros: se for admin, vê todos. Se for parceiro, vê só o dele.
         parceiros_rows = pv.parceiros_tabela(db)
+        if current_user.is_authenticated and not current_user.admin and getattr(current_user, 'parceiro_id', None):
+            parceiros_rows = [p for p in parceiros_rows if p['id'] == current_user.parceiro_id]
 
         # --- ML: Narrativa de impacto (Módulo 3) ---
         for p in parceiros_rows:
@@ -254,8 +317,25 @@ def parceiro():
         db.close()
 
 
+@preview_bp.route("/gestao")
+@admin_preview
+def gestao():
+    db = get_db()
+    try:
+        stats = pv.estatisticas_resumo(db)
+        ctx = {
+            "current": "gestao",
+            "total_coletores": stats["total_coletores"],
+            "stats": stats,
+            "usuario_nome": _nome_usuario(),
+        }
+        return render_template("preview/gestao.html", **ctx)
+    finally:
+        db.close()
+
+
 @preview_bp.route("/prospeccao")
-@auth_preview
+@admin_preview
 def prospeccao():
     """Página dedicada de prospecção geográfica (Módulo 4)."""
     db = get_db()
@@ -292,7 +372,7 @@ def prospeccao():
 
 
 @preview_bp.route("/nik")
-@auth_preview
+@admin_preview
 def nik():
     db = get_db()
     try:
@@ -339,6 +419,7 @@ def landing_preview():
 
 
 @preview_bp.route("/assets/nik/<path:filename>")
+@limiter.exempt
 def nik_assets(filename: str):
     if filename not in _NIK_ASSETS_ALLOWLIST:
         abort(404)

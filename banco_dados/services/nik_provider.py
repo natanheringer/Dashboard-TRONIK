@@ -7,7 +7,7 @@ cache ou fallback estatico.
 
 Ordem de tentativa:
 1. Opcional (chat): se prefer_nvidia_integrate_first + credenciais Integrate,
-   NVIDIA Integrate API (NIK_NVIDIA_INTEGRATE_* / NIK_NVAPI_KEY) com NIK_MODELO_CHAT_NVIDIA (ex. Nemotron).
+   NVIDIA Integrate API (NIK_NVIDIA_INTEGRATE_* / NIK_NVAPI_KEY) com NIK_MODELO_CHAT_NVIDIA ou NIK_MODELO_LANDING_NVIDIA (ex. Nemotron / Mistral Nemotron).
 2. Provedor primario (NIK_API_BASE_URL + NVIDIA_API_KEY): modelo pedido, depois NIK_MODELO_FALLBACK.
 3. Se tudo falhar e NIK_PROVIDER_FALLBACK_ENABLED + NIK_API_FALLBACK_* estiverem definidos,
    chama o segundo provedor com NIK_NVIDIA_MODELO_DEFAULT (ou NIK_NVIDIA_MODELO).
@@ -158,16 +158,46 @@ def _cliente_nvidia_integrate() -> Any:
     )
 
 
+def _nemotron_reasoning_disabled() -> bool:
+    """Por defeito sem reasoning (enable_thinking / reasoning_budget)."""
+    return os.getenv("NIK_NEMOTRON_REASONING_DISABLED", "true").strip().lower() in {"1", "true", "yes"}
+
+
+def _strip_nemotron_reasoning_fields(body: dict[str, Any]) -> dict[str, Any]:
+    out = dict(body)
+    out.pop("reasoning_budget", None)
+    ct = out.get("chat_template_kwargs")
+    if isinstance(ct, dict):
+        ct2 = dict(ct)
+        ct2.pop("enable_thinking", None)
+        if ct2:
+            out["chat_template_kwargs"] = ct2
+        else:
+            out.pop("chat_template_kwargs", None)
+    return out
+
+
 def _nemotron_extra_body() -> Optional[dict[str, Any]]:
-    """JSON em NIK_NEMOTRON_EXTRA_BODY ou atalho NIK_NEMOTRON_THINKING=true."""
+    """Opcional: JSON em NIK_NEMOTRON_EXTRA_BODY ou atalho NIK_NEMOTRON_THINKING (só se reasoning não estiver desligado)."""
+    reasoning_off = _nemotron_reasoning_disabled()
+
     raw = (os.getenv("NIK_NEMOTRON_EXTRA_BODY") or "").strip()
     if raw:
         try:
             out = json.loads(raw)
-            return out if isinstance(out, dict) else None
+            if not isinstance(out, dict):
+                return None
+            if reasoning_off:
+                out = _strip_nemotron_reasoning_fields(out)
+                return out if out else None
+            return out
         except json.JSONDecodeError:
             logger.warning("NIK_NEMOTRON_EXTRA_BODY invalido (JSON)")
             return None
+
+    if reasoning_off:
+        return None
+
     if os.getenv("NIK_NEMOTRON_THINKING", "").strip().lower() in {"1", "true", "yes"}:
         try:
             budget = int(os.getenv("NIK_NEMOTRON_REASONING_BUDGET", "4096") or "4096")
@@ -186,10 +216,11 @@ def _fallback_provedor_ok() -> bool:
 
 
 def _modelo_nvidia_fallback() -> str:
-    return (
-        (os.getenv("NIK_NVIDIA_MODELO") or os.getenv("NIK_NVIDIA_MODELO_DEFAULT") or "").strip()
-        or "meta/llama3-70b-instruct"
-    )
+    """Sem Llama 70B: defeito alinhado ao fallback Groq pequeno (NIK_MODELO_FALLBACK)."""
+    explicit = (os.getenv("NIK_NVIDIA_MODELO") or os.getenv("NIK_NVIDIA_MODELO_DEFAULT") or "").strip()
+    if explicit:
+        return explicit
+    return (os.getenv("NIK_MODELO_FALLBACK", "") or "").strip() or "llama-3.1-8b-instant"
 
 
 def _resposta_erro(modelo: str, erro: str) -> NikResposta:

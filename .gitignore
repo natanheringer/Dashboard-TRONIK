@@ -100,6 +100,7 @@ ignore/
 # Se o deploy precisar desses ficheiros, copia-os no servidor ou ajusta templates/allowlist.
 nik_bot/*
 !nik_bot/nik_cannon*
+!nik_bot/operation_tronik.png
 !nik_bot/gerar_entrega.py
 !nik_bot/config_nik_dev.env.example
 !nik_bot/spec_nik_agent.md

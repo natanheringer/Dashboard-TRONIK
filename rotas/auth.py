@@ -42,7 +42,7 @@ def login():
     if request.method == 'GET':
         # Se já estiver logado, redireciona
         if current_user.is_authenticated:
-            return redirect(url_for('paginas.index'))
+            return redirect(url_for('preview.dashboard_home'))
         return render_template('login.html')
     
     # POST - Processar login
@@ -101,7 +101,7 @@ def login():
             
             # Redirecionar para página solicitada ou dashboard
             next_page = request.args.get('next')
-            return redirect(next_page or url_for('paginas.index'))
+            return redirect(next_page or url_for('preview.dashboard_home'))
             
         finally:
             db.close()

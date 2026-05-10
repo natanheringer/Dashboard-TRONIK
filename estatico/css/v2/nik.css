@@ -257,8 +257,11 @@
   height: 104px;
   max-width: min(96px, 26vw);
   align-self: center;
-  animation: nik-float 2.8s ease-in-out infinite;
-  background: transparent;
+  background: #020202;
+  border-radius: var(--radius-md);
+  border: 1px solid var(--line-default);
+  overflow: hidden;
+  box-shadow: inset 0 2px 6px rgba(0,0,0,0.4), var(--shadow-sm);
   line-height: 0;
 }
 
@@ -417,12 +420,15 @@
 .nik-message-avatar.tronik-avatar {
   position: relative;
   width: 112px;
-  height: 136px;
-  min-height: 136px;
-  border-radius: 0;
+  height: 112px;
+  min-height: 112px;
+  border-radius: var(--radius-md);
   align-items: stretch;
   overflow: hidden;
   padding-bottom: 0;
+  background: #020202;
+  border: 1px solid var(--line-default);
+  box-shadow: inset 0 2px 6px rgba(0,0,0,0.4), var(--shadow-sm);
 }
 
 /* No thread + indicador “digitando”: coluna mais estreita; vídeo e PNG partilham o mesmo retângulo (object-fit contain + bottom). */
@@ -435,9 +441,10 @@
 .nik-chat-content-inner > .nik-message.assistant .nik-message-avatar.tronik-avatar,
 #nik-typing-indicator .nik-message-avatar.tronik-avatar {
   width: 72px;
-  height: 88px;
-  min-height: 88px;
+  height: 72px;
+  min-height: 72px;
   overflow: hidden;
+  border-radius: var(--radius-sm);
 }
 
 .nik-avatar-img {
@@ -631,9 +638,9 @@
   margin-left: auto;
   padding: 14px 16px 16px;
   border-radius: 16px;
-  border: 1px solid rgba(122, 232, 196, 0.28);
-  background: rgba(94, 233, 168, 0.1);
-  box-shadow: 0 8px 28px rgba(0, 0, 0, 0.22);
+  border: 1px solid var(--tronik-soft);
+  background: var(--paper-sunk);
+  box-shadow: var(--shadow-sm);
 }
 
 .nik-chat-content-inner > .nik-message.assistant .nik-message-body {
@@ -642,9 +649,9 @@
   max-width: min(820px, 100%);
   padding: 12px 18px 18px;
   border-radius: 16px;
-  border: 1px solid rgba(122, 232, 196, 0.14);
-  background: rgba(12, 18, 15, 0.85);
-  box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.04), 0 10px 32px rgba(0, 0, 0, 0.28);
+  border: 1px solid var(--line-default);
+  background: var(--paper-card);
+  box-shadow: var(--shadow-sm);
 }
 
 .nik-chat-content-inner > .nik-message.assistant .nik-message-author {
@@ -1057,4 +1064,121 @@
 .nik-app-layout--dark-chat .nik-new-chat-btn:hover,
 .nik-app-layout--dark-chat .nik-new-agent-btn:hover {
   background: var(--paper-elevated);
+}
+
+/* ============================================================
+   RESPONSIVO — Nik chat (tablet/mobile)
+   ============================================================ */
+@media (max-width: 1080px) {
+  .nik-sidebar {
+    display: none;
+  }
+
+  .nik-main-header {
+    padding: 10px 14px;
+  }
+
+  .nik-header-actions .nik-btn-text {
+    display: none;
+  }
+
+  .nik-chat-scroll-area {
+    padding: 14px 12px 10px;
+  }
+
+  .nik-chat-content-inner {
+    gap: var(--space-4);
+  }
+
+  .nik-chat-presence {
+    margin-bottom: var(--space-4);
+  }
+
+  .nik-input-area {
+    padding: 0 12px 12px;
+    max-width: 100%;
+  }
+
+  .nik-suggestions {
+    margin-bottom: 10px;
+  }
+}
+
+@media (max-width: 760px) {
+  .nik-main-header {
+    padding: 8px 10px;
+  }
+
+  .nik-header-title h2 {
+    font-size: 14px;
+  }
+
+  .nik-chat-scroll-area {
+    padding: 10px 8px 8px;
+  }
+
+  .nik-chat-presence {
+    padding: 0 0 10px;
+    gap: 8px;
+  }
+
+  .nik-presence-visual {
+    width: 78px;
+    height: 86px;
+    max-width: min(78px, 24vw);
+  }
+
+  .nik-presence-text strong {
+    font-size: 14px;
+  }
+
+  .nik-presence-text span {
+    font-size: 12px;
+  }
+
+  .nik-chat-content-inner > .nik-message.assistant .nik-message-avatar.tronik-avatar,
+  #nik-typing-indicator .nik-message-avatar.tronik-avatar {
+    width: 58px;
+    height: 72px;
+    min-height: 72px;
+  }
+
+  .nik-message {
+    gap: 6px;
+  }
+
+  .nik-message-body {
+    padding-top: 4px;
+  }
+
+  .nik-message-text {
+    font-size: 14px;
+    line-height: 1.5;
+  }
+
+  .nik-message-author {
+    font-size: 12px;
+  }
+
+  .nik-chat-form-top {
+    padding: 10px 12px;
+  }
+
+  .nik-chat-form-bottom {
+    padding: 8px 10px;
+  }
+
+  .nik-chat-input-field {
+    font-size: 14px;
+  }
+
+  .nik-suggestion-chip {
+    padding: 7px 12px;
+    font-size: 11px;
+  }
+
+  .nik-runtime-status,
+  .nik-footer-disclaimer {
+    font-size: 10px;
+  }
 }

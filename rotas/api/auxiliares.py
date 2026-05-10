@@ -255,3 +255,45 @@ def simular_niveis():
     finally:
         db.close()
 
+
+@auxiliares_bp.route('/solicitacoes', methods=['GET'])
+@login_required
+def listar_solicitacoes():
+    """Lista solicitações pendentes de coletores"""
+    db = get_db()
+    try:
+        from banco_dados.modelos import SolicitacaoColetor
+        solicitacoes = db.query(SolicitacaoColetor).order_by(SolicitacaoColetor.criado_em.desc()).all()
+        return jsonify([s.to_dict() for s in solicitacoes])
+    except Exception as e:
+        return tratar_erro_api(e)
+    finally:
+        db.close()
+
+
+@auxiliares_bp.route('/solicitacoes/<int:id>/status', methods=['POST'])
+@decorators.admin_required
+def atualizar_status_solicitacao(id):
+    """Aprova ou recusa uma solicitação"""
+    db = get_db()
+    try:
+        from banco_dados.modelos import SolicitacaoColetor
+        dados = request.get_json()
+        novo_status = dados.get('status')
+        
+        if novo_status not in ['aprovado', 'recusado', 'pendente']:
+            return jsonify({"erro": "Status inválido"}), 400
+            
+        solicitacao = db.query(SolicitacaoColetor).filter_by(id=id).first()
+        if not solicitacao:
+            return jsonify({"erro": "Solicitação não encontrada"}), 404
+            
+        solicitacao.status = novo_status
+        db.commit()
+        return jsonify({"mensagem": f"Solicitação {novo_status}", "solicitacao": solicitacao.to_dict()})
+    except Exception as e:
+        db.rollback()
+        return tratar_erro_api(e)
+    finally:
+        db.close()
+

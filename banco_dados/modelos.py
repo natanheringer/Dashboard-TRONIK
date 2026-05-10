@@ -39,8 +39,12 @@ class Usuario(Base, UserMixin):
     nome_completo = Column(String(150))
     ativo = Column(Boolean, default=True)
     admin = Column(Boolean, default=False)
+    parceiro_id = Column(Integer, ForeignKey("parceiros.id"), nullable=True, index=True)
     criado_em = Column(DateTime, default=utc_now_naive)
     ultimo_login = Column(DateTime)
+
+    # Relacionamento
+    parceiro = relationship("Parceiro", backref="usuarios")
 
     def set_senha(self, senha):
         """Define a senha do usuário usando hash seguro"""
@@ -106,6 +110,38 @@ class Parceiro(Base):
 
     def __repr__(self):
         return f"<Parceiro(id={self.id}, nome='{self.nome}', ativo={self.ativo})>"
+
+
+# ----------------------------------------------------------
+# TABELA: Solicitação de Coletor (Landing)
+# ----------------------------------------------------------
+class SolicitacaoColetor(Base):
+    """Solicitações públicas de interesse em ter um coletor (vindas da landing page)."""
+    __tablename__ = "solicitacoes_coletor"
+
+    id = Column(Integer, primary_key=True, autoincrement=True)
+    nome = Column(String(120), nullable=False)
+    email = Column(String(120), nullable=False)
+    empresa = Column(String(120))
+    localizacao = Column(String(200), nullable=False)
+    mensagem = Column(String(1000))
+    status = Column(String(20), default="pendente", index=True)  # pendente, aprovado, recusado
+    criado_em = Column(DateTime, default=utc_now_naive)
+
+    def to_dict(self):
+        return {
+            'id': self.id,
+            'nome': self.nome,
+            'email': self.email,
+            'empresa': self.empresa,
+            'localizacao': self.localizacao,
+            'mensagem': self.mensagem,
+            'status': self.status,
+            'criado_em': self.criado_em.isoformat() if self.criado_em else None
+        }
+
+    def __repr__(self):
+        return f"<Solicitacao(id={self.id}, nome='{self.nome}', status='{self.status}')>"
 
 
 # ----------------------------------------------------------

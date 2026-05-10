@@ -13,13 +13,9 @@
         <div class="page-actions">
           <a class="btn" href="{{ url_for('preview.monitoramento', q=filtro_q, nivel=filtro_nivel) }}">
             <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15"/></svg>
-            Atualizar página
+            Atualizar
           </a>
-          <a class="btn" href="{{ url_for('paginas.relatorios') }}">
-            <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M12 10v6m0 0l-3-3m3 3l3-3M3 17V7a2 2 0 012-2h6l2 2h6a2 2 0 012 2v8a2 2 0 01-2 2H5a2 2 0 01-2-2z"/></svg>
-            Relatórios (legado)
-          </a>
-          <a class="btn btn-primary" href="{{ url_for('paginas.configuracoes') }}">
+          <a class="btn btn-primary" href="{{ url_for('preview.gestao') }}">
             <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M12 4v16m8-8H4"/></svg>
             Gestão de coletores
           </a>

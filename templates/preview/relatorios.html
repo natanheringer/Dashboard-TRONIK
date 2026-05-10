@@ -11,12 +11,7 @@
           <h1>Relatórios</h1>
           <p>Período {{ periodo.inicio.strftime('%d/%m/%Y') }} — {{ periodo.fim.strftime('%d/%m/%Y') }} · dados reais de coletas</p>
         </div>
-        <div class="page-actions">
-          <button type="button" class="btn" data-href="{{ url_for('paginas.relatorios') }}" onclick="previewToast('Abrindo módulo legado de exportação…', 'ok'); window.location.href=this.dataset.href">
-            <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M12 10v6m0 0l-3-3m3 3l3-3M3 17V7a2 2 0 012-2h6l2 2h6a2 2 0 012 2v8a2 2 0 01-2 2H5a2 2 0 01-2-2z"/></svg>
-            Exportar (legado)
-          </button>
-        </div>
+        <div class="page-actions"></div>
       </div>
 
       <div class="rel-layout">

@@ -70,41 +70,73 @@ def _ttl(env_key: str, default: int) -> int:
         return default
 
 
+def _modelo_pequeno_padrao() -> str:
+    """Llama 3.1 8B Instant ou ALLaM 7B — alternativa: defina só NIK_MODELO_FALLBACK."""
+    return os.getenv("NIK_MODELO_FALLBACK", "llama-3.1-8b-instant")
+
+
+def _evitar_llama_70b_e_compound(modelo: str) -> str:
+    """
+    Compound-mini na Groq roteia para Llama 3.3 70B (TPD agressivo). Por defeito bloqueamos
+    compound e qualquer modelo com '70b' no id. Escape: NIK_ALLOW_LLAMA_70B=true.
+    """
+    if os.getenv("NIK_ALLOW_LLAMA_70B", "").strip().lower() in {"1", "true", "yes"}:
+        return modelo
+    m = (modelo or "").strip()
+    if not m:
+        return m
+    low = m.lower()
+    if "compound" in low or "70b" in low:
+        return _modelo_pequeno_padrao()
+    return m
+
+
 def _modelo_tarefa(tarefa: str, mensagem: str = "") -> str:
     """Roteação determinística de modelos por tipo de tarefa."""
     # Prioriza NIK_MODELO_OPS para manter um único "modelo base" efetivo.
     # NIK_MODELO_CHAT fica apenas como legado/fallback.
     chat_default = os.getenv("NIK_MODELO_OPS", os.getenv("NIK_MODELO_CHAT", "llama-3.1-8b-instant"))
     analytics_default = os.getenv("NIK_MODELO_ANALYTICS", os.getenv("NIK_MODELO_OPS", chat_default))
-    relatorio_default = os.getenv("NIK_MODELO_RELATORIO", "llama-3.3-70b-versatile")
+    small = _modelo_pequeno_padrao()
+    relatorio_default = os.getenv("NIK_MODELO_RELATORIO", small)
     landing_default = os.getenv("NIK_MODELO_LANDING", chat_default)
     web_default = os.getenv("NIK_MODELO_WEB", chat_default)
     web_safe = os.getenv("NIK_MODELO_WEB_SAFE", os.getenv("NIK_MODELO_FALLBACK", chat_default))
 
     msg = (mensagem or "").lower()
+    escolha = chat_default
     if tarefa == "relatorio":
-        return relatorio_default
-    if tarefa == "landing":
-        return landing_default
-    if tarefa == "web":
+        escolha = relatorio_default
+    elif tarefa == "landing":
+        escolha = landing_default
+    elif tarefa == "web":
         disable_compound = os.getenv("NIK_WEB_DISABLE_COMPOUND", "true").strip().lower() in {"1", "true", "yes"}
-        if disable_compound and "compound" in (web_default or "").lower():
-            return web_safe
-        return web_default
-    if tarefa in {"analytics", "ops_resumo", "ops_alerta", "ops_coletor"}:
-        return analytics_default
-    if tarefa == "conversa":
-        # Prompts longos: por defeito usa o mesmo tier que OPS/analytics (evita queimar TPD do 70B).
+        wd = (web_default or "").lower()
+        ws = (web_safe or "").lower()
+        heavy = "compound" in wd or "70b" in wd
+        heavy_safe = "compound" in ws or "70b" in ws
+        if disable_compound and heavy:
+            escolha = web_safe if not heavy_safe else small
+        else:
+            escolha = web_default
+    elif tarefa in {"analytics", "ops_resumo", "ops_alerta", "ops_coletor"}:
+        escolha = analytics_default
+    elif tarefa == "conversa":
+        # Prompts longos: por defeito usa o mesmo tier que OPS/analytics (evita modelo grande/TPD).
         # NIK_ROUTE_LONG_CONTEXT_TO_70B: se true, escala para NIK_MODELO_LONG_CONTEXT ou NIK_MODELO_ANALYTICS (não para RELATORIO).
         route_long = os.getenv("NIK_ROUTE_LONG_CONTEXT_TO_70B", "false").strip().lower() in {"1", "true", "yes"}
         if route_long:
             if len(msg) > 900 or any(k in msg for k in ["relatório completo", "analise profunda", "plano estratégico"]):
                 explicit_lc = (os.getenv("NIK_MODELO_LONG_CONTEXT") or "").strip()
                 if explicit_lc:
-                    return explicit_lc
-                return os.getenv("NIK_MODELO_ANALYTICS", chat_default)
-        return chat_default
-    return chat_default
+                    escolha = explicit_lc
+                else:
+                    escolha = os.getenv("NIK_MODELO_ANALYTICS", chat_default)
+            else:
+                escolha = chat_default
+        else:
+            escolha = chat_default
+    return _evitar_llama_70b_e_compound(escolha)
 
 
 def _modelo_web_writer(mensagem: str) -> str:
@@ -342,12 +374,21 @@ def gerar_bloco_landing(tipo_bloco: str) -> dict[str, Any]:
     if not _nik_habilitada():
         return {"bloco": fallback, "fonte": "desabilitada", "modelo": None}
 
+    use_nv_landing = os.getenv("NIK_LANDING_USE_NVIDIA", "true").strip().lower() in {"1", "true", "yes"}
+    modelo_nv = (
+        (os.getenv("NIK_MODELO_LANDING_NVIDIA") or os.getenv("NIK_MODELO_CHAT_NVIDIA") or "mistralai/mistral-nemotron")
+        .strip()
+    )
+    modelo_groq = _modelo_tarefa("landing")
+
     resposta = provider.chamar_modelo(
         prompts.SYSTEM_LANDING,
         prompts.montar_prompt_landing(tipo_bloco, ctx.contexto_landing()),
-        modelo=_modelo_tarefa("landing"),
+        modelo=modelo_nv if use_nv_landing else modelo_groq,
         max_tokens=_ttl("NIK_MAX_TOKENS_LANDING", 384),
         temperature=float(os.getenv("NIK_TEMPERATURE_LANDING", "0.7")),
+        prefer_nvidia_integrate_first=use_nv_landing,
+        modelo_primario_se_sem_nv=modelo_groq if use_nv_landing else None,
     )
     bloco = (
         val.validar_resposta_landing(resposta.texto, tipo_bloco)
@@ -662,9 +703,15 @@ def _contexto_para_modelo(contexto: dict[str, Any]) -> dict[str, Any]:
     if isinstance(bw, dict):
         itensw = bw.get("itens", [])
         if isinstance(itensw, list):
+            # Snippets são essenciais: sem eles o modelo só repete títulos.
             bw["itens"] = [
-                {"titulo": i.get("titulo"), "url": i.get("url"), "fonte": i.get("fonte")}
-                for i in itensw[:4]
+                {
+                    "titulo": i.get("titulo"),
+                    "url": i.get("url"),
+                    "fonte": i.get("fonte"),
+                    "snippet": (str(i.get("snippet") or i.get("resumo") or "")[:420]).strip(),
+                }
+                for i in itensw[:5]
                 if isinstance(i, dict)
             ]
             bw.pop("queries_executadas", None)
@@ -689,15 +736,27 @@ def _fontes_web_contexto(contexto: dict[str, Any]) -> list[dict[str, str]]:
     return fontes
 
 
-def _resumo_web_sem_modelo(fontes_web: list[dict[str, str]], consulta: str) -> str:
-    if not fontes_web:
+def _resumo_web_sem_modelo(consulta: str, itens_busca: Optional[list] = None) -> str:
+    """Fallback quando o modelo falha: ainda usa snippets da Serper se existirem."""
+    bruto = itens_busca if isinstance(itens_busca, list) else []
+    validos = [i for i in bruto if isinstance(i, dict) and (i.get("titulo") or i.get("url"))]
+    if not validos:
         return "Não encontrei fontes externas válidas para esta pesquisa."
-    linhas = [f"Pesquisa web concluída para: {consulta.strip()}."]
-    for idx, src in enumerate(fontes_web[:3], start=1):
-        titulo = (src.get("titulo") or src.get("fonte") or src.get("url") or "Fonte").strip()
-        linhas.append(f"{idx}) {titulo}")
-    linhas.append("Abri as fontes abaixo para você conferir os links.")
-    return " ".join(linhas)
+    linhas = [
+        "Resumo automático (modelo indisponível nesta tentativa). Trechos vindos da busca:",
+        f"Pedido: {(consulta or '').strip()[:280]}",
+        "",
+    ]
+    for idx, item in enumerate(validos[:5], start=1):
+        titulo = str(item.get("titulo") or item.get("url") or "Fonte").strip()
+        sn = str(item.get("snippet") or item.get("resumo") or "").strip()
+        if sn:
+            linhas.append(f"{idx}) {titulo}\n   Trecho: {sn[:520]}")
+        else:
+            linhas.append(f"{idx}) {titulo}\n   (Sem trecho resumido na busca — confira o link nas fontes.)")
+    linhas.append("")
+    linhas.append("Os cards abaixo trazem os links para conferência.")
+    return "\n".join(linhas).strip()
 
 
 def _remover_links_texto(texto: str) -> str:
@@ -731,7 +790,7 @@ def _sintese_web_modelo(contexto: dict[str, Any], mensagem: str) -> Optional[dic
         prompts.SYSTEM_OPS_WEB_RESEARCH,
         prompts.montar_prompt_ops_web_research(_contexto_web_para_sintese(contexto), mensagem),
         modelo=_modelo_tarefa("web", mensagem),
-        max_tokens=_ttl("NIK_MAX_TOKENS_WEB_SYNTH", 700),
+        max_tokens=_ttl("NIK_MAX_TOKENS_WEB_SYNTH", 1100),
         temperature=float(os.getenv("NIK_TEMPERATURE_WEB_SYNTH", "0.1")),
         response_format={"type": "json_object"},
     )
@@ -740,8 +799,13 @@ def _sintese_web_modelo(contexto: dict[str, Any], mensagem: str) -> Optional[dic
     parsed = val.extrair_json_do_output(resposta.texto)
     if not parsed:
         return None
+    resumo_web = parsed.get("resumo_web")
     achados = parsed.get("achados")
-    if not isinstance(achados, list) or not achados:
+    por_fonte = parsed.get("por_fonte")
+    tem_resumo = isinstance(resumo_web, str) and len(resumo_web.strip()) >= 30
+    tem_achados = isinstance(achados, list) and len(achados) >= 1
+    tem_por_fonte = isinstance(por_fonte, list) and len(por_fonte) >= 1
+    if not (tem_resumo or tem_achados or tem_por_fonte):
         return None
     return parsed
 
@@ -870,7 +934,7 @@ def conversar_ops_thread(
             prompts.SYSTEM_OPS_RELATORIO_PESQUISA_WEB,
             prompts.montar_prompt_ops_relatorio_pesquisa_web(_contexto_para_modelo(contexto), mensagem),
             modelo=_modelo_web_writer(mensagem),
-            max_tokens=_ttl("NIK_MAX_TOKENS_WEB_RELATORIO", 1600),
+            max_tokens=_ttl("NIK_MAX_TOKENS_WEB_RELATORIO", 2400),
             temperature=float(os.getenv("NIK_TEMPERATURE_WEB_RELATORIO", os.getenv("NIK_TEMPERATURE_OPS", "0.45"))),
         )
     else:
@@ -884,7 +948,7 @@ def conversar_ops_thread(
             modelo_primario_se_sem_nv=modelo_conversa_groq if use_nv_chat else None,
         )
     if pediu_web and not resposta.sucesso and fontes_web:
-        texto = _resumo_web_sem_modelo(fontes_web, mensagem)
+        texto = _resumo_web_sem_modelo(mensagem, (contexto.get("busca_web") or {}).get("itens"))
         return {
             "texto": texto,
             "fonte": "sistema",
@@ -901,8 +965,13 @@ def conversar_ops_thread(
             "web_status": web_status or "ok",
         }
 
-    max_chars = _ttl("NIK_MAX_CHARS_WEB_RELATORIO", 5200) if pediu_web else _ttl("NIK_MAX_CHARS_CONVERSA", 3200)
-    texto = val.validar_resposta_ops(resposta.texto if resposta.sucesso else "", fallback, max_chars=max_chars)
+    max_chars = _ttl("NIK_MAX_CHARS_WEB_RELATORIO", 7200) if pediu_web else _ttl("NIK_MAX_CHARS_CONVERSA", 3200)
+    texto = val.validar_resposta_ops(
+        resposta.texto if resposta.sucesso else "",
+        fallback,
+        max_chars=max_chars,
+        preservar_paragrafos=pediu_web,
+    )
     if fontes_web:
         texto = _remover_links_texto(texto)
     citacoes = _gerar_citacoes_por_bloco(texto, contexto)

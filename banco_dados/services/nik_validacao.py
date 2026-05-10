@@ -17,6 +17,23 @@ def sanitizar_texto(texto: str, max_chars: int = 2000) -> str:
     return limpo
 
 
+def sanitizar_texto_paragrafos(texto: str, max_chars: int = 8000) -> str:
+    """Preserva quebras de linha entre blocos (relatórios web com rótulos em maiúsculas)."""
+    bruto = texto or ""
+    limpo = re.sub(r"<[^>]+>", "", bruto)
+    blocos: list[str] = []
+    for raw in limpo.replace("\r\n", "\n").split("\n"):
+        linha = re.sub(r"[ \t]+", " ", raw).strip()
+        if linha:
+            blocos.append(linha)
+    out = "\n\n".join(blocos)
+    if len(out) > max_chars:
+        cortado = out[:max_chars]
+        ultimo = cortado.rsplit("\n\n", 1)[0].rstrip()
+        out = ultimo + "\n\n…"
+    return out.strip()
+
+
 def extrair_json_do_output(texto: str) -> Optional[dict[str, Any]]:
     bruto = (texto or "").strip()
     if not bruto:
@@ -38,8 +55,17 @@ def extrair_json_do_output(texto: str) -> Optional[dict[str, Any]]:
             return None
 
 
-def validar_resposta_ops(texto: str, fallback: str, max_chars: int = 3200) -> str:
-    limpo = sanitizar_texto(texto, max_chars=max_chars)
+def validar_resposta_ops(
+    texto: str,
+    fallback: str,
+    max_chars: int = 3200,
+    *,
+    preservar_paragrafos: bool = False,
+) -> str:
+    if preservar_paragrafos:
+        limpo = sanitizar_texto_paragrafos(texto, max_chars=max_chars)
+    else:
+        limpo = sanitizar_texto(texto, max_chars=max_chars)
     return limpo if len(limpo) >= 20 else fallback
 
 

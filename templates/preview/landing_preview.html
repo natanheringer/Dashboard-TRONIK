@@ -14,7 +14,7 @@
 <body class="lp-body">
   <nav class="lp-nav">
     <div class="lp-nav-inner">
-      <a href="#" class="lp-brand">
+      <a href="{{ url_for('preview.landing_preview') }}" class="lp-brand">
         <img src="{{ url_for('preview.nik_assets', filename='tronik_logo_only_nobg.svg') }}" alt="Tronik" class="lp-brand-logo" />
         <span>Tronik <em>Recicla</em></span>
       </a>
@@ -30,15 +30,14 @@
         <div class="lp-nav-item">
           <button type="button">Tecnologia</button>
           <div class="lp-dropdown">
-            <a href="{{ url_for('preview.monitoramento') }}">Dashboard</a>
-            <a href="{{ url_for('preview.nik') }}">Nik, a inteligência da operação Tronik</a>
-            <a href="{{ url_for('preview.mapa') }}">Mapa operacional</a>
+            <a href="{{ url_for('paginas.nik_public') }}">Nik, a inteligência da Tronik</a>
+            <a href="#solicitar">Como funciona</a>
           </div>
         </div>
         <a href="#impacto">Impacto</a>
         <a href="#sobre">Sobre</a>
       </div>
-      <a class="lp-pill-btn" href="{{ url_for('preview.monitoramento') }}">Solicitar coleta</a>
+      <a class="lp-pill-btn" href="#solicitar">Solicitar coleta</a>
     </div>
   </nav>
 
@@ -51,8 +50,8 @@
           <h1>Recicle eletrônicos. <span>Gere valor real.</span></h1>
           <p>Coletamos, rastreamos e reaproveitamos eletrônicos com tecnologia IoT — reduzindo custos e impacto ambiental.</p>
           <div class="lp-actions">
-            <a class="lp-btn lp-btn-primary" href="{{ url_for('preview.monitoramento') }}">Solicitar coleta</a>
-            <a class="lp-btn" href="{{ url_for('auth.login', next=url_for('preview.dashboard_home')) }}">Ver dashboard</a>
+            <a class="lp-btn lp-btn-primary" href="#solicitar">Solicitar coleta</a>
+            <a class="lp-btn" href="{{ url_for('auth.login', next=url_for('preview.dashboard_home')) }}">Entrar (admin)</a>
           </div>
         </div>
         <div class="lp-hero-mark" aria-hidden="true">
@@ -172,8 +171,46 @@
       <h2>Seu e-waste tem mais valor do que você imagina.</h2>
       <p>Residências, empresas e faculdades em Brasília e Entorno.</p>
       <div class="lp-actions lp-actions-center">
-        <a class="lp-btn lp-btn-dark" href="{{ url_for('preview.mapa') }}">Ver mapa</a>
-        <a class="lp-btn lp-btn-dark-ghost" href="{{ url_for('preview.parceiro') }}">Falar com a equipe</a>
+        <a class="lp-btn lp-btn-dark" href="#solicitar">Solicitar coleta</a>
+        <a class="lp-btn lp-btn-dark-ghost" href="#impacto">Ver impacto</a>
+      </div>
+    </section>
+
+    <section class="lp-cta lp-solicitar" id="solicitar">
+      <div class="lp-solicitar-inner">
+        <div class="lp-solicitar-copy">
+          <div class="lp-kicker">Quero um coletor</div>
+          <h2>Solicite um coletor na sua localização.</h2>
+          <p>Preencha o formulário e nossa equipe entrará em contato para avaliar a instalação. Após aprovado, você recebe acesso ao painel do parceiro.</p>
+        </div>
+        <form id="form-solicitar" class="lp-solicitar-form" novalidate>
+          <div class="lp-form-row">
+            <div class="lp-form-group">
+              <label for="sol-nome">Nome completo *</label>
+              <input type="text" id="sol-nome" name="nome" required placeholder="Seu nome" autocomplete="name" />
+            </div>
+            <div class="lp-form-group">
+              <label for="sol-email">E-mail *</label>
+              <input type="email" id="sol-email" name="email" required placeholder="seu@email.com" autocomplete="email" />
+            </div>
+          </div>
+          <div class="lp-form-row">
+            <div class="lp-form-group">
+              <label for="sol-empresa">Empresa / Organização</label>
+              <input type="text" id="sol-empresa" name="empresa" placeholder="Opcional" />
+            </div>
+            <div class="lp-form-group">
+              <label for="sol-localizacao">Localização *</label>
+              <input type="text" id="sol-localizacao" name="localizacao" required placeholder="Bairro, Cidade - UF" />
+            </div>
+          </div>
+          <div class="lp-form-group">
+            <label for="sol-mensagem">Mensagem (opcional)</label>
+            <textarea id="sol-mensagem" name="mensagem" rows="3" placeholder="Descreva o volume estimado, tipo de material ou dúvidas..."></textarea>
+          </div>
+          <div id="sol-status" class="lp-form-status" aria-live="polite"></div>
+          <button type="submit" class="lp-btn lp-btn-primary lp-solicitar-btn" id="sol-submit">Enviar solicitação</button>
+        </form>
       </div>
     </section>
   </main>
@@ -218,6 +255,60 @@
         body.textContent = insights[i].body;
         highlight.textContent = insights[i].highlight;
       }, 5200);
+    })();
+  </script>
+  <script>
+    (function () {
+      var form = document.getElementById('form-solicitar');
+      if (!form) return;
+      var statusEl = document.getElementById('sol-status');
+      var submitBtn = document.getElementById('sol-submit');
+
+      function setStatus(msg, type) {
+        statusEl.textContent = msg;
+        statusEl.className = 'lp-form-status lp-form-status--' + type;
+      }
+
+      form.addEventListener('submit', function (e) {
+        e.preventDefault();
+        var nome = form.querySelector('#sol-nome').value.trim();
+        var email = form.querySelector('#sol-email').value.trim();
+        var localizacao = form.querySelector('#sol-localizacao').value.trim();
+        if (!nome || !email || !localizacao) {
+          setStatus('Preencha os campos obrigatórios: nome, e-mail e localização.', 'erro');
+          return;
+        }
+        submitBtn.disabled = true;
+        submitBtn.textContent = 'Enviando…';
+        setStatus('', '');
+        fetch('/preview/solicitar-coletor', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            nome: nome,
+            email: email,
+            empresa: form.querySelector('#sol-empresa').value.trim(),
+            localizacao: localizacao,
+            mensagem: form.querySelector('#sol-mensagem').value.trim()
+          })
+        })
+        .then(function (r) { return r.json(); })
+        .then(function (data) {
+          if (data.ok) {
+            setStatus('✓ Solicitação enviada! Nossa equipe entrará em contato em breve.', 'ok');
+            form.reset();
+          } else {
+            setStatus('Erro: ' + (data.erro || 'Tente novamente.'), 'erro');
+          }
+        })
+        .catch(function () {
+          setStatus('Não foi possível enviar. Verifique sua conexão e tente novamente.', 'erro');
+        })
+        .finally(function () {
+          submitBtn.disabled = false;
+          submitBtn.textContent = 'Enviar solicitação';
+        });
+      });
     })();
   </script>
 </body>

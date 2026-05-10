@@ -34,7 +34,7 @@ logger = logging.getLogger(__name__)
 # Groq (primário) — free tier: 14.400 tokens/min, Llama 3.1 70B
 GROQ_API_BASE = os.getenv('GROQ_API_BASE', 'https://api.groq.com/openai/v1')
 GROQ_API_KEY = os.getenv('GROQ_API_KEY', '')
-GROQ_MODEL = os.getenv('GROQ_MODEL', 'llama-3.1-70b-versatile')
+GROQ_MODEL = os.getenv('GROQ_MODEL', 'llama-3.1-8b-instant')
 
 # Ollama (fallback 1) — local ou cloud, zero custo
 OLLAMA_HOST = os.getenv('OLLAMA_HOST', 'http://localhost:11434')

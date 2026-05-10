@@ -1,5 +1,7 @@
 from banco_dados.services import nik_service
 from banco_dados.services import nik_prompts
+from banco_dados.services import nik_provider as nik_provider_module
+from banco_dados.services.nik_provider import NikResposta
 
 
 def test_nik_conversa_exige_texto(db_session):
@@ -102,6 +104,55 @@ def test_catalogo_fontes_web_tem_blocos():
     assert isinstance(catalogo["regulatorio"], list)
 
 
+def test_gerar_bloco_landing_prefere_nemotron_integrate(monkeypatch):
+    registros: list[dict] = []
+
+    def fake_chamar(
+        system_prompt,
+        user_prompt,
+        modelo=None,
+        max_tokens=512,
+        temperature=0.3,
+        response_format=None,
+        *,
+        prefer_nvidia_integrate_first=False,
+        modelo_primario_se_sem_nv=None,
+    ):
+        registros.append(
+            {
+                "modelo": modelo,
+                "prefer_nvidia_integrate_first": prefer_nvidia_integrate_first,
+                "modelo_primario_se_sem_nv": modelo_primario_se_sem_nv,
+            }
+        )
+        return NikResposta(
+            texto=(
+                '{"titulo":"Reciclagem","corpo":"Texto educativo com tamanho mínimo para passar na validação.",'
+                '"destaque":"ok"}'
+            ),
+            modelo_usado=modelo or "mistralai/mistral-nemotron",
+            tokens_prompt=1,
+            tokens_resposta=12,
+            latencia_ms=5,
+            sucesso=True,
+        )
+
+    monkeypatch.setattr(nik_provider_module, "chamar_modelo", fake_chamar)
+    monkeypatch.setattr(nik_service, "_cache_get", lambda k, ttl: None)
+    monkeypatch.setattr(nik_service, "_cache_set", lambda k, r: r)
+    monkeypatch.setattr(nik_service, "_nik_habilitada", lambda: True)
+    monkeypatch.setenv("NIK_LANDING_USE_NVIDIA", "true")
+    monkeypatch.setenv("NIK_MODELO_LANDING_NVIDIA", "mistralai/mistral-nemotron")
+    monkeypatch.setenv("NIK_MODELO_LANDING", "llama-3.1-8b-instant")
+
+    out = nik_service.gerar_bloco_landing("fala_nik")
+    assert len(registros) == 1
+    assert registros[0]["modelo"] == "mistralai/mistral-nemotron"
+    assert registros[0]["prefer_nvidia_integrate_first"] is True
+    assert registros[0]["modelo_primario_se_sem_nv"] == "llama-3.1-8b-instant"
+    assert out["fonte"] == "modelo"
+
+
 def test_montar_queries_web_deterministico():
     q1 = nik_service.nik_tools._montar_queries_web("logística reversa de eletrônicos")
     q2 = nik_service.nik_tools._montar_queries_web("logística reversa de eletrônicos")
@@ -112,18 +163,27 @@ def test_montar_queries_web_deterministico():
 def test_modelo_tarefa_rota_chat_vs_relatorio(monkeypatch):
     monkeypatch.setenv("NIK_MODELO_CHAT", "chat-8b")
     monkeypatch.setenv("NIK_MODELO_OPS", "chat-8b")
-    monkeypatch.setenv("NIK_MODELO_RELATORIO", "report-70b")
+    monkeypatch.setenv("NIK_MODELO_RELATORIO", "report-heavy")
     monkeypatch.setenv("NIK_ROUTE_LONG_CONTEXT_TO_70B", "true")
     monkeypatch.setenv("NIK_MODELO_ANALYTICS", "scout-analytics")
     assert nik_service._modelo_tarefa("conversa", "oi") == "chat-8b"
-    assert nik_service._modelo_tarefa("relatorio", "qualquer") == "report-70b"
+    assert nik_service._modelo_tarefa("relatorio", "qualquer") == "report-heavy"
     long_msg = "x" * 901
     assert nik_service._modelo_tarefa("conversa", long_msg) == "scout-analytics"
-    monkeypatch.setenv("NIK_MODELO_LONG_CONTEXT", "compound-heavy")
-    assert nik_service._modelo_tarefa("conversa", long_msg) == "compound-heavy"
+    monkeypatch.setenv("NIK_MODELO_LONG_CONTEXT", "long-context-scout")
+    assert nik_service._modelo_tarefa("conversa", long_msg) == "long-context-scout"
 
 
-def test_modelo_tarefa_web(monkeypatch):
+def test_modelo_tarefa_web_compound_vai_para_fallback_sem_70b(monkeypatch):
+    monkeypatch.delenv("NIK_ALLOW_LLAMA_70B", raising=False)
+    monkeypatch.setenv("NIK_MODELO_FALLBACK", "llama-3.1-8b-instant")
+    monkeypatch.setenv("NIK_MODELO_WEB", "groq/compound-mini")
+    monkeypatch.setenv("NIK_WEB_DISABLE_COMPOUND", "false")
+    assert nik_service._modelo_tarefa("web", "busca na internet") == "llama-3.1-8b-instant"
+
+
+def test_modelo_tarefa_web_compound_permitido_com_env(monkeypatch):
+    monkeypatch.setenv("NIK_ALLOW_LLAMA_70B", "true")
     monkeypatch.setenv("NIK_MODELO_WEB", "compound-mini")
     monkeypatch.setenv("NIK_WEB_DISABLE_COMPOUND", "false")
     assert nik_service._modelo_tarefa("web", "busca na internet") == "compound-mini"
@@ -146,7 +206,7 @@ def test_modelo_tarefa_web_safe(monkeypatch):
 
 def test_relatorio_pesquisa_web_prompt_tem_estrutura():
     assert "OBJETIVO DA PESQUISA" in nik_prompts.SYSTEM_OPS_RELATORIO_PESQUISA_WEB
-    assert "SÍNTESE DO QUE AS FONTES INDICAM" in nik_prompts.SYSTEM_OPS_RELATORIO_PESQUISA_WEB
+    assert "O QUE CADA FONTE INDICA" in nik_prompts.SYSTEM_OPS_RELATORIO_PESQUISA_WEB
     assert "CONCLUSÃO" in nik_prompts.SYSTEM_OPS_RELATORIO_PESQUISA_WEB
 
 
@@ -157,13 +217,19 @@ def test_mensagem_pede_web():
 
 
 def test_resumo_web_sem_modelo():
-    fontes = [
-        {"titulo": "Reciclagem no Brasil cresce", "url": "https://exemplo.com/a", "fonte": "exemplo.com"},
+    itens = [
+        {
+            "titulo": "Reciclagem no Brasil cresce",
+            "url": "https://exemplo.com/a",
+            "fonte": "exemplo.com",
+            "snippet": "Volume subiu 12% no ano.",
+        },
         {"titulo": "Dados públicos de resíduos", "url": "https://dados.gov.br/b", "fonte": "dados.gov.br"},
     ]
-    texto = nik_service._resumo_web_sem_modelo(fontes, "pesquise sobre reciclagem")
-    assert "Pesquisa web concluída" in texto
+    texto = nik_service._resumo_web_sem_modelo("pesquise sobre reciclagem", itens)
+    assert "Resumo automático" in texto
     assert "Reciclagem no Brasil cresce" in texto
+    assert "Volume subiu" in texto
 
 
 def test_mensagem_pede_documento():

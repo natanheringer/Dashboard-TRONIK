@@ -26,59 +26,30 @@
   <!-- Internal Sidebar -->
   <aside class="nik-sidebar">
     <div class="nik-sidebar-header">
-      <button class="nik-new-chat-btn">
-        <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><line x1="12" y1="5" x2="12" y2="19"></line><line x1="5" y1="12" x2="19" y2="12"></line></svg>
-        Nova tarefa
-      </button>
-      
-      <button class="nik-new-agent-btn">
-        <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="10"></circle><line x1="12" y1="16" x2="12" y2="12"></line><line x1="12" y1="8" x2="12.01" y2="8"></line></svg>
-        Agent <span class="nik-badge-new">Novo</span>
-      </button>
-
       <div class="nik-search-box">
         <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="11" cy="11" r="8"></circle><line x1="21" y1="21" x2="16.65" y2="16.65"></line></svg>
         <input type="text" placeholder="Pesquisar..." />
       </div>
     </div>
     
-    <div class="nik-sidebar-scroll">
+        <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="11" cy="11" r="8"></circle><line x1="21" y1="21" x2="16.65" y2="16.65"></line></svg>
+        <input type="text" placeholder="Pesquisar..." />
+      </div>
+    </div>
+    
       <div class="nik-sidebar-section">
-        <div class="nik-sidebar-label">
-          Projetos
-          <button class="nik-icon-btn-small"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><line x1="12" y1="5" x2="12" y2="19"></line><line x1="5" y1="12" x2="19" y2="12"></line></svg></button>
-        </div>
+        <div class="nik-sidebar-label">Projetos</div>
         <div class="nik-sidebar-item" onclick="document.getElementById('nik-chat-input').value='Gerar relatório Maiara'; document.getElementById('nik-chat-form').dispatchEvent(new Event('submit', { cancelable: true, bubbles: true }));">
-          <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M22 19a2 2 0 0 1-2 2H4a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h5l2 3h9a2 2 0 0 1 2 2z"></path></svg> 
+          <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M22 19a2 2 0 0 1-2 2H4a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h5l2 3h9a2 2 0 0 1 2 2z"></path></svg>
           <span class="nik-truncate">Relatórios Maiara</span>
         </div>
       </div>
 
       <div class="nik-sidebar-section">
-        <div class="nik-sidebar-label">
-          Todas as tarefas
-          <button class="nik-icon-btn-small"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><line x1="4" y1="6" x2="20" y2="6"></line><line x1="4" y1="12" x2="20" y2="12"></line><line x1="4" y1="18" x2="20" y2="18"></line></svg></button>
-        </div>
+        <div class="nik-sidebar-label">Todas as tarefas</div>
         <div class="nik-sidebar-item active">
-          <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z"></path></svg> 
+          <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z"></path></svg>
           <span class="nik-truncate">Discussão Geral Nik</span>
-        </div>
-        <div class="nik-sidebar-item ghost">
-          <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z"></path></svg>
-          <span class="nik-truncate">Análise de Risco Operacional</span>
-        </div>
-        <div class="nik-sidebar-item ghost">
-          <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z"></path></svg>
-          <span class="nik-truncate">Planejamento de Rotas</span>
-        </div>
-      </div>
-    </div>
-    
-    <div class="nik-sidebar-footer">
-      <div class="nik-footer-credits">
-        <div class="nik-credits-box">
-          <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="2" y="3" width="20" height="14" rx="2" ry="2"></rect><line x1="8" y1="21" x2="16" y2="21"></line><line x1="12" y1="17" x2="12" y2="21"></line></svg>
-          <span>Compartilhe Nik com a equipe</span>
         </div>
       </div>
     </div>
@@ -89,11 +60,6 @@
     <header class="nik-main-header">
       <div class="nik-header-title">
         <h2>Nik Lite</h2>
-      </div>
-      <div class="nik-header-actions">
-        <button class="nik-btn-text"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polygon points="5 3 19 12 5 21 5 3"></polygon></svg> Iniciar teste gratuito</button>
-        <button class="nik-btn-text"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M4 12v8a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2v-8"></path><polyline points="16 6 12 2 8 6"></polyline><line x1="12" y1="2" x2="12" y2="15"></line></svg> Compartilhar</button>
-        <button class="nik-icon-btn-small"><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="1"></circle><circle cx="19" cy="12" r="1"></circle><circle cx="5" cy="12" r="1"></circle></svg></button>
       </div>
     </header>
 
@@ -135,7 +101,7 @@
                alt="Nik"
                class="nik-avatar-img"
                width="112"
-               height="136"
+               height="112"
                loading="eager"
                decoding="async"
                onerror="if(!this.dataset.fallback){this.dataset.fallback='1';this.src='{{ cannon_png_fb }}';}"
@@ -173,7 +139,7 @@
                  <source src="{{ url_for('preview.nik_assets', filename='nik_cannon_animated_bg.mp4') }}" type="video/mp4">
                  <source src="{{ url_for('preview.nik_assets', filename='nik_cannon_animated_bg.webm') }}" type="video/webm">
                </video>
-               <img src="{{ url_for('preview.nik_assets', filename='nik_cannon.png') }}" alt="" class="nik-avatar-img" width="112" height="136" onerror="if(!this.dataset.fallback){this.dataset.fallback='1';this.src='{{ cannon_png_fb }}';}">
+               <img src="{{ url_for('preview.nik_assets', filename='nik_cannon.png') }}" alt="" class="nik-avatar-img" width="112" height="112" onerror="if(!this.dataset.fallback){this.dataset.fallback='1';this.src='{{ cannon_png_fb }}';}">
             </div>
             <div class="nik-message-body">
               <div class="nik-typing-dots">
@@ -484,16 +450,37 @@
       });
     }
 
+    function ensureTypingAvatarWired() {
+      var box = document.querySelector("#nik-typing-indicator .tronik-avatar");
+      if (!box || box.dataset.mediaReady === "1") return;
+      var tv = box.querySelector(".nik-avatar-video");
+      var img = box.querySelector(".nik-avatar-img");
+      if (tv && img) {
+        wireNikRevealVideo(tv, img);
+        box.dataset.mediaReady = "1";
+      }
+    }
+
     function syncTypingIndicatorVideo(play) {
       var tv = document.querySelector("#nik-typing-indicator .nik-avatar-video");
       if (!tv) return;
       if (play) {
+        ensureTypingAvatarWired();
+        tv.muted = true;
+        tv.setAttribute("playsinline", "");
+        try {
+          tv.load();
+        } catch (e) {}
         tv.currentTime = 0;
-        tv.play().catch(function () {});
+        var done = function () {
+          tv.classList.add("is-media-ready");
+        };
+        tv.play().then(done).catch(done);
       } else {
         try {
           tv.pause();
         } catch (e) {}
+        tv.classList.remove("is-media-ready");
       }
     }
     
@@ -575,8 +562,13 @@
           documentoHtml +
           attachmentsHtml + 
         '</div>';
-        
-      thread.appendChild(msgDiv);
+
+      var typingEl = document.getElementById("nik-typing-indicator");
+      if (typingEl && typingEl.parentNode === thread) {
+        thread.insertBefore(msgDiv, typingEl);
+      } else {
+        thread.appendChild(msgDiv);
+      }
       wireMediaFallback(msgDiv);
       scrollToBottom();
     }
@@ -637,9 +629,13 @@
       setPresenceState("doubt");
       await sleep(380);
       setPresenceState("thinking");
-      document.getElementById("nik-typing-indicator").style.display = "block";
-      syncTypingIndicatorVideo(true);
+      var typingRoot = document.getElementById("nik-typing-indicator");
+      typingRoot.style.display = "block";
       scrollToBottom();
+      requestAnimationFrame(function () {
+        syncTypingIndicatorVideo(true);
+        scrollToBottom();
+      });
       
       try {
         var resp = await fetchComRetry("/api/nik/ops/conversa", {
