@@ -51,16 +51,6 @@
           </label>
           <button type="submit" class="btn btn-primary preview-map-submit">Aplicar</button>
         </div>
-        <div class="prospect-toolbar-row">
-          <label class="prospect-toggle">
-            <input type="checkbox" id="toggle-prospects" {% if show_prospects %}checked{% endif %} />
-            <span class="prospect-toggle-label">Mostrar oportunidades ML</span>
-          </label>
-          <span class="prospect-legend"><i class="ok"></i> Coletores</span>
-          <span class="prospect-legend"><i class="prospect"></i> Prospects</span>
-          <span class="prospect-legend"><i class="heatmap"></i> Heatmap</span>
-          {% if prospects %}<span class="prospect-count">{{ prospects|length }} oportunidades</span>{% endif %}
-        </div>
       </form>
 
       <div class="mapa-container">
@@ -114,60 +104,12 @@
   window.__PREVIEW_MAP__ = {{ marcadores|tojson }};
   window.__PREVIEW_SELECTED__ = {{ coletor_selecionado_id or 'null' }};
   window.__PREVIEW_SEDE__ = {{ sede_mapa|tojson }};
-  window.__PREVIEW_PROSPECTS__ = {{ prospects|tojson }};
 </script>
 <script src="https://cdn.jsdelivr.net/npm/leaflet@1.9.4/dist/leaflet.js"
         integrity="sha256-20nQCchB9co0qIjJZRGuk2/Z9VM+kNiyxNV1lvTlZBo="
         crossorigin=""></script>
 <script src="https://cdn.jsdelivr.net/npm/leaflet.markercluster@1.5.3/dist/leaflet.markercluster.js" crossorigin=""></script>
-<script src="https://cdn.jsdelivr.net/npm/leaflet.heat@0.2.0/dist/leaflet-heat.js" crossorigin=""></script>
 <script src="{{ url_for('static', filename='js/v2/mapa-preview.js') }}?v={{ cache_version }}"></script>
-<script>
-/* Camada de prospecção ML */
-(function(){
-  var prospects = window.__PREVIEW_PROSPECTS__ || [];
-  if (!prospects.length || typeof L === 'undefined' || !window.PreviewMapa) return;
-  var map = window.PreviewMapa.map;
-
-  /* Heatmap layer */
-  var heatData = prospects.map(function(p){ return [p.lat, p.lng, (p.score||50)/100]; });
-  var heat = typeof L.heatLayer === 'function'
-    ? L.heatLayer(heatData, {radius:25, blur:20, maxZoom:15, gradient:{0.2:'#2ecc71',0.5:'#f39c12',0.8:'#e74c3c',1:'#c0392b'}})
-    : null;
-
-  /* Marcadores de prospect */
-  var prospectLayer = L.layerGroup();
-  prospects.forEach(function(p){
-    var color = p.score >= 70 ? '#e67e22' : p.score >= 40 ? '#f1c40f' : '#95a5a6';
-    var circle = L.circleMarker([p.lat, p.lng], {
-      radius: 6, color: color, fillColor: color, fillOpacity: 0.7, weight: 1,
-    });
-    circle.bindPopup(
-      '<strong>'+p.nome+'</strong><br/>'+
-      '<span class="leaflet-popup-subtle">'+p.categoria+' · Score: '+Math.round(p.score)+'</span><br/>'+
-      '<span class="leaflet-popup-small">'+p.endereco+'</span>'+
-      (p.cnae ? '<br/><span class="leaflet-popup-xsmall">'+p.cnae+'</span>' : '')
-    );
-    prospectLayer.addLayer(circle);
-  });
-
-  /* Toggle */
-  var toggle = document.getElementById('toggle-prospects');
-  function updateLayers(){
-    if (toggle && toggle.checked){
-      prospectLayer.addTo(map);
-      if (heat) heat.addTo(map);
-    } else {
-      map.removeLayer(prospectLayer);
-      if (heat) map.removeLayer(heat);
-    }
-  }
-  if (toggle){
-    toggle.addEventListener('change', updateLayers);
-    {% if show_prospects %}updateLayers();{% endif %}
-  }
-})();
-</script>
 {% if detalhe %}
 <script>
   document.addEventListener("DOMContentLoaded", function () {

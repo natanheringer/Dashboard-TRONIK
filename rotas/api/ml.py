@@ -1,10 +1,9 @@
 """Blueprint de endpoints ML — Dashboard-TRONIK.
 
-Endpoints para os 4 módulos de Machine Learning:
+Endpoints para os módulos de Machine Learning:
 - Módulo 1: Predição de enchimento (séries temporais)
 - Módulo 2: TRONIK Score (classificação de prioridade)
 - Módulo 3: Narrativa de impacto (NLP generativo)
-- Módulo 4: Prospecção geográfica (ML geográfico)
 """
 
 from __future__ import annotations
@@ -198,98 +197,6 @@ def narrativa_parceiro(parceiro_id: int):
 
 
 # ==============================================================
-# MÓDULO 4 — PROSPECÇÃO GEOGRÁFICA
-# ==============================================================
-
-@ml_bp.route("/prospeccao", methods=["GET"])
-@login_required
-def prospeccao_ranking():
-    """Retorna locais de prospecção ranqueados por score.
-
-    GET /api/ml/prospeccao
-    Query params:
-      - limite: int (default 100)
-      - score_minimo: float (default 0)
-      - categoria: str (opcional — 'shopping', 'condominio', etc.)
-      - excluir_contatados: bool (default false)
-    """
-    from banco_dados.services.ml_prospeccao import obter_ranking_prospeccao
-
-    db = get_db()
-    try:
-        limite = request.args.get("limite", 100, type=int)
-        score_min = request.args.get("score_minimo", 0, type=float)
-        categoria = request.args.get("categoria")
-        excluir = request.args.get("excluir_contatados", "false").lower() in ("1", "true")
-
-        ranking = obter_ranking_prospeccao(
-            db, limite=limite, score_minimo=score_min,
-            categoria=categoria, excluir_contatados=excluir,
-        )
-        return jsonify({"ok": True, "dados": ranking, "erros": []})
-    except Exception as e:
-        logger.error(f"Erro na prospecção: {e}")
-        return jsonify({
-            "ok": False,
-            "dados": None,
-            "erros": [{"codigo": "ERRO_ML", "mensagem": str(e)}],
-        }), 500
-    finally:
-        db.close()
-
-
-@ml_bp.route("/prospeccao/heatmap", methods=["GET"])
-@login_required
-def heatmap_prospeccao():
-    """Retorna dados para heatmap Leaflet de oportunidades.
-
-    GET /api/ml/prospeccao/heatmap
-    Query params:
-      - score_minimo: float (default 20)
-    """
-    from banco_dados.services.ml_prospeccao import obter_heatmap_data
-
-    db = get_db()
-    try:
-        score_min = request.args.get("score_minimo", 20, type=float)
-        data = obter_heatmap_data(db, score_minimo=score_min)
-        return jsonify({"ok": True, "dados": data, "erros": []})
-    except Exception as e:
-        logger.error(f"Erro no heatmap: {e}")
-        return jsonify({
-            "ok": False,
-            "dados": None,
-            "erros": [{"codigo": "ERRO_ML", "mensagem": str(e)}],
-        }), 500
-    finally:
-        db.close()
-
-
-@ml_bp.route("/prospeccao/recalcular", methods=["POST"])
-@login_required
-def recalcular_prospeccao():
-    """Recalcula scores de prospecção para todos os locais.
-
-    POST /api/ml/prospeccao/recalcular
-    """
-    from banco_dados.services.ml_prospeccao import recalcular_scores_prospeccao
-
-    db = get_db()
-    try:
-        stats = recalcular_scores_prospeccao(db)
-        return jsonify({"ok": True, "dados": stats, "erros": []})
-    except Exception as e:
-        logger.error(f"Erro ao recalcular prospecção: {e}")
-        return jsonify({
-            "ok": False,
-            "dados": None,
-            "erros": [{"codigo": "ERRO_ML", "mensagem": str(e)}],
-        }), 500
-    finally:
-        db.close()
-
-
-# ==============================================================
 # RETREINAR TODOS OS MODELOS
 # ==============================================================
 
@@ -302,7 +209,6 @@ def retreinar_modelos():
     """
     from banco_dados.services.ml_predicao import recalcular_predicoes_todos
     from banco_dados.services.ml_score import recalcular_scores_todos
-    from banco_dados.services.ml_prospeccao import recalcular_scores_prospeccao
 
     db = get_db()
     try:
@@ -312,7 +218,6 @@ def retreinar_modelos():
 
         resultados['predicao'] = recalcular_predicoes_todos(db)
         resultados['score'] = recalcular_scores_todos(db)
-        resultados['prospeccao'] = recalcular_scores_prospeccao(db)
 
         logger.info("✅ Todos os modelos retreinados")
         return jsonify({"ok": True, "dados": resultados, "erros": []})

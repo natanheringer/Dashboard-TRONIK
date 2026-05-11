@@ -1273,11 +1273,6 @@ ul { list-style: none; }
   color: #fef0e8;
 }
 
-.ml-tag--prospeccao {
-  background: var(--signal-warn);
-  color: #fef5e8;
-}
-
 /* Animated glow for ML tags on hover */
 .coletor-card:hover .ml-tag--score {
   box-shadow: 0 0 8px var(--tronik-soft);

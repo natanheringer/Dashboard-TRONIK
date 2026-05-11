@@ -239,10 +239,6 @@ def mapa():
         sel_id = request.args.get("coletor_id", type=int)
         detalhe = pv.detalhe_coletor_mapa(db, sel_id) if sel_id else None
 
-        # --- ML: Prospecção geográfica (Módulo 4) ---
-        prospects = _obter_marcadores_prospeccao(db)
-        show_prospects = request.args.get("prospects", "false").lower() in ("1", "true")
-
         ctx = {
             "current": "mapa",
             "total_coletores": stats["total_coletores"],
@@ -256,8 +252,6 @@ def mapa():
             "sede_mapa": sede,
             "detalhe": detalhe,
             "coletor_selecionado_id": detalhe["id"] if detalhe else None,
-            "prospects": prospects,
-            "show_prospects": show_prospects,
         }
         return render_template("preview/mapa.html", **ctx)
     finally:
@@ -330,43 +324,6 @@ def gestao():
             "usuario_nome": _nome_usuario(),
         }
         return render_template("preview/gestao.html", **ctx)
-    finally:
-        db.close()
-
-
-@preview_bp.route("/prospeccao")
-@admin_preview
-def prospeccao():
-    """Página dedicada de prospecção geográfica (Módulo 4)."""
-    db = get_db()
-    try:
-        stats = pv.estatisticas_resumo(db)
-        prospects = _obter_marcadores_prospeccao(db)
-        sede = pv.coordenadas_sede_mapa()
-
-        # Filtros
-        cat_f = request.args.get("categoria", "").strip()
-        score_min = request.args.get("score_min", 0, type=float)
-
-        if cat_f:
-            prospects = [p for p in prospects if p.get('categoria') == cat_f]
-        if score_min > 0:
-            prospects = [p for p in prospects if (p.get('score') or 0) >= score_min]
-
-        # Categorias únicas
-        categorias_todas = sorted(set(p.get('categoria', '') for p in _obter_marcadores_prospeccao(db) if p.get('categoria')))
-
-        ctx = {
-            "current": "prospeccao",
-            "total_coletores": stats["total_coletores"],
-            "stats": stats,
-            "prospects": prospects,
-            "sede_mapa": sede,
-            "categorias": categorias_todas,
-            "filtro_categoria": cat_f,
-            "filtro_score_min": score_min,
-        }
-        return render_template("preview/prospeccao.html", **ctx)
     finally:
         db.close()
 
@@ -456,32 +413,6 @@ def _obter_predicoes_map(db):
         return result
     except Exception:
         return {}
-
-
-def _obter_marcadores_prospeccao(db):
-    """Retorna lista de prospects como dicts para o mapa."""
-    try:
-        from banco_dados.modelos import LocalProspeccao
-        locais = db.query(LocalProspeccao).filter(
-            LocalProspeccao.score_prospeccao > 0
-        ).order_by(LocalProspeccao.score_prospeccao.desc()).limit(200).all()
-        return [
-            {
-                'id': l.id,
-                'nome': l.nome,
-                'lat': l.latitude,
-                'lng': l.longitude,
-                'score': l.score_prospeccao,
-                'categoria': l.categoria,
-                'cnae': l.cnae_descricao or '',
-                'endereco': l.endereco or '',
-                'fonte': l.fonte,
-                'ja_contatado': l.ja_contatado,
-            }
-            for l in locais
-        ]
-    except Exception:
-        return []
 
 
 def _obter_narrativa_parceiro(db, parceiro_id):

@@ -104,3 +104,7 @@ nik_bot/*
 !nik_bot/gerar_entrega.py
 !nik_bot/config_nik_dev.env.example
 !nik_bot/spec_nik_agent.md
+
+# === Ingestão prospecção (artefatos locais; podem ser GB) ===
+data/raw/prospeccao/**/*
+!data/raw/prospeccao/.gitkeep

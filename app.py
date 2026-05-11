@@ -27,9 +27,9 @@ from banco_dados.modelos import (
     Base, Usuario, Coletor, Sensor, Coleta,
     Parceiro, TipoMaterial, TipoSensor, TipoColetor, Notificacao,
     MetaComercial, Pipeline, Interacao, Tarefa, ContratoRecorrente,
-    # Modelos ML (Módulos 1-4)
+    # Modelos ML (Módulos 1-3; prospecção futura ver PLANO_ML_TRONIK.md)
     LeituraSensor, PredicaoEnchimento, TronikScore,
-    NarrativaGerada, LocalProspeccao, NikConversa, NikRelatorioGerado,
+    NarrativaGerada, NikConversa, NikRelatorioGerado,
 )
 
 # Importações do sistema de inicialização

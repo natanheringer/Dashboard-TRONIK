@@ -94,18 +94,6 @@ def inicializar_agendamento(app):
             max_instances=1,
         )
 
-    # Módulo 4: Prospecção geográfica (1x/semana — a cada 168h)
-    ml_prospeccao_enabled = os.getenv('ML_PROSPECCAO_ENABLED', 'true').lower() == 'true'
-    if ml_prospeccao_enabled:
-        scheduler.add_job(
-            func=_job_ml_prospeccao,
-            trigger=IntervalTrigger(hours=168),
-            id='ml_prospeccao',
-            name='ML - Prospecção Geográfica',
-            replace_existing=True,
-            max_instances=1,
-        )
-
     nik_enabled = os.getenv('NIK_PRE_GERACAO_ENABLED', 'false').lower() == 'true'
     if nik_enabled:
         nik_intervalo = int(os.getenv('NIK_PRE_GERACAO_INTERVALO_MIN', '60'))
@@ -127,8 +115,6 @@ def inicializar_agendamento(app):
         logger.info(f"   ML Predição: a cada 12h")
     if ml_score_enabled:
         logger.info(f"   ML Score: a cada 24h")
-    if ml_prospeccao_enabled:
-        logger.info(f"   ML Prospecção: semanal")
     if nik_enabled:
         logger.info(f"   Nik pré-geração: a cada {nik_intervalo} minutos")
     logger.info(f"   Próxima execução: {scheduler.get_job('processar_alertas').next_run_time}")
@@ -238,21 +224,6 @@ def _job_ml_score():
         logger.error(f"❌ [ML] Erro no score: {e}", exc_info=True)
 
 
-def _job_ml_prospeccao():
-    """Job: Módulo 4 — Recalcula scores de prospecção geográfica."""
-    try:
-        logger.info("🔄 [ML] Iniciando recálculo de prospecção...")
-        from banco_dados.services.ml_prospeccao import recalcular_scores_prospeccao
-        db = _criar_sessao_ml()
-        try:
-            stats = recalcular_scores_prospeccao(db)
-            logger.info(f"✅ [ML] Prospecção concluída: {stats}")
-        finally:
-            db.close()
-    except Exception as e:
-        logger.error(f"❌ [ML] Erro na prospecção: {e}", exc_info=True)
-
-
 def parar_agendamento():
     """
     Para o sistema de agendamento.
@@ -289,7 +260,7 @@ def obter_status_agendamento():
 
     # Incluir status dos jobs ML
     ml_jobs = {}
-    for job_id in ['ml_predicao', 'ml_score', 'ml_prospeccao']:
+    for job_id in ['ml_predicao', 'ml_score']:
         ml_job = scheduler.get_job(job_id)
         if ml_job:
             ml_jobs[job_id] = {

@@ -157,6 +157,7 @@ A equipe deve se auto-organizar baseada nos interesses e habilidades de cada mem
 
 ## Documentação Principal
 
+- `docs/ARQUITETURA.md` — Diagramas Mermaid alinhados ao código atual (preview v2, API, telemetria, ML, jobs de ingestão)
 - `DOCUMENTAÇÃO_COMPLETA.md` — Visão geral completa, arquitetura, backend, frontend, banco de dados, segurança, testes e deploy
 - `ESTADO_ATUAL_PROJETO.md` — Resumo executivo do estado atual (funcionalidades, métricas, próximos passos)
 - `docs/MVP.md` — Definição do MVP original e sua evolução até a versão atual

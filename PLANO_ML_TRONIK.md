@@ -1,354 +1,263 @@
 # TRONIK Recicla — Plano de Machine Learning
-## Alinhado com o edital Porto Digital / Residência em Software & IA
 
-**Data:** 22/04/2026
-**Prazo entrega parcial GrowUp:** 27/04/2026
-**Prazo final do semestre:** 18/06/2026
+**Atualização:** maio/2026  
+**Alinhamento:** edital Porto Digital / Residência em Software & IA + arquitetura operacional de prospecção (sem heatmap como produto central, sem etapa manual de validação como motor do modelo).
 
 ---
 
-## Contexto
+## Visão geral
 
-O projeto TRONIK Recicla está no terceiro semestre com a Porto Digital. Nos semestres anteriores, a equipe construiu a infraestrutura completa: dashboard Flask com 120+ testes, sistema de telemetria IoT com autenticação, mapa com Leaflet, CRM, contratos, relatórios. O sensor ISU (ESP32 + VL53L0X + MPU6050) está em montagem com chegada dos componentes entre 17–30/abr.
+A stack continua em Python, com jobs batch fora do ciclo de request do Flask. Este documento coloca no centro a **prospecção massiva no DF**: ingestão → normalização → geocodificação/enriquecimento → features tabulares → **XGBoost Learning to Rank** → **ranking na dashboard e na Nik** como fila operacional.
 
-O edital desse semestre pede ênfase em IA. A camada de ML se encaixa como evolução natural: os dois primeiros semestres construíram a base de dados e a infraestrutura; o terceiro semestre adiciona inteligência sobre esses dados.
+Os demais módulos (predição de enchimento, score de coletores, narrativa ESG) permanecem como frentes complementares ao produto e ao edital; a prioridade de produto descrita abaixo é **fila priorizada de candidatos**, não mapa de calor nem validação humana como fonte de *label*.
 
-A stack é toda Python. O APScheduler já está integrado. O Railway hospeda tudo. Não precisa de GPU — tudo roda em CPU.
+**Domínio operacional:** a Tronik atua em **resíduos de equipamentos eletroeletrônicos (REE / e-waste)** — coleta, pontos de descarte e logística associada. O ranking de prospecção deve medir **fit para esse fluxo** (CNAE, perfil de estabelecimento, proximidade a polos com descarte de REE, histórico interno de coleta de eletrônicos). Não é escopo posicionar a operação como gestora de papel, plástico de embalagem, metal de lata, óleo de cozinha ou orgânico; fontes públicas amplas (saúde, educação, SLU) entram como **proxies territoriais** ou contexto regulatório quando ajudam a estimar geração de REE ou obrigações correlatas, não como expansão de linha de resíduo.
 
----
+**Código (subtração maio/2026):** removidos do repositório o modelo ORM `locais_prospeccao`, o serviço `banco_dados/services/ml_prospeccao.py`, a rota preview `/prospeccao`, a camada de prospects/heatmap no mapa e os endpoints `/api/ml/prospeccao*`, para não colidir com a implementação futura descrita neste plano. Instalações antigas podem ainda ter a tabela física `locais_prospeccao` no banco; pode-se eliminá-la com migração manual se desejado.
 
-## Três módulos de ML — do que entrega valor real ao que impressiona
-
-### Módulo 1 — Predição de enchimento (séries temporais)
-
-**O que resolve:** hoje a dashboard diz "coletor a 84%". Isso é reativo — a Maiara só sabe que precisa coletar quando já está cheio. Com predição, a dashboard diz "coletor a 84%, **enche quinta às 14h**". Isso permite planejar coletas com antecedência, otimizar rotas, evitar viagens desperdiçadas.
-
-**Dados de entrada:**
-- Série temporal de `nivel_preenchimento` por coletor (telemetria do ESP32, a cada 15 min)
-- Dia da semana e hora (sazonalidade: shopping enche mais em dia útil, condomínio é constante)
-- Histórico de coletas realizadas (tabela `coletas` com `data_hora`, `volume_estimado`)
-
-**Modelo:**
-- **Prophet** (Facebook/Meta) — feito para séries temporais com sazonalidade semanal e feriados brasileiros. Alternativa: `statsmodels.ARIMA` se quiser algo mais leve.
-- Um modelo por coletor. Com 2-3 semanas de leituras a cada 15 min = ~1.300 pontos por coletor. Suficiente para Prophet.
-- Output: `predicted_full_datetime` (quando atinge 90%) + intervalo de confiança superior/inferior.
-
-**Onde aparece na dashboard:**
-- Card do coletor no Monitoramento: "84% · enche em ~52h"
-- Gráfico de linha do coletor ganha projeção pontilhada com faixa de incerteza sombreada
-- Alerta muda de "nível > 80%" para "previsão de encher em < 48h"
-
-**Implementação:**
-- Novo model: `PredicaoEnchimento` (coletor_id, predicted_full_at, confianca_lower, confianca_upper, calculado_em)
-- Novo service: `banco_dados/services/ml_predicao.py`
-- Job no APScheduler: roda 2x/dia, recalcula previsões para todos os coletores ativos
-- Endpoint: `GET /api/preview/coletor/<id>/predicao` retorna previsão + série histórica + projeção
-
-**Dependências:** `prophet` ou `statsmodels` no `requirements.txt`
-
-**Esforço:** 1 semana
+**Diagramas do sistema:** ver [docs/ARQUITETURA.md](docs/ARQUITETURA.md).
 
 ---
 
-### Módulo 2 — TRONIK Score (classificação de prioridade)
+## Parte A — Prospecção com XGBRanker (eixo principal)
 
-**O que resolve:** a decisão "qual coletor coletar primeiro" hoje é baseada só em nível. Mas isso ignora: distância da sede (coletor cheio a 50km vale menos que um a 5km), valor do material (parceiro que gera mais lucro/kg deve ser priorizado), agrupamento geográfico (dois coletores próximos ambos a 70% valem mais que um isolado a 90%), custo de combustível, dias sem coleta.
+### A.1 Princípios de arquitetura
 
-O TRONIK Score sintetiza tudo isso num número de 0 a 100 por coletor, que significa "urgência × viabilidade × valor".
+| Decisão | Conteúdo |
+|--------|----------|
+| Interface | Tabela operacional de ranking (dashboard), consulta auditável (Nik). **Sem** heatmap como centro do produto. **Sem** lógica de “validação manual” como gerador de alvo do modelo. |
+| Pipeline | Ingestão massiva → normalização → geocodificação/enriquecimento → features tabulares → treino/score XGBoost → publicação de scores → consumo unificado (API + Nik). |
+| Alvo | Labels **objetivos e observáveis** (dados internos Tronik + sinais públicos estruturados). Julgamento subjetivo de operação **não** alimenta o *y* do treino. |
+| Modelo | **XGBRanker** com `qid` por contexto (RA, bairro normalizado, grade H3, zona operacional, etc.) e objetivo do tipo `rank:ndcg`, adequado quando o entregável é **ordenar** candidatos por relevância dentro do grupo. |
+| CNPJ | Tratar **CNPJ como texto** no schema: a Receita Federal passou a prever CNPJ alfanumérico para novas inscrições a partir de julho/2026. |
+| Geocodificação em massa | **Não** usar a API pública do Nominatim como motor principal (política de uso limitada). Preferir instância própria, provedor contratado ou fila assíncrona com **cache agressivo**. |
+| Execução | Jobs **batch** (pasta `jobs/prospeccao/`), não no request do Flask. Dados crus em Parquet ou `raw_*`; limpos em `staging_*`; camada de aplicação em tabelas finais consumidas pela dashboard e pela Nik. |
 
-**Dados de entrada (feature engineering):**
-- `nivel_preenchimento` atual (do sensor)
-- `velocidade_enchimento` (derivada da predição — Módulo 1)
-- `km_da_sede` (calculado via coordenadas)
-- `dias_sem_coleta` (diff entre agora e `ultima_coleta`)
-- `lucro_medio_por_kg` (média histórica do parceiro, da tabela `coletas`)
-- `volume_medio_historico` (média de `volume_estimado` das coletas anteriores desse coletor)
-- `coletores_proximos_acima_60` (contagem de outros coletores num raio de 5km com nível > 60%)
-- `preco_combustivel_atual` (configurável, env var ou campo no banco)
+### A.2 Modelagem: relevância por grupo
 
-**Modelo:**
-- **XGBoost** ou **LightGBM** — gradient boosting, padrão da indústria para tabular data
-- Target de treino: score derivado do histórico de coletas reais: `lucro_total / (km_percorrido + 1)` normalizado 0-100. Coletas com alto retorno/km = score alto, coletas com baixo retorno/km = score baixo.
-- Dataset de treino: as 50+ coletas reais da TRONIK já importadas no banco via CSV, com volume, km, lucro/kg, parceiro. É pouco mas suficiente para um modelo baseline + cross-validation.
+- Cada `qid` agrupa candidatos comparáveis (ex.: mesma RA, mesmo bairro, mesma célula H3 ou mesma zona logística).
+- O modelo aprende **quem deve aparecer acima** dentro daquele contexto.
+- **Labels** em camadas automáticas, sem envolver operação como fonte de verdade do alvo:
+  - **Camada forte (interna):** parceiro ativo, coletor instalado, coleta realizada, volume coletado, recorrência, contrato.
+  - **Camada complementar (pública):** bases que indiquem **geração ou obrigações ligadas a REE** (ex.: grandes geradores com PGRS quando o conjunto de dados permitir cruzar com perfil eletrônico, logística reversa de eletroeletrônicos onde houver dado estruturado), equipamentos públicos, saúde/educação como **proxies de fluxo e de TI/labs**, comércio estruturado com forte componente de eletrônicos, polos de circulação.
+- **Label ordinal** sugerido (ex.: 0–3), onde 3 = evidência objetiva mais forte de *fit*. Evolui o pipeline: com mais histórico real, reduz-se peso relativo dos sinais públicos e aumenta-se o dos resultados internos.
 
-**Onde aparece na dashboard:**
-- Card do coletor: badge circular com o score (97, 82, 45...) em cor semântica
-- Monitoramento ganha toggle "Ordenar por: Nível | TRONIK Score"
-- Mapa: tamanho do pin proporcional ao score, não ao nível
-- Relatórios: "Top 5 coletores por eficiência" baseado no score
+### A.3 Camadas de dados
 
-**Implementação:**
-- Novo service: `banco_dados/services/ml_score.py`
-- Job no APScheduler: roda 1x/dia, recalcula score para todos os coletores
-- Endpoint: `GET /api/preview/coletores/ranking` retorna lista ordenada por score
-- Modelo serializado em `banco_dados/ml_models/score_model.pkl` (joblib)
+1. **Base CNPJ (Receita Federal — dados abertos):** universo inicial de empresas/estabelecimentos no DF (CNAE, situação cadastral, endereço, matriz/filial, porte, natureza jurídica, Simples, sócios conforme layout oficial ZIP por blocos).
+2. **Camada geográfica pública (GDF):** Portal de Dados Abertos do DF (CKAN), Geoportal/IDE-DF (camadas territoriais, RA, infraestrutura). *Spatial join* para RA, zona, distâncias e contexto territorial.
+3. **OpenStreetMap (ex.: Geofabrik):** POIs e categorias (shopping, mercado, escola, hospital, terminal, etc.) para features de entorno e polos de fluxo onde dados oficiais são esparsos.
 
-**Dependências:** `scikit-learn`, `xgboost` no `requirements.txt`
+### A.4 Esquema lógico de dados (tabelas)
 
-**Esforço:** 1 semana (depende do Módulo 1 para feature de velocidade)
+| Tabela | Papel |
+|--------|--------|
+| `empresa_candidata` | CNPJ (texto), razão social, nome fantasia, CNAE(s), porte, natureza jurídica, situação cadastral, endereço normalizado, origem. |
+| `local_candidato` | Lat/lon, RA, bairro, CEP, qualidade da geocodificação, categoria operacional, vínculo com empresa quando houver. |
+| `fonte_publica_registro` | Cada registro bruto com hash e data de ingestão (rastreabilidade). |
+| `feature_snapshot_prospeccao` | Features calculadas por versão de pipeline/modelo. |
+| `score_prospeccao` | Predição, ranking, versão do modelo, top features explicativas (SHAP ou contribuição), data. |
+| `modelo_prospeccao` | Artefato, métricas, hiperparâmetros, *feature schema*. |
 
----
+### A.5 Separação de bancos lógicos (mesmo Postgres no MVP)
 
-### Módulo 3 — Narrativa de impacto por IA generativa (NLP)
+| Esquema / prefixo | Uso |
+|-------------------|-----|
+| **raw** | Ingestão bruta, volumes grandes. |
+| **ml** | Features, artefatos, snapshots, scores intermediários. |
+| **app** | O que a dashboard e a API leem de forma estável. |
 
-**O que resolve:** o painel do parceiro mostra números (512 kg coletados, 738 kgCO₂ evitados). Números frios não emocionam. O parceiro precisa de narrativa para usar em relatório ESG, post em rede social, argumento de renovação de contrato.
+A Nik deve ler **app** e, se necessário, **views** controladas de `ml` — não o raw completo (latência e qualidade de resposta).
 
-**Como funciona:**
-- Backend agrega dados do parceiro no período (kg total, número de coletas, composição estimada, comparativo com mês anterior, equivalências ambientais)
-- Monta um prompt estruturado com esses dados
-- Chama um modelo open-source via **Ollama** (DeepSeek, GLM-4, Qwen 2.5, ou GPT4All — todos gratuitos, sem chave de API paga)
-- Recebe texto narrativo personalizado
-- Armazena no banco para cache (não chama o modelo toda vez)
-- Renderiza no painel do parceiro com tipografia editorial
+### A.6 Jobs sugeridos (`jobs/prospeccao/`)
 
-**Infraestrutura de IA — Ollama:**
-- Ollama disponibiliza modelos open-source com endpoint HTTP compatível com OpenAI (`/api/chat`, `/api/generate`)
-- Modelos candidatos (todos gratuitos, sem licença restritiva):
-  - **DeepSeek-R1** ou **DeepSeek-V3** — melhor qualidade de texto em português entre os open-source, raciocínio forte
-  - **GLM-4** (9B) — bom em português, leve o suficiente pra CPU
-  - **Qwen 2.5** (7B/14B) — alternativa multilíngue sólida
-  - **Llama 3.1** (8B) — fallback universal, ampla documentação
-- Ollama roda local (notebook da equipe / servidor da faculdade) ou em cloud gratuita
-- SDK Python: `ollama` (pip install ollama) ou chamada HTTP direta com `requests` (sem dependência extra)
+| Script | Função |
+|--------|--------|
+| `ingest_cnpj.py` | Download/normalização dos ZIPs Receita, filtro UF=DF, staging. |
+| `ingest_osm.py` | Extração regional OSM / Geofabrik, preparação para consultas espaciais. |
+| `ingest_gdf.py` | Portal DF, Geoportal, camadas por API/CSV/shape onde aplicável. |
+| `normalize_entities.py` | Unificação empresa/local, deduplicação, regras de elegibilidade. |
+| `geocode_candidates.py` | Fila + cache; saída com score de qualidade do endereço. |
+| `build_features.py` | Montagem do `feature_snapshot` + `qid` + label ordinal. |
+| `train_xgboost.py` | XGBRanker, validação, persistência em `modelo_prospeccao`. |
+| `score_candidates.py` | Batch scoring, gravação em `score_prospeccao`. |
+| `publish_scores.py` | Promoção para camada `app`, versionamento visível à API. |
 
-**Exemplo de output:**
-> "Em abril, o Taguatinga Shopping recolheu 512 kg de resíduos eletrônicos — crescimento de 23% em relação a março. Isso equivale a evitar a emissão de 738 kg de CO₂, o mesmo que retirar 3 carros de circulação por um mês inteiro. O volume sugere adesão crescente dos frequentadores ao ponto de coleta, especialmente em dias úteis."
+Harvester inicial (CKAN DF, downloads opcionais Receita/Geofabrik/INEP/CNES/PNCP): pasta `jobs/prospeccao/` e `jobs/prospeccao/README.md`.
 
-**Onde aparece na dashboard:**
-- Painel do Parceiro: bloco editorial abaixo do hero de impacto
-- Relatórios: seção "Resumo executivo gerado por IA" no topo
-- Exportação PDF: o texto narrativo é incluído automaticamente
+### A.7 Features iniciais (objetivas)
 
-**Implementação:**
-- Novo service: `banco_dados/services/ml_narrativa.py`
-- Prompt template em `banco_dados/prompts/narrativa_parceiro.txt`
-- Job no APScheduler: roda 1x/mês por parceiro (ou sob demanda pelo operador)
-- Endpoint: `GET /api/preview/parceiro/<id>/narrativa`
-- Cache: tabela `NarrativaGerada` (parceiro_id, periodo, texto, gerado_em, modelo_usado)
-- Config via env vars: `OLLAMA_HOST` (default `http://localhost:11434`), `OLLAMA_MODEL` (default `deepseek-r1:8b`)
+**De CNPJ:** CNAE principal e secundários, idade da empresa, porte, natureza jurídica, matriz/filial, situação cadastral, bairro, CEP, presença de e-mail/telefone, contagem de estabelecimentos do mesmo CNPJ básico, filiais no DF, densidade de empresas semelhantes no entorno.
 
-**Dependências:** `ollama` ou apenas `requests` no `requirements.txt`. **Custo: zero.** Sem chave de API, sem plano pago, sem rate limit externo.
+**De localização:** distância à sede/base Tronik, distância a coletores existentes, quantidade de parceiros próximos, candidatos próximos, distância a vias principais, terminais, escolas, hospitais, órgãos, centros comerciais, proxies de alta circulação.
 
-**Esforço:** 2-3 dias (é a mais rápida de implementar)
+**De categoria / negócio REE:** compatibilidade de CNAE e de perfil de estabelecimento com **descarte de e-waste** (varejo de TI, assistência, grandes varejistas com linha branca, shoppings com pilha de eletrônicos, instituições com laboratório, etc.), intensidade de circulação como proxy de volume potencial de REE.
 
----
+**Internas (quando existirem):** histórico de coleta **de eletrônicos** por região, volume médio de REE, frequência, sucesso/inadimplência contratual.
 
-## Dados externos — cruzamento ambiental
+### A.8 Métricas de treino (foco no topo da fila)
 
-Para enriquecer os relatórios e o painel do parceiro, a equipe pode cruzar dados internos com fontes externas:
+- **NDCG@20**, **NDCG@50**, precisão nos primeiros 50, sobreposição com clientes/locais historicamente bem-sucedidos.
+- Pergunta-guia: *entre milhares de candidatos no DF, quais 50 a operação deveria ver primeiro hoje?* Erros no meio da lista são menos críticos que erro na ordenação do topo.
 
-**CEMPRE (Compromisso Empresarial para Reciclagem):**
-- Fator de conversão: 1 kg e-waste ≈ 1.44 kgCO₂eq evitados (fonte EPA WARM)
-- Preço médio de material reciclado por categoria (cobre, alumínio, plástico PCB)
-- Atualizado anualmente, pode ser hardcoded como constante no MVP
+### A.9 Dashboard — tela Prospecção
 
-**IBGE / SNIS (Sistema Nacional de Informações sobre Saneamento):**
-- Dados de geração de resíduo per capita por região do DF
-- Permite calcular "% do e-waste da região que a TRONIK está capturando"
-- Narrativa: "Vocês coletaram 3% de todo o e-waste gerado em Taguatinga neste mês"
+- Formato **tabela**, não mapa central.
+- Colunas sugeridas: score, prioridade, nome fantasia, razão social, CNAE, categoria resumida, RA/bairro, endereço, telefone/e-mail quando houver, evidências, distância logística, origem dos dados, data de atualização, ação (criar lead/tarefa/contato).
+- Filtros: RA, categoria, CNAE, score mínimo, com contato disponível, sem lead criado, perto de rota existente, porte, atualização recente.
 
-**Open Weather / INMET:**
-- Correlação clima × volume de descarte (hipótese: dias de chuva = menos descarte)
-- Feature adicional pro modelo de predição de enchimento
-- API gratuita, fácil de integrar
+### A.10 Nik — tools internas (não texto solto)
 
----
+| Tool (conceito) | Comportamento |
+|-----------------|---------------|
+| `buscar_candidatos_prospeccao(filtros)` | Ranking paginado, mesma versão de modelo que a dashboard. |
+| `explicar_candidato(id)` | Evidências + contribuições de features (pré-calculadas com o score quando possível). |
+| `comparar_candidatos(ids)` | Lado a lado de features-chave e scores. |
+| `gerar_roteiro_contato(id)` | Texto operacional a partir de dados estruturados + políticas de tom de voz. |
+| `criar_tarefa_comercial(id)` | Integração CRM/tarefas. |
 
-## Mapeamento para o edital Porto Digital
+Respostas **auditáveis** (ex.: “topo porque CNAE compatível, alta densidade comercial, contato público, perto de rota atual, similar a parceiros com coleta recorrente”).
 
-### Seção 1 — Definição do Problema e Personas "IA-Augmented"
+### A.11 Implementação no repositório
 
-**Onde a IA gera valor:**
-- **Predição** → Módulo 1 (quando o coletor vai encher)
-- **Automação** → Módulo 2 (priorização automática por TRONIK Score)
-- **Geração de conteúdo** → Módulo 3 (narrativa de impacto ESG)
+- **Serviço:** `banco_dados/services/prospeccao_xgb_service.py` — carrega artefato XGBoost, valida *schema* de features, batch scoring, escrita em `score_prospeccao`.
+- **Orquestrador:** job em `jobs/prospeccao/` (ex.: `run_pipeline.py`) ou módulo novo com outro nome — **não** reintroduzir o antigo `banco_dados/services/ml_prospeccao.py` (removido).
+- **API:** `GET /api/ml/prospeccao` (ou prefixo acordado) — ranking paginado, filtros, explicações; mesma fonte que a Nik.
 
-**Personas IA-augmented:**
-- **Maiara (operadora TRONIK):** sem IA, verifica manualmente 40 coletores. Com IA, recebe previsão de enchimento e ranking automático. Decide olhando o score, não o nível.
-- **Parceiro (ex: gerente do Taguatinga Shopping):** sem IA, não sabe o impacto do coletor. Com IA, recebe relatório narrativo mensal gerado automaticamente.
-- **Analista ambiental (futuro):** sem IA, compila dados manualmente. Com IA, dashboard cruza dados TRONIK com dados CEMPRE/IBGE e gera análise comparativa.
+### A.12 MVP técnico (recorte)
 
-**Cenários de falha / edge cases:**
-- Sensor sem dados suficientes (< 3 dias de leituras): modelo retorna "dados insuficientes", dashboard mostra "—" em vez de previsão errada
-- Coleta realizada mas sensor não zerou (hardware delay): pipeline detecta delta negativo anômalo, marca como "coleta provável" e reseta baseline do modelo
-- API de IA generativa indisponível (Ollama offline, timeout): sistema usa cache do último texto gerado + flag "gerado em DD/MM" para transparência. Se Ollama nunca rodou, mostra estado vazio com botão "Gerar relatório"
-- Score absurdo (coletor novo sem histórico): modelo usa prior conservador (score = 50) até acumular 5+ coletas
-
-### Seção 2 — Backlog AI-First
-
-**Épico: Inteligência Preditiva**
-- US01: Como operadora, quero ver a previsão de quando cada coletor vai encher, para planejar coletas com antecedência
-- US02: Como operadora, quero que os coletores sejam ranqueados automaticamente por prioridade, para otimizar minhas rotas
-- US03: Como parceiro, quero receber um resumo narrativo do meu impacto ambiental, para usar em relatórios ESG
-
-**Critérios de aceite de IA:**
-- US01: previsão com erro médio < 24h (MAPE < 15%) em coletores com > 14 dias de dados
-- US02: score correlaciona com lucro/km histórico (Spearman ρ > 0.6) em cross-validation
-- US03: texto gerado em < 30s via Ollama local, factualmente correto (validação pós-geração confirma que números no texto batem com input), tom profissional em PT-BR
-
-### Seção 3 — Banco de dados e API
-
-**Entidades novas relacionadas a IA:**
-- `LeituraSensor` (sensor_id, nivel, bateria, timestamp) — série temporal para predição
-- `PredicaoEnchimento` (coletor_id, predicted_full_at, confianca, calculado_em)
-- `TronikScore` (coletor_id, score, features_json, calculado_em)
-- `NarrativaGerada` (parceiro_id, periodo_inicio, periodo_fim, texto, modelo, gerado_em)
-
-**Endpoints ML:**
-- `GET /api/ml/predicao/<coletor_id>` → previsão de enchimento + série + projeção
-- `GET /api/ml/ranking` → coletores ordenados por TRONIK Score
-- `GET /api/ml/narrativa/<parceiro_id>` → texto narrativo do período
-- `POST /api/ml/retreinar` (admin) → força recálculo de todos os modelos
-
-**Fluxo completo:**
-```
-ESP32 → POST /api/sensor/telemetria (a cada 15min)
-  → Persiste em LeituraSensor
-  → WebSocket atualiza dashboard em tempo real
-
-APScheduler (2x/dia):
-  → Lê séries de LeituraSensor
-  → Roda Prophet/ARIMA por coletor → salva PredicaoEnchimento
-  → Calcula features → roda XGBoost → salva TronikScore
-
-APScheduler (1x/mês por parceiro):
-  → Agrega dados por parceiro
-  → Chama Ollama (DeepSeek/GLM/Qwen) com prompt template
-  → Salva NarrativaGerada
-
-Dashboard Preview:
-  → GET endpoints ML
-  → Renderiza previsão, score, narrativa nas views v2
-```
-
-### Seção 4 — Arquitetura e Stack
-
-**Stack de IA (100% gratuita):**
-- `scikit-learn` (pipeline de features, métricas) — gratuito, open-source
-- `Prophet` ou `statsmodels` (séries temporais) — gratuito, open-source
-- `XGBoost` (TRONIK Score) — gratuito, open-source
-- **Ollama + modelos open-source** (narrativa NLP) — gratuito, sem chave de API:
-  - DeepSeek-R1/V3 (preferencial, melhor português)
-  - GLM-4 9B (alternativa leve)
-  - Qwen 2.5 7B (fallback multilíngue)
-- `joblib` (serialização de modelos) — gratuito
-
-**Nota sobre custos:** toda a stack de IA é gratuita. Não há dependência de API paga. O Ollama roda local ou em cloud sem custo. Modelos open-source com licenças permissivas (Apache 2.0, MIT).
-
-**Estrutura de pastas ML:**
-```
-banco_dados/
-├── services/
-│   ├── ml_predicao.py        # Prophet/ARIMA por coletor
-│   ├── ml_score.py           # XGBoost feature engineering + treino + inferência
-│   └── ml_narrativa.py       # Prompt template + chamada Ollama + cache
-├── ml_models/                # modelos serializados (.pkl)
-│   ├── predicao_coletor_1.pkl
-│   ├── predicao_coletor_2.pkl
-│   └── score_model.pkl
-└── prompts/
-    └── narrativa_parceiro.txt
-```
-
-**Tratamento de erros:**
-- Ollama offline ou timeout (>30s): retry com backoff exponencial (3 tentativas), fallback para cache da última narrativa gerada. Se nunca gerou, UI mostra estado vazio com explicação
-- Modelo Ollama gera texto com números errados: validação pós-geração compara valores no texto com dados do banco, rejeita e retenta se divergir
-- Modelo com dados insuficientes para predição: retorna `{"status": "insuficiente", "minimo_dias": 14}`, UI mostra estado vazio
-- XGBoost com dataset pequeno (<30 amostras): usa fallback para heurística simples (regra de 3 com nível e km)
-- Job do APScheduler falha: log + notificação no sistema de notificações existente, não impede dashboard de funcionar
-
-### Seção 5 — Prompt Engineering
-
-**Modelo utilizado:** Ollama com DeepSeek-R1 8B (open-source, gratuito, sem API key)
-**Infraestrutura:** Ollama rodando local ou em servidor da equipe, endpoint HTTP `http://localhost:11434/api/chat`
-
-**Prompt da narrativa (exemplo documentado):**
-
-```
-Objetivo: gerar resumo executivo mensal de impacto ambiental para parceiro
-
-Contexto informado:
-- Nome do parceiro: {parceiro_nome}
-- Período: {periodo_inicio} a {periodo_fim}
-- Total coletado: {total_kg} kg
-- Número de coletas: {num_coletas}
-- CO₂ evitado: {co2_evitado} kg (fator 1.44 kgCO₂/kg e-waste, fonte EPA WARM)
-- Comparativo mês anterior: {delta_percentual}%
-- Top material: {top_material}
-
-Saída esperada:
-- 3 a 5 frases em português brasileiro
-- Tom profissional mas acessível
-- Incluir pelo menos uma equivalência concreta (árvores, carros, energia)
-- Todos os números devem corresponder exatamente aos dados fornecidos
-- Não inventar dados que não foram fornecidos
-
-Problemas encontrados:
-- Sem guardrail, o modelo inventa números → resolvido com validação pós-geração (regex extrai números do texto, compara com input)
-- Textos genéricos demais → resolvido adicionando nome do parceiro e comparativo temporal no prompt
-- Inconsistência de tom entre modelos → resolvido com few-shot examples no prompt (2 exemplos de output ideal antes da instrução)
-- DeepSeek responde em inglês se prompt não for explícito → resolvido com instrução "Responda exclusivamente em português brasileiro" no system prompt
-
-Ajustes por modelo:
-- DeepSeek-R1: melhor qualidade, mas precisa de system prompt explícito em PT-BR
-- GLM-4: bom em PT-BR nativo, texto mais curto, precisa pedir elaboração
-- Qwen 2.5: multilíngue sólido, às vezes mistura formalidade, ajustar tom no prompt
-```
-
-**Chamada via SDK Python:**
-```python
-import ollama
-
-response = ollama.chat(
-    model='deepseek-r1:8b',
-    messages=[
-        {'role': 'system', 'content': system_prompt},
-        {'role': 'user', 'content': prompt_com_dados}
-    ]
-)
-texto = response['message']['content']
-```
-
-**Alternativa sem SDK (apenas requests):**
-```python
-import requests
-
-response = requests.post(
-    f"{OLLAMA_HOST}/api/chat",
-    json={
-        "model": OLLAMA_MODEL,
-        "messages": [
-            {"role": "system", "content": system_prompt},
-            {"role": "user", "content": prompt_com_dados}
-        ],
-        "stream": False
-    }
-)
-texto = response.json()["message"]["content"]
-```
+1. Ingestão: **CNPJ DF** + **OSM** + **GDF/Geoportal** (+ INEP/CNES conforme capacidade da equipe na mesma sprint).
+2. Normalização + geocodificação com elegibilidade pré-ranking: ativos, endereço no DF, CNAEs plausíveis, CNPJ válido, sem duplicidade óbvia, geocodificação mínima aceitável.
+3. Tabela única de candidatos enriquecida; `feature_snapshot`; **XGBRanker** com labels objetivos; **scoring diário** (ou frequência acordada).
+4. Tela de ranking na dashboard + tools da Nik apontando para a mesma tabela/versionamento.
 
 ---
 
-## Cronograma de implementação
+## Parte B — Fontes de dados (lista operacional)
 
-**Semana 22-27 abril (entrega parcial Porto Digital):**
-- Documentar plano ML no formato do edital (seções 1-5)
-- Criar modelos de dados das 4 entidades novas
-- Criar esqueleto dos 3 services (ml_predicao, ml_score, ml_narrativa) com interface definida
+Legenda de extração: **ZIP/CSV** = download direto; **API** = endpoint estável; **WFS/REST** = serviços geográficos; **Investigar** = depende de termos, formato ou crawl incremental.
 
-**Semana 28 abril - 4 maio:**
-- Implementar Módulo 3 primeiro (narrativa NLP) — é o mais rápido e mais demonstrável
-- Gerar dados simulados de telemetria para desenvolvimento do Módulo 1
+### B.1 Fontes prioritárias (primeira onda de ingestão)
 
-**Semana 5-11 maio:**
-- Implementar Módulo 1 (predição de enchimento) com dados simulados
-- Integrar na dashboard preview (projeção visual no card do coletor)
+| Prioridade | Fonte | O que extrair | Como entra no modelo | Extração |
+|:-----------:|--------|----------------|----------------------|----------|
+| 1 | **Receita Federal — Dados Abertos CNPJ** | Empresas, estabelecimentos, CNAEs, natureza jurídica, porte, situação cadastral, endereço, matriz/filial, abertura, Simples, sócios (layouts Empresas*, Estabelecimentos*, Socios*, Simples, tabelas de domínio) | Base-mãe de candidatos; filtro UF=DF, ativos, CNAE/endereço | **ZIP** por blocos no site da Receita |
+| 2 | **IBGE — CNEFE 2022** | Endereços georreferenciados, espécie de unidade, atributos de endereçamento | Validação/refino de geocode, densidade por área | **Download** IBGE (microdados/agregados conforme produto) |
+| 3 | **OpenStreetMap / Geofabrik** | POIs, vias, edificações, comércio, educação, saúde, transporte | Features de entorno, distâncias a polos de fluxo | **PBF** regional + pipeline (osmium/pyosmium, etc.) |
+| 4 | **INEP — Censo Escolar / Catálogo de Escolas** | Escolas públicas/privadas, funcionamento, modalidade, localização | Proxy de fluxo e de unidades com laboratório/TI (REE), proximidade | **CSV/API** INEP |
+| 5 | **DATASUS / CNES** | Estabelecimentos de saúde, tipo, gestão, endereço, competência | Candidatos/features de proximidade a polos de saúde | **Download** por competência (DATASUS) |
+| 6 | **Geoportal / IDE-DF** | RAs, limites administrativos, lotes, setores, infraestrutura, equipamentos urbanos | *Spatial join*, RA, zona, distância logística | **WFS/ArcGIS REST** (por camada) |
+| 7 | **IPEDF / PDAD / Atlas do DF** | Renda, população, domicílios, trabalho, indicadores por **RA** (PDAD Ampliada 2024 — 35 RAs) | Contexto socioeconômico por região | **XLSX/CSV/PDF** conforme publicação |
+| 8 | **Portal de Dados Abertos do DF (CKAN)** | Catálogo multi-tema (saúde, mobilidade, meio ambiente, transparência, SLU, DETRAN, DER, SEMOB, JUCIS-DF, etc.) | Hub de ingestão incremental; novos conjuntos | **API CKAN** + download por recurso |
 
-**Semana 12-18 maio:**
-- Implementar Módulo 2 (TRONIK Score) com dados reais de coleta
-- Integrar ranking na tela de Monitoramento
+### B.2 Sinais comerciais e institucionais
 
-**Semana 19 maio - 18 junho:**
-- Validar com dados reais do sensor (hardware em campo)
-- Ajustar modelos, preparar demonstração final
-- Documentar resultados para bancas
+| Fonte | O que extrair | Uso | Extração |
+|--------|---------------|-----|----------|
+| **JUCIS-DF** | Estatísticas de empresas ativas/constituídas/extintas por natureza | Dinamismo por NJ (não substitui Receita) | **CSV** no portal DF |
+| **Transparência DF** | Licitações, contratos, convênios, despesas | CNPJ/entidades fornecedoras do GDF | **CSV/HTML** (portal) |
+| **Compras.gov.br / PNCP** | Contratações públicas, objeto, valores, UF, CNPJ | Fornecedores ativos, grandes contratos no DF | **API/JSON/CSV** |
+| **Cadastur (Min. Turismo)** | PJ/PF cadastrados no setor turístico | Hotéis, agências, eventos, fluxo | **Consulta/Base** (verificar formato atual) |
+
+### B.3 Mobilidade, fluxo e território
+
+| Fonte | O que extrair | Uso | Extração |
+|--------|---------------|-----|----------|
+| **DETRAN-DF** (dados abertos) | Pedestres, fiscalização, acidentes, indicadores | Proxies de circulação | **CSV** portal DF |
+| **DER-DF** | Malha rodoviária, obras de arte, condições | Distância a vias principais, logística | **Geodados/portal** |
+| **SEMOB / DF no Ponto** | Linhas, pontos, terminais | Fluxo (prioridade após OSM/Geoportal) | **Investigar** (API vs export) |
+| **Metrô-DF** | Estações, linhas | Distância a polos de transporte | **Dados abertos / site** |
+
+### B.4 REE, PGRS e aderência ao negócio (e-waste)
+
+| Fonte | O que extrair | Uso | Extração |
+|--------|---------------|-----|----------|
+| **SLU-DF — Grandes geradores** | Normas, PGRS, prestadores, contexto regulatório | *Fit* quando o dado público permitir relacionar a **fluxo de resíduos que inclua REE** ou obrigações de destinação | **Web + PDF**; confirmar lista tabular pública |
+| **SLU — PGRS Digital** | Gestão de resíduos por estabelecimento | Integração futura / labels se houver acesso e granularidade útil para REE | **Sistema** (não assumir open data completo) |
+| **SLU via CKAN DF** | Conjuntos publicados pela organização SLU | Datasets reutilizáveis alinhados a REE ou a cadastro de geradores | **CKAN** organização=SLU |
+
+### B.5 Atalho para padronização
+
+| Fonte | Uso |
+|--------|-----|
+| **Base dos Dados** | Acelera consumo de CNES, Censo Escolar, compras, etc., em SQL/BigQuery; manter **fonte oficial** como referência de atualização e auditoria. |
+
+### B.6 Ordem prática sugerida
+
+1. **Receita (CNPJ) + CNEFE + OSM + Geoportal/RA + INEP + CNES** — base grande com empresa, categoria, endereço, coordenada, entorno e fluxo institucional.  
+2. Depois: **CKAN DF**, **JUCIS**, **Transparência DF**, **PNCP**, **DETRAN/DER**, **SLU** — enriquecimento, atividade pública, logística e sinais de contexto **REE** onde aplicável.
+
+### B.7 Linha de chegada analítica
+
+Uma **visão única** para dashboard e Nik (camada `app`):
+
+`cnpj`, `nome`, `categoria`, `cnae`, `endereco`, `lat`, `lon`, `ra`, `origens`, `features` (ou referência a snapshot), `score_xgb`, `ranking`, `motivos_modelo`, `data_atualizacao`, `versao_modelo`.
+
+---
+
+## Parte C — Frentes ML complementares (produto e edital)
+
+Resumo do que já estava no plano original; útil para cronograma e demonstração multidimensional de IA.
+
+### C.1 Módulo 1 — Predição de enchimento (séries temporais)
+
+- **Dados:** `nivel_preenchimento`, sazonalidade, histórico de `coletas`.  
+- **Modelo:** Prophet ou ARIMA por coletor.  
+- **Saída:** `predicted_full_datetime` + intervalo.  
+- **Onde:** card do coletor, alertas.  
+- **Service sugerido:** `banco_dados/services/ml_predicao.py`.
+
+### C.2 Módulo 2 — TRONIK Score (priorização de **coletores** operacionais)
+
+- Distinto do ranking de **prospecção**: aqui o alvo continua ligado a eficiência de rota/coleta (lucro/km, distância, nível, vizinhança).  
+- **Modelo:** XGBoost ou LightGBM em tabular.  
+- **Service sugerido:** `banco_dados/services/ml_score.py`.
+
+### C.3 Módulo 3 — Narrativa de impacto (NLP / Ollama)
+
+- Agregação por parceiro → prompt estruturado → modelo open-source via Ollama → cache no banco.  
+- **Service sugerido:** `banco_dados/services/ml_narrativa.py`.
+
+### C.4 Dados externos para narrativa e relatórios
+
+- CEMPRE / fatores CO₂; IBGE/SNIS onde couber; clima (INMET/Open-Meteo) como feature opcional para enchimento.
+
+---
+
+## Parte D — Mapeamento edital (resumo)
+
+| Tema edital | Onde está no plano |
+|-------------|-------------------|
+| Problema e personas | Operadora (fila de prospecção + coletores); parceiro (narrativa); analista (cruzamentos). |
+| Automação / predição | Parte A (ranking prospectivo); Parte C.1 e C.2. |
+| Geração de conteúdo | Parte C.3. |
+| Banco e API | Tabelas Parte A; endpoints `/api/ml/prospeccao`, predição, ranking coletores, narrativa. |
+| LGPD | Finalidade definida; minimização; explicabilidade; evitar uso indiscriminado de dado pessoal em scoring sem base legal documentada. |
+
+---
+
+## Parte E — Cronograma sugerido (ajustar às datas do semestre)
+
+| Fase | Entrega |
+|------|---------|
+| 1 | Esquema `raw` / `ml` / `app` + migrações das tabelas da Parte A.4 |
+| 2 | `ingest_cnpj` + `normalize` + elegibilidade DF |
+| 3 | Geocodificação com fila + cache + `local_candidato` |
+| 4 | `ingest_osm` + `ingest_gdf` + primeiras features de entorno |
+| 5 | `build_features` + labels ordinais + `train_xgboost` (XGBRanker) |
+| 6 | `score_candidates` + `publish_scores` + `prospeccao_xgb_service` |
+| 7 | Rota API + tela tabela dashboard + tools Nik |
+| 8 | Métricas NDCG@k em validação + monitoramento de *drift* por versão |
+
+---
+
+## Dependências Python (prospecção)
+
+- `xgboost` (com suporte a treino *ranking* na versão utilizada)  
+- `scikit-learn` (métricas, *preprocessing* onde necessário)  
+- `pandas`, `pyarrow` (Parquet), `geopandas` / `shapely` (joins espaciais)  
+- Biblioteca de geocodificação escolhida (self-hosted ou provedor) — **não** depender só do Nominatim público em lote.
+
+---
+
+*Documento único de referência para ML Tronik: prospecção XGBRanker como núcleo operacional; demais módulos como complemento ao produto e ao edital.*
