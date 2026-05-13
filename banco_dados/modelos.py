@@ -16,7 +16,7 @@ Modelos implementados:
 - Coleta: Histórico de coletas realizadas
 """
 
-from sqlalchemy import Column, Integer, String, Float, DateTime, ForeignKey, Boolean, Index
+from sqlalchemy import Column, Integer, String, Float, DateTime, ForeignKey, Boolean, Index, Text
 from sqlalchemy.orm import relationship, declarative_base
 from datetime import datetime
 from werkzeug.security import generate_password_hash, check_password_hash
@@ -952,4 +952,264 @@ class NikRelatorioGerado(Base):
             'modelo_usado': self.modelo_usado,
             'fonte': self.fonte,
             'criado_em': self.criado_em.isoformat() if self.criado_em else None,
+        }
+
+
+# ----------------------------------------------------------
+# TABELAS: Prospecção REE com Learning-to-Rank
+# ----------------------------------------------------------
+class EmpresaCandidata(Base):
+    """Empresa elegível para prospecção de REE/e-waste.
+
+    CNPJ fica como texto para compatibilidade com o formato alfanumérico previsto.
+    """
+    __tablename__ = "empresa_candidata"
+    __table_args__ = (
+        Index('idx_empresa_candidata_cnpj', 'cnpj'),
+        Index('idx_empresa_candidata_cnae', 'cnae_principal'),
+        Index('idx_empresa_candidata_situacao', 'situacao_cadastral'),
+        Index('idx_empresa_candidata_origem', 'origem'),
+    )
+
+    id = Column(Integer, primary_key=True, autoincrement=True)
+    cnpj = Column(String(32), unique=True, nullable=False)
+    razao_social = Column(String(255), nullable=False)
+    nome_fantasia = Column(String(255))
+    cnae_principal = Column(String(16), index=True)
+    cnae_secundarios_json = Column(Text)
+    porte = Column(String(80))
+    natureza_juridica = Column(String(120))
+    situacao_cadastral = Column(String(80), default='ATIVA', index=True)
+    data_abertura = Column(DateTime)
+    endereco_normalizado = Column(String(500))
+    bairro = Column(String(120), index=True)
+    cep = Column(String(20), index=True)
+    municipio = Column(String(120), default='Brasília')
+    uf = Column(String(2), default='DF', index=True)
+    telefone = Column(String(80))
+    email = Column(String(180))
+    origem = Column(String(80), default='manual')
+    criado_em = Column(DateTime, default=utc_now_naive)
+    atualizado_em = Column(DateTime, default=utc_now_naive, onupdate=utc_now_naive)
+
+    locais = relationship("LocalCandidato", back_populates="empresa")
+    feature_snapshots = relationship("FeatureSnapshotProspeccao", back_populates="empresa")
+
+    def to_dict(self):
+        import json
+        return {
+            'id': self.id,
+            'cnpj': self.cnpj,
+            'razao_social': self.razao_social,
+            'nome_fantasia': self.nome_fantasia,
+            'cnae_principal': self.cnae_principal,
+            'cnae_secundarios': json.loads(self.cnae_secundarios_json) if self.cnae_secundarios_json else [],
+            'porte': self.porte,
+            'natureza_juridica': self.natureza_juridica,
+            'situacao_cadastral': self.situacao_cadastral,
+            'endereco_normalizado': self.endereco_normalizado,
+            'bairro': self.bairro,
+            'cep': self.cep,
+            'municipio': self.municipio,
+            'uf': self.uf,
+            'telefone': self.telefone,
+            'email': self.email,
+            'origem': self.origem,
+            'criado_em': self.criado_em.isoformat() if self.criado_em else None,
+            'atualizado_em': self.atualizado_em.isoformat() if self.atualizado_em else None,
+        }
+
+
+class LocalCandidato(Base):
+    """Local físico associado a uma empresa candidata."""
+    __tablename__ = "local_candidato"
+    __table_args__ = (
+        Index('idx_local_empresa', 'empresa_id'),
+        Index('idx_local_ra', 'ra'),
+        Index('idx_local_qid', 'qid'),
+        Index('idx_local_lat_lon', 'latitude', 'longitude'),
+    )
+
+    id = Column(Integer, primary_key=True, autoincrement=True)
+    empresa_id = Column(Integer, ForeignKey("empresa_candidata.id"), nullable=True, index=True)
+    endereco = Column(String(500))
+    latitude = Column(Float)
+    longitude = Column(Float)
+    ra = Column(String(120), index=True)
+    bairro = Column(String(120), index=True)
+    cep = Column(String(20), index=True)
+    geocode_quality = Column(Float, default=0.0)
+    categoria_operacional = Column(String(120))
+    qid = Column(String(160), index=True)
+    origem = Column(String(80), default='manual')
+    criado_em = Column(DateTime, default=utc_now_naive)
+    atualizado_em = Column(DateTime, default=utc_now_naive, onupdate=utc_now_naive)
+
+    empresa = relationship("EmpresaCandidata", back_populates="locais")
+    feature_snapshots = relationship("FeatureSnapshotProspeccao", back_populates="local")
+
+    def to_dict(self):
+        return {
+            'id': self.id,
+            'empresa_id': self.empresa_id,
+            'endereco': self.endereco,
+            'latitude': self.latitude,
+            'longitude': self.longitude,
+            'ra': self.ra,
+            'bairro': self.bairro,
+            'cep': self.cep,
+            'geocode_quality': self.geocode_quality,
+            'categoria_operacional': self.categoria_operacional,
+            'qid': self.qid,
+            'origem': self.origem,
+            'criado_em': self.criado_em.isoformat() if self.criado_em else None,
+            'atualizado_em': self.atualizado_em.isoformat() if self.atualizado_em else None,
+        }
+
+
+class FontePublicaRegistro(Base):
+    """Registro bruto rastreável vindo de fonte pública."""
+    __tablename__ = "fonte_publica_registro"
+    __table_args__ = (
+        Index('idx_fonte_publica_origem', 'origem'),
+        Index('idx_fonte_publica_hash', 'registro_hash'),
+    )
+
+    id = Column(Integer, primary_key=True, autoincrement=True)
+    origem = Column(String(80), nullable=False, index=True)
+    origem_id = Column(String(200))
+    registro_hash = Column(String(80), unique=True, nullable=False)
+    payload_json = Column(Text, nullable=False)
+    ingerido_em = Column(DateTime, default=utc_now_naive, index=True)
+
+    def to_dict(self):
+        import json
+        return {
+            'id': self.id,
+            'origem': self.origem,
+            'origem_id': self.origem_id,
+            'registro_hash': self.registro_hash,
+            'payload': json.loads(self.payload_json) if self.payload_json else {},
+            'ingerido_em': self.ingerido_em.isoformat() if self.ingerido_em else None,
+        }
+
+
+class FeatureSnapshotProspeccao(Base):
+    """Features versionadas para treino e scoring do ranker de prospecção."""
+    __tablename__ = "feature_snapshot_prospeccao"
+    __table_args__ = (
+        Index('idx_feature_snapshot_empresa', 'empresa_id'),
+        Index('idx_feature_snapshot_local', 'local_id'),
+        Index('idx_feature_snapshot_qid', 'qid'),
+        Index('idx_feature_snapshot_pipeline', 'pipeline_version'),
+    )
+
+    id = Column(Integer, primary_key=True, autoincrement=True)
+    empresa_id = Column(Integer, ForeignKey("empresa_candidata.id"), nullable=True, index=True)
+    local_id = Column(Integer, ForeignKey("local_candidato.id"), nullable=True, index=True)
+    pipeline_version = Column(String(80), nullable=False, index=True)
+    qid = Column(String(160), nullable=False, index=True)
+    label_ordinal = Column(Integer, default=0)
+    features_json = Column(Text, nullable=False)
+    feature_schema_json = Column(Text, nullable=False)
+    criado_em = Column(DateTime, default=utc_now_naive, index=True)
+
+    empresa = relationship("EmpresaCandidata", back_populates="feature_snapshots")
+    local = relationship("LocalCandidato", back_populates="feature_snapshots")
+    scores = relationship("ScoreProspeccao", back_populates="snapshot")
+
+    def to_dict(self):
+        import json
+        return {
+            'id': self.id,
+            'empresa_id': self.empresa_id,
+            'local_id': self.local_id,
+            'pipeline_version': self.pipeline_version,
+            'qid': self.qid,
+            'label_ordinal': self.label_ordinal,
+            'features': json.loads(self.features_json) if self.features_json else {},
+            'feature_schema': json.loads(self.feature_schema_json) if self.feature_schema_json else [],
+            'criado_em': self.criado_em.isoformat() if self.criado_em else None,
+        }
+
+
+class ModeloProspeccao(Base):
+    """Artefato versionado do ranker de prospecção."""
+    __tablename__ = "modelo_prospeccao"
+    __table_args__ = (
+        Index('idx_modelo_prospeccao_versao', 'versao'),
+        Index('idx_modelo_prospeccao_ativo', 'ativo'),
+    )
+
+    id = Column(Integer, primary_key=True, autoincrement=True)
+    versao = Column(String(120), unique=True, nullable=False)
+    algoritmo = Column(String(80), nullable=False)
+    objetivo = Column(String(80), default='rank:ndcg')
+    pipeline_version = Column(String(80), nullable=False)
+    feature_schema_json = Column(Text, nullable=False)
+    hiperparametros_json = Column(Text)
+    metricas_json = Column(Text)
+    artefato_path = Column(String(500))
+    ativo = Column(Boolean, default=False, index=True)
+    treinado_em = Column(DateTime, default=utc_now_naive, index=True)
+
+    scores = relationship("ScoreProspeccao", back_populates="modelo")
+
+    def to_dict(self):
+        import json
+        return {
+            'id': self.id,
+            'versao': self.versao,
+            'algoritmo': self.algoritmo,
+            'objetivo': self.objetivo,
+            'pipeline_version': self.pipeline_version,
+            'feature_schema': json.loads(self.feature_schema_json) if self.feature_schema_json else [],
+            'hiperparametros': json.loads(self.hiperparametros_json) if self.hiperparametros_json else {},
+            'metricas': json.loads(self.metricas_json) if self.metricas_json else {},
+            'artefato_path': self.artefato_path,
+            'ativo': self.ativo,
+            'treinado_em': self.treinado_em.isoformat() if self.treinado_em else None,
+        }
+
+
+class ScoreProspeccao(Base):
+    """Score e ranking publicados para consumo da dashboard e da Nik."""
+    __tablename__ = "score_prospeccao"
+    __table_args__ = (
+        Index('idx_score_prospeccao_modelo', 'modelo_id'),
+        Index('idx_score_prospeccao_qid_rank', 'qid', 'ranking_contexto'),
+        Index('idx_score_prospeccao_prioridade', 'prioridade'),
+    )
+
+    id = Column(Integer, primary_key=True, autoincrement=True)
+    snapshot_id = Column(Integer, ForeignKey("feature_snapshot_prospeccao.id"), nullable=False, index=True)
+    modelo_id = Column(Integer, ForeignKey("modelo_prospeccao.id"), nullable=False, index=True)
+    empresa_id = Column(Integer, ForeignKey("empresa_candidata.id"), nullable=True, index=True)
+    local_id = Column(Integer, ForeignKey("local_candidato.id"), nullable=True, index=True)
+    qid = Column(String(160), nullable=False, index=True)
+    score = Column(Float, nullable=False)
+    ranking_contexto = Column(Integer, nullable=False)
+    prioridade = Column(String(20), default='media', index=True)
+    motivos_json = Column(Text)
+    calculado_em = Column(DateTime, default=utc_now_naive, index=True)
+
+    snapshot = relationship("FeatureSnapshotProspeccao", back_populates="scores")
+    modelo = relationship("ModeloProspeccao", back_populates="scores")
+    empresa = relationship("EmpresaCandidata")
+    local = relationship("LocalCandidato")
+
+    def to_dict(self):
+        import json
+        return {
+            'id': self.id,
+            'snapshot_id': self.snapshot_id,
+            'modelo_id': self.modelo_id,
+            'empresa_id': self.empresa_id,
+            'local_id': self.local_id,
+            'qid': self.qid,
+            'score': self.score,
+            'ranking_contexto': self.ranking_contexto,
+            'prioridade': self.prioridade,
+            'motivos': json.loads(self.motivos_json) if self.motivos_json else [],
+            'calculado_em': self.calculado_em.isoformat() if self.calculado_em else None,
         }

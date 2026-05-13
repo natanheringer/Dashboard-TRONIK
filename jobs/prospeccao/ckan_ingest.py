@@ -11,12 +11,13 @@ from __future__ import annotations
 
 import json
 import logging
+from dataclasses import asdict
 from pathlib import Path
 from typing import Any, Optional, Set
 
 from jobs.prospeccao import config
 from jobs.prospeccao import paths as pathutil
-from jobs.prospeccao.http_util import download_url_to_path, session, throttle
+from jobs.prospeccao.http_util import check_url, download_url_to_path, request_timeout, session, throttle
 
 logger = logging.getLogger(__name__)
 
@@ -28,7 +29,8 @@ def _action_url() -> str:
 def ckan_call(action: str, payload: Optional[dict[str, Any]] = None) -> Any:
     url = _action_url() + action
     throttle()
-    r = session().post(url, json=payload or {}, timeout=config.HTTP_TIMEOUT_S)
+    logger.debug("CKAN action: %s payload=%s", action, payload or {})
+    r = session().post(url, json=payload or {}, timeout=request_timeout())
     r.raise_for_status()
     body = r.json()
     if not body.get("success"):
@@ -77,6 +79,7 @@ def sync_catalog_metadata(
     start = 0
     count = 0
     rows = min(config.CKAN_ROWS_PER_PAGE, max_packages)
+    logger.info("CKAN metadata: start max_packages=%s fq_org=%s", max_packages, fq_org or "all")
     with out.open("w", encoding="utf-8") as fp:
         while count < max_packages:
             batch_rows = min(rows, max_packages - count)
@@ -84,6 +87,7 @@ def sync_catalog_metadata(
             results = res.get("results") or []
             if not results:
                 break
+            logger.info("CKAN metadata: page start=%s returned=%s total_count=%s", start, len(results), res.get("count"))
             for pkg in results:
                 line = {
                     "name": pkg.get("name"),
@@ -104,6 +108,115 @@ def sync_catalog_metadata(
         {"file": str(out), "count": count, "fq_org": fq_org, "base": config.CKAN_BASE_URL},
     )
     return out
+
+
+def validate_ckan_resource_links(
+    *,
+    max_packages: int = 200,
+    fq_org: Optional[str] = None,
+    max_links: Optional[int] = None,
+    out_name: str = "resource_link_quality.jsonl",
+) -> dict[str, Any]:
+    """Checks CKAN resource URLs and records link quality for harvest observability."""
+    dirs = pathutil.ensure_raw_layout()
+    out = dirs["ckan"] / out_name
+    fq = f"organization:{fq_org}" if fq_org else None
+    start = 0
+    packages_seen = 0
+    links_seen = 0
+    missing_url = 0
+    duplicates = 0
+    ok_count = 0
+    failed_count = 0
+    seen_urls: Set[str] = set()
+    failures: list[dict[str, Any]] = []
+
+    logger.info(
+        "CKAN link quality: start max_packages=%s max_links=%s fq_org=%s",
+        max_packages,
+        max_links or "all",
+        fq_org or "all",
+    )
+
+    with out.open("w", encoding="utf-8") as fp:
+        while packages_seen < max_packages:
+            batch = min(config.CKAN_ROWS_PER_PAGE, max_packages - packages_seen)
+            res = fetch_package_search(rows=batch, start=start, fq=fq)
+            packages = res.get("results") or []
+            if not packages:
+                break
+            logger.info("CKAN link quality: page start=%s packages=%s", start, len(packages))
+            for pkg in packages:
+                if packages_seen >= max_packages:
+                    break
+                packages_seen += 1
+                package_name = pkg.get("name")
+                resources = pkg.get("resources") or []
+                for resource in resources:
+                    if max_links is not None and links_seen >= max_links:
+                        break
+                    url = (resource.get("url") or "").strip()
+                    if not url:
+                        missing_url += 1
+                        continue
+                    if url in seen_urls:
+                        duplicates += 1
+                        continue
+                    seen_urls.add(url)
+                    links_seen += 1
+                    result = check_url(url)
+                    row = {
+                        "package": package_name,
+                        "resource_id": resource.get("id"),
+                        "resource_name": resource.get("name"),
+                        "format": resource.get("format"),
+                        **asdict(result),
+                    }
+                    fp.write(json.dumps(row, ensure_ascii=False) + "\n")
+                    if result.ok:
+                        ok_count += 1
+                        logger.info(
+                            "CKAN link ok [%s/%s]: status=%s type=%s url=%s",
+                            ok_count,
+                            links_seen,
+                            result.status_code,
+                            result.content_type,
+                            url[:160],
+                        )
+                    else:
+                        failed_count += 1
+                        failures.append(row)
+                        logger.warning(
+                            "CKAN link failed [%s/%s]: status=%s error=%s url=%s",
+                            failed_count,
+                            links_seen,
+                            result.status_code,
+                            result.error,
+                            url[:160],
+                        )
+                if max_links is not None and links_seen >= max_links:
+                    break
+            if max_links is not None and links_seen >= max_links:
+                break
+            start += len(packages)
+            if len(packages) < batch:
+                break
+
+    summary = {
+        "file": str(out),
+        "base": config.CKAN_BASE_URL,
+        "fq_org": fq_org,
+        "packages_seen": packages_seen,
+        "links_checked": links_seen,
+        "ok": ok_count,
+        "failed": failed_count,
+        "missing_url": missing_url,
+        "duplicates": duplicates,
+        "failure_sample": failures[:20],
+    }
+    logger.info("CKAN link quality complete: %s", summary)
+    pathutil.write_manifest("ckan_link_quality", summary)
+    return summary
 
 
 def sync_package_show_details(
@@ -162,7 +275,16 @@ def download_resources_for_org(
     org_dir = dirs["ckan"] / "orgs" / org_slug
     org_dir.mkdir(parents=True, exist_ok=True)
 
+    logger.info(
+        "CKAN org download: start org=%s max_packages=%s max_resource_mb=%s",
+        org_slug,
+        max_packages,
+        max_resource_mb,
+    )
+
     saved: list[Path] = []
+    failures: list[dict[str, Any]] = []
+    skipped_urls = 0
     seen_urls: Set[str] = set()
     start = 0
     packages_seen = 0
@@ -187,6 +309,8 @@ def download_resources_for_org(
             for res_item in pkg.get("resources") or []:
                 url = (res_item.get("url") or "").strip()
                 if not url or url in seen_urls:
+                    if url in seen_urls:
+                        skipped_urls += 1
                     continue
                 fmt = (res_item.get("format") or "").lower()
                 name = (res_item.get("name") or "resource").replace("/", "_")
@@ -212,6 +336,25 @@ def download_resources_for_org(
                     dest = dest.with_suffix(suf)
                 try:
                     logger.info("Baixando %s", url[:160])
+                    quality = check_url(url)
+                    if not quality.ok:
+                        failures.append(
+                            {
+                                "package": slug,
+                                "resource_id": rid,
+                                "url": url,
+                                "status_code": quality.status_code,
+                                "error": quality.error,
+                            }
+                        )
+                        logger.warning(
+                            "CKAN resource link failed before download: status=%s error=%s url=%s",
+                            quality.status_code,
+                            quality.error,
+                            url[:160],
+                        )
+                        seen_urls.add(url)
+                        continue
                     dr = download_url_to_path(
                         url,
                         dest,
@@ -226,7 +369,15 @@ def download_resources_for_org(
                         seen_urls.add(url)
                     saved.append(dest)
                 except Exception as e:
-                    logger.error("Falha recurso: %s", e)
+                    failures.append(
+                        {
+                            "package": slug,
+                            "resource_id": rid,
+                            "url": url,
+                            "error": str(e),
+                        }
+                    )
+                    logger.error("Falha recurso package=%s resource=%s: %s", slug, rid, e)
         if not paginate:
             break
         start += len(packages)
@@ -235,7 +386,15 @@ def download_resources_for_org(
 
     pathutil.write_manifest(
         "ckan_download",
-        {"org": org_slug, "files": [str(p) for p in saved], "count": len(saved)},
+        {
+            "org": org_slug,
+            "files": [str(p) for p in saved],
+            "count": len(saved),
+            "failures": failures,
+            "failed_count": len(failures),
+            "skipped_duplicate_urls": skipped_urls,
+            "packages_seen": packages_seen,
+        },
     )
     return saved
 

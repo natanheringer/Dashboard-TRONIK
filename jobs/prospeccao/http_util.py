@@ -19,6 +19,13 @@ logger = logging.getLogger(__name__)
 _SESSION: requests.Session | None = None
 
 
+def request_timeout(timeout: Optional[float] = None) -> float | tuple[float, float]:
+    """Return a requests timeout with bounded connect and read phases."""
+    if timeout is not None:
+        return timeout
+    return (config.HTTP_CONNECT_TIMEOUT_S, config.HTTP_READ_TIMEOUT_S)
+
+
 def build_session() -> requests.Session:
     s = requests.Session()
     retries = Retry(
@@ -56,14 +63,15 @@ def get_json(
     params: Optional[dict[str, Any]] = None,
     timeout: Optional[float] = None,
 ) -> Any:
-    to = timeout if timeout is not None else config.HTTP_TIMEOUT_S
-    r = session().get(url, params=params, timeout=to)
+    logger.debug("HTTP GET json: %s params=%s", url, params)
+    r = session().get(url, params=params, timeout=request_timeout(timeout))
     r.raise_for_status()
     return r.json()
 
 
 def post_json(url: str, *, json_body: Optional[dict[str, Any]] = None) -> Any:
-    r = session().post(url, json=json_body or {}, timeout=config.HTTP_TIMEOUT_S)
+    logger.debug("HTTP POST json: %s", url)
+    r = session().post(url, json=json_body or {}, timeout=request_timeout())
     r.raise_for_status()
     return r.json()
 
@@ -75,6 +83,18 @@ class DownloadResult:
     skipped: bool
     truncated: bool
     sha256: Optional[str] = None
+
+
+@dataclass
+class LinkCheckResult:
+    url: str
+    ok: bool
+    method: str
+    status_code: Optional[int] = None
+    final_url: Optional[str] = None
+    content_type: Optional[str] = None
+    content_length: Optional[int] = None
+    error: Optional[str] = None
 
 
 def _sha256_stream(fp: BinaryIO, chunk: int = 1 << 20) -> str:
@@ -102,10 +122,15 @@ def stream_download(
         headers["Range"] = f"bytes={resume_offset}-"
     written = resume_offset
     mode_start = written
+    started = time.monotonic()
+    max_seconds = config.DOWNLOAD_MAX_SECONDS if config.DOWNLOAD_MAX_SECONDS > 0 else None
+    progress_every = max(1, config.DOWNLOAD_PROGRESS_EVERY_MB) * 1024 * 1024
+    next_progress = written + progress_every
+    logger.info("Download start: %s resume_offset=%s max_bytes=%s", url[:160], resume_offset, max_bytes)
     with session().get(
         url,
         stream=True,
-        timeout=config.HTTP_TIMEOUT_S,
+        timeout=request_timeout(),
         headers=headers,
     ) as resp:
         if resume_offset > 0 and resp.status_code not in (200, 206):
@@ -121,8 +146,16 @@ def stream_download(
                 break
             dest.write(chunk)
             written += len(chunk)
+            if written >= next_progress:
+                logger.info("Download progress: %.1f MB url=%s", written / (1024 * 1024), url[:120])
+                next_progress = written + progress_every
+            if max_seconds is not None and time.monotonic() - started > max_seconds:
+                raise TimeoutError(
+                    f"Download exceeded TRONIK_DOWNLOAD_MAX_SECONDS={max_seconds}: {url}"
+                )
             if pause_s > 0:
                 time.sleep(pause_s)
+    logger.info("Download complete: %.1f MB url=%s", written / (1024 * 1024), url[:120])
     return written
 
 
@@ -144,10 +177,11 @@ def download_url_to_path(
     cl: Optional[str] = None
     ar = False
     try:
-        head = session().head(url, allow_redirects=True, timeout=config.HTTP_TIMEOUT_S)
+        head = session().head(url, allow_redirects=True, timeout=request_timeout())
         if head.ok:
             cl = head.headers.get("Content-Length")
             ar = (head.headers.get("Accept-Ranges") or "").lower() == "bytes"
+        head.close()
     except requests.RequestException:
         pass
 
@@ -180,6 +214,50 @@ def download_url_to_path(
             sha = _sha256_stream(fp)
 
     return DownloadResult(str(dest_path), n, False, truncated, sha)
+
+
+def check_url(
+    url: str,
+    *,
+    timeout: Optional[float] = None,
+    allow_get_fallback: bool = True,
+) -> LinkCheckResult:
+    """Validate a data URL with HEAD, falling back to a small GET when needed."""
+    to = timeout if timeout is not None else config.LINK_CHECK_TIMEOUT_S
+    try:
+        logger.debug("Checking URL via HEAD: %s", url)
+        response = session().head(url, allow_redirects=True, timeout=to)
+        method = "HEAD"
+        if allow_get_fallback and (response.status_code in (403, 405, 406) or response.status_code >= 500):
+            logger.debug("HEAD inconclusive (%s), checking URL via GET: %s", response.status_code, url)
+            response.close()
+            response = session().get(
+                url,
+                allow_redirects=True,
+                timeout=to,
+                headers={"Range": "bytes=0-0"},
+                stream=True,
+            )
+            method = "GET"
+        content_length = response.headers.get("Content-Length")
+        result = LinkCheckResult(
+            url=url,
+            ok=200 <= response.status_code < 400,
+            method=method,
+            status_code=response.status_code,
+            final_url=response.url,
+            content_type=response.headers.get("Content-Type"),
+            content_length=int(content_length) if content_length and content_length.isdigit() else None,
+        )
+        response.close()
+        return result
+    except requests.RequestException as exc:
+        return LinkCheckResult(
+            url=url,
+            ok=False,
+            method="HEAD",
+            error=str(exc),
+        )
 
 
 def throttle():

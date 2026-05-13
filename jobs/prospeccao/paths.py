@@ -16,6 +16,7 @@ def ensure_raw_layout() -> dict[str, Path]:
         "base": base,
         "ckan": base / "ckan_df",
         "receita": base / "receita_cnpj",
+        "cnefe": base / "cnefe",
         "osm": base / "osm_geofabrik",
         "inep": base / "inep",
         "cnes": base / "cnes",

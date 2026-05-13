@@ -31,6 +31,11 @@ def main(argv: list[str] | None = None) -> int:
     s_show.add_argument("--max", type=int, default=60)
     s_show.add_argument("--org", type=str, default=None)
 
+    s_links = sub.add_parser("ckan-link-quality", help="Valida URLs de recursos CKAN com HEAD/GET")
+    s_links.add_argument("--max-packages", type=int, default=100)
+    s_links.add_argument("--max-links", type=int, default=300)
+    s_links.add_argument("--org", type=str, default=None)
+
     s_ckan_dl = sub.add_parser("ckan-org", help="Baixa recursos de uma organização (paginado)")
     s_ckan_dl.add_argument("org", type=str)
     s_ckan_dl.add_argument("--max-packages", type=int, default=30)
@@ -54,7 +59,7 @@ def main(argv: list[str] | None = None) -> int:
     sub.add_parser("receita", help="ZIPs via TRONIK_RECEITA_CNPJ_ZIP_URLS")
 
     s_ra = sub.add_parser("receita-auto", help="Deteta base Receita e descarrega N ZIPs")
-    s_ra.add_argument("--tipo", choices=("estabelecimentos", "empresas"), default="estabelecimentos")
+    s_ra.add_argument("--tipo", choices=("estabelecimentos", "empresas", "lookups"), default="estabelecimentos")
     s_ra.add_argument("--max", type=int, default=2)
     s_ra.add_argument("--probe-only", action="store_true")
 
@@ -76,13 +81,54 @@ def main(argv: list[str] | None = None) -> int:
     s_h.add_argument(
         "--steps",
         type=str,
-        default="ibge,geoportal,ckan_meta,pncp,ckan_orgs",
-        help="Separados por vírgula: ibge,geoportal,ckan_meta,ckan_show,pncp,ckan_orgs,receita_probe,inep_probe",
+        default="ibge,geoportal,ckan_meta,ckan_links,pncp,ckan_orgs",
+        help="Separados por vírgula: ibge,geoportal,ckan_meta,ckan_links,ckan_show,pncp,ckan_orgs,receita_probe,inep_probe",
     )
     s_h.add_argument("--dry-run", action="store_true")
     s_h.add_argument("--ckan-max", type=int, default=250)
+    s_h.add_argument("--ckan-link-max", type=int, default=300)
     s_h.add_argument("--pncp-dias", type=int, default=14)
     s_h.add_argument("--pncp-max-pages", type=int, default=80)
+
+    s_build = sub.add_parser("build-features", help="Monta feature_snapshot_prospeccao")
+    s_build.add_argument("--version", type=str, default="prospeccao-ree-v2")
+    s_build.add_argument("--seed-demo", action="store_true", help="Insere candidatos demo para smoke test")
+
+    s_train = sub.add_parser("train-ranker", help="Treina XGBRanker ou baseline heuristico")
+    s_train.add_argument("--pipeline-version", type=str, default="prospeccao-ree-v2")
+    s_train.add_argument("--model-version", type=str, default=None)
+    s_train.add_argument("--no-baseline", action="store_true")
+
+    s_score = sub.add_parser("score-candidates", help="Pontua snapshots com modelo ativo")
+    s_score.add_argument("--model-version", type=str, default=None)
+    s_score.add_argument("--pipeline-version", type=str, default=None)
+
+    s_pub = sub.add_parser("published-scores", help="Lista ranking publicado para dashboard/Nik")
+    s_pub.add_argument("--limit", type=int, default=20)
+    s_pub.add_argument("--qid", type=str, default=None)
+    s_pub.add_argument("--prioridade", type=str, default=None)
+    s_pub.add_argument("--model-version", type=str, default=None)
+
+    s_pipe = sub.add_parser("ranker-pipeline", help="build-features + train-ranker + score-candidates")
+    s_pipe.add_argument("--version", type=str, default="prospeccao-ree-v2")
+    s_pipe.add_argument("--seed-demo", action="store_true")
+
+    s_rp = sub.add_parser("receita-parse", help="Parseia ZIPs Receita baixados -> empresa_candidata + local_candidato")
+    s_rp.add_argument("--no-two-pass", action="store_true", help="Carrega TODOS Empresas*.zip na memória (rápido, ~12 GB RAM)")
+
+    s_cnefe = sub.add_parser("cnefe", help="Baixa + parseia CNEFE 2022 coordenadas (DF + GO)")
+    s_cnefe.add_argument("--no-download", action="store_true", help="Pula download, só parseia ZIPs existentes")
+
+    s_norm = sub.add_parser("normalize", help="Dedup + geocode CNEFE + RA + qid")
+    s_norm.add_argument("--skip-geocode", action="store_true", help="Pula geocodificação CNEFE")
+    s_norm.add_argument("--skip-ra", action="store_true", help="Pula atribuição de RA")
+
+    s_cdd = sub.add_parser("fetch-targeted", help="Busca DF+Entorno via Casa dos Dados API (sem download pesado)")
+    s_cdd.add_argument(
+        "--tiers", type=str, default="all",
+        help="Tiers de proximidade: all, df, t1, t1,t2, t1,t2,t3, t1,t2,t3,t4",
+    )
+    s_cdd.add_argument("--max-pages", type=int, default=None, help="Max pages per query (default 200)")
 
     args = p.parse_args(argv)
     if args.verbose:
@@ -106,6 +152,17 @@ def main(argv: list[str] | None = None) -> int:
 
         sync_package_show_details(max_packages=args.max, fq_org=args.org)
         return 0
+
+    if args.cmd == "ckan-link-quality":
+        from jobs.prospeccao.ckan_ingest import validate_ckan_resource_links
+
+        result = validate_ckan_resource_links(
+            max_packages=args.max_packages,
+            max_links=args.max_links,
+            fq_org=args.org,
+        )
+        print(json.dumps(result, ensure_ascii=False, indent=2, default=str))
+        return 0 if result.get("failed", 0) == 0 else 1
 
     if args.cmd == "ckan-org":
         from jobs.prospeccao.ckan_ingest import download_resources_for_org
@@ -131,9 +188,10 @@ def main(argv: list[str] | None = None) -> int:
         return 0
 
     if args.cmd == "ibge-df":
-        from jobs.prospeccao.ibge_ingest import sync_df_municipios, sync_estados
+        from jobs.prospeccao.ibge_ingest import sync_df_municipios, sync_estados, sync_ride_entorno
 
         sync_df_municipios()
+        sync_ride_entorno()
         sync_estados()
         return 0
 
@@ -207,11 +265,121 @@ def main(argv: list[str] | None = None) -> int:
             steps,
             dry_run=args.dry_run,
             ckan_max=args.ckan_max,
+            ckan_link_max=args.ckan_link_max,
             pncp_dias=args.pncp_dias,
             pncp_max_pages=args.pncp_max_pages,
         )
         print(json.dumps(rep, ensure_ascii=False, indent=2, default=str))
         return 0 if not rep.get("errors") else 1
+
+    if args.cmd == "fetch-targeted":
+        from jobs.prospeccao.casadosdados_fetch import fetch_targeted
+        from jobs.prospeccao.db import session_scope
+
+        with session_scope() as db:
+            result = fetch_targeted(db, tiers=args.tiers, max_pages_per_query=args.max_pages)
+        print(json.dumps(result, ensure_ascii=False, indent=2, default=str))
+        return 0
+
+    if args.cmd == "receita-parse":
+        from jobs.prospeccao.db import session_scope
+        from jobs.prospeccao.receita_parse import parse_estabelecimentos_to_db
+
+        from jobs.prospeccao import paths as pathutil
+        dirs = pathutil.ensure_raw_layout()
+        with session_scope() as db:
+            result = parse_estabelecimentos_to_db(db, dirs["receita"], two_pass=not args.no_two_pass)
+            db.commit()
+        print(json.dumps(result, ensure_ascii=False, indent=2, default=str))
+        return 0
+
+    if args.cmd == "cnefe":
+        from jobs.prospeccao.cnefe_ingest import sync_cnefe
+
+        result = sync_cnefe(download=not args.no_download)
+        print(json.dumps(result, ensure_ascii=False, indent=2, default=str))
+        return 0
+
+    if args.cmd == "normalize":
+        from jobs.prospeccao.db import session_scope
+        from jobs.prospeccao.normalize_candidates import normalize_all
+
+        with session_scope() as db:
+            result = normalize_all(db, skip_geocode=args.skip_geocode, skip_ra=args.skip_ra)
+        print(json.dumps(result, ensure_ascii=False, indent=2, default=str))
+        return 0
+
+    if args.cmd == "build-features":
+        from jobs.prospeccao.build_features import build_feature_snapshots
+        from jobs.prospeccao.db import session_scope
+
+        with session_scope() as db:
+            result = build_feature_snapshots(
+                db,
+                pipeline_version=args.version,
+                seed_demo=args.seed_demo,
+            )
+        print(json.dumps(result, ensure_ascii=False, indent=2, default=str))
+        return 0
+
+    if args.cmd == "train-ranker":
+        from jobs.prospeccao.db import session_scope
+        from jobs.prospeccao.train_xgboost import train_ranker
+
+        with session_scope() as db:
+            result = train_ranker(
+                db,
+                pipeline_version=args.pipeline_version,
+                model_version=args.model_version,
+                allow_baseline=not args.no_baseline,
+            )
+        print(json.dumps(result, ensure_ascii=False, indent=2, default=str))
+        return 0
+
+    if args.cmd == "score-candidates":
+        from jobs.prospeccao.db import session_scope
+        from jobs.prospeccao.score_candidates import score_candidates
+
+        with session_scope() as db:
+            result = score_candidates(
+                db,
+                model_version=args.model_version,
+                pipeline_version=args.pipeline_version,
+            )
+        print(json.dumps(result, ensure_ascii=False, indent=2, default=str))
+        return 0
+
+    if args.cmd == "published-scores":
+        from jobs.prospeccao.db import session_scope
+        from jobs.prospeccao.publish_scores import list_published_scores
+
+        with session_scope() as db:
+            result = list_published_scores(
+                db,
+                limite=args.limit,
+                qid=args.qid,
+                prioridade=args.prioridade,
+                model_version=args.model_version,
+            )
+        print(json.dumps(result, ensure_ascii=False, indent=2, default=str))
+        return 0
+
+    if args.cmd == "ranker-pipeline":
+        from jobs.prospeccao.build_features import build_feature_snapshots
+        from jobs.prospeccao.db import session_scope
+        from jobs.prospeccao.score_candidates import score_candidates
+        from jobs.prospeccao.train_xgboost import train_ranker
+
+        with session_scope() as db:
+            built = build_feature_snapshots(
+                db,
+                pipeline_version=args.version,
+                seed_demo=args.seed_demo,
+            )
+            trained = train_ranker(db, pipeline_version=args.version)
+            scored = score_candidates(db, model_version=trained["versao"], pipeline_version=args.version)
+        print(json.dumps({"built": built, "trained": trained, "scored": scored}, ensure_ascii=False, indent=2, default=str))
+        return 0
 
     return 1
 

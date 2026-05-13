@@ -8,13 +8,14 @@ from typing import List, Optional
 
 from jobs.prospeccao import config
 from jobs.prospeccao import paths as pathutil
-from jobs.prospeccao.http_util import download_url_to_path, session
+from jobs.prospeccao.http_util import download_url_to_path, request_timeout, session
 
 logger = logging.getLogger(__name__)
 
 # Ficheiros típicos do layout aberto (nomes podem variar; ajustável)
 DEFAULT_ZIP_NAMES_EMPRESAS = [f"Empresas{i}.zip" for i in range(10)]
 DEFAULT_ZIP_NAMES_ESTABELECIMENTOS = [f"Estabelecimentos{i}.zip" for i in range(10)]
+DEFAULT_ZIP_NAMES_LOOKUPS = ["Municipios.zip", "Cnaes.zip", "Naturezas.zip", "Motivos.zip", "Qualificacoes.zip"]
 
 
 def _bases() -> list[str]:
@@ -31,8 +32,10 @@ def discover_working_base(
         for probe in probes:
             url = base + probe
             try:
-                r = session().head(url, allow_redirects=True, timeout=config.HTTP_TIMEOUT_S)
-                if r.ok:
+                r = session().head(url, allow_redirects=True, timeout=request_timeout())
+                ok = r.ok
+                r.close()
+                if ok:
                     logger.info("Receita: base OK %s (probe %s)", base, probe)
                     return base.rstrip("/") + "/"
             except Exception as e:
@@ -81,9 +84,12 @@ def download_receita_auto(
         logger.info("Probe OK, base: %s", base)
         return []
 
-    names = (
-        DEFAULT_ZIP_NAMES_EMPRESAS if tipo.lower() == "empresas" else DEFAULT_ZIP_NAMES_ESTABELECIMENTOS
-    )
+    if tipo.lower() == "empresas":
+        names = DEFAULT_ZIP_NAMES_EMPRESAS
+    elif tipo.lower() == "lookups":
+        names = DEFAULT_ZIP_NAMES_LOOKUPS
+    else:
+        names = DEFAULT_ZIP_NAMES_ESTABELECIMENTOS
     dirs = pathutil.ensure_raw_layout()
     out_dir = dirs["receita"]
     saved: list[Path] = []

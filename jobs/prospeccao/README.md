@@ -13,8 +13,32 @@ Na **raiz** do repositório:
 ```bash
 python -m jobs.prospeccao --help
 python -m jobs.prospeccao harvest --dry-run
-python -m jobs.prospeccao harvest --steps ibge,geoportal,ckan_meta,pncp
+python -m jobs.prospeccao harvest --steps ibge,geoportal,ckan_meta,ckan_links,pncp
+python -m jobs.prospeccao ckan-link-quality --max-packages 20 --max-links 100
 ```
+
+### MVP do ranker de prospecção REE
+
+O pacote agora também contém o contrato inicial do pipeline **learning-to-rank**:
+
+```bash
+python -m jobs.prospeccao build-features --seed-demo
+python -m jobs.prospeccao train-ranker
+python -m jobs.prospeccao score-candidates
+python -m jobs.prospeccao published-scores --limit 20
+```
+
+Atalho para smoke test local:
+
+```bash
+python -m jobs.prospeccao ranker-pipeline --seed-demo
+```
+
+O MVP grava as tabelas planejadas (`empresa_candidata`, `local_candidato`,
+`feature_snapshot_prospeccao`, `modelo_prospeccao`, `score_prospeccao`) via
+SQLAlchemy. Com poucos dados ele registra um baseline heurístico versionado; com
+grupos rotulados suficientes, `train-ranker` usa `XGBRanker` (`rank:ndcg`) e
+salva o artefato em `data/ml/prospeccao/`.
 
 ### Comandos principais
 
@@ -23,6 +47,7 @@ python -m jobs.prospeccao harvest --steps ibge,geoportal,ckan_meta,pncp
 | `catalog-only` / `ckan-metadata` | `package_search` → JSONL (metadados CKAN DF) |
 | `ckan-orgs-list` | `organization_list` (slugs) |
 | `ckan-package-show` | `package_show` em lote (metadados completos + recursos) |
+| `ckan-link-quality` | Valida URLs de recursos CKAN e grava `resource_link_quality.jsonl` |
 | `ckan-org <slug>` | Download paginado de recursos (CSV/ZIP/JSON…) até `--max-mb` |
 | `ckan-default-orgs` | Várias orgs (`TRONIK_CKAN_DEFAULT_ORGS`) com limites conservadores |
 | `ibge-df` | Municípios UF 53 + `estados.json` |
@@ -34,6 +59,11 @@ python -m jobs.prospeccao harvest --steps ibge,geoportal,ckan_meta,pncp
 | `inep` / `inep-microdados` / `inep-probe` | CSV env ou ZIP microdados (`TRONIK_INEP_MICRODADOS_BASE`) |
 | `cnes` | ZIP via `TRONIK_CNES_BASE_ZIP_URL` |
 | `harvest` | Orquestra passos e grava relatório JSON |
+| `build-features` | Calcula snapshots de features por candidato/local (`qid` + label ordinal) |
+| `train-ranker` | Treina `XGBRanker` quando há dados suficientes ou baseline heurístico |
+| `score-candidates` | Gera `score_prospeccao` com ranking por `qid` |
+| `published-scores` | Lista a fila publicada para dashboard/Nik |
+| `ranker-pipeline` | Executa build + train + score numa rodada |
 
 ## Variáveis de ambiente (resumo)
 
@@ -46,6 +76,11 @@ python -m jobs.prospeccao harvest --steps ibge,geoportal,ckan_meta,pncp
 | `TRONIK_HTTP_MAX_RETRIES` | `5` |
 | `TRONIK_HTTP_BACKOFF_FACTOR` | `0.6` |
 | `TRONIK_HTTP_TIMEOUT` | `180` s |
+| `TRONIK_HTTP_CONNECT_TIMEOUT` | `10` s para abrir conexão |
+| `TRONIK_HTTP_READ_TIMEOUT` | default `TRONIK_HTTP_TIMEOUT`; limite de inatividade por leitura |
+| `TRONIK_LINK_CHECK_TIMEOUT` | `25` s para validação HEAD/GET de links |
+| `TRONIK_DOWNLOAD_PROGRESS_EVERY_MB` | `25` MB entre logs de progresso |
+| `TRONIK_DOWNLOAD_MAX_SECONDS` | `0` desativado; limite total por download quando definido |
 | `TRONIK_HTTP_USER_AGENT` | Identifique o projeto (boa prática) |
 | `TRONIK_RECEITA_CNPJ_BASE_URLS` | Bases candidatas separadas por vírgula |
 | `TRONIK_RECEITA_CNPJ_ZIP_URLS` | URLs completas separadas por vírgula |

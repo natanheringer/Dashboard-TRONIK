@@ -21,8 +21,13 @@ HTTP_USER_AGENT = os.environ.get(
     "Dashboard-TRONIK-prospeccao/0.2 (+https://github.com/natanheringer/Dashboard-TRONIK)",
 )
 HTTP_TIMEOUT_S = int(os.environ.get("TRONIK_HTTP_TIMEOUT", "180"))
+HTTP_CONNECT_TIMEOUT_S = float(os.environ.get("TRONIK_HTTP_CONNECT_TIMEOUT", "10"))
+HTTP_READ_TIMEOUT_S = float(os.environ.get("TRONIK_HTTP_READ_TIMEOUT", str(HTTP_TIMEOUT_S)))
 HTTP_MAX_RETRIES = int(os.environ.get("TRONIK_HTTP_MAX_RETRIES", "5"))
 HTTP_BACKOFF_FACTOR = float(os.environ.get("TRONIK_HTTP_BACKOFF_FACTOR", "0.6"))
+LINK_CHECK_TIMEOUT_S = int(os.environ.get("TRONIK_LINK_CHECK_TIMEOUT", "25"))
+DOWNLOAD_PROGRESS_EVERY_MB = int(os.environ.get("TRONIK_DOWNLOAD_PROGRESS_EVERY_MB", "25"))
+DOWNLOAD_MAX_SECONDS = int(os.environ.get("TRONIK_DOWNLOAD_MAX_SECONDS", "0"))
 
 # --- Geofabrik OSM ---
 GEOFABRIK_DEFAULT_PBF = os.environ.get(
@@ -32,12 +37,36 @@ GEOFABRIK_DEFAULT_PBF = os.environ.get(
 
 # --- Receita CNPJ (URLs completas OU base para descoberta) ---
 RECEITA_CNPJ_ZIP_URLS = os.environ.get("TRONIK_RECEITA_CNPJ_ZIP_URLS", "")
-# Bases oficiais candidatas (ordem: tentar HEAD até achar ZIPs)
+# Bases oficiais + CDN mirror (ordem: tentar HEAD até achar ZIPs)
 RECEITA_CNPJ_BASE_URLS = os.environ.get(
     "TRONIK_RECEITA_CNPJ_BASE_URLS",
     "https://arquivos.receitafederal.gov.br/dados/cnpj/dados_abertos_cnpj/,"
-    "https://dadosabertos.rfb.gov.br/CNPJ/dados_abertos_cnpj/",
+    "https://dadosabertos.rfb.gov.br/CNPJ/dados_abertos_cnpj/,"
+    "https://dados-abertos-rf-cnpj.casadosdados.com.br/arquivos/",
 )
+RECEITA_CSV_ENCODING = "latin-1"
+RECEITA_CSV_SEPARATOR = ";"
+
+# Receita situacao_cadastral code -> description
+RECEITA_SITUACAO_MAP: dict[str, str] = {
+    "01": "NULA", "02": "ATIVA", "03": "SUSPENSA", "04": "INAPTA", "08": "BAIXADA",
+}
+# Receita porte code -> description
+RECEITA_PORTE_MAP: dict[str, str] = {
+    "00": "Nao informado", "01": "Microempresa", "03": "Empresa de Pequeno Porte", "05": "Demais",
+}
+
+# --- CNEFE 2022 (IBGE geocoding reference — full address + coordinates) ---
+# Arquivos_CNEFE has CEP, logradouro, numero, lat, lon per address.
+CNEFE_BASE = os.environ.get(
+    "TRONIK_CNEFE_BASE",
+    "https://ftp.ibge.gov.br/Cadastro_Nacional_de_Enderecos_para_Fins_Estatisticos/"
+    "Censo_Demografico_2022/Arquivos_CNEFE/CSV/UF/",
+)
+CNEFE_FILES: dict[str, str] = {
+    "DF": "53_DF.zip",   # 19 MB
+    "GO": "52_GO.zip",   # 115 MB
+}
 
 # --- INEP Censo Escolar ---
 INEP_CENSO_ESCOLAR_CSV_URL = os.environ.get("TRONIK_INEP_CENSO_ESCOLAR_CSV_URL", "")
@@ -60,7 +89,89 @@ PNCP_CONSULTA_BASE = os.environ.get(
 # --- IBGE ---
 IBGE_API_BASE = os.environ.get("TRONIK_IBGE_API_BASE", "https://servicodados.ibge.gov.br/api/v1").rstrip("/")
 IBGE_UF_DF = "53"
+IBGE_UF_GO = "52"
 IBGE_MUNICIPIO_DF_IBGE = "5300108"  # Brasília
+
+# RIDE — Região Integrada de Desenvolvimento do DF e Entorno (LC 94/1998).
+# 29 municípios de Goiás + Brasília/DF.  IBGE codes fetched 2026-05.
+RIDE_ENTORNO_MUNICIPIOS: dict[int, str] = {
+    5200100: "Abadiânia",
+    5200175: "Água Fria de Goiás",
+    5200258: "Águas Lindas de Goiás",
+    5200308: "Alexânia",
+    5200605: "Alto Paraíso de Goiás",
+    5200803: "Alvorada do Norte",
+    5203203: "Barro Alto",
+    5204003: "Cabeceiras",
+    5205307: "Cavalcante",
+    5205497: "Cidade Ocidental",
+    5205513: "Cocalzinho de Goiás",
+    5205802: "Corumbá de Goiás",
+    5206206: "Cristalina",
+    5207907: "Flores de Goiás",
+    5208004: "Formosa",
+    5208608: "Goianésia",
+    5212501: "Luziânia",
+    5213053: "Mimoso de Goiás",
+    5214606: "Niquelândia",
+    5215231: "Novo Gama",
+    5215603: "Padre Bernardo",
+    5217302: "Pirenópolis",
+    5217609: "Planaltina",
+    5219753: "Santo Antônio do Descoberto",
+    5220009: "São João d'Aliança",
+    5220686: "Simolândia",
+    5221858: "Valparaíso de Goiás",
+    5222203: "Vila Boa",
+    5222302: "Vila Propício",
+}
+
+# Subset most likely within logistics reach (inner ring, <60 km from Plano Piloto)
+ENTORNO_INNER_RING: set[int] = {
+    5221858,  # Valparaíso de Goiás
+    5215231,  # Novo Gama
+    5205497,  # Cidade Ocidental
+    5219753,  # Santo Antônio do Descoberto
+    5200258,  # Águas Lindas de Goiás
+    5217609,  # Planaltina (GO)
+    5208004,  # Formosa
+    5212501,  # Luziânia
+    5215603,  # Padre Bernardo
+    5205513,  # Cocalzinho de Goiás
+    5200308,  # Alexânia
+}
+
+# --- Casa dos Dados API v5 (targeted CNPJ search, requires API key) ---
+# Get your key at https://portal.casadosdados.com.br/plataforma/api/chave
+CASADOSDADOS_API_BASE = os.environ.get(
+    "TRONIK_CASADOSDADOS_API_BASE",
+    "https://api.casadosdados.com.br/v5/cnpj/pesquisa",
+)
+CASADOSDADOS_API_KEY = os.environ.get("TRONIK_CASADOSDADOS_API_KEY", "")
+CASADOSDADOS_PAGE_SLEEP_S = float(os.environ.get("TRONIK_CASADOSDADOS_PAGE_SLEEP_S", "1.2"))
+CASADOSDADOS_LIMIT_PER_PAGE = int(os.environ.get("TRONIK_CASADOSDADOS_LIMIT", "1000"))
+CASADOSDADOS_MAX_PAGES_PER_QUERY = int(os.environ.get("TRONIK_CASADOSDADOS_MAX_PAGES", "50"))
+
+# Proximity tiers from Recanto das Emas (sede TRONIK)
+# Tier 1: Recanto + adjacent RAs (< 10 km)
+SEDE_TIER_1: list[str] = [
+    "RECANTO DAS EMAS", "SAMAMBAIA", "RIACHO FUNDO II", "RIACHO FUNDO",
+]
+# Tier 2: Near RAs (10-20 km)
+SEDE_TIER_2: list[str] = [
+    "TAGUATINGA", "CEILANDIA", "GAMA", "SANTA MARIA",
+    "AGUAS CLARAS", "VICENTE PIRES", "ARNIQUEIRA",
+]
+# Tier 3: Rest of DF (20+ km)
+SEDE_TIER_3: list[str] = [
+    "PLANO PILOTO", "ASA SUL", "ASA NORTE", "LAGO SUL", "LAGO NORTE",
+    "GUARA", "CRUZEIRO", "SUDOESTE", "OCTOGONAL", "NOROESTE",
+    "NUCLEO BANDEIRANTE", "CANDANGOLANDIA", "PARK WAY",
+    "SAO SEBASTIAO", "JARDIM BOTANICO", "ITAPOA",
+    "PARANOA", "PLANALTINA", "SOBRADINHO", "SOBRADINHO II",
+    "BRAZLANDIA", "FERCAL", "SIA", "SCIA", "ESTRUTURAL",
+    "SOL NASCENTE", "POR DO SOL", "VARJAO",
+]
 
 # --- Geoportal / ArcGIS (RA DF — serviços públicos comuns) ---
 # Pode sobrescrever por camada oficial preferida do IDE-DF / SISDIA / IBRAM

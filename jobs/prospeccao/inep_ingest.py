@@ -8,7 +8,7 @@ from typing import List, Optional
 
 from jobs.prospeccao import config
 from jobs.prospeccao import paths as pathutil
-from jobs.prospeccao.http_util import download_url_to_path, session
+from jobs.prospeccao.http_util import download_url_to_path, request_timeout, session
 
 logger = logging.getLogger(__name__)
 
@@ -59,8 +59,10 @@ def probe_censo_escolar_years(years: Optional[List[str]] = None) -> Optional[str
     for y in years or ["2024", "2023", "2022", "2021"]:
         url = _zip_url_for_year(y)
         try:
-            r = session().head(url, allow_redirects=True, timeout=config.HTTP_TIMEOUT_S)
-            if r.ok:
+            r = session().head(url, allow_redirects=True, timeout=request_timeout())
+            ok = r.ok
+            r.close()
+            if ok:
                 logger.info("INEP: ano disponível %s (%s)", y, url)
                 return y
         except Exception as e:
