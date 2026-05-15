@@ -4,7 +4,7 @@ from __future__ import annotations
 
 import json
 import logging
-from collections import defaultdict
+from collections import Counter, defaultdict
 from datetime import datetime
 from pathlib import Path
 from typing import Any
@@ -20,6 +20,66 @@ logger = logging.getLogger(__name__)
 
 def _json(data: Any) -> str:
     return json.dumps(data, ensure_ascii=False, sort_keys=True, default=str)
+
+
+def _build_enriched_motivos(
+    features: dict[str, float],
+    shap_vals: dict[str, float] | None,
+    feature_names: list[str],
+) -> list[dict[str, Any]]:
+    """Build enriched reasons with SHAP context and human-readable labels.
+
+    Returns list of dicts with feature, reason, value, and optional shap score.
+    Prioritizes SHAP values when available, falls back to raw feature values.
+    """
+    feature_labels = {
+        "cnae_ree_fit": "CNAE principal alinhado com REE",
+        "cnae_secondary_max_fit": "CNAEs secundários com fit REE",
+        "cnae_secondary_hit_count": "Múltiplos CNAEs secundários em REE",
+        "porte_ordinal": "Porte da empresa compatível",
+        "active_status": "Empresa ativa na Receita",
+        "contact_richness": "Contatos disponíveis (email/telefone)",
+        "data_completeness": "Perfil de dados enriquecido",
+        "address_quality": "Qualidade do endereço",
+        "logistics_proximity_exp": "Proximidade logística da sede",
+        "age_years_log": "Histórico de operação estabelecido",
+        "public_proxy_fit": "Indicador de consumidor público",
+        "is_df_proper": "Localizado no DF",
+        "is_entorno_inner": "Entorno próximo (< 60km)",
+        "neighborhood_candidate_density": "Área com concentração de candidatos",
+        "neighborhood_ree_ratio": "Região com alta concentração REE",
+        "has_geocode": "Coordenadas geocodificadas disponíveis",
+    }
+
+    motivos = []
+
+    if shap_vals:
+        # Ranked by absolute SHAP contribution (top 5)
+        ranked = sorted(shap_vals.items(), key=lambda x: abs(x[1]), reverse=True)[:5]
+        for feat, shap_val in ranked:
+            motivo = {
+                "feature": feat,
+                "reason": feature_labels.get(feat, feat),
+                "value": round(float(features.get(feat, 0)), 4),
+                "shap": round(float(shap_val), 4),
+            }
+            motivos.append(motivo)
+    else:
+        # Fallback: top features by raw value (value > 0.1)
+        ranked = sorted(
+            ((k, v) for k, v in features.items() if v > 0.1),
+            key=lambda x: x[1],
+            reverse=True
+        )[:5]
+        for feat, val in ranked:
+            motivo = {
+                "feature": feat,
+                "reason": feature_labels.get(feat, feat),
+                "value": round(float(val), 4),
+            }
+            motivos.append(motivo)
+
+    return motivos
 
 
 def _active_model(db: Session, model_version: str | None = None) -> ModeloProspeccao:
@@ -166,7 +226,9 @@ def score_candidates(
             score_row.ranking_contexto = rank
             score_row.prioridade = _priority(rank, len(ranked), float(score))
             score_row.pipeline_version = pipeline_version
-            score_row.motivos_json = _json(top_reasons(features, shap_values=shap_vals))
+            # Build enriched motivos with SHAP context and human-readable labels
+            enriched_motivos = _build_enriched_motivos(features, shap_vals, FEATURE_NAMES)
+            score_row.motivos_json = _json(enriched_motivos)
             score_row.calculado_em = datetime.utcnow()
 
             processed += 1
@@ -177,6 +239,14 @@ def score_candidates(
     # Final commit for remaining records
     db.commit()
 
+    # Log distribution of priorities
+    all_scores = db.query(ScoreProspeccao).filter(
+        ScoreProspeccao.modelo_id == model.id,
+        ScoreProspeccao.pipeline_version == pipeline_version,
+    ).all()
+    prioridade_dist = Counter(s.prioridade for s in all_scores)
+    logger.info("Distribuicao de prioridades: %s", dict(prioridade_dist))
+
     return {
         "modelo": model.versao,
         "algoritmo": model.algoritmo,
@@ -185,4 +255,5 @@ def score_candidates(
         "scores_criados": created,
         "scores_atualizados": updated,
         "grupos": len(grouped),
+        "prioridade_distribuicao": dict(prioridade_dist),
     }

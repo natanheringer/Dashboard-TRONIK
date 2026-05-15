@@ -99,6 +99,28 @@ def _mean_ndcg_by_group(y_true: list[int], y_score: list[float], group_sizes: li
     return round(sum(scores) / len(scores), 4)
 
 
+def _ndcg_at_k(y_true: list[int], y_score: list[float], group_sizes: list[int], k: int) -> float | None:
+    """Compute mean NDCG@K across groups; skip groups with size < 2."""
+    try:
+        from sklearn.metrics import ndcg_score
+    except Exception:
+        return None
+
+    scores = []
+    cursor = 0
+    for size in group_sizes:
+        if size < 2:
+            cursor += size
+            continue
+        yt = [y_true[cursor : cursor + size]]
+        ys = [y_score[cursor : cursor + size]]
+        scores.append(float(ndcg_score(yt, ys, k=min(k, size))))
+        cursor += size
+    if not scores:
+        return None
+    return round(sum(scores) / len(scores), 4)
+
+
 # ---------------------------------------------------------------------------
 # Validation split
 # ---------------------------------------------------------------------------
@@ -187,38 +209,51 @@ def _ranker_param_candidates() -> list[dict[str, Any]]:
         "n_jobs": -1,
     }
     return [
-        {**base, "n_estimators": 200, "max_depth": 3, "learning_rate": 0.07,
-         "subsample": 0.90, "colsample_bytree": 0.90, "min_child_weight": 2,
+        {**base, "n_estimators": 200, "max_depth": 4, "learning_rate": 0.10,
+         "subsample": 0.80, "colsample_bytree": 0.70, "min_child_weight": 5,
          "reg_lambda": 1.0, "reg_alpha": 0.0},
-        {**base, "n_estimators": 260, "max_depth": 4, "learning_rate": 0.05,
-         "subsample": 0.85, "colsample_bytree": 0.85, "min_child_weight": 3,
+        {**base, "n_estimators": 240, "max_depth": 4, "learning_rate": 0.05,
+         "subsample": 0.85, "colsample_bytree": 0.80, "min_child_weight": 10,
          "reg_lambda": 1.5, "reg_alpha": 0.1},
-        {**base, "n_estimators": 320, "max_depth": 5, "learning_rate": 0.04,
-         "subsample": 0.80, "colsample_bytree": 0.80, "min_child_weight": 4,
+        {**base, "n_estimators": 280, "max_depth": 6, "learning_rate": 0.10,
+         "subsample": 0.80, "colsample_bytree": 0.70, "min_child_weight": 5,
+         "reg_lambda": 1.0, "reg_alpha": 0.0},
+        {**base, "n_estimators": 320, "max_depth": 6, "learning_rate": 0.05,
+         "subsample": 0.85, "colsample_bytree": 0.80, "min_child_weight": 10,
          "reg_lambda": 2.0, "reg_alpha": 0.2},
-        {**base, "n_estimators": 400, "max_depth": 6, "learning_rate": 0.03,
-         "subsample": 0.75, "colsample_bytree": 0.75, "min_child_weight": 5,
-         "reg_lambda": 3.0, "reg_alpha": 0.3},
-        {**base, "tree_method": "hist", "n_estimators": 480, "max_depth": 5, "learning_rate": 0.025,
-         "subsample": 0.88, "colsample_bytree": 0.82, "min_child_weight": 4,
-         "reg_lambda": 2.2, "reg_alpha": 0.12},
-        {**base, "tree_method": "hist", "n_estimators": 600, "max_depth": 7, "learning_rate": 0.018,
-         "subsample": 0.82, "colsample_bytree": 0.78, "min_child_weight": 5,
-         "reg_lambda": 3.5, "reg_alpha": 0.22},
+        {**base, "n_estimators": 360, "max_depth": 8, "learning_rate": 0.20,
+         "subsample": 1.00, "colsample_bytree": 1.00, "min_child_weight": 5,
+         "reg_lambda": 1.0, "reg_alpha": 0.0},
+        {**base, "n_estimators": 400, "max_depth": 8, "learning_rate": 0.05,
+         "subsample": 0.80, "colsample_bytree": 0.70, "min_child_weight": 20,
+         "reg_lambda": 2.0, "reg_alpha": 0.1},
+        {**base, "tree_method": "hist", "n_estimators": 480, "max_depth": 6, "learning_rate": 0.08,
+         "subsample": 0.88, "colsample_bytree": 0.82, "min_child_weight": 10,
+         "reg_lambda": 1.5, "reg_alpha": 0.05},
+        {**base, "tree_method": "hist", "n_estimators": 520, "max_depth": 8, "learning_rate": 0.05,
+         "subsample": 0.80, "colsample_bytree": 0.70, "min_child_weight": 15,
+         "reg_lambda": 2.5, "reg_alpha": 0.15},
     ]
 
 
-def _feature_importance(ranker: Any) -> dict[str, float]:
+def _feature_importance(ranker: Any) -> dict[str, dict[str, float]]:
+    """Extract feature importance (gain, weight, cover) for all features with names."""
     try:
-        importance = ranker.get_booster().get_score(importance_type="gain")
-        result: dict[str, float] = {}
-        for key, val in importance.items():
-            idx = int(key.replace("f", ""))
-            if idx < len(FEATURE_NAMES):
-                result[FEATURE_NAMES[idx]] = round(float(val), 4)
+        result: dict[str, dict[str, float]] = {}
+        for importance_type in ["gain", "weight", "cover"]:
+            try:
+                importance = ranker.get_booster().get_score(importance_type=importance_type)
+                type_scores: dict[str, float] = {}
+                for key, val in importance.items():
+                    idx = int(key.replace("f", ""))
+                    if idx < len(FEATURE_NAMES):
+                        type_scores[FEATURE_NAMES[idx]] = round(float(val), 4)
+                result[importance_type] = type_scores
+            except Exception:
+                result[importance_type] = {}
         return result
     except Exception:
-        return {}
+        return {"gain": {}, "weight": {}, "cover": {}}
 
 
 # ---------------------------------------------------------------------------
@@ -351,14 +386,22 @@ def train_ranker(
                 except Exception:
                     val_ndcg_selected = None
 
-            # --- Retrain winner on ALL data ---
-            final_ranker = XGBRanker(**best_params)
-            final_ranker.fit(
-                np.asarray(x, dtype=float),
-                np.asarray(y, dtype=float),
-                group=group_sizes,
-                verbose=False,
-            )
+            # --- Retrain winner on ALL data (with eval_set to capture learning curve) ---
+            final_params = dict(best_params)
+            final_params["early_stopping_rounds"] = 35
+            final_ranker = XGBRanker(**final_params)
+            final_fit_kwargs: dict[str, Any] = {
+                "group": group_sizes,
+                "verbose": False,
+            }
+            if x_val_np is not None and val_group_sizes:
+                final_fit_kwargs["eval_set"] = [
+                    (np.asarray(x, dtype=float), np.asarray(y, dtype=float)),
+                    (x_val_np, np.asarray(y_val, dtype=float)),
+                ]
+                final_fit_kwargs["eval_group"] = [group_sizes, val_group_sizes]
+
+            final_ranker.fit(np.asarray(x, dtype=float), np.asarray(y, dtype=float), **final_fit_kwargs)
 
             full_pred = [float(v) for v in final_ranker.predict(np.asarray(x, dtype=float))]
             full_ndcg = _mean_ndcg_by_group(y, full_pred, group_sizes)
@@ -366,6 +409,12 @@ def train_ranker(
             params = {k: v for k, v in best_params.items() if k != "monotone_constraints"}
             params["monotone_constraints"] = "enabled"
             metrics["train_ndcg_mean"] = full_ndcg
+
+            # --- NDCG@K for multiple K values ---
+            for k_val in [1, 5, 10, 20]:
+                ndcg_k = _ndcg_at_k(y, full_pred, group_sizes, k_val)
+                metrics[f"train_ndcg@{k_val}"] = ndcg_k
+
             has_val = len(y_val) > 0
             metrics["validation_has_holdout"] = has_val
             metrics["validation_groups"] = len(val_group_sizes)
@@ -373,11 +422,27 @@ def train_ranker(
             metrics["validation_ndcg_mean"] = (
                 round(val_ndcg_selected, 4) if val_ndcg_selected is not None else None
             )
+            if has_val and x_val_np is not None:
+                val_pred_for_k = [float(v) for v in final_ranker.predict(x_val_np)]
+                for k_val in [1, 5, 10, 20]:
+                    val_ndcg_k = _ndcg_at_k(y_val, val_pred_for_k, val_group_sizes, k_val)
+                    metrics[f"validation_ndcg@{k_val}"] = val_ndcg_k
+
             if metrics["validation_ndcg_mean"] is None and best_val_ndcg > float("-inf"):
                 metrics["hyperparam_selection_train_ndcg"] = round(best_val_ndcg, 4)
             metrics["search_results"] = search_results
-            metrics["feature_importance_gain"] = _feature_importance(final_ranker)
+            metrics["feature_importance"] = _feature_importance(final_ranker)
             metrics["retrained_on_full_data"] = True
+
+            # --- Extract learning curve from evals_result_ if available ---
+            try:
+                if hasattr(final_ranker, "evals_result_") and final_ranker.evals_result_:
+                    learning_curve: dict[str, list[float]] = {}
+                    for eval_name, eval_results in final_ranker.evals_result_.items():
+                        learning_curve[eval_name] = [round(v, 6) for v in eval_results]
+                    metrics["learning_curve"] = learning_curve
+            except Exception:
+                pass
 
             # --- Quality gate ---
             gate_passed = True
@@ -427,10 +492,16 @@ def train_ranker(
 
             should_activate = gate_passed
 
-            # --- Persist artifact ---
+            # --- Persist artifact with feature importance ---
             MODEL_DIR.mkdir(parents=True, exist_ok=True)
             artifact = MODEL_DIR / f"{model_version}.joblib"
-            joblib.dump({"model": final_ranker, "features": FEATURE_NAMES}, artifact)
+            feature_importance_data = _feature_importance(final_ranker)
+            artifact_data = {
+                "model": final_ranker,
+                "features": FEATURE_NAMES,
+                "feature_importance": feature_importance_data,
+            }
+            joblib.dump(artifact_data, artifact)
             artifact_path = str(artifact.relative_to(config.REPO_ROOT))
             algoritmo = "xgboost_ranker"
 

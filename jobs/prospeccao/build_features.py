@@ -4,8 +4,9 @@ from __future__ import annotations
 
 import json
 import logging
-from collections import defaultdict
+from collections import Counter, defaultdict
 from datetime import datetime
+from statistics import median
 from typing import Any
 
 from sqlalchemy.orm import Session
@@ -130,6 +131,60 @@ def _equal_frequency_ordinal_labels(scores: list[float], n_bins: int = 8) -> lis
     return out
 
 
+def _compute_feature_statistics(
+    bucket: list[tuple],
+    FEATURE_NAMES: list[str],
+) -> dict[str, dict[str, float]]:
+    """Compute mean, nonzero_pct, and max for each feature from sample."""
+    sample_size = min(10_000, len(bucket))
+    sample_idxs = list(range(0, len(bucket), max(1, len(bucket) // sample_size)))[:sample_size]
+
+    feature_stats = {}
+    for feat_name in FEATURE_NAMES:
+        vals = []
+        for idx in sample_idxs:
+            _, _, _, features, _, _ = bucket[idx]
+            vals.append(features.get(feat_name, 0.0))
+
+        nonzero_count = sum(1 for v in vals if v != 0)
+        feature_stats[feat_name] = {
+            "mean": round(sum(vals) / len(vals) if vals else 0, 4),
+            "nonzero_pct": round(nonzero_count / len(vals) * 100 if vals else 0, 1),
+            "max": round(max(vals) if vals else 0, 4),
+        }
+
+    return feature_stats
+
+
+def _check_feature_quality_alerts(
+    feature_stats: dict[str, dict[str, float]],
+    unique_qids: int,
+) -> list[str]:
+    """Return list of quality warnings."""
+    warnings = []
+
+    # Check for empty or sparse features
+    for feat_name, stats in feature_stats.items():
+        if stats["nonzero_pct"] < 5.0:
+            warnings.append(
+                f"Feature '{feat_name}' is sparse (nonzero_pct={stats['nonzero_pct']}%) "
+                "— probably empty/useless"
+            )
+        if stats["mean"] == 0.0:
+            warnings.append(
+                f"Feature '{feat_name}' is constant (mean=0.0) "
+                "— no discriminative power"
+            )
+
+    # Check QID coverage for LTR viability
+    if unique_qids < 10:
+        warnings.append(
+            f"Only {unique_qids} unique QIDs detected — LTR training will be compromised"
+        )
+
+    return warnings
+
+
 def build_feature_snapshots(
     db: Session,
     *,
@@ -220,6 +275,27 @@ def build_feature_snapshots(
                 processed_rows,
             )
 
+    # Calculate QID coverage report BEFORE label computation
+    qid_sizes = Counter(qid for _, _, qid, _, _, _ in bucket)
+    if qid_sizes:
+        qid_sizes_list = list(qid_sizes.values())
+        singleton_count = sum(1 for s in qid_sizes_list if s == 1)
+        stats["qid_distribution"] = {
+            "unique_qids": len(qid_sizes),
+            "median_group_size": median(qid_sizes_list),
+            "min_group_size": min(qid_sizes_list),
+            "max_group_size": max(qid_sizes_list),
+            "singleton_qids_pct": round(singleton_count / len(qid_sizes) * 100, 1),
+        }
+        logger.info(
+            "QID distribution: %d unique QIDs, median=%d, min=%d, max=%d, singletons=%.1f%%",
+            len(qid_sizes),
+            stats["qid_distribution"]["median_group_size"],
+            stats["qid_distribution"]["min_group_size"],
+            stats["qid_distribution"]["max_group_size"],
+            stats["qid_distribution"]["singleton_qids_pct"],
+        )
+
     # Group bucket by qid for listwise label computation
     qid_bucket_idxs: dict[str, list[int]] = defaultdict(list)
     for idx, (_, _, qid, _, _, _) in enumerate(bucket):
@@ -235,6 +311,24 @@ def build_feature_snapshots(
     stats["label_binning"] = "equal_frequency_rank_per_qid"
     stats["label_bins"] = n_label_bins
     stats["unique_qids"] = len(qid_stats)
+
+    # Compute feature statistics on sample (up to 10k rows for memory efficiency)
+    logger.info("build-features: calculando estatísticas por feature na amostra…")
+    FEATURE_NAMES = list(feature_schema().keys())
+    feature_stats = _compute_feature_statistics(bucket, FEATURE_NAMES)
+    stats["feature_stats"] = feature_stats
+
+    # Check for quality alerts
+    quality_warnings = _check_feature_quality_alerts(feature_stats, stats["unique_qids"])
+    if quality_warnings:
+        logger.warning(
+            "build-features: %d quality alerts detected:\n%s",
+            len(quality_warnings),
+            "\n".join(f"  - {w}" for w in quality_warnings),
+        )
+        stats["quality_warnings"] = quality_warnings
+    else:
+        logger.info("build-features: sem alertas de qualidade detectados")
 
     # Update snapshots with features and commit in batches to avoid long-running transactions
     BATCH_SIZE = 5000

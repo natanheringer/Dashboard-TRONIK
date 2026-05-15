@@ -250,6 +250,17 @@ def assign_qid(db: Session) -> dict[str, int]:
 
     db.flush()
     logger.info("QID assignment: %s", stats)
+
+    # Data quality report: QID distribution
+    qid_counts = (
+        db.query(LocalCandidato.qid, func.count(LocalCandidato.id))
+        .group_by(LocalCandidato.qid)
+        .order_by(func.count(LocalCandidato.id).desc())
+        .limit(10)
+        .all()
+    )
+    logger.info("Top QIDs: %s", [(q, c) for q, c in qid_counts])
+
     return stats
 
 
@@ -292,6 +303,14 @@ def deduplicate_empresas(db: Session) -> dict[str, int]:
 
     db.flush()
     logger.info("Deduplication: %s", stats)
+
+    # Data quality validation: check for orphaned locations
+    orphans = db.query(func.count(LocalCandidato.id)).filter(
+        LocalCandidato.empresa_id.is_(None)
+    ).scalar() or 0
+    if orphans > 0:
+        logger.warning("Encontrados %d locais órfãos sem empresa_id", orphans)
+
     return stats
 
 
@@ -334,5 +353,26 @@ def normalize_all(
     results["qid_assign"] = assign_qid(db)
 
     db.commit()
+
+    # Data quality report: coverage metrics (Google Data Validation style)
+    total = db.query(func.count(EmpresaCandidata.id)).scalar() or 0
+    com_coords = db.query(func.count(LocalCandidato.id)).filter(
+        LocalCandidato.latitude.isnot(None)
+    ).scalar() or 0
+    com_ra = db.query(func.count(LocalCandidato.id)).filter(
+        LocalCandidato.ra.isnot(None), LocalCandidato.ra != ""
+    ).scalar() or 0
+    com_qid = db.query(func.count(LocalCandidato.id)).filter(
+        LocalCandidato.qid.isnot(None)
+    ).scalar() or 0
+
+    results["coverage"] = {
+        "total_empresas": total,
+        "pct_geocoded": round(com_coords / total * 100, 1) if total else 0,
+        "pct_with_ra": round(com_ra / total * 100, 1) if total else 0,
+        "pct_with_qid": round(com_qid / total * 100, 1) if total else 0,
+    }
+    logger.info("Coverage report: %s", results["coverage"])
+
     logger.info("Normalization complete: %s", results)
     return results
