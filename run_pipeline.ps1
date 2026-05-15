@@ -1,12 +1,11 @@
-
 # =============================================================================
-#  TRONIK Prospeccao — SOTA Pipeline v3.2
+#  TRONIK Prospeccao - SOTA Pipeline v3.2
 #
 #  Fases:
-#    1. Downloads  — harvest IBGE/CKAN/PNCP, fetch Casa dos Dados, CNEFE, Receita
-#    2. Ingestao   — receita-parse, normalize (dedup + geocode + RA + qid)
-#    3. Enriquece  — brasilapi-enrich, aneel, ibram
-#    4. ML         — build-features v3.2, train-ranker, score-candidates
+#    1. Downloads  - harvest IBGE/CKAN/PNCP, fetch Casa dos Dados, CNEFE, Receita
+#    2. Ingestao   - receita-parse, normalize (dedup + geocode + RA + qid)
+#    3. Enriquece  - brasilapi-enrich, aneel, ibram
+#    4. ML         - build-features v3.2, train-ranker, score-candidates
 #
 #  USO RAPIDO:
 #    .\run_pipeline.ps1                          # pipeline completo
@@ -70,6 +69,7 @@ function Run-Step {
         [switch]$Critical,
         [switch]$WarnOnly
     )
+
     $logFile = Join-Path $logDir "step_$($Name -replace '[^a-z0-9]','_').log"
     Write-Host "  -> $Name" -NoNewline -ForegroundColor DarkGray
     $sw = [System.Diagnostics.Stopwatch]::StartNew()
@@ -134,19 +134,19 @@ if ($DemoOnly) {
 }
 
 # ---------------------------------------------------------------------------
-# FASE 1 — Downloads
+# FASE 1 - Downloads
 # ---------------------------------------------------------------------------
 
-Write-Phase "FASE 1/4 — Downloads"
+Write-Phase "FASE 1/4 - Downloads"
 
-Run-Step "harvest" "python -m jobs.prospeccao harvest --steps `"ibge,geoportal,ckan_meta,pncp`""
+Run-Step "harvest" "python -m jobs.prospeccao harvest --steps ibge,geoportal,ckan_meta,pncp"
 
 if (-not $SkipFetch) {
     if (-not $env:TRONIK_CASADOSDADOS_API_KEY) {
-        Write-Host "  [AVISO] TRONIK_CASADOSDADOS_API_KEY nao definida — pulando fetch-targeted." -ForegroundColor Yellow
-        Write-Host "          Defina: `$env:TRONIK_CASADOSDADOS_API_KEY = 'sua-chave'" -ForegroundColor DarkGray
+        Write-Host "  [AVISO] TRONIK_CASADOSDADOS_API_KEY nao definida - pulando fetch-targeted." -ForegroundColor Yellow
+        Write-Host '          Defina: $env:TRONIK_CASADOSDADOS_API_KEY = ''sua-chave''' -ForegroundColor DarkGray
     } else {
-        Run-Step "fetch-targeted" "python -m jobs.prospeccao fetch-targeted --tiers `"$Tiers`""
+        Run-Step "fetch-targeted" "python -m jobs.prospeccao fetch-targeted --tiers $Tiers"
     }
 }
 
@@ -159,10 +159,10 @@ if (-not $SkipReceita) {
 }
 
 # ---------------------------------------------------------------------------
-# FASE 2 — Ingestao e Normalizacao
+# FASE 2 - Ingestao e Normalizacao
 # ---------------------------------------------------------------------------
 
-Write-Phase "FASE 2/4 — Ingestao e Normalizacao"
+Write-Phase "FASE 2/4 - Ingestao e Normalizacao"
 
 if (-not $SkipReceita) {
     Run-Step "receita-parse" "python -m jobs.prospeccao receita-parse" -Critical
@@ -173,10 +173,10 @@ if (-not $SkipNormalize) {
 }
 
 # ---------------------------------------------------------------------------
-# FASE 3 — Enriquecimento
+# FASE 3 - Enriquecimento
 # ---------------------------------------------------------------------------
 
-Write-Phase "FASE 3/4 — Enriquecimento de Dados"
+Write-Phase "FASE 3/4 - Enriquecimento de Dados"
 
 if (-not $SkipBrasilApi) {
     Run-Step "brasilapi-enrich" "python -m jobs.prospeccao brasilapi-enrich --batch $BrasilApiBatch"
@@ -184,28 +184,28 @@ if (-not $SkipBrasilApi) {
 
 if (-not $SkipAneel) {
     if (-not $env:TRONIK_ANEEL_CONSUMIDORES_URL) {
-        Write-Host "  [INFO] TRONIK_ANEEL_CONSUMIDORES_URL nao definida — ANEEL vai tentar descoberta via CKAN." -ForegroundColor DarkGray
+        Write-Host "  [INFO] TRONIK_ANEEL_CONSUMIDORES_URL nao definida - ANEEL vai tentar descoberta via CKAN." -ForegroundColor DarkGray
     }
-    Run-Step "aneel" "python -m jobs.prospeccao aneel --ufs `"DF,GO`""
+    Run-Step "aneel" "python -m jobs.prospeccao aneel --ufs DF,GO"
 }
 
 if (-not $SkipIbram) {
     if (-not $env:TRONIK_IBRAM_GERADORES_URL) {
-        Write-Host "  [INFO] TRONIK_IBRAM_GERADORES_URL nao definida — IBRAM tentara CKAN DF." -ForegroundColor DarkGray
-        Write-Host "         Para CSV manual: `$env:TRONIK_IBRAM_GERADORES_URL = 'caminho\arquivo.csv'" -ForegroundColor DarkGray
+        Write-Host "  [INFO] TRONIK_IBRAM_GERADORES_URL nao definida - IBRAM tentara CKAN DF." -ForegroundColor DarkGray
+        Write-Host '         Para CSV manual: $env:TRONIK_IBRAM_GERADORES_URL = ''caminho\arquivo.csv''' -ForegroundColor DarkGray
     }
     Run-Step "ibram" "python -m jobs.prospeccao ibram"
 }
 
 # ---------------------------------------------------------------------------
-# FASE 4 — ML Pipeline
+# FASE 4 - ML Pipeline
 # ---------------------------------------------------------------------------
 
-Write-Phase "FASE 4/4 — ML: build-features + train + score"
+Write-Phase "FASE 4/4 - ML: build-features + train + score"
 
 $buildCmd = "python -m jobs.prospeccao build-features --version $Version"
-if ($DemoOnly)        { $buildCmd += " --seed-demo" }
-if ($BuildLimit -gt 0){ $buildCmd += " --limit $BuildLimit" }
+if ($DemoOnly)         { $buildCmd += " --seed-demo" }
+if ($BuildLimit -gt 0) { $buildCmd += " --limit $BuildLimit" }
 Run-Step "build-features" $buildCmd -Critical
 
 Run-Step "train-ranker" "python -m jobs.prospeccao train-ranker --pipeline-version $Version" -Critical
@@ -222,7 +222,7 @@ $errors = ($stepResults.Values | Where-Object { -not $_.ok }).Count
 if ($errors -eq 0) {
     Write-Host "  Pipeline completo sem erros!" -ForegroundColor Green
 } else {
-    Write-Host "  $errors passo(s) com erro — verifique os logs acima." -ForegroundColor Yellow
+    Write-Host "  $errors passo(s) com erro - verifique os logs acima." -ForegroundColor Yellow
 }
 
 Write-Host ""
