@@ -91,11 +91,18 @@ def main(argv: list[str] | None = None) -> int:
     s_h.add_argument("--pncp-max-pages", type=int, default=80)
 
     s_build = sub.add_parser("build-features", help="Monta feature_snapshot_prospeccao")
-    s_build.add_argument("--version", type=str, default="prospeccao-ree-v2")
+    s_build.add_argument("--version", type=str, default="prospeccao-ree-v3.1")
     s_build.add_argument("--seed-demo", action="store_true", help="Insere candidatos demo para smoke test")
+    s_build.add_argument(
+        "--limit",
+        type=int,
+        default=None,
+        metavar="N",
+        help="Processa só as N primeiras empresas (ordem por id). Útil para teste; qid_stats fica só sobre esse recorte.",
+    )
 
     s_train = sub.add_parser("train-ranker", help="Treina XGBRanker ou baseline heuristico")
-    s_train.add_argument("--pipeline-version", type=str, default="prospeccao-ree-v2")
+    s_train.add_argument("--pipeline-version", type=str, default="prospeccao-ree-v3.1")
     s_train.add_argument("--model-version", type=str, default=None)
     s_train.add_argument("--no-baseline", action="store_true")
 
@@ -110,8 +117,15 @@ def main(argv: list[str] | None = None) -> int:
     s_pub.add_argument("--model-version", type=str, default=None)
 
     s_pipe = sub.add_parser("ranker-pipeline", help="build-features + train-ranker + score-candidates")
-    s_pipe.add_argument("--version", type=str, default="prospeccao-ree-v2")
+    s_pipe.add_argument("--version", type=str, default="prospeccao-ree-v3.1")
     s_pipe.add_argument("--seed-demo", action="store_true")
+    s_pipe.add_argument(
+        "--build-limit",
+        type=int,
+        default=None,
+        metavar="N",
+        help="Repasse para build-features --limit (smoke / recorte).",
+    )
 
     s_rp = sub.add_parser("receita-parse", help="Parseia ZIPs Receita baixados -> empresa_candidata + local_candidato")
     s_rp.add_argument("--no-two-pass", action="store_true", help="Carrega TODOS Empresas*.zip na memória (rápido, ~12 GB RAM)")
@@ -122,6 +136,19 @@ def main(argv: list[str] | None = None) -> int:
     s_norm = sub.add_parser("normalize", help="Dedup + geocode CNEFE + RA + qid")
     s_norm.add_argument("--skip-geocode", action="store_true", help="Pula geocodificação CNEFE")
     s_norm.add_argument("--skip-ra", action="store_true", help="Pula atribuição de RA")
+
+    s_aneel = sub.add_parser("aneel", help="Baixa e cruza dados ANEEL de consumidores livres (proxy porte operacional)")
+    s_aneel.add_argument("--url", type=str, default=None, help="URL direta do CSV/ZIP ANEEL")
+    s_aneel.add_argument("--ufs", type=str, default="DF,GO", help="UFs a filtrar separadas por vírgula (default DF,GO)")
+
+    s_ibram = sub.add_parser("ibram", help="Importa cadastro IBRAM de geradores de resíduos perigosos (e-waste)")
+    s_ibram.add_argument("--file", type=str, default=None, help="Caminho para CSV exportado do portal IBRAM")
+    s_ibram.add_argument("--url", type=str, default=None, help="URL direta de recurso CSV/XLS do IBRAM")
+
+    s_ba = sub.add_parser("brasilapi-enrich", help="Enriquece email/telefone/CNAE via Brasil API (free, sem auth)")
+    s_ba.add_argument("--batch", type=int, default=500, help="Max CNPJs por execução (default 500)")
+    s_ba.add_argument("--sleep", type=float, default=None, help="Pausa entre requests em segundos (default 0.4)")
+    s_ba.add_argument("--all", dest="all_records", action="store_true", help="Consulta todos, não só os sem contato")
 
     s_cdd = sub.add_parser("fetch-targeted", help="Busca DF+Entorno via Casa dos Dados API (sem download pesado)")
     s_cdd.add_argument(
@@ -272,6 +299,44 @@ def main(argv: list[str] | None = None) -> int:
         print(json.dumps(rep, ensure_ascii=False, indent=2, default=str))
         return 0 if not rep.get("errors") else 1
 
+    if args.cmd == "aneel":
+        from jobs.prospeccao.aneel_ingest import sync_aneel_consumidores
+        from jobs.prospeccao.db import session_scope
+
+        ufs = set(u.strip().upper() for u in args.ufs.split(",") if u.strip())
+        with session_scope() as db:
+            result = sync_aneel_consumidores(db, url=args.url, ufs=ufs)
+            db.commit()
+        print(json.dumps(result, ensure_ascii=False, indent=2, default=str))
+        return 0
+
+    if args.cmd == "ibram":
+        from jobs.prospeccao.ibram_ingest import sync_ibram_geradores
+        from jobs.prospeccao.db import session_scope
+        from pathlib import Path as _Path
+
+        csv_path = _Path(args.file) if args.file else None
+        with session_scope() as db:
+            result = sync_ibram_geradores(db, csv_path=csv_path, url=args.url)
+            db.commit()
+        print(json.dumps(result, ensure_ascii=False, indent=2, default=str))
+        return 0
+
+    if args.cmd == "brasilapi-enrich":
+        from jobs.prospeccao.brasilapi_enrich import enrich_via_brasilapi
+        from jobs.prospeccao.db import session_scope
+
+        with session_scope() as db:
+            result = enrich_via_brasilapi(
+                db,
+                batch_size=args.batch,
+                sleep_s=args.sleep,
+                only_missing_contact=not args.all_records,
+            )
+            db.commit()
+        print(json.dumps(result, ensure_ascii=False, indent=2, default=str))
+        return 0
+
     if args.cmd == "fetch-targeted":
         from jobs.prospeccao.casadosdados_fetch import fetch_targeted
         from jobs.prospeccao.db import session_scope
@@ -318,6 +383,7 @@ def main(argv: list[str] | None = None) -> int:
                 db,
                 pipeline_version=args.version,
                 seed_demo=args.seed_demo,
+                limit=args.limit,
             )
         print(json.dumps(result, ensure_ascii=False, indent=2, default=str))
         return 0
@@ -375,6 +441,7 @@ def main(argv: list[str] | None = None) -> int:
                 db,
                 pipeline_version=args.version,
                 seed_demo=args.seed_demo,
+                limit=args.build_limit,
             )
             trained = train_ranker(db, pipeline_version=args.version)
             scored = score_candidates(db, model_version=trained["versao"], pipeline_version=args.version)

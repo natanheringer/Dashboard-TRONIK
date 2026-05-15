@@ -1031,7 +1031,8 @@ class LocalCandidato(Base):
     )
 
     id = Column(Integer, primary_key=True, autoincrement=True)
-    empresa_id = Column(Integer, ForeignKey("empresa_candidata.id"), nullable=True, index=True)
+    # CONSTRAINT: empresa_id obrigatório para evitar locais órfãos que causam crashes
+    empresa_id = Column(Integer, ForeignKey("empresa_candidata.id"), nullable=False, index=True)
     endereco = Column(String(500))
     latitude = Column(Float)
     longitude = Column(Float)
@@ -1190,6 +1191,8 @@ class ScoreProspeccao(Base):
     score = Column(Float, nullable=False)
     ranking_contexto = Column(Integer, nullable=False)
     prioridade = Column(String(20), default='media', index=True)
+    # RASTREABILIDADE: versão do pipeline que gerou as features usadas neste score
+    pipeline_version = Column(String(80), nullable=True, index=True)
     motivos_json = Column(Text)
     calculado_em = Column(DateTime, default=utc_now_naive, index=True)
 
@@ -1210,6 +1213,7 @@ class ScoreProspeccao(Base):
             'score': self.score,
             'ranking_contexto': self.ranking_contexto,
             'prioridade': self.prioridade,
+            'pipeline_version': self.pipeline_version,
             'motivos': json.loads(self.motivos_json) if self.motivos_json else [],
             'calculado_em': self.calculado_em.isoformat() if self.calculado_em else None,
         }

@@ -1,12 +1,9 @@
 """Train or bootstrap the REE prospection ranker.
 
-v2 training pipeline:
-- Group-aware (qid) validation split
-- Hyperparameter search with early stopping
-- Monotonic constraints encoding domain knowledge
-- Retrain winner on full data for deployed artifact
-- Quality gate: refuse to activate a model worse than the current active
-- Feature importance (gain) tracked in metrics
+v3+: geo-first listwise qids + quantile labels live in snapshots; training shards
+oversized groups and guarantees enough multi-document qids for validation.
+
+v2: group-aware validation, hyperparameter search, monotonic XGBRanker, quality gate.
 """
 
 from __future__ import annotations
@@ -14,6 +11,7 @@ from __future__ import annotations
 import json
 import logging
 import random
+import sys
 from collections import defaultdict
 from datetime import datetime
 from typing import Any
@@ -105,6 +103,49 @@ def _mean_ndcg_by_group(y_true: list[int], y_score: list[float], group_sizes: li
 # Validation split
 # ---------------------------------------------------------------------------
 
+def _shard_oversized_groups(
+    grouped: dict[str, list[FeatureSnapshotProspeccao]],
+    *,
+    max_share: float = 0.025,
+    shards: int = 128,
+) -> dict[str, list[FeatureSnapshotProspeccao]]:
+    """Break dominant qids so LTR has many listwise groups and validation can hold out."""
+    total = sum(len(items) for items in grouped.values())
+    if total == 0:
+        return grouped
+    out: dict[str, list[FeatureSnapshotProspeccao]] = {}
+    for qid, items in grouped.items():
+        share = len(items) / total
+        if share > max_share and len(items) >= shards * 4:
+            for row in items:
+                h = (row.empresa_id ^ (row.local_id or 0) ^ 0x9E3779B9) % shards
+                nq = f"{qid}~s{h}"
+                out.setdefault(nq, []).append(row)
+        else:
+            out[qid] = list(items)
+    return out
+
+
+def _ensure_multi_item_qids(
+    grouped: dict[str, list[FeatureSnapshotProspeccao]],
+    *,
+    min_qids_with_pair: int = 12,
+    shards: int = 96,
+) -> dict[str, list[FeatureSnapshotProspeccao]]:
+    """If almost all groups are singletons, hash-bucket globally for trainable LTR."""
+    multi = [qid for qid, items in grouped.items() if len(items) >= 2]
+    if len(multi) >= min_qids_with_pair:
+        return grouped
+    flat: list[FeatureSnapshotProspeccao] = []
+    for items in grouped.values():
+        flat.extend(items)
+    out: dict[str, list[FeatureSnapshotProspeccao]] = defaultdict(list)
+    for row in flat:
+        h = (row.empresa_id ^ (row.local_id or 0) ^ 0x85EBCA6B) % shards
+        out[f"ltr~{h}"].append(row)
+    return dict(out)
+
+
 def _stratified_qid_split(
     grouped: dict[str, list[FeatureSnapshotProspeccao]],
     validation_ratio: float = 0.2,
@@ -158,6 +199,12 @@ def _ranker_param_candidates() -> list[dict[str, Any]]:
         {**base, "n_estimators": 400, "max_depth": 6, "learning_rate": 0.03,
          "subsample": 0.75, "colsample_bytree": 0.75, "min_child_weight": 5,
          "reg_lambda": 3.0, "reg_alpha": 0.3},
+        {**base, "tree_method": "hist", "n_estimators": 480, "max_depth": 5, "learning_rate": 0.025,
+         "subsample": 0.88, "colsample_bytree": 0.82, "min_child_weight": 4,
+         "reg_lambda": 2.2, "reg_alpha": 0.12},
+        {**base, "tree_method": "hist", "n_estimators": 600, "max_depth": 7, "learning_rate": 0.018,
+         "subsample": 0.82, "colsample_bytree": 0.78, "min_child_weight": 5,
+         "reg_lambda": 3.5, "reg_alpha": 0.22},
     ]
 
 
@@ -203,13 +250,21 @@ def train_ranker(
         [{"name": name, "type": "float", "version": pipeline_version} for name in FEATURE_NAMES]
     )
 
+    metrics: dict[str, Any] = {}
     grouped = _group_rows(rows)
+    metrics["groups_raw_snapshot_qid"] = len(grouped)
+    grouped = _shard_oversized_groups(grouped)
+    grouped = _ensure_multi_item_qids(grouped)
+    metrics["groups_after_ltr_preprocess"] = len(grouped)
+
     x, y, group_sizes = _matrix(grouped)
-    metrics: dict[str, Any] = {
-        "rows": len(rows),
-        "groups": len(group_sizes),
-        "label_distribution": {str(label): y.count(label) for label in sorted(set(y))},
-    }
+    metrics.update(
+        {
+            "rows": len(rows),
+            "groups": len(group_sizes),
+            "label_distribution": {str(label): y.count(label) for label in sorted(set(y))},
+        }
+    )
 
     enough_for_ranker = (
         len(rows) >= 8
@@ -284,6 +339,14 @@ def train_ranker(
             if best_ranker is None or best_params is None:
                 raise RuntimeError("Hyperparameter search produced no viable ranker")
 
+            val_ndcg_selected: float | None = None
+            if x_val_np is not None and val_group_sizes:
+                try:
+                    val_pred_sel = [float(v) for v in best_ranker.predict(x_val_np)]
+                    val_ndcg_selected = _mean_ndcg_by_group(y_val, val_pred_sel, val_group_sizes)
+                except Exception:
+                    val_ndcg_selected = None
+
             # --- Retrain winner on ALL data ---
             final_ranker = XGBRanker(**best_params)
             final_ranker.fit(
@@ -299,9 +362,15 @@ def train_ranker(
             params = {k: v for k, v in best_params.items() if k != "monotone_constraints"}
             params["monotone_constraints"] = "enabled"
             metrics["train_ndcg_mean"] = full_ndcg
+            has_val = len(y_val) > 0
+            metrics["validation_has_holdout"] = has_val
             metrics["validation_groups"] = len(val_group_sizes)
             metrics["validation_rows"] = len(y_val)
-            metrics["validation_ndcg_mean"] = round(best_val_ndcg, 4) if best_val_ndcg > float("-inf") else None
+            metrics["validation_ndcg_mean"] = (
+                round(val_ndcg_selected, 4) if val_ndcg_selected is not None else None
+            )
+            if metrics["validation_ndcg_mean"] is None and best_val_ndcg > float("-inf"):
+                metrics["hyperparam_selection_train_ndcg"] = round(best_val_ndcg, 4)
             metrics["search_results"] = search_results
             metrics["feature_importance_gain"] = _feature_importance(final_ranker)
             metrics["retrained_on_full_data"] = True
@@ -364,7 +433,7 @@ def train_ranker(
         except Exception as exc:
             if not allow_baseline:
                 raise
-            metrics["ranker_error"] = str(exc)
+            metrics["ranker_error"] = f"{exc!s} (interpreter: {sys.executable})"
             logger.exception("XGBRanker training failed; falling back to heuristic baseline")
     elif not allow_baseline:
         raise ValueError("Not enough labeled feature snapshots to train XGBRanker")

@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import json
+import logging
 from collections import defaultdict
 from datetime import datetime
 from pathlib import Path
@@ -13,6 +14,8 @@ from sqlalchemy.orm import Session
 from banco_dados.modelos import FeatureSnapshotProspeccao, ModeloProspeccao, ScoreProspeccao
 from jobs.prospeccao import config
 from jobs.prospeccao.ranker_contract import FEATURE_NAMES, heuristic_score, top_reasons
+
+logger = logging.getLogger(__name__)
 
 
 def _json(data: Any) -> str:
@@ -58,15 +61,39 @@ def _predict_and_explain(
                 dict(zip(features, (float(v) for v in row_shap)))
                 for row_shap in shap_values
             ]
-        except Exception:
-            pass
+        except Exception as exc:
+            logger.warning("SHAP calculation failed: %s", exc)
 
         return predictions, shap_maps
 
     return [heuristic_score(row) for row in feature_rows], None
 
 
-def _priority(rank: int, group_size: int) -> str:
+def _priority(rank: int, group_size: int, score: float) -> str:
+    """Assign priority tier based on absolute score thresholds with rank-based fallback.
+
+    Scores are on a heuristic 0–100 scale (from heuristic_score) or 0–1 for XGBoost models.
+    Absolute thresholds take precedence to prevent low-quality candidates from ranking high.
+
+    Args:
+        rank: Position in sorted group (1-indexed, lower is better)
+        group_size: Total candidates in the qid group
+        score: Absolute score value (0–100 heuristic or 0–1 XGBoost)
+
+    Returns:
+        Priority tier: 'alta', 'media', or 'baixa'
+    """
+    # Normalize XGBoost scores (0–1) to 0–100 scale for consistent thresholds
+    # XGBoost produces floats ~0.1–0.9; heuristic already 0–100
+    normalized_score = score if score > 10 else score * 100
+
+    # Absolute score thresholds (primary filter)
+    if normalized_score >= 70:
+        return "alta"
+    if normalized_score <= 20:
+        return "baixa"
+
+    # Relative rank within group (tiebreaker for middle scores 20–70)
     if rank <= 5:
         return "alta"
     if rank <= 20 or rank <= max(1, int(group_size * 0.20)):
@@ -82,6 +109,14 @@ def score_candidates(
 ) -> dict[str, Any]:
     model = _active_model(db, model_version)
     pipeline_version = pipeline_version or model.pipeline_version
+
+    # Validate pipeline version compatibility
+    if model.pipeline_version and pipeline_version and model.pipeline_version != pipeline_version:
+        raise ValueError(
+            f"Model '{model.versao}' was trained on pipeline '{model.pipeline_version}' "
+            f"but requested pipeline is '{pipeline_version}'. "
+            f"Use --pipeline-version {model.pipeline_version} or retrain the model."
+        )
 
     snapshots = (
         db.query(FeatureSnapshotProspeccao)
@@ -126,7 +161,8 @@ def score_candidates(
             score_row.qid = qid
             score_row.score = round(float(score), 6)
             score_row.ranking_contexto = rank
-            score_row.prioridade = _priority(rank, len(ranked))
+            score_row.prioridade = _priority(rank, len(ranked), float(score))
+            score_row.pipeline_version = pipeline_version
             score_row.motivos_json = _json(top_reasons(features, shap_values=shap_vals))
             score_row.calculado_em = datetime.utcnow()
 

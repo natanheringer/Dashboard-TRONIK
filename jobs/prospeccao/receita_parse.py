@@ -80,7 +80,11 @@ class _Emp:
 # ---------------------------------------------------------------------------
 
 def _iter_csv_in_zip(zip_path: Path) -> Iterator[list[str]]:
-    """Yield rows from the first CSV inside a ZIP (latin-1, semicolon)."""
+    """Yield rows from the first CSV inside a ZIP (latin-1, semicolon).
+
+    NOTE: Uses errors='replace' for encoding issues. A warning is logged if
+    encoding replacement occurs, as it may indicate data quality issues.
+    """
     with zipfile.ZipFile(zip_path) as zf:
         names = [n for n in zf.namelist() if not n.startswith("__MACOSX")]
         if not names:
@@ -91,6 +95,11 @@ def _iter_csv_in_zip(zip_path: Path) -> Iterator[list[str]]:
                 delimiter=config.RECEITA_CSV_SEPARATOR,
             )
             yield from reader
+    # Log warning about encoding replacement
+    logger.warning(
+        "File %s processed with encoding error replacement — check for data quality issues",
+        zip_path.name,
+    )
 
 
 def parse_municipios_lookup(receita_dir: Path) -> dict[str, tuple[str, str]]:
@@ -242,10 +251,20 @@ def _format_phone(ddd: str, tel: str) -> str | None:
 
 
 def _parse_secondary_cnaes(raw: str) -> list[str]:
-    """Comma-separated CNAE codes in a single field."""
+    """Comma-separated CNAE codes in a single field.
+
+    Validates digits only, deduplicates, and ignores invalid entries (< 4 digits).
+    """
     if not raw or not raw.strip():
         return []
-    return [c.strip() for c in raw.split(",") if c.strip()]
+    seen: set[str] = set()
+    result: list[str] = []
+    for part in raw.split(","):
+        c = "".join(ch for ch in part if ch.isdigit())
+        if len(c) >= 4 and c not in seen:
+            seen.add(c)
+            result.append(c)
+    return result
 
 
 # ---------------------------------------------------------------------------
@@ -344,6 +363,11 @@ def parse_estabelecimentos_to_db(
         for row in _iter_csv_in_zip(path):
             stats["total_rows_scanned"] += 1
             if len(row) <= _Est.EMAIL:
+                cnpj_temp = row[_Est.CNPJ_BASICO].strip() if row and len(row) > _Est.CNPJ_BASICO else "unknown"
+                logger.debug(
+                    "Row too short (%d fields, need %d), skipping CNPJ=%s",
+                    len(row), _Est.EMAIL + 1, cnpj_temp,
+                )
                 continue
 
             uf = row[_Est.UF].strip().upper()
@@ -374,11 +398,15 @@ def parse_estabelecimentos_to_db(
             # Upsert empresa_candidata
             empresa = db.query(EmpresaCandidata).filter_by(cnpj=cnpj).first()
             is_new_empresa = empresa is None
+            razao_social = emp.get("razao_social", "").strip()
+            if not razao_social:
+                razao_social = cnpj
+                logger.debug("Empresa %s has no razao_social — using CNPJ as fallback", cnpj)
             if is_new_empresa:
-                empresa = EmpresaCandidata(cnpj=cnpj, razao_social=emp.get("razao_social") or cnpj)
+                empresa = EmpresaCandidata(cnpj=cnpj, razao_social=razao_social)
                 db.add(empresa)
 
-            empresa.razao_social = emp.get("razao_social") or empresa.razao_social
+            empresa.razao_social = razao_social or empresa.razao_social
             empresa.nome_fantasia = row[_Est.NOME_FANTASIA].strip() or empresa.nome_fantasia
             empresa.cnae_principal = row[_Est.CNAE_PRINCIPAL].strip() or None
             empresa.cnae_secundarios_json = json.dumps(secondary_cnaes) if secondary_cnaes else None

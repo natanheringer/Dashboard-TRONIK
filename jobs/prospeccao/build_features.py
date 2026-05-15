@@ -16,7 +16,8 @@ from jobs.prospeccao.ranker_contract import (
     build_feature_vector,
     cnae_ree_fit,
     feature_schema,
-    heuristic_relevance_label,
+    heuristic_relevance_continuous,
+    listwise_training_qid,
 )
 
 logger = logging.getLogger(__name__)
@@ -115,25 +116,18 @@ def seed_demo_candidates(db: Session) -> int:
     return created
 
 
-def _qid_for(empresa: EmpresaCandidata, local: LocalCandidato | None) -> str:
-    """Generate ranking group id.
-
-    DF candidates group by RA (satellite city granularity).
-    Entorno/GO candidates group by municipio name.
-    """
-    if local and local.qid:
-        return local.qid
-    if local and local.ra:
-        return f"ra:{local.ra.lower()}"
-    uf = (getattr(empresa, "uf", None) or "").strip().upper()
-    if uf == "GO":
-        municipio = getattr(empresa, "municipio", None) or getattr(local, "bairro", None) if local else None
-        if municipio:
-            return f"entorno:{municipio.strip().lower()}"
-        return "entorno"
-    if empresa.bairro:
-        return f"bairro:{empresa.bairro.lower()}"
-    return "df"
+def _equal_frequency_ordinal_labels(scores: list[float], n_bins: int = 8) -> list[int]:
+    """Global relevance ordinals 0..n_bins-1 with ~equal count per bin (handles ties)."""
+    n = len(scores)
+    if n == 0:
+        return []
+    if n < n_bins:
+        return [0] * n
+    order = sorted(range(n), key=lambda i: (scores[i], i))
+    out = [0] * n
+    for rank, idx in enumerate(order):
+        out[idx] = min(n_bins - 1, int(rank * n_bins / n))
+    return out
 
 
 def build_feature_snapshots(
@@ -141,45 +135,71 @@ def build_feature_snapshots(
     *,
     pipeline_version: str = FEATURE_SCHEMA_VERSION,
     seed_demo: bool = False,
+    limit: int | None = None,
 ) -> dict[str, Any]:
     if seed_demo:
         seed_demo_candidates(db)
 
-    empresas = db.query(EmpresaCandidata).order_by(EmpresaCandidata.id.asc()).all()
+    q = db.query(EmpresaCandidata).order_by(EmpresaCandidata.id.asc())
+    if limit is not None and limit > 0:
+        q = q.limit(limit)
+    empresas = q.all()
+    total = len(empresas)
+    logger.info(
+        "build-features: carregadas %s empresas (limit=%s); montando qid_stats…",
+        total,
+        limit,
+    )
     schema_json = _json(feature_schema())
     stats = {
         "pipeline_version": pipeline_version,
-        "empresas": len(empresas),
+        "empresas": total,
         "snapshots_criados": 0,
         "seed_demo": seed_demo,
+        "limit": limit,
     }
 
     # Pre-compute neighborhood context per qid for spatial density features
     qid_stats: dict[str, dict[str, int]] = defaultdict(
         lambda: {"qid_total": 0, "qid_ree_compatible": 0},
     )
-    for empresa in empresas:
+    for i, empresa in enumerate(empresas, start=1):
         for local in (empresa.locais or [None]):
-            qid = _qid_for(empresa, local)
+            qid = listwise_training_qid(empresa, local)
             qid_stats[qid]["qid_total"] += 1
             if cnae_ree_fit(getattr(empresa, "cnae_principal", None)) > 0:
                 qid_stats[qid]["qid_ree_compatible"] += 1
+        if i % 10_000 == 0 or i == total:
+            logger.info("build-features: qid_stats %s/%s empresas", i, total)
 
-    for empresa in empresas:
+    # Uma leitura em lote evita ~1 SELECT por candidato no loop principal (SQLite ficava horas).
+    snapshot_by_key: dict[tuple[int, int | None], FeatureSnapshotProspeccao] = {}
+    for snap in (
+        db.query(FeatureSnapshotProspeccao)
+        .filter(FeatureSnapshotProspeccao.pipeline_version == pipeline_version)
+        .all()
+    ):
+        snapshot_by_key[(snap.empresa_id, snap.local_id)] = snap
+    logger.info(
+        "build-features: %s snapshots já existentes para %s; atualizando/inserindo…",
+        len(snapshot_by_key),
+        pipeline_version,
+    )
+
+    n_label_bins = 8
+    bucket: list[
+        tuple[EmpresaCandidata, LocalCandidato | None, str, dict[str, float], float, int | None]
+    ] = []
+    processed_rows = 0
+    for i, empresa in enumerate(empresas, start=1):
         locais = empresa.locais or [None]
         for local in locais:
-            qid = _qid_for(empresa, local)
+            qid = listwise_training_qid(empresa, local)
             features = build_feature_vector(empresa, local, neighborhood=qid_stats[qid])
+            raw = heuristic_relevance_continuous(features)
             local_id = local.id if local else None
-            snapshot = (
-                db.query(FeatureSnapshotProspeccao)
-                .filter(
-                    FeatureSnapshotProspeccao.empresa_id == empresa.id,
-                    FeatureSnapshotProspeccao.local_id == local_id,
-                    FeatureSnapshotProspeccao.pipeline_version == pipeline_version,
-                )
-                .first()
-            )
+            key = (empresa.id, local_id)
+            snapshot = snapshot_by_key.get(key)
             if not snapshot:
                 snapshot = FeatureSnapshotProspeccao(
                     empresa_id=empresa.id,
@@ -187,13 +207,43 @@ def build_feature_snapshots(
                     pipeline_version=pipeline_version,
                 )
                 db.add(snapshot)
+                snapshot_by_key[key] = snapshot
                 stats["snapshots_criados"] += 1
+            bucket.append((empresa, local, qid, features, raw, local_id))
+            processed_rows += 1
 
-            snapshot.qid = qid
-            snapshot.label_ordinal = heuristic_relevance_label(features)
-            snapshot.features_json = _json(features)
-            snapshot.feature_schema_json = schema_json
-            snapshot.criado_em = datetime.utcnow()
+        if i % 10_000 == 0 or i == total:
+            logger.info(
+                "build-features: buffer %s/%s empresas (%s linhas)",
+                i,
+                total,
+                processed_rows,
+            )
 
-    logger.info("Feature snapshots criados: %s", stats)
+    # Group bucket by qid for listwise label computation
+    qid_bucket_idxs: dict[str, list[int]] = defaultdict(list)
+    for idx, (_, _, qid, _, _, _) in enumerate(bucket):
+        qid_bucket_idxs[qid].append(idx)
+
+    ordinals = [0] * len(bucket)
+    for qid_group_idxs in qid_bucket_idxs.values():
+        group_scores = [bucket[i][4] for i in qid_group_idxs]
+        group_labels = _equal_frequency_ordinal_labels(group_scores, n_bins=n_label_bins)
+        for idx, label in zip(qid_group_idxs, group_labels):
+            ordinals[idx] = label
+
+    stats["label_binning"] = "equal_frequency_rank_per_qid"
+    stats["label_bins"] = n_label_bins
+    stats["unique_qids"] = len(qid_stats)
+
+    for (empresa, _local, qid, features, raw, local_id), ord_label in zip(bucket, ordinals, strict=True):
+        key = (empresa.id, local_id)
+        snapshot = snapshot_by_key[key]
+        snapshot.qid = qid
+        snapshot.label_ordinal = ord_label
+        snapshot.features_json = _json(features)
+        snapshot.feature_schema_json = schema_json
+        snapshot.criado_em = datetime.utcnow()
+
+    logger.info("Feature snapshots concluído: %s", stats)
     return stats

@@ -168,8 +168,22 @@ def _clean_cnpj(raw: str) -> str:
     return raw.replace(".", "").replace("/", "").replace("-", "").strip()
 
 
+def _normalize_cep(cep: str | None) -> str | None:
+    """Normaliza e valida CEP: remove caracteres não-dígitos, retorna None se inválido."""
+    if not cep:
+        return None
+    cep_clean = "".join(c for c in cep if c.isdigit())
+    if len(cep_clean) != 8:
+        logger.debug("CEP inválido (comprimento != 8): %s → %s", cep, cep_clean)
+        return None
+    return cep_clean
+
+
 def _upsert_from_record(db: Session, rec: dict[str, Any]) -> tuple[bool, bool]:
-    """Upsert one v5 API record into empresa_candidata + local_candidato."""
+    """Upsert one v5 API record into empresa_candidata + local_candidato.
+
+    Implementa merge inteligente: não sobrescreve campos válidos da Receita com None.
+    """
     cnpj = _clean_cnpj(str(rec.get("cnpj", "")))
     if not cnpj or len(cnpj) < 8:
         return False, False
@@ -185,8 +199,12 @@ def _upsert_from_record(db: Session, rec: dict[str, Any]) -> tuple[bool, bool]:
         empresa = EmpresaCandidata(
             cnpj=cnpj,
             razao_social=rec.get("razao_social", cnpj),
+            origem="casadosdados",
         )
         db.add(empresa)
+        logger.debug("Empresa criada via Casa dos Dados: CNPJ=%s", cnpj)
+    else:
+        logger.debug("Empresa existente enriquecida via Casa dos Dados: CNPJ=%s", cnpj)
 
     empresa.razao_social = rec.get("razao_social") or empresa.razao_social
     empresa.nome_fantasia = rec.get("nome_fantasia") or empresa.nome_fantasia
@@ -204,7 +222,11 @@ def _upsert_from_record(db: Session, rec: dict[str, Any]) -> tuple[bool, bool]:
 
     bairro = (endereco.get("bairro") or "").strip()
     empresa.bairro = bairro or empresa.bairro
-    empresa.cep = (endereco.get("cep") or "").strip() or empresa.cep
+
+    # Normalizar e validar CEP
+    cep_novo = _normalize_cep(endereco.get("cep"))
+    empresa.cep = cep_novo or empresa.cep
+
     empresa.uf = (endereco.get("uf") or "").strip().upper() or empresa.uf
     empresa.municipio = (endereco.get("municipio") or "").strip() or empresa.municipio
 
@@ -217,7 +239,22 @@ def _upsert_from_record(db: Session, rec: dict[str, Any]) -> tuple[bool, bool]:
     if bairro:
         full_addr += f", {bairro}"
     empresa.endereco_normalizado = full_addr or empresa.endereco_normalizado
-    empresa.origem = "casadosdados"
+
+    # Merge inteligente: campos de contato e CNAE secundária
+    # Não sobrescrever com None/vazio se já tem valor (provavelmente da Receita)
+    novo_email = rec.get("email", "").strip() if rec.get("email") else None
+    empresa.email = novo_email or empresa.email
+
+    novo_telefone = rec.get("telefone", "").strip() if rec.get("telefone") else None
+    empresa.telefone = novo_telefone or empresa.telefone
+
+    novo_cnae_sec = rec.get("cnae_secundarios_json") or rec.get("cnaes_secundarias")
+    if novo_cnae_sec:
+        empresa.cnae_secundarios_json = novo_cnae_sec
+
+    # Marcar origem: se é nova, vem de Casa dos Dados; se é enriquecimento, deixar como está
+    if is_new_empresa:
+        empresa.origem = "casadosdados"
 
     db.flush()
 
@@ -241,11 +278,19 @@ def _upsert_from_record(db: Session, rec: dict[str, Any]) -> tuple[bool, bool]:
     lon = ibge_data.get("longitude")
     if lat and lon:
         try:
-            local.latitude = float(lat)
-            local.longitude = float(lon)
-            local.geocode_quality = 0.9
-        except (ValueError, TypeError):
-            pass
+            lat_f = float(lat)
+            lon_f = float(lon)
+            if -180 <= lon_f <= 180 and -90 <= lat_f <= 90:
+                local.latitude = lat_f
+                local.longitude = lon_f
+                local.geocode_quality = 0.9
+                logger.debug("Coordenadas IBGE validadas e setadas: CNPJ=%s, lat=%.4f, lon=%.4f", cnpj, lat_f, lon_f)
+            else:
+                logger.warning("Coordenadas IBGE fora do intervalo válido: CNPJ=%s, lat=%.4f, lon=%.4f", cnpj, lat_f, lon_f)
+        except (ValueError, TypeError) as e:
+            logger.debug("Erro ao converter coordenadas IBGE para float: CNPJ=%s, erro=%s", cnpj, e)
+    else:
+        logger.debug("Coordenadas IBGE ausentes ou incompletas: CNPJ=%s", cnpj)
 
     if is_new_local:
         db.add(local)

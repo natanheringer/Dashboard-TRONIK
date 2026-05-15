@@ -1,8 +1,12 @@
 """Shared feature contract for the REE prospection ranker.
 
-v2: 15-feature set with continuous signals, secondary CNAE scoring, data
-    completeness, address quality, neighborhood density, exponential distance
-    decay, and monotonic constraint map for XGBRanker.
+v3.1: listwise qid fallbacks (CEP5, CNAE4, municipio) + equal-frequency rank labels
+in build-features (see jobs/prospeccao/build_features.py).
+
+v3: same 17-feature vector as v2; geo-first qid + quantile labels (superseded by v3.1).
+
+v2: continuous signals, secondary CNAE scoring, neighborhood density,
+exponential distance decay, monotonic constraint map for XGBRanker.
 """
 
 from __future__ import annotations
@@ -22,8 +26,6 @@ FEATURE_NAMES = [
     "contact_richness",
     "data_completeness",
     "address_quality",
-    "geocode_quality",
-    "logistics_proximity",
     "logistics_proximity_exp",
     "age_years_log",
     "public_proxy_fit",
@@ -31,9 +33,10 @@ FEATURE_NAMES = [
     "is_entorno_inner",
     "neighborhood_candidate_density",
     "neighborhood_ree_ratio",
+    "has_geocode",
 ]
 
-FEATURE_SCHEMA_VERSION = "prospeccao-ree-v2"
+FEATURE_SCHEMA_VERSION = "prospeccao-ree-v3.1"
 
 # Monotonic constraints for XGBRanker (index-aligned with FEATURE_NAMES).
 # 1 = increasing is always better; 0 = let the tree decide.
@@ -46,15 +49,14 @@ MONOTONIC_CONSTRAINTS = (
     1,   # contact_richness
     1,   # data_completeness
     1,   # address_quality
-    1,   # geocode_quality
-    1,   # logistics_proximity
     1,   # logistics_proximity_exp
-    1,   # age_years_log
+    0,   # age_years_log — young startups in tech may outperform established companies
     0,   # public_proxy_fit — context-dependent
     0,   # is_df_proper — tree decides DF vs Entorno tradeoff
     0,   # is_entorno_inner — tree decides inner ring value
     0,   # neighborhood_candidate_density — saturation effects
     0,   # neighborhood_ree_ratio — not always monotonic
+    1,   # has_geocode — better to have confirmed coordinates
 )
 
 SEDE_LAT = float(os.getenv("TRONIK_SEDE_LAT", "-15.7942"))
@@ -66,12 +68,15 @@ REE_CNAE_PREFIX_WEIGHTS: dict[str, float] = {
     "4751": 0.95,  # varejo de computadores/perifericos
     "4752": 0.90,  # varejo de eletrodomesticos
     "4742": 0.75,  # material eletrico
-    "620":  0.70,  # desenvolvimento/consultoria TI
-    "631":  0.65,  # tratamento de dados/hosting
+    "4744": 0.72,  # varejo ferramentas / material elétrico (CNAE 4744-00/02)
+    "4530": 0.58,  # comércio atacadista de equipamentos de informática
+    "620": 0.70,  # desenvolvimento/consultoria TI
+    "631": 0.65,  # tratamento de dados/hosting
     "9511": 1.00,  # reparacao de computadores
     "9512": 0.95,  # reparacao de comunicacao
-    "859":  0.35,  # educacao profissional / laboratorios
-    "861":  0.30,  # hospitais — proxy territorial
+    "9521": 0.82,  # reparacao e manutencao de eletrodomesticos
+    "859": 0.35,  # educacao profissional / laboratorios
+    "861": 0.30,  # hospitais — proxy territorial
 }
 
 _GENERIC_EMAIL_DOMAINS = frozenset({
@@ -88,8 +93,6 @@ _FEATURE_LABELS: dict[str, str] = {
     "contact_richness": "Contact channels available (email/phone quality)",
     "data_completeness": "Rich data profile available for assessment",
     "address_quality": "Address data is usable and well-resolved",
-    "geocode_quality": "Geocoding confidence is high",
-    "logistics_proximity": "Within Tronik logistics operating radius",
     "logistics_proximity_exp": "Close to Tronik logistics base",
     "age_years_log": "Established operating history",
     "public_proxy_fit": "Public/context proxy supports REE fit",
@@ -97,6 +100,7 @@ _FEATURE_LABELS: dict[str, str] = {
     "is_entorno_inner": "Located in inner-ring Entorno (Valparaíso, Novo Gama, etc.)",
     "neighborhood_candidate_density": "Located in area with many candidate businesses",
     "neighborhood_ree_ratio": "Area has high concentration of REE-compatible businesses",
+    "has_geocode": "Geocoding coordinates are available",
 }
 
 _AGE_LOG_CAP = math.log1p(40)  # ~3.71 — normalizes age_years_log to 0-1
@@ -316,6 +320,10 @@ def build_feature_vector(
     uf = getattr(empresa, "uf", None)
     municipio_ibge = getattr(empresa, "municipio_ibge", None) or getattr(local, "municipio_ibge", None)
     is_df, is_inner = geography_flags(uf, municipio_ibge)
+    has_coords = (
+        getattr(local, "latitude", None) is not None
+        and getattr(local, "longitude", None) is not None
+    )
     return {
         "cnae_ree_fit": cnae_ree_fit(getattr(empresa, "cnae_principal", None)),
         "cnae_secondary_max_fit": sec_max,
@@ -328,11 +336,6 @@ def build_feature_vector(
         ),
         "data_completeness": data_completeness(empresa, local),
         "address_quality": address_quality(local, empresa),
-        "geocode_quality": float(getattr(local, "geocode_quality", None) or 0.0),
-        "logistics_proximity": logistics_proximity(
-            getattr(local, "latitude", None),
-            getattr(local, "longitude", None),
-        ),
         "logistics_proximity_exp": logistics_proximity_exp(
             getattr(local, "latitude", None),
             getattr(local, "longitude", None),
@@ -346,17 +349,91 @@ def build_feature_vector(
         "is_entorno_inner": is_inner,
         "neighborhood_candidate_density": neigh_density,
         "neighborhood_ree_ratio": neigh_ree,
+        "has_geocode": 1.0 if has_coords else 0.0,
     }
+
+
+# ---------------------------------------------------------------------------
+# Listwise query id (LTR groups) — geography-first to avoid monolithic "df"
+# ---------------------------------------------------------------------------
+
+
+def _cep5_digits(empresa: Any, local: Any | None) -> str:
+    raw = ""
+    if local is not None:
+        raw = getattr(local, "cep", None) or ""
+    if not raw:
+        raw = getattr(empresa, "cep", None) or ""
+    digits = "".join(c for c in str(raw) if c.isdigit())
+    return digits[:5] if len(digits) >= 5 else ""
+
+
+def _bairro_key(empresa: Any, local: Any | None) -> str | None:
+    b = getattr(empresa, "bairro", None) or (getattr(local, "bairro", None) if local else None)
+    if not b:
+        return None
+    return str(b).strip().lower()[:100]
+
+
+def _municipio_key(empresa: Any) -> str | None:
+    m = getattr(empresa, "municipio", None)
+    if not m:
+        return None
+    s = str(m).strip().lower()
+    return s[:100] if s else None
+
+
+def listwise_training_qid(empresa: Any, local: Any | None) -> str:
+    """Stable LTR group: geo → RA → normalize qid → UF rules → bairro → CEP → CNAE.
+
+    Avoids putting almost the entire base in a single `df` bucket when coords/RA are missing.
+    """
+    lat = lon = None
+    if local is not None:
+        lat = getattr(local, "latitude", None)
+        lon = getattr(local, "longitude", None)
+    if lat is not None and lon is not None:
+        try:
+            return f"geo:{round(float(lat), 2)}:{round(float(lon), 2)}"
+        except (TypeError, ValueError):
+            pass
+    if local is not None and getattr(local, "ra", None):
+        return f"ra:{str(local.ra).strip().lower()}"
+    if local is not None and getattr(local, "qid", None):
+        q = str(local.qid).strip()
+        if q and q.lower() not in ("df", "entorno"):
+            return q
+    uf = (getattr(empresa, "uf", None) or "").strip().upper()
+    if uf == "GO":
+        municipio = getattr(empresa, "municipio", None) or (
+            getattr(local, "bairro", None) if local else None
+        )
+        if municipio:
+            return f"entorno:{str(municipio).strip().lower()}"
+        return "entorno"
+    mun = _municipio_key(empresa) or "sem_municipio"
+    bk = _bairro_key(empresa, local)
+    if bk:
+        return f"bairro:{mun}:{bk}"
+    cep5 = _cep5_digits(empresa, local)
+    if cep5:
+        return f"cep5:{mun}:{cep5}"
+    cnae = sanitize_cnae(getattr(empresa, "cnae_principal", None))[:4]
+    if len(cnae) >= 4:
+        return f"cnae4:{mun}:{cnae}"
+    return f"df:{mun}"
 
 
 # ---------------------------------------------------------------------------
 # Heuristic helpers (bootstrap labels / fallback scorer)
 # ---------------------------------------------------------------------------
 
-def heuristic_relevance_label(features: dict[str, float]) -> int:
+
+def heuristic_relevance_continuous(features: dict[str, float]) -> float:
+    """Unbounded-ish domain expert score; use quantile binning for LTR labels."""
     age_norm = min(features.get("age_years_log", 0.0) / _AGE_LOG_CAP, 1.0)
     geo_bonus = features.get("is_df_proper", 0) * 0.03 + features.get("is_entorno_inner", 0) * 0.02
-    score = (
+    return (
         features.get("cnae_ree_fit", 0) * 0.20
         + features.get("cnae_secondary_max_fit", 0) * 0.08
         + features.get("cnae_secondary_hit_count", 0) * 0.03
@@ -365,13 +442,19 @@ def heuristic_relevance_label(features: dict[str, float]) -> int:
         + features.get("contact_richness", 0) * 0.09
         + features.get("data_completeness", 0) * 0.05
         + features.get("address_quality", 0) * 0.05
-        + features.get("geocode_quality", 0) * 0.04
         + features.get("logistics_proximity_exp", 0) * 0.08
         + age_norm * 0.04
         + features.get("public_proxy_fit", 0) * 0.11
         + features.get("neighborhood_ree_ratio", 0) * 0.03
+        + features.get("neighborhood_candidate_density", 0) * 0.02
+        + features.get("has_geocode", 0) * 0.02
         + geo_bonus
     )
+
+
+def heuristic_relevance_label(features: dict[str, float]) -> int:
+    """Coarse 0–3 ordinal (legacy thresholds); prefer quantile labels in build-features."""
+    score = heuristic_relevance_continuous(features)
     if score >= 0.75:
         return 3
     if score >= 0.52:

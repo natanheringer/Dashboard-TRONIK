@@ -138,7 +138,11 @@ def _point_in_ra(lat: float, lon: float, polygons: list[tuple[str, Any]]) -> str
 
 
 def assign_ra(db: Session, geojson_path: Path | None = None) -> dict[str, int]:
-    """Assign RA to local_candidato rows with coordinates but no RA."""
+    """Assign RA to local_candidato rows with coordinates but no RA.
+
+    Note: Query filters ensure latitude and longitude are not None,
+    so _point_in_ra() is always called with valid float coordinates.
+    """
     dirs = pathutil.ensure_raw_layout()
     if geojson_path is None:
         geojson_path = dirs["geoportal"] / "regioes_administrativas.geojson"
@@ -189,11 +193,17 @@ def assign_qid(db: Session) -> dict[str, int]:
 
     for local in locais:
         empresa = local.empresa
-        uf = (empresa.uf if empresa else "").strip().upper()
+        # Guard: skip orphans without empresa
+        if not empresa:
+            local.qid = "orphan"
+            stats["assigned"] += 1
+            continue
+
+        uf = empresa.uf.strip().upper() if empresa.uf else ""
         qid = None
 
-        if local.ra:
-            qid = f"ra:{local.ra.lower()}"
+        if local.ra and local.ra.strip():
+            qid = f"ra:{local.ra.strip().lower()}"
         elif uf == "GO":
             municipio = empresa.municipio if empresa else None
             if municipio:

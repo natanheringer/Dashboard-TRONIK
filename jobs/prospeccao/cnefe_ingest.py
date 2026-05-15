@@ -173,15 +173,23 @@ def build_cnefe_lookup(cnefe_dir: Path | None = None) -> GeocodeLookup:
         cnefe_dir = dirs["cnefe"]
 
     combined: GeocodeLookup = {}
+    uf_counts: dict[str, int] = {}
     for uf, filename in config.CNEFE_FILES.items():
         path = cnefe_dir / filename
         if not path.exists():
             logger.warning("CNEFE %s not found at %s", filename, cnefe_dir)
             continue
         partial = parse_cnefe_zip(path, filter_ride=(uf == "GO"))
+        uf_counts[uf] = len(partial)
         combined.update(partial)
 
-    logger.info("CNEFE combined lookup: %d address entries", len(combined))
+    # Log detailed coverage by UF
+    df_count = uf_counts.get("DF", 0)
+    go_count = uf_counts.get("GO", 0)
+    logger.info(
+        "CNEFE lookup built: %d total entries (DF=%d, GO=%d)",
+        len(combined), df_count, go_count
+    )
     return combined
 
 
@@ -199,6 +207,8 @@ def geocode_address(
       3. (cep, "", "")                   — centroid of CEP block
     """
     cep = (cep or "").strip()
+    # Normalize CEP: remove hyphens, spaces, and other non-digits
+    cep = "".join(c for c in cep if c.isdigit())
     logr = _normalize_logradouro(logradouro) if logradouro else ""
     num = (numero or "").strip()
 

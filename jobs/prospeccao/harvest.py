@@ -169,6 +169,49 @@ def run_harvest(
 
         run("normalize", _normalize)
 
+    if "aneel" in steps:
+        from jobs.prospeccao.aneel_ingest import sync_aneel_consumidores
+        from jobs.prospeccao.db import session_scope
+
+        def _aneel():
+            with session_scope() as db:
+                result = sync_aneel_consumidores(db)
+                db.commit()
+            return result
+
+        run("aneel_consumidores", _aneel)
+
+    if "ibram" in steps:
+        from jobs.prospeccao.ibram_ingest import sync_ibram_geradores
+        from jobs.prospeccao.db import session_scope
+        from jobs.prospeccao import config as _config
+
+        def _ibram():
+            url = getattr(_config, "IBRAM_GERADORES_URL", "").strip() or None
+            with session_scope() as db:
+                result = sync_ibram_geradores(db, url=url)
+                db.commit()
+            return result
+
+        run("ibram_geradores", _ibram)
+
+    if "brasilapi_enrich" in steps:
+        from jobs.prospeccao.brasilapi_enrich import enrich_via_brasilapi
+        from jobs.prospeccao.db import session_scope
+        from jobs.prospeccao import config as _config
+
+        def _brasilapi():
+            with session_scope() as db:
+                result = enrich_via_brasilapi(
+                    db,
+                    batch_size=_config.BRASILAPI_BATCH_SIZE,
+                    sleep_s=_config.BRASILAPI_SLEEP_S,
+                )
+                db.commit()
+            return result
+
+        run("brasilapi_enrich", _brasilapi)
+
     report["finished_at"] = datetime.now(timezone.utc).isoformat()
     logger.info(
         "Harvest complete: ok=%s errors=%s report=%s",

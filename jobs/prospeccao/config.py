@@ -141,6 +141,20 @@ ENTORNO_INNER_RING: set[int] = {
     5200308,  # Alexânia
 }
 
+# --- ANEEL (consumidores livres — proxy de porte operacional) ---
+ANEEL_CONSUMIDORES_URL = os.environ.get("TRONIK_ANEEL_CONSUMIDORES_URL", "")
+
+# --- IBRAM/SEMA-DF (cadastro de geradores de resíduos perigosos) ---
+IBRAM_GERADORES_URL = os.environ.get("TRONIK_IBRAM_GERADORES_URL", "")
+
+# --- Brasil API (free CNPJ enrichment, no auth required) ---
+BRASILAPI_BASE = os.environ.get(
+    "TRONIK_BRASILAPI_BASE",
+    "https://brasilapi.com.br/api/cnpj/v1",
+)
+BRASILAPI_SLEEP_S = float(os.environ.get("TRONIK_BRASILAPI_SLEEP_S", "0.4"))
+BRASILAPI_BATCH_SIZE = int(os.environ.get("TRONIK_BRASILAPI_BATCH", "500"))
+
 # --- Casa dos Dados API v5 (targeted CNPJ search, requires API key) ---
 # Get your key at https://portal.casadosdados.com.br/plataforma/api/chave
 CASADOSDADOS_API_BASE = os.environ.get(
