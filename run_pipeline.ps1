@@ -82,12 +82,12 @@ function Run-Step {
     $output | Out-File -FilePath $logFile -Encoding utf8
 
     if ($exit -ne 0) {
-        Write-Host "  FALHOU ($($secs)s) exit=$exit" -ForegroundColor Red
+        Write-Host ("  FALHOU ({0}s) exit={1}" -f $secs, $exit) -ForegroundColor Red
         Write-Host "     Log: $logFile" -ForegroundColor DarkGray
         $stepResults[$Name] = @{ ok = $false; secs = $secs; log = $logFile }
         if ($Critical) {
             Write-Host ""
-            Write-Host "  Passo critico falhou — abortando pipeline." -ForegroundColor Red
+            Write-Host "  Passo critico falhou - abortando pipeline." -ForegroundColor Red
             Write-Host ""
             Show-Summary
             exit 1
@@ -95,20 +95,21 @@ function Run-Step {
         return $false
     }
 
-    Write-Host "  OK ($($secs)s)" -ForegroundColor Green
+    Write-Host ("  OK ({0}s)" -f $secs) -ForegroundColor Green
     $stepResults[$Name] = @{ ok = $true; secs = $secs; log = $logFile }
     return $true
 }
 
 function Show-Summary {
     $elapsed = [math]::Round(((Get-Date) - $pipelineStart).TotalSeconds)
-    Write-Banner "Resumo do Pipeline  |  $(Get-Date -Format 'HH:mm:ss')  |  ${elapsed}s total" "Cyan"
+    $ts = Get-Date -Format 'HH:mm:ss'
+    Write-Banner ("Resumo do Pipeline  |  {0}  |  {1}s total" -f $ts, $elapsed) "Cyan"
     foreach ($name in $stepResults.Keys) {
         $r = $stepResults[$name]
         if ($r.ok) {
-            Write-Host "  [OK]  $name ($($r.secs)s)" -ForegroundColor Green
+            Write-Host ("  [OK]  {0} ({1}s)" -f $name, $r.secs) -ForegroundColor Green
         } else {
-            Write-Host "  [ERR] $name ($($r.secs)s)  -> $($r.log)" -ForegroundColor Red
+            Write-Host ("  [ERR] {0} ({1}s)  -> {2}" -f $name, $r.secs, $r.log) -ForegroundColor Red
         }
     }
     Write-Host ""
