@@ -151,6 +151,8 @@ def parse_cnefe_zip(
                     continue
 
             cep = row[cep_i].strip() if cep_i is not None and len(row) > cep_i else ""
+            # Normalize CEP: remove hyphens, spaces, and other non-digits
+            cep = "".join(c for c in cep if c.isdigit())
             logr = _normalize_logradouro(row[logr_i]) if logr_i is not None and len(row) > logr_i else ""
             num = row[num_i].strip() if num_i is not None and len(row) > num_i else ""
 

@@ -1,5 +1,10 @@
 """Shared feature contract for the REE prospection ranker.
 
+v3.2+: Enhanced listwise QID fallbacks to maximize uniqueness when local.qid is NULL.
+Fallback chain: geo → RA → normalized qid → bairro → CEP5 → CNAE4 → RA_fallback → zone (UF+CEP3).
+16-feature vector (removed logistics_proximity linear + geocode_quality, added has_geocode).
+Equal-frequency rank labels in build-features.
+
 v3.2: 16-feature vector (removed logistics_proximity linear + geocode_quality, added has_geocode).
 Listwise qid fallbacks (CEP5, CNAE4, municipio) + equal-frequency rank labels in build-features.
 
@@ -387,9 +392,10 @@ def _municipio_key(empresa: Any) -> str | None:
 
 
 def listwise_training_qid(empresa: Any, local: Any | None) -> str:
-    """Stable LTR group: geo → RA → normalize qid → UF rules → bairro → CEP → CNAE.
+    """Stable LTR group: geo → RA → normalize qid → UF rules → bairro → CEP → CNAE → RA fallback → UF/CEP combo.
 
-    Avoids putting almost the entire base in a single `df` bucket when coords/RA are missing.
+    Enhanced fallback chain ensures diversity even when local.qid is NULL and address data is sparse.
+    Fallback order: bairro → CEP5 → CNAE4 → RA (if local exists) → UF+CEP prefix → df:municipio.
     """
     lat = lon = None
     if local is not None:
@@ -414,17 +420,42 @@ def listwise_training_qid(empresa: Any, local: Any | None) -> str:
         if municipio:
             return f"entorno:{str(municipio).strip().lower()}"
         return "entorno"
+
+    # Enhanced fallback chain for DF (or other states)
     mun = _municipio_key(empresa) or "sem_municipio"
+
+    # 1st: Try bairro (empresa or local)
     bk = _bairro_key(empresa, local)
     if bk:
         return f"bairro:{mun}:{bk}"
+
+    # 2nd: Try CEP5 prefix (more specific than CNAE)
     cep5 = _cep5_digits(empresa, local)
     if cep5:
         return f"cep5:{mun}:{cep5}"
+
+    # 3rd: Try RA from local (even if bairro is missing)
+    if local is not None:
+        ra = getattr(local, "ra", None)
+        if ra:
+            ra_lower = str(ra).strip().lower()
+            if ra_lower and ra_lower not in ("df", "entorno"):
+                return f"ra_fallback:{mun}:{ra_lower}"
+
+    # 4th: Try CNAE principal (4-digit code)
     cnae = sanitize_cnae(getattr(empresa, "cnae_principal", None))[:4]
     if len(cnae) >= 4:
         return f"cnae4:{mun}:{cnae}"
-    return f"df:{mun}"
+
+    # 5th: UF + CEP prefix combination (when bairro/CEP/CNAE all missing)
+    # This creates groups by state and approximate postal area, better than "df:municipio"
+    cep_raw = _cep5_digits(empresa, local)
+    if cep_raw and len(cep_raw) >= 3:
+        # Use first 3 digits as postal zone
+        return f"zone:{uf.lower()}:{cep_raw[:3]}"
+
+    # Final fallback: by estado
+    return f"df:{uf.lower()}"
 
 
 # ---------------------------------------------------------------------------

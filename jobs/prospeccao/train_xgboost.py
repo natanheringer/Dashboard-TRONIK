@@ -301,18 +301,22 @@ def train_ranker(
             search_results: list[dict[str, Any]] = []
 
             for candidate in _ranker_param_candidates():
-                ranker = XGBRanker(**candidate)
+                has_eval = x_val_np is not None and val_group_sizes
+                # XGBoost >= 2.x: early_stopping_rounds moved to constructor
+                ctor_kwargs = dict(candidate)
+                if has_eval:
+                    ctor_kwargs["early_stopping_rounds"] = 35
+                ranker = XGBRanker(**ctor_kwargs)
                 fit_kwargs: dict[str, Any] = {
                     "group": train_group_sizes,
                     "verbose": False,
                 }
-                if x_val_np is not None and val_group_sizes:
+                if has_eval:
                     fit_kwargs["eval_set"] = [
                         (x_train_np, y_train_np),
                         (x_val_np, np.asarray(y_val, dtype=float)),
                     ]
                     fit_kwargs["eval_group"] = [train_group_sizes, val_group_sizes]
-                    fit_kwargs["early_stopping_rounds"] = 35
 
                 ranker.fit(x_train_np, y_train_np, **fit_kwargs)
 

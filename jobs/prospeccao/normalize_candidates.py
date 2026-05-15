@@ -35,23 +35,37 @@ def _normalize_logradouro(raw: str) -> str:
 
 
 def geocode_candidates(db: Session, cnefe_dir: Path | None = None) -> dict[str, int]:
-    """Geocode local_candidato rows that lack lat/lon using CNEFE lookup."""
+    """Geocode local_candidato rows that lack lat/lon using CNEFE lookup.
+
+    Note: Only geocodes candidates in DF and GO (where CNEFE has data).
+    Candidates outside these states are skipped.
+    """
     from jobs.prospeccao.cnefe_ingest import build_cnefe_lookup, geocode_address
 
     lookup = build_cnefe_lookup(cnefe_dir)
     if not lookup:
         logger.warning("CNEFE lookup is empty — skipping geocoding")
-        return {"geocoded": 0, "already_had_coords": 0, "no_match": 0}
+        return {"geocoded": 0, "already_had_coords": 0, "no_match": 0, "out_of_scope": 0}
 
-    stats = {"geocoded": 0, "already_had_coords": 0, "no_match": 0}
+    stats = {"geocoded": 0, "already_had_coords": 0, "no_match": 0, "out_of_scope": 0}
     locais = db.query(LocalCandidato).filter(
         LocalCandidato.latitude.is_(None) | LocalCandidato.longitude.is_(None),
     ).all()
 
     for local in locais:
         empresa = local.empresa
-        cep = local.cep or (empresa.cep if empresa else None)
-        logradouro = local.endereco or (empresa.endereco_normalizado if empresa else None)
+
+        # Skip if no empresa or UF not in scope (only DF and GO have CNEFE data)
+        if not empresa:
+            stats["out_of_scope"] += 1
+            continue
+        uf = (empresa.uf or "").strip().upper()
+        if uf not in ("DF", "GO"):
+            stats["out_of_scope"] += 1
+            continue
+
+        cep = local.cep or empresa.cep
+        logradouro = local.endereco or empresa.endereco_normalizado
         numero = _extract_numero(logradouro)
 
         result = geocode_address(lookup, cep, logradouro, numero)
@@ -183,10 +197,14 @@ _RIDE_NAMES_LOWER: set[str] = {
 def assign_qid(db: Session) -> dict[str, int]:
     """Assign qid to local_candidato rows that lack one.
 
-    Rules:
-      - DF candidates with RA: qid = "ra:<ra_lower>"
-      - GO Entorno candidates: qid = "entorno:<municipio_lower>"
-      - DF candidates without RA: qid = "bairro:<bairro_lower>" or "df"
+    Enhanced rules for diversity (avoids monolithic "df" bucket):
+      - With RA: qid = "ra:<ra_lower>"
+      - With bairro: qid = "bairro:<bairro_lower>"
+      - With CEP (first 5 digits): qid = "cep5:<cep5>"
+      - GO state: qid = "entorno:<municipio_lower>"
+      - Fallback: qid = "uf:<estado_lower>" or "orphan"
+
+    Ensures better distribution for listwise LTR grouping.
     """
     stats = {"assigned": 0, "already_had": 0}
     locais = db.query(LocalCandidato).filter(LocalCandidato.qid.is_(None)).all()
@@ -202,18 +220,30 @@ def assign_qid(db: Session) -> dict[str, int]:
         uf = empresa.uf.strip().upper() if empresa.uf else ""
         qid = None
 
+        # Priority order: RA → bairro → CEP5 → GO→state → UF
         if local.ra and local.ra.strip():
             qid = f"ra:{local.ra.strip().lower()}"
-        elif uf == "GO":
-            municipio = empresa.municipio if empresa else None
-            if municipio:
-                qid = f"entorno:{municipio.strip().lower()}"
-            else:
-                qid = "entorno"
         elif local.bairro:
             qid = f"bairro:{local.bairro.lower()}"
-        else:
-            qid = "df"
+        elif local.cep:
+            cep_clean = "".join(c for c in str(local.cep) if c.isdigit())
+            if len(cep_clean) >= 5:
+                qid = f"cep5:{cep_clean[:5]}"
+        elif empresa.cep:
+            cep_clean = "".join(c for c in str(empresa.cep) if c.isdigit())
+            if len(cep_clean) >= 5:
+                qid = f"cep5:{cep_clean[:5]}"
+
+        if not qid:
+            if uf == "GO":
+                municipio = empresa.municipio if empresa else None
+                if municipio:
+                    qid = f"entorno:{municipio.strip().lower()}"
+                else:
+                    qid = "entorno"
+            else:
+                # Final fallback by UF (better than generic "df")
+                qid = f"uf:{uf.lower()}" if uf else "sem_uf"
 
         local.qid = qid
         stats["assigned"] += 1
