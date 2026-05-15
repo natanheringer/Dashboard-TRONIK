@@ -251,12 +251,24 @@ if __name__ == "__main__":
         level=logging.INFO,
         format='%(asctime)s - %(name)s - %(levelname)s - %(message)s'
     )
-    
+
     from sqlalchemy import create_engine
     from banco_dados.modelos import Base
-    
-    # Criar engine
-    engine = create_engine('sqlite:///tronik.db', echo=False)
+
+    # Criar engine com WAL mode para operações longas
+    engine = create_engine(
+        'sqlite:///tronik.db',
+        echo=False,
+        connect_args={
+            "timeout": 60,
+            "check_same_thread": False,
+        },
+    )
+
+    # Enable WAL mode
+    with engine.begin() as conn:
+        conn.execute("PRAGMA journal_mode=WAL")
+        conn.execute("PRAGMA synchronous=NORMAL")
     
     # Garantir que tabelas existem
     Base.metadata.create_all(engine)

@@ -236,14 +236,34 @@ def build_feature_snapshots(
     stats["label_bins"] = n_label_bins
     stats["unique_qids"] = len(qid_stats)
 
-    for (empresa, _local, qid, features, raw, local_id), ord_label in zip(bucket, ordinals, strict=True):
-        key = (empresa.id, local_id)
-        snapshot = snapshot_by_key[key]
-        snapshot.qid = qid
-        snapshot.label_ordinal = ord_label
-        snapshot.features_json = _json(features)
-        snapshot.feature_schema_json = schema_json
-        snapshot.criado_em = datetime.utcnow()
+    # Update snapshots with features and commit in batches to avoid long-running transactions
+    BATCH_SIZE = 5000
+    logger.info(
+        "build-features: atualizando %s snapshots em batches de %s (libera locks intermediários)…",
+        len(bucket),
+        BATCH_SIZE,
+    )
+
+    for batch_start in range(0, len(bucket), BATCH_SIZE):
+        batch_end = min(batch_start + BATCH_SIZE, len(bucket))
+        for idx in range(batch_start, batch_end):
+            empresa, _local, qid, features, raw, local_id = bucket[idx]
+            key = (empresa.id, local_id)
+            snapshot = snapshot_by_key[key]
+            snapshot.qid = qid
+            snapshot.label_ordinal = ordinals[idx]
+            snapshot.features_json = _json(features)
+            snapshot.feature_schema_json = schema_json
+            snapshot.criado_em = datetime.utcnow()
+
+        # Flush and commit each batch to release locks and prevent transaction lock-ups
+        db.flush()
+        db.commit()
+        logger.info(
+            "build-features: batch %s/%s snapshots commitado (liberado locks para outras transações)",
+            min(batch_end, len(bucket)),
+            len(bucket),
+        )
 
     logger.info("Feature snapshots concluído: %s", stats)
     return stats

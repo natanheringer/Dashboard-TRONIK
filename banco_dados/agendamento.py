@@ -26,7 +26,23 @@ def _criar_sessao_padrao():
         database_url = database_url.replace('postgresql://', 'postgresql+psycopg://')
     if database_url.startswith('postgres://') and '+psycopg' not in database_url:
         database_url = database_url.replace('postgres://', 'postgresql+psycopg://')
-    engine = create_engine(database_url, echo=False)
+
+    # Apply SQLite WAL configuration if using SQLite
+    if database_url.startswith('sqlite'):
+        engine = create_engine(
+            database_url,
+            echo=False,
+            connect_args={
+                "timeout": 60,
+                "check_same_thread": False,
+            },
+        )
+        with engine.begin() as conn:
+            conn.execute("PRAGMA journal_mode=WAL")
+            conn.execute("PRAGMA synchronous=NORMAL")
+    else:
+        engine = create_engine(database_url, echo=False)
+
     return sessionmaker(bind=engine)()
 
 
@@ -127,10 +143,26 @@ def processar_alertas_job():
     """
     try:
         logger.info("🔄 Iniciando processamento automático de alertas...")
-        
+
         # Conectar ao banco de dados
         database_url = os.getenv('DATABASE_URL', 'sqlite:///tronik.db')
-        engine = create_engine(database_url, echo=False)
+
+        # Apply SQLite WAL configuration if using SQLite
+        if database_url.startswith('sqlite'):
+            engine = create_engine(
+                database_url,
+                echo=False,
+                connect_args={
+                    "timeout": 60,
+                    "check_same_thread": False,
+                },
+            )
+            with engine.begin() as conn:
+                conn.execute("PRAGMA journal_mode=WAL")
+                conn.execute("PRAGMA synchronous=NORMAL")
+        else:
+            engine = create_engine(database_url, echo=False)
+
         SessionLocal = sessionmaker(bind=engine)
         
         # Criar sessão

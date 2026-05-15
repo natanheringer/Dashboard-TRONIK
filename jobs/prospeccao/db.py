@@ -6,7 +6,7 @@ import os
 from contextlib import contextmanager
 from typing import Iterator
 
-from sqlalchemy import create_engine
+from sqlalchemy import create_engine, event, text
 from sqlalchemy.orm import Session, sessionmaker
 
 from banco_dados.modelos import Base
@@ -17,7 +17,35 @@ def database_url() -> str:
 
 
 def make_session_factory(echo: bool = False) -> sessionmaker[Session]:
-    engine = create_engine(database_url(), echo=echo)
+    # SQLite timeout and WAL configuration for concurrent access
+    # - timeout: 60 seconds (default 5s is too short for long operations)
+    # - check_same_thread: False allows multi-threaded access
+    # - WAL mode: enables concurrent reads with writes
+    # - PRAGMA synchronous=NORMAL: balances durability vs performance
+    # - PRAGMA busy_timeout=60000: 60s wait before "database is locked" error
+    engine = create_engine(
+        database_url(),
+        echo=echo,
+        connect_args={
+            "timeout": 60,
+            "check_same_thread": False,
+        },
+    )
+
+    # Event listener to configure SQLite pragmas on each new connection
+    @event.listens_for(engine, "connect")
+    def set_sqlite_pragma(dbapi_conn, connection_record):
+        cursor = dbapi_conn.cursor()
+        try:
+            cursor.execute("PRAGMA journal_mode=WAL")
+            cursor.execute("PRAGMA synchronous=NORMAL")
+            cursor.execute("PRAGMA busy_timeout=60000")
+            cursor.close()
+        except Exception:
+            # If pragma setup fails, log but don't crash engine creation
+            cursor.close()
+            raise
+
     Base.metadata.create_all(engine)
     return sessionmaker(bind=engine)
 

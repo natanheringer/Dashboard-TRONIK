@@ -327,7 +327,21 @@ if DATABASE_URL.startswith('postgresql://') or DATABASE_URL.startswith('postgres
         connect_args=connect_args
     )
 else:
-    engine = create_engine(DATABASE_URL, echo=False)
+    # SQLite configuration for concurrent access (WAL mode + extended timeout)
+    engine = create_engine(
+        DATABASE_URL,
+        echo=False,
+        connect_args={
+            "timeout": 60,
+            "check_same_thread": False,
+        },
+    )
+
+    # Enable WAL mode and optimize for concurrent access
+    with engine.begin() as conn:
+        conn.execute("PRAGMA journal_mode=WAL")
+        conn.execute("PRAGMA synchronous=NORMAL")
+
 SessionLocal = scoped_session(sessionmaker(bind=engine))
 
 # Tornar SessionLocal disponível globalmente para os blueprints

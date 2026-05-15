@@ -130,6 +130,9 @@ def score_candidates(
 
     created = 0
     updated = 0
+    processed = 0
+    batch_size = 2000
+
     for qid, rows in grouped.items():
         feature_rows = [json.loads(row.features_json) for row in rows]
         predictions, shap_maps = _predict_and_explain(model, feature_rows)
@@ -165,6 +168,14 @@ def score_candidates(
             score_row.pipeline_version = pipeline_version
             score_row.motivos_json = _json(top_reasons(features, shap_values=shap_vals))
             score_row.calculado_em = datetime.utcnow()
+
+            processed += 1
+            if processed % batch_size == 0:
+                db.commit()
+                logger.info(f"Committed batch of {batch_size}. Progress: {processed}/{len(snapshots)} scores processed.")
+
+    # Final commit for remaining records
+    db.commit()
 
     return {
         "modelo": model.versao,

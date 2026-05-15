@@ -41,7 +41,20 @@ def _credenciais_dev_desabilitadas() -> bool:
 # ----------------------------------------------------------
 def criar_banco(caminho_db="sqlite:///tronik.db"):
     print("Criando banco de dados...")
-    engine = create_engine(caminho_db, echo=False)
+    engine = create_engine(
+        caminho_db,
+        echo=False,
+        connect_args={
+            "timeout": 60,
+            "check_same_thread": False,
+        },
+    )
+
+    # Enable WAL mode and optimize for concurrent access
+    with engine.begin() as conn:
+        conn.execute("PRAGMA journal_mode=WAL")
+        conn.execute("PRAGMA synchronous=NORMAL")
+
     Base.metadata.create_all(engine)
     print("Banco criado com sucesso!")
     return engine
