@@ -312,6 +312,7 @@ def normalize_all(
 
     logger.info("Step 1/4: Deduplication")
     results["dedup"] = deduplicate_empresas(db)
+    db.commit()
 
     if not skip_geocode:
         logger.info("Step 2/4: CNEFE geocoding")
@@ -319,6 +320,7 @@ def normalize_all(
     else:
         logger.info("Step 2/4: Geocoding skipped")
         results["geocode"] = "skipped"
+    db.commit()
 
     if not skip_ra:
         logger.info("Step 3/4: RA assignment")
@@ -326,6 +328,7 @@ def normalize_all(
     else:
         logger.info("Step 3/4: RA assignment skipped")
         results["ra_assign"] = "skipped"
+    db.commit()
 
     logger.info("Step 4/4: QID generation")
     results["qid_assign"] = assign_qid(db)
