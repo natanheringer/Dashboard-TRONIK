@@ -1,5 +1,8 @@
 """Shared feature contract for the REE prospection ranker.
 
+v3.2: 16-feature vector (removed logistics_proximity linear + geocode_quality, added has_geocode).
+Listwise qid fallbacks (CEP5, CNAE4, municipio) + equal-frequency rank labels in build-features.
+
 v3.1: listwise qid fallbacks (CEP5, CNAE4, municipio) + equal-frequency rank labels
 in build-features (see jobs/prospeccao/build_features.py).
 
@@ -36,7 +39,7 @@ FEATURE_NAMES = [
     "has_geocode",
 ]
 
-FEATURE_SCHEMA_VERSION = "prospeccao-ree-v3.1"
+FEATURE_SCHEMA_VERSION = "prospeccao-ree-v3.2"
 
 # Monotonic constraints for XGBRanker (index-aligned with FEATURE_NAMES).
 # 1 = increasing is always better; 0 = let the tree decide.
