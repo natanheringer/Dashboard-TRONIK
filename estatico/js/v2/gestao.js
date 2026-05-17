@@ -44,8 +44,17 @@ function setupTabs() {
 
             btn.classList.add('active');
             document.getElementById(`tab-${target}`).classList.add('active');
+
+            if (target === 'solicitacoes') {
+                carregarSolicitacoes();
+            }
         });
     });
+
+    const tabSolicitacoes = document.querySelector('.gestao-tab[data-tab="solicitacoes"]');
+    if (tabSolicitacoes && tabSolicitacoes.classList.contains('active')) {
+        carregarSolicitacoes();
+    }
 }
 
 /**
@@ -308,4 +317,137 @@ function showStatus(el, text, type) {
     el.textContent = text;
     el.className = `form-status ${type}`;
     setTimeout(() => { el.style.display = 'none'; }, 5000);
+}
+
+const SOLICITACAO_STATUS_OPCOES = [
+    { value: 'pendente', label: 'Pendente' },
+    { value: 'aprovado', label: 'Aprovado' },
+    { value: 'recusado', label: 'Recusado' }
+];
+
+/**
+ * Lista solicitações da landing e renderiza na tabela
+ */
+async function carregarSolicitacoes() {
+    const tbody = document.getElementById('tbody-solicitacoes');
+    if (!tbody) return;
+
+    tbody.innerHTML = '<tr><td colspan="7" style="padding: 16px; text-align: center; color: var(--ink-secondary);">Carregando...</td></tr>';
+
+    try {
+        const response = await fetch('/api/solicitacoes', {
+            credentials: 'same-origin',
+            headers: { 'Content-Type': 'application/json' }
+        });
+
+        if (!response.ok) {
+            const erro = await response.json().catch(() => ({}));
+            throw new Error(erro.erro || `Erro HTTP: ${response.status}`);
+        }
+
+        const solicitacoes = await response.json();
+
+        if (!solicitacoes || solicitacoes.length === 0) {
+            tbody.innerHTML = '<tr><td colspan="7" style="padding: 16px; text-align: center; color: var(--ink-secondary);">Nenhuma solicitação registrada.</td></tr>';
+            return;
+        }
+
+        tbody.innerHTML = solicitacoes.map(s => {
+            const dataFmt = formatarDataSolicitacao(s.criado_em);
+            const empresa = s.empresa ? ` · ${escapeHtml(s.empresa)}` : '';
+            const mensagem = s.mensagem
+                ? escapeHtml(s.mensagem.length > 80 ? `${s.mensagem.slice(0, 80)}…` : s.mensagem)
+                : '—';
+            const statusAtual = s.status || 'pendente';
+            const opcoes = SOLICITACAO_STATUS_OPCOES.map(
+                o => `<option value="${o.value}"${o.value === statusAtual ? ' selected' : ''}>${o.label}</option>`
+            ).join('');
+
+            return `
+                <tr data-solicitacao-id="${s.id}" style="border-bottom: 1px solid var(--line-default);">
+                    <td style="padding: 12px; white-space: nowrap;">${dataFmt}</td>
+                    <td style="padding: 12px;"><strong>${escapeHtml(s.nome)}</strong>${empresa}</td>
+                    <td style="padding: 12px;">${escapeHtml(s.email)}</td>
+                    <td style="padding: 12px;">${escapeHtml(s.localizacao)}</td>
+                    <td style="padding: 12px; max-width: 200px;">${mensagem}</td>
+                    <td style="padding: 12px;">
+                        <select class="form-input-v2 solicitacao-status-select" data-id="${s.id}" style="min-width: 120px;">
+                            ${opcoes}
+                        </select>
+                    </td>
+                    <td style="padding: 12px;">
+                        <button type="button" class="btn btn-primary solicitacao-status-btn" data-id="${s.id}" style="font-size: 12px; padding: 6px 12px;">Salvar</button>
+                    </td>
+                </tr>
+            `;
+        }).join('');
+
+        tbody.querySelectorAll('.solicitacao-status-btn').forEach(btn => {
+            btn.addEventListener('click', () => {
+                const id = btn.dataset.id;
+                const select = tbody.querySelector(`.solicitacao-status-select[data-id="${id}"]`);
+                if (select) atualizarStatusSolicitacao(id, select.value, btn);
+            });
+        });
+    } catch (err) {
+        console.error('Erro ao carregar solicitações:', err);
+        tbody.innerHTML = `<tr><td colspan="7" style="padding: 16px; text-align: center; color: var(--signal-critical);">Erro ao carregar solicitações: ${escapeHtml(err.message)}</td></tr>`;
+    }
+}
+
+async function atualizarStatusSolicitacao(id, status, btnEl) {
+    const labelAnterior = btnEl ? btnEl.textContent : '';
+    if (btnEl) {
+        btnEl.disabled = true;
+        btnEl.textContent = 'Salvando...';
+    }
+
+    try {
+        const response = await fetch(`/api/solicitacoes/${id}/status`, {
+            method: 'POST',
+            credentials: 'same-origin',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ status })
+        });
+
+        if (!response.ok) {
+            const erro = await response.json().catch(() => ({}));
+            throw new Error(erro.erro || `Erro HTTP: ${response.status}`);
+        }
+
+        await carregarSolicitacoes();
+    } catch (err) {
+        console.error('Erro ao atualizar status:', err);
+        alert('Erro ao atualizar status: ' + err.message);
+    } finally {
+        if (btnEl) {
+            btnEl.disabled = false;
+            btnEl.textContent = labelAnterior || 'Salvar';
+        }
+    }
+}
+
+function formatarDataSolicitacao(iso) {
+    if (!iso) return '—';
+    try {
+        const d = new Date(iso);
+        return d.toLocaleString('pt-BR', {
+            day: '2-digit',
+            month: '2-digit',
+            year: 'numeric',
+            hour: '2-digit',
+            minute: '2-digit'
+        });
+    } catch {
+        return iso;
+    }
+}
+
+function escapeHtml(str) {
+    if (str == null) return '';
+    return String(str)
+        .replace(/&/g, '&amp;')
+        .replace(/</g, '&lt;')
+        .replace(/>/g, '&gt;')
+        .replace(/"/g, '&quot;');
 }

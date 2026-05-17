@@ -28,21 +28,34 @@ def _status_ativo_expr():
     return ~st.in_(tuple(_STATUS_INATIVO))
 
 
-def resumo_operacional(db: Session) -> Dict[str, Any]:
+def resumo_operacional(db: Session, parceiro_id: Optional[int] = None) -> Dict[str, Any]:
     """
     Resumo operacional agregado dos coletores.
 
     Returns:
         total_coletores, ativos, alerta_nivel_alto e sem_geocode (se lat/lng existirem).
     """
-    total_coletores = db.query(func.count(Coletor.id)).scalar() or 0
-    ativos = db.query(func.count(Coletor.id)).filter(_status_ativo_expr()).scalar() or 0
+    def _base_query():
+        q = db.query(Coletor)
+        if parceiro_id is not None:
+            q = q.filter(Coletor.parceiro_id == parceiro_id)
+        return q
+
+    total_coletores = _base_query().with_entities(func.count(Coletor.id)).scalar() or 0
+    ativos = (
+        _base_query()
+        .filter(_status_ativo_expr())
+        .with_entities(func.count(Coletor.id))
+        .scalar()
+        or 0
+    )
     alerta_nivel_alto = (
-        db.query(func.count(Coletor.id))
+        _base_query()
         .filter(
             Coletor.nivel_preenchimento >= NIVEL_ALERTA_ALTO,
             _status_ativo_expr(),
         )
+        .with_entities(func.count(Coletor.id))
         .scalar()
         or 0
     )
@@ -53,12 +66,10 @@ def resumo_operacional(db: Session) -> Dict[str, Any]:
         "alerta_nivel_alto": alerta_nivel_alto,
     }
     if hasattr(Coletor, "latitude") and hasattr(Coletor, "longitude"):
-        resumo["sem_geocode"] = (
-            db.query(func.count(Coletor.id))
-            .filter(or_(Coletor.latitude.is_(None), Coletor.longitude.is_(None)))
-            .scalar()
-            or 0
+        q_sem_geo = _base_query().filter(
+            or_(Coletor.latitude.is_(None), Coletor.longitude.is_(None))
         )
+        resumo["sem_geocode"] = q_sem_geo.with_entities(func.count(Coletor.id)).scalar() or 0
     return resumo
 
 

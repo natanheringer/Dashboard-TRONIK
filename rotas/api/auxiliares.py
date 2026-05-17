@@ -6,7 +6,7 @@ Endpoints auxiliares (estatísticas, tipos, parceiros, configurações).
 
 from flask import Blueprint, jsonify, request
 from flask_login import login_required
-from rotas.api.decorators import get_db
+from rotas.api.decorators import escopo_parceiro_id, get_db
 from rotas.api import decorators
 from banco_dados.modelos import Coletor, Coleta, Parceiro, TipoMaterial, TipoSensor, TipoColetor, Sensor
 from banco_dados.utils.cache import obter_cache
@@ -34,39 +34,56 @@ def obter_estatisticas():
     """Endpoint para obter estatísticas gerais"""
     db = get_db()
     try:
-        # Usar cache para estatísticas (TTL: 5 minutos)
+        parceiro_id = escopo_parceiro_id()
         cache = obter_cache()
-        
+        cache_key = f"estatisticas:{parceiro_id}" if parceiro_id is not None else "estatisticas"
+
         def calcular_estatisticas():
-            coletores = db.query(Coletor).all()
-            coletas = db.query(Coleta).all()
-            sensores = db.query(Sensor).all()
-            
+            q_coletores = db.query(Coletor)
+            if parceiro_id is not None:
+                q_coletores = q_coletores.filter(Coletor.parceiro_id == parceiro_id)
+            coletores = q_coletores.all()
+
+            if parceiro_id is not None:
+                coletor_ids = [c.id for c in coletores]
+                coletas = (
+                    db.query(Coleta).filter(Coleta.coletor_id.in_(coletor_ids)).all()
+                    if coletor_ids
+                    else []
+                )
+                sensores = (
+                    db.query(Sensor).filter(Sensor.coletor_id.in_(coletor_ids)).all()
+                    if coletor_ids
+                    else []
+                )
+            else:
+                coletas = db.query(Coleta).all()
+                sensores = db.query(Sensor).all()
+
             total_coletores = len(coletores)
             coletores_alerta = len([l for l in coletores if l.nivel_preenchimento > 80])
-            
+
             if total_coletores > 0:
                 nivel_medio = sum(l.nivel_preenchimento for l in coletores) / total_coletores
             else:
                 nivel_medio = 0.0
-            
+
             hoje = datetime.now().date()
             coletas_hoje = len([c for c in coletas if c.data_hora and c.data_hora.date() == hoje])
-            
+
             sensores_ativos = len([s for s in sensores if s.bateria > 0])
             sensores_bateria_baixa = len([s for s in sensores if s.bateria < 20])
-            
+
             return {
                 "total_coletores": total_coletores,
                 "coletores_alerta": coletores_alerta,
                 "nivel_medio": round(nivel_medio, 1),
                 "coletas_hoje": coletas_hoje,
                 "sensores_ativos": sensores_ativos,
-                "sensores_bateria_baixa": sensores_bateria_baixa
+                "sensores_bateria_baixa": sensores_bateria_baixa,
             }
-        
-        # Obter do cache ou calcular
-        estatisticas = cache.obter_ou_calcular('estatisticas', calcular_estatisticas, ttl_segundos=300)
+
+        estatisticas = cache.obter_ou_calcular(cache_key, calcular_estatisticas, ttl_segundos=300)
         
         return jsonify(estatisticas)
     except Exception as e:

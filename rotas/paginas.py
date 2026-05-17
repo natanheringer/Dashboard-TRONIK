@@ -8,6 +8,7 @@ Gerencia a navegação e renderização das páginas.
 
 from flask import Blueprint, render_template, redirect, url_for
 from flask_login import login_required
+from rotas.api.decorators import admin_page_required
 
 # Criar blueprint das páginas
 paginas_bp = Blueprint('paginas', __name__)
@@ -71,7 +72,7 @@ def comercial():
     return render_template('comercial.html')
 
 @paginas_bp.route('/crm')
-@login_required
+@admin_page_required
 def crm():
     """Renderiza a página do CRM"""
     return render_template('crm.html')

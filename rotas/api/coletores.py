@@ -7,7 +7,7 @@ Endpoints para operações CRUD de coletores.
 from flask import Blueprint, jsonify, request, current_app
 from flask_login import login_required
 from rotas.api import decorators
-from rotas.api.decorators import admin_required, get_db, get_limiter
+from rotas.api.decorators import admin_required, escopo_parceiro_id, get_db, get_limiter
 from banco_dados.modelos import Coletor
 from banco_dados.serializers import coletor_para_dict
 from banco_dados.services.coletor_service import (
@@ -34,7 +34,8 @@ def resumo_coletores():
     """Resumo operacional agregado dos coletores."""
     db = get_db()
     try:
-        return jsonify(resumo_operacional(db))
+        parceiro_id = escopo_parceiro_id()
+        return jsonify(resumo_operacional(db, parceiro_id=parceiro_id))
     except Exception as e:
         return tratar_erro_api(e)
     finally:
@@ -55,7 +56,7 @@ def listar_coletores():
         
         # Filtros
         status = request.args.get('status')
-        parceiro_id = request.args.get('parceiro_id', type=int)
+        parceiro_id = escopo_parceiro_id(request.args.get('parceiro_id', type=int))
         
         # Obter coletores com filtros e paginação
         coletores, total_count = obter_coletores_com_filtros(

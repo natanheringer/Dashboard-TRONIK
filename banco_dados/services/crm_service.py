@@ -16,6 +16,7 @@ from sqlalchemy.orm import joinedload
 
 from banco_dados.modelos import Pipeline, Interacao, Tarefa, Coletor
 from banco_dados.services import prospeccao_xgb_service
+from banco_dados.services.win_workflow import is_pipeline_won, process_pipeline_win
 from banco_dados.utils import utc_now_naive
 from banco_dados.utils.db_session import get_db_session
 import logging
@@ -32,6 +33,7 @@ class CRMService:
         'contato_inicial': 25,
         'proposta_enviada': 50,
         'negociacao': 75,
+        'ganho': 100,
         'fechado': 100,
         'perdido': 0
     }
@@ -100,9 +102,12 @@ class CRMService:
             if novo_status == 'perdido':
                 pipeline.motivo_perda = motivo_perda
                 pipeline.fechado_em = utc_now_naive()
-            elif novo_status == 'fechado':
+            elif is_pipeline_won(novo_status):
                 pipeline.fechado_em = utc_now_naive()
-            
+
+            if is_pipeline_won(novo_status):
+                process_pipeline_win(db, pipeline)
+
             db.commit()
             db.refresh(pipeline)
             logger.info(f"Pipeline {pipeline_id} atualizado para status: {novo_status}")

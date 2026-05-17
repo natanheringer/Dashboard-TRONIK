@@ -66,7 +66,7 @@ def admin_preview(view):
         if _preview_publico():
             return view(*args, **kwargs)
         if current_user.is_authenticated and not current_user.admin:
-            return redirect(url_for('preview.parceiro'))
+            abort(403)
         return protegido(*args, **kwargs)
 
     return wrapper

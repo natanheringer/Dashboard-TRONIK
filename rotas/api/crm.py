@@ -213,7 +213,10 @@ def atualizar_status_pipeline(pipeline_id):
         dados = sanitizar_dados_entrada(dados, campos_string)
         
         # Validar status
-        status_permitidos = ['lead', 'contato_inicial', 'proposta_enviada', 'negociacao', 'fechado', 'perdido']
+        status_permitidos = [
+            'lead', 'contato_inicial', 'proposta_enviada', 'negociacao',
+            'ganho', 'fechado', 'perdido',
+        ]
         validar_enum(dados.get('status'), status_permitidos, 'status')
         
         novo_status = dados.get('status')
