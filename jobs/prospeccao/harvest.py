@@ -195,6 +195,34 @@ def run_harvest(
 
         run("ibram_geradores", _ibram)
 
+    if "ibama_ctf" in steps:
+        from jobs.prospeccao.db import session_scope
+        from jobs.prospeccao.ibama_ctf_ingest import sync_ibama_ctf
+        from jobs.prospeccao import config as _config
+
+        def _ibama_ctf():
+            ufs = {
+                u.strip().upper()
+                for u in _config.IBAMA_CTF_DEFAULT_UFS.split(",")
+                if u.strip()
+            }
+            with session_scope() as db:
+                result = sync_ibama_ctf(db, ufs=ufs or {"DF", "GO"})
+                db.commit()
+            step_errs = result.get("erros") or []
+            if step_errs and not result.get("ufs_processadas"):
+                raise RuntimeError("IBAMA CTF/APP: " + "; ".join(step_errs))
+            return result
+
+        run("ibama_ctf", _ibama_ctf)
+        _ibama_out = report.get("ok", {}).get("ibama_ctf")
+        if isinstance(_ibama_out, dict) and _ibama_out.get("erros"):
+            report["errors"]["ibama_ctf"] = {
+                "error": "; ".join(_ibama_out["erros"]),
+                "partial": True,
+                "stats": {k: v for k, v in _ibama_out.items() if k != "erros"},
+            }
+
     if "brasilapi_enrich" in steps:
         from jobs.prospeccao.brasilapi_enrich import enrich_via_brasilapi
         from jobs.prospeccao.db import session_scope

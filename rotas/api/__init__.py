@@ -22,6 +22,7 @@ from rotas.api import (
     ml,
     nik,
     notificacoes,
+    prospeccao,
     relatorios,
     sensores,
 )
@@ -44,4 +45,5 @@ api_bp.register_blueprint(contratos.contratos_bp)
 
 # Machine Learning
 api_bp.register_blueprint(ml.ml_bp)
+api_bp.register_blueprint(prospeccao.prospeccao_bp)
 

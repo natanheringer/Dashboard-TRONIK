@@ -13,6 +13,7 @@ from sqlalchemy.orm import Session
 
 from banco_dados.modelos import EmpresaCandidata, FeatureSnapshotProspeccao, LocalCandidato
 from jobs.prospeccao.ranker_contract import (
+    FEATURE_NAMES,
     FEATURE_SCHEMA_VERSION,
     build_feature_vector,
     cnae_ree_fit,
@@ -191,6 +192,7 @@ def build_feature_snapshots(
     pipeline_version: str = FEATURE_SCHEMA_VERSION,
     seed_demo: bool = False,
     limit: int | None = None,
+    use_internal_labels: bool = False,
 ) -> dict[str, Any]:
     if seed_demo:
         seed_demo_candidates(db)
@@ -212,7 +214,17 @@ def build_feature_snapshots(
         "snapshots_criados": 0,
         "seed_demo": seed_demo,
         "limit": limit,
+        "use_internal_labels": use_internal_labels,
     }
+
+    internal_index = None
+    if use_internal_labels:
+        from jobs.prospeccao.labels_internal import build_internal_label_index
+
+        internal_index = build_internal_label_index(db)
+        stats["internal_label_index"] = internal_index.stats
+        internal_matched = 0
+        internal_match_by_source: Counter[str] = Counter()
 
     # Pre-compute neighborhood context per qid for spatial density features
     qid_stats: dict[str, dict[str, int]] = defaultdict(
@@ -252,6 +264,14 @@ def build_feature_snapshots(
             qid = listwise_training_qid(empresa, local)
             features = build_feature_vector(empresa, local, neighborhood=qid_stats[qid])
             raw = heuristic_relevance_continuous(features)
+            if internal_index is not None:
+                from jobs.prospeccao.labels_internal import lookup_internal_score
+
+                internal_raw, meta = lookup_internal_score(empresa, local, internal_index)
+                if internal_raw is not None:
+                    raw = internal_raw
+                    internal_matched += 1
+                    internal_match_by_source[meta.get("match_source") or "unknown"] += 1
             local_id = local.id if local else None
             key = (empresa.id, local_id)
             snapshot = snapshot_by_key.get(key)
@@ -274,6 +294,23 @@ def build_feature_snapshots(
                 total,
                 processed_rows,
             )
+
+    if use_internal_labels and internal_index is not None:
+        row_count = len(bucket)
+        stats["internal_labels_matched"] = internal_matched
+        stats["internal_labels_coverage_pct"] = round(
+            internal_matched / row_count * 100 if row_count else 0.0,
+            1,
+        )
+        stats["internal_match_by_source"] = dict(sorted(internal_match_by_source.items()))
+        stats["label_source"] = "internal_ops_with_heuristic_fallback"
+        logger.info(
+            "build-features: internal labels matched %s/%s rows (%.1f%%) by_source=%s",
+            internal_matched,
+            row_count,
+            stats["internal_labels_coverage_pct"],
+            stats["internal_match_by_source"],
+        )
 
     # Calculate QID coverage report BEFORE label computation
     qid_sizes = Counter(qid for _, _, qid, _, _, _ in bucket)
@@ -308,13 +345,16 @@ def build_feature_snapshots(
         for idx, label in zip(qid_group_idxs, group_labels):
             ordinals[idx] = label
 
-    stats["label_binning"] = "equal_frequency_rank_per_qid"
+    stats["label_binning"] = (
+        "equal_frequency_rank_per_qid"
+        if not use_internal_labels
+        else "equal_frequency_rank_per_qid_on_internal_or_heuristic_raw"
+    )
     stats["label_bins"] = n_label_bins
     stats["unique_qids"] = len(qid_stats)
 
     # Compute feature statistics on sample (up to 10k rows for memory efficiency)
     logger.info("build-features: calculando estatísticas por feature na amostra…")
-    FEATURE_NAMES = list(feature_schema().keys())
     feature_stats = _compute_feature_statistics(bucket, FEATURE_NAMES)
     stats["feature_stats"] = feature_stats
 

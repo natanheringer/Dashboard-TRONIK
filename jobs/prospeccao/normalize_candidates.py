@@ -318,6 +318,51 @@ def deduplicate_empresas(db: Session) -> dict[str, int]:
 # Full normalization pipeline
 # ---------------------------------------------------------------------------
 
+def _coverage_snapshot(db: Session) -> dict[str, Any]:
+    """Coverage metrics over local_candidato (denominator = locais, not empresas)."""
+    total_empresas = db.query(func.count(EmpresaCandidata.id)).scalar() or 0
+    total_locais = db.query(func.count(LocalCandidato.id)).scalar() or 0
+    com_coords = (
+        db.query(func.count(LocalCandidato.id))
+        .filter(
+            LocalCandidato.latitude.isnot(None),
+            LocalCandidato.longitude.isnot(None),
+        )
+        .scalar()
+        or 0
+    )
+    com_ra = (
+        db.query(func.count(LocalCandidato.id))
+        .filter(LocalCandidato.ra.isnot(None), LocalCandidato.ra != "")
+        .scalar()
+        or 0
+    )
+    com_qid = (
+        db.query(func.count(LocalCandidato.id))
+        .filter(LocalCandidato.qid.isnot(None))
+        .scalar()
+        or 0
+    )
+    qid_unique = (
+        db.query(func.count(func.distinct(LocalCandidato.qid)))
+        .filter(LocalCandidato.qid.isnot(None))
+        .scalar()
+        or 0
+    )
+    denom = total_locais or 1
+    return {
+        "total_empresas": total_empresas,
+        "total_locais": total_locais,
+        "geocoded_pct": round(com_coords / denom * 100, 1) if total_locais else 0.0,
+        "ra_assigned_pct": round(com_ra / denom * 100, 1) if total_locais else 0.0,
+        "qid_assigned_pct": round(com_qid / denom * 100, 1) if total_locais else 0.0,
+        "qid_unique": qid_unique,
+        "locais_geocoded": com_coords,
+        "locais_with_ra": com_ra,
+        "locais_with_qid": com_qid,
+    }
+
+
 def normalize_all(
     db: Session,
     *,
@@ -328,6 +373,14 @@ def normalize_all(
 ) -> dict[str, Any]:
     """Run the full normalization pipeline: dedup -> geocode -> RA -> qid."""
     results: dict[str, Any] = {}
+
+    total_empresas = db.query(func.count(EmpresaCandidata.id)).scalar() or 0
+    if total_empresas == 0:
+        logger.warning("No empresa_candidata rows — normalization skipped")
+        results["skipped"] = True
+        results["reason"] = "no_empresas"
+        results["coverage"] = _coverage_snapshot(db)
+        return results
 
     logger.info("Step 1/4: Deduplication")
     results["dedup"] = deduplicate_empresas(db)
@@ -354,24 +407,7 @@ def normalize_all(
 
     db.commit()
 
-    # Data quality report: coverage metrics (Google Data Validation style)
-    total = db.query(func.count(EmpresaCandidata.id)).scalar() or 0
-    com_coords = db.query(func.count(LocalCandidato.id)).filter(
-        LocalCandidato.latitude.isnot(None)
-    ).scalar() or 0
-    com_ra = db.query(func.count(LocalCandidato.id)).filter(
-        LocalCandidato.ra.isnot(None), LocalCandidato.ra != ""
-    ).scalar() or 0
-    com_qid = db.query(func.count(LocalCandidato.id)).filter(
-        LocalCandidato.qid.isnot(None)
-    ).scalar() or 0
-
-    results["coverage"] = {
-        "total_empresas": total,
-        "pct_geocoded": round(com_coords / total * 100, 1) if total else 0,
-        "pct_with_ra": round(com_ra / total * 100, 1) if total else 0,
-        "pct_with_qid": round(com_qid / total * 100, 1) if total else 0,
-    }
+    results["coverage"] = _coverage_snapshot(db)
     logger.info("Coverage report: %s", results["coverage"])
 
     logger.info("Normalization complete: %s", results)

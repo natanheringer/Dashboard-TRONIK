@@ -430,6 +430,118 @@ def _historico_thread(
     return [{"pergunta": r.pergunta, "resposta": r.resposta, "criado_em": r.criado_em.isoformat() if r.criado_em else None} for r in rows]
 
 
+def _mensagem_pede_prospeccao(mensagem: str) -> bool:
+    msg = (mensagem or "").lower()
+    if any(
+        k in msg
+        for k in [
+            "prospecção",
+            "prospeccao",
+            "prospecao",
+            "fila de prospecção",
+            "fila de prospeccao",
+            "fila ree",
+            "ranking de prospecção",
+            "ranking ree",
+            "candidatos ree",
+            "leads ree",
+            "score de prospecção",
+            "score prospecção",
+            "empresas para prospectar",
+            "empresas para prospecção",
+        ]
+    ):
+        return True
+    return "prospec" in msg and any(
+        k in msg for k in ["candidat", "ranking", "fila", "lista", "top", "melhor", "prioridade", "ree"]
+    )
+
+
+def _mensagem_pede_explicacao_lead(mensagem: str) -> bool:
+    msg = (mensagem or "").lower()
+    if any(
+        k in msg
+        for k in [
+            "por que esse lead",
+            "por que este lead",
+            "por que esse candidato",
+            "por que este candidato",
+            "por que o lead",
+            "motivo do score",
+            "motivos do score",
+            "explicar candidato",
+            "explicar o candidato",
+            "explicar lead",
+            "explicar o lead",
+        ]
+    ):
+        return True
+    return any(k in msg for k in ["por que", "motivo", "motivos", "explic"]) and any(
+        k in msg for k in ["lead", "candidat", "score", "ranking", "prospec"]
+    )
+
+
+def _mensagem_pede_status_modelo(mensagem: str) -> bool:
+    msg = (mensagem or "").lower()
+    if any(
+        k in msg
+        for k in [
+            "modelo de prospecção",
+            "modelo de prospeccao",
+            "modelo de prospecao",
+            "versão do modelo",
+            "versao do modelo",
+            "métricas do modelo",
+            "metricas do modelo",
+            "status do modelo",
+            "qual modelo",
+            "modelo ativo",
+            "ndcg do modelo",
+        ]
+    ):
+        return True
+    return "modelo" in msg and "prospec" in msg
+
+
+def _extrair_score_id(mensagem: str) -> Optional[int]:
+    msg = (mensagem or "").strip()
+    for pattern in (
+        r"\bscore[_\s-]?id[=:\s]+(\d+)\b",
+        r"\bscore_id[=:\s]+(\d+)\b",
+        r"\bid\s+do\s+score[=:\s]+(\d+)\b",
+        r"\bscore\s+(\d+)\b",
+        r"\bcandidato\s+(\d+)\b",
+    ):
+        m = re.search(pattern, msg, flags=re.I)
+        if m:
+            try:
+                return int(m.group(1))
+            except ValueError:
+                continue
+    return None
+
+
+def _extrair_filtros_prospeccao(mensagem: str) -> dict[str, Any]:
+    msg = (mensagem or "").lower()
+    kwargs: dict[str, Any] = {}
+    if any(k in msg for k in ["prioridade alta", "alta prioridade", "prioridade: alta"]):
+        kwargs["prioridade"] = "alta"
+    elif any(k in msg for k in ["prioridade media", "prioridade média", "media prioridade", "média prioridade"]):
+        kwargs["prioridade"] = "media"
+    elif any(k in msg for k in ["prioridade baixa", "baixa prioridade"]):
+        kwargs["prioridade"] = "baixa"
+    m_lim = re.search(r"\b(?:top|primeiros?)\s+(\d{1,2})\b", msg)
+    if m_lim:
+        kwargs["limite"] = int(m_lim.group(1))
+    m_cand = re.search(r"\b(\d{1,2})\s+candidatos?\b", msg)
+    if m_cand and "limite" not in kwargs:
+        kwargs["limite"] = int(m_cand.group(1))
+    m_qid = re.search(r"\bqid[=:]\s*([^\s,;.]+)", msg, flags=re.I)
+    if m_qid:
+        kwargs["qid"] = m_qid.group(1).strip()
+    return kwargs
+
+
 def _planejar_ferramentas(mensagem: str) -> list[dict[str, Any]]:
     msg = (mensagem or "").lower()
     anos = _extrair_anos(msg)
@@ -438,12 +550,25 @@ def _planejar_ferramentas(mensagem: str) -> list[dict[str, Any]]:
 
     plano: list[dict[str, Any]] = [{"nome": "snapshot_operacional", "kwargs": {}}]
     pede_web = _mensagem_pede_web(mensagem)
+    pede_prospeccao = _mensagem_pede_prospeccao(mensagem)
+    pede_explicacao_lead = _mensagem_pede_explicacao_lead(mensagem)
+    pede_status_modelo = _mensagem_pede_status_modelo(mensagem)
     pede_busca_interna = any(k in msg for k in ["busque", "buscar", "procure", "encontre", "no sistema"])
     pergunta_exploratoria = any(k in msg for k in ["quais", "qual", "quem", "onde"]) and not any(
         k in msg for k in ["relatório", "relatorio", "timeline", "impacto"]
     )
 
-    if pede_busca_interna or pergunta_exploratoria:
+    if pede_status_modelo:
+        plano.append({"nome": "status_modelo_prospeccao", "kwargs": {}})
+    if pede_explicacao_lead:
+        kwargs_explicar: dict[str, Any] = {}
+        score_id = _extrair_score_id(mensagem)
+        if score_id is not None:
+            kwargs_explicar["score_id"] = score_id
+        plano.append({"nome": "explicar_candidato_prospeccao", "kwargs": kwargs_explicar})
+    if pede_prospeccao:
+        plano.append({"nome": "listar_candidatos_prospeccao", "kwargs": _extrair_filtros_prospeccao(mensagem)})
+    if pede_busca_interna or (pergunta_exploratoria and not pede_prospeccao and not pede_explicacao_lead):
         plano.append({"nome": "busca_unificada", "kwargs": {"consulta": mensagem.strip()}})
     if pede_web:
         plano.append({"nome": "catalogo_fontes_web", "kwargs": {}})
@@ -610,6 +735,9 @@ def _executar_plano_ferramentas(db: Session, plano: list[dict[str, Any]]) -> tup
         "busca_unificada": nik_tools.ferramenta_busca_unificada,
         "busca_web": nik_tools.ferramenta_busca_web,
         "catalogo_fontes_web": lambda _db: nik_tools.catalogo_fontes_web(),
+        "listar_candidatos_prospeccao": nik_tools.ferramenta_listar_candidatos_prospeccao,
+        "explicar_candidato_prospeccao": nik_tools.ferramenta_explicar_candidato_prospeccao,
+        "status_modelo_prospeccao": nik_tools.ferramenta_status_modelo_prospeccao,
     }
     for item in plano:
         nome = item.get("nome")
@@ -659,6 +787,12 @@ def _fontes_para_bloco(bloco: str, fontes_disponiveis: list[str]) -> list[str]:
         fontes.append("impacto_geral")
     if any(k in b for k in ["período", "periodo", "resumo", "coletas", "volume"]):
         fontes.append("resumo_periodo")
+    if any(k in b for k in ["prospec", "candidat", "ranking", "prioridade", "cnpj", "cnae", "ree"]):
+        fontes.append("listar_candidatos_prospeccao")
+    if any(k in b for k in ["motivo", "motivos", "explic", "evidência", "evidencia", "por que"]):
+        fontes.append("explicar_candidato_prospeccao")
+    if any(k in b for k in ["modelo", "ndcg", "xgboost", "versão", "versao", "métrica", "metrica"]):
+        fontes.append("status_modelo_prospeccao")
     if not fontes:
         fontes.append("snapshot_operacional")
     finais = [f for f in fontes if f in fontes_disponiveis]
@@ -716,6 +850,59 @@ def _contexto_para_modelo(contexto: dict[str, Any]) -> dict[str, Any]:
             ]
             bw.pop("queries_executadas", None)
             bw.pop("dominios_catalogo", None)
+    pros = slim.get("listar_candidatos_prospeccao")
+    if isinstance(pros, dict):
+        cand = pros.get("candidatos", [])
+        if isinstance(cand, list):
+            pros["candidatos"] = [
+                {
+                    "id": c.get("id"),
+                    "ranking_contexto": c.get("ranking_contexto"),
+                    "prioridade": c.get("prioridade"),
+                    "score": c.get("score"),
+                    "score_percentil": c.get("score_percentil"),
+                    "qid": c.get("qid"),
+                    "empresa": {
+                        "razao_social": (c.get("empresa") or {}).get("razao_social"),
+                        "cnae_principal": (c.get("empresa") or {}).get("cnae_principal"),
+                    }
+                    if isinstance(c.get("empresa"), dict)
+                    else None,
+                    "local": {
+                        "bairro": (c.get("local") or {}).get("bairro"),
+                        "ra": (c.get("local") or {}).get("ra"),
+                    }
+                    if isinstance(c.get("local"), dict)
+                    else None,
+                    "motivos": (c.get("motivos") or [])[:3] if isinstance(c.get("motivos"), list) else [],
+                }
+                for c in cand[:15]
+                if isinstance(c, dict)
+            ]
+    exp = slim.get("explicar_candidato_prospeccao")
+    if isinstance(exp, dict):
+        score = exp.get("score")
+        if isinstance(score, dict):
+            exp["score"] = {
+                "id": score.get("id"),
+                "prioridade": score.get("prioridade"),
+                "ranking_contexto": score.get("ranking_contexto"),
+                "score": score.get("score"),
+                "qid": score.get("qid"),
+                "empresa": {
+                    "razao_social": (score.get("empresa") or {}).get("razao_social"),
+                    "cnae_principal": (score.get("empresa") or {}).get("cnae_principal"),
+                }
+                if isinstance(score.get("empresa"), dict)
+                else None,
+            }
+        expl = exp.get("explicacao")
+        if isinstance(expl, list):
+            exp["explicacao"] = expl[:8]
+    st = slim.get("status_modelo_prospeccao")
+    if isinstance(st, dict) and isinstance(st.get("metricas"), dict):
+        metricas = st["metricas"]
+        st["metricas"] = {k: metricas[k] for k in list(metricas.keys())[:12]}
     # Catálogo completo aumenta muito o prompt e pouco ajuda no raciocínio final.
     slim.pop("catalogo_ferramentas", None)
     return slim

@@ -191,6 +191,7 @@ def score_candidates(
     created = 0
     updated = 0
     processed = 0
+    scores_by_prioridade: Counter[str] = Counter()
     batch_size = 2000
 
     for qid, rows in grouped.items():
@@ -225,6 +226,7 @@ def score_candidates(
             score_row.score = round(float(score), 6)
             score_row.ranking_contexto = rank
             score_row.prioridade = _priority(rank, len(ranked), float(score))
+            scores_by_prioridade[score_row.prioridade] += 1
             score_row.pipeline_version = pipeline_version
             # Build enriched motivos with SHAP context and human-readable labels
             enriched_motivos = _build_enriched_motivos(features, shap_vals, FEATURE_NAMES)
@@ -249,11 +251,14 @@ def score_candidates(
 
     return {
         "modelo": model.versao,
+        "model_version": model.versao,
         "algoritmo": model.algoritmo,
         "pipeline_version": pipeline_version,
         "snapshots": len(snapshots),
         "scores_criados": created,
         "scores_atualizados": updated,
         "grupos": len(grouped),
+        "qids_processed": len(grouped),
+        "scores_by_prioridade": dict(scores_by_prioridade),
         "prioridade_distribuicao": dict(prioridade_dist),
     }

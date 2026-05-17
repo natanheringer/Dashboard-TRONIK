@@ -82,7 +82,7 @@ def main(argv: list[str] | None = None) -> int:
         "--steps",
         type=str,
         default="ibge,geoportal,ckan_meta,ckan_links,pncp,ckan_orgs",
-        help="Separados por vírgula: ibge,geoportal,ckan_meta,ckan_links,ckan_show,pncp,ckan_orgs,receita_probe,inep_probe",
+        help="Separados por vírgula: ibge,geoportal,ckan_meta,ckan_links,ckan_show,pncp,ckan_orgs,receita_probe,inep_probe,aneel,ibram,ibama_ctf",
     )
     s_h.add_argument("--dry-run", action="store_true")
     s_h.add_argument("--ckan-max", type=int, default=250)
@@ -91,7 +91,7 @@ def main(argv: list[str] | None = None) -> int:
     s_h.add_argument("--pncp-max-pages", type=int, default=80)
 
     s_build = sub.add_parser("build-features", help="Monta feature_snapshot_prospeccao")
-    s_build.add_argument("--version", type=str, default="prospeccao-ree-v3.1")
+    s_build.add_argument("--version", type=str, default="prospeccao-ree-v3.2")
     s_build.add_argument("--seed-demo", action="store_true", help="Insere candidatos demo para smoke test")
     s_build.add_argument(
         "--limit",
@@ -100,9 +100,14 @@ def main(argv: list[str] | None = None) -> int:
         metavar="N",
         help="Processa só as N primeiras empresas (ordem por id). Útil para teste; qid_stats fica só sobre esse recorte.",
     )
+    s_build.add_argument(
+        "--use-internal-labels",
+        action="store_true",
+        help="Labels a partir do DB operacional (parceiro/coleta/contrato); fallback heurístico sem match",
+    )
 
     s_train = sub.add_parser("train-ranker", help="Treina XGBRanker ou baseline heuristico")
-    s_train.add_argument("--pipeline-version", type=str, default="prospeccao-ree-v3.1")
+    s_train.add_argument("--pipeline-version", type=str, default="prospeccao-ree-v3.2")
     s_train.add_argument("--model-version", type=str, default=None)
     s_train.add_argument("--no-baseline", action="store_true")
 
@@ -117,7 +122,7 @@ def main(argv: list[str] | None = None) -> int:
     s_pub.add_argument("--model-version", type=str, default=None)
 
     s_pipe = sub.add_parser("ranker-pipeline", help="build-features + train-ranker + score-candidates")
-    s_pipe.add_argument("--version", type=str, default="prospeccao-ree-v3.1")
+    s_pipe.add_argument("--version", type=str, default="prospeccao-ree-v3.2")
     s_pipe.add_argument("--seed-demo", action="store_true")
     s_pipe.add_argument(
         "--build-limit",
@@ -125,6 +130,11 @@ def main(argv: list[str] | None = None) -> int:
         default=None,
         metavar="N",
         help="Repasse para build-features --limit (smoke / recorte).",
+    )
+    s_pipe.add_argument(
+        "--use-internal-labels",
+        action="store_true",
+        help="Repasse para build-features --use-internal-labels",
     )
 
     s_rp = sub.add_parser("receita-parse", help="Parseia ZIPs Receita baixados -> empresa_candidata + local_candidato")
@@ -144,6 +154,11 @@ def main(argv: list[str] | None = None) -> int:
     s_ibram = sub.add_parser("ibram", help="Importa cadastro IBRAM de geradores de resíduos perigosos (e-waste)")
     s_ibram.add_argument("--file", type=str, default=None, help="Caminho para CSV exportado do portal IBRAM")
     s_ibram.add_argument("--url", type=str, default=None, help="URL direta de recurso CSV/XLS do IBRAM")
+
+    s_ibama_ctf = sub.add_parser("ibama-ctf", help="CTF/APP IBAMA: pessoas jurídicas por estado — leads eletroeletrônicos")
+    s_ibama_ctf.add_argument("--ufs", type=str, default=None, help="Estados separados por vírgula (default TRONIK_IBAMA_CTF_UFS ou DF,GO)")
+    s_ibama_ctf.add_argument("--no-destinadores", action="store_true", help="Não marca destinadores/recicladores")
+    s_ibama_ctf.add_argument("--no-download", action="store_true", help="Pula download, usa CSVs em data/raw/.../ibama_ctf")
 
     s_ba = sub.add_parser("brasilapi-enrich", help="Enriquece email/telefone/CNAE via Brasil API (free, sem auth)")
     s_ba.add_argument("--batch", type=int, default=500, help="Max CNPJs por execução (default 500)")
@@ -322,6 +337,24 @@ def main(argv: list[str] | None = None) -> int:
         print(json.dumps(result, ensure_ascii=False, indent=2, default=str))
         return 0
 
+    if args.cmd == "ibama-ctf":
+        from jobs.prospeccao import config as _config
+        from jobs.prospeccao.db import session_scope
+        from jobs.prospeccao.ibama_ctf_ingest import sync_ibama_ctf
+
+        ufs_raw = (args.ufs or _config.IBAMA_CTF_DEFAULT_UFS).strip()
+        ufs = {u.strip().upper() for u in ufs_raw.split(",") if u.strip()}
+        with session_scope() as db:
+            result = sync_ibama_ctf(
+                db,
+                ufs=ufs,
+                include_destinadores=not args.no_destinadores,
+                download=not args.no_download,
+            )
+            db.commit()
+        print(json.dumps(result, ensure_ascii=False, indent=2, default=str))
+        return 0
+
     if args.cmd == "brasilapi-enrich":
         from jobs.prospeccao.brasilapi_enrich import enrich_via_brasilapi
         from jobs.prospeccao.db import session_scope
@@ -384,6 +417,7 @@ def main(argv: list[str] | None = None) -> int:
                 pipeline_version=args.version,
                 seed_demo=args.seed_demo,
                 limit=args.limit,
+                use_internal_labels=args.use_internal_labels,
             )
         print(json.dumps(result, ensure_ascii=False, indent=2, default=str))
         return 0
@@ -442,6 +476,7 @@ def main(argv: list[str] | None = None) -> int:
                 pipeline_version=args.version,
                 seed_demo=args.seed_demo,
                 limit=args.build_limit,
+                use_internal_labels=args.use_internal_labels,
             )
             trained = train_ranker(db, pipeline_version=args.version)
             scored = score_candidates(db, model_version=trained["versao"], pipeline_version=args.version)

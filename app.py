@@ -18,7 +18,7 @@ import logging
 from pathlib import Path
 
 # Importações do SQLAlchemy
-from sqlalchemy import create_engine
+from sqlalchemy import create_engine, text
 from sqlalchemy.orm import sessionmaker, scoped_session
 
 # Importações dos modelos
@@ -339,8 +339,8 @@ else:
 
     # Enable WAL mode and optimize for concurrent access
     with engine.begin() as conn:
-        conn.execute("PRAGMA journal_mode=WAL")
-        conn.execute("PRAGMA synchronous=NORMAL")
+        conn.execute(text("PRAGMA journal_mode=WAL"))
+        conn.execute(text("PRAGMA synchronous=NORMAL"))
 
 SessionLocal = scoped_session(sessionmaker(bind=engine))
 

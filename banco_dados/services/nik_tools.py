@@ -25,6 +25,7 @@ from sqlalchemy.orm import Session
 from banco_dados.modelos import Coleta, Coletor, ContratoRecorrente, Parceiro, Pipeline
 from banco_dados.services import nik_contexto as ctx
 from banco_dados.services import preview_service as pv
+from banco_dados.services import prospeccao_xgb_service as prospeccao_svc
 from banco_dados.utils.cache import obter_cache
 
 _WEB_CHAMADAS_TS: list[float] = []
@@ -286,6 +287,117 @@ def ferramenta_impacto_geral(
         "km_total": round(km_total, 1),
         "eficiencia_kg_km": eficiencia,
         "parceiro_id": parceiro_id,
+    }
+
+
+def ferramenta_listar_candidatos_prospeccao(
+    db: Session,
+    *,
+    limite: int = 20,
+    qid: str | None = None,
+    prioridade: str | None = None,
+    model_version: str | None = None,
+) -> dict[str, Any]:
+    """Fila ranqueada de candidatos REE (mesmo read-model do dashboard e /api/prospeccao/candidatos)."""
+    limite_efetivo = max(1, min(int(limite or 20), 50))
+    prioridade_norm = (prioridade or "").strip().lower() or None
+    if prioridade_norm and prioridade_norm not in {"alta", "media", "baixa"}:
+        prioridade_norm = None
+
+    candidatos = prospeccao_svc.buscar_candidatos_prospeccao(
+        db,
+        limite=limite_efetivo,
+        qid=(qid or "").strip() or None,
+        prioridade=prioridade_norm,
+        model_version=(model_version or "").strip() or None,
+    )
+    return {
+        "limite": limite_efetivo,
+        "qid": qid,
+        "prioridade": prioridade_norm,
+        "model_version": model_version,
+        "total": len(candidatos),
+        "candidatos": candidatos,
+        "resumo": (
+            f"Fila de prospecção com {len(candidatos)} candidato(s) ranqueado(s)"
+            + (f" (prioridade {prioridade_norm})" if prioridade_norm else "")
+            + (f" no contexto {qid}" if qid else "")
+            + ".",
+        ),
+    }
+
+
+def ferramenta_explicar_candidato_prospeccao(
+    db: Session,
+    *,
+    score_id: Optional[int] = None,
+    model_version: str | None = None,
+) -> dict[str, Any]:
+    """Evidências e motivos do score para um candidato da fila REE."""
+    if score_id is None:
+        return {
+            "encontrado": False,
+            "resumo": "Informe score_id do candidato (ex.: score_id=42 ou candidato 42).",
+        }
+    score_id_int = int(score_id)
+    resultado = prospeccao_svc.explicar_candidato(
+        db,
+        score_id_int,
+        model_version=(model_version or "").strip() or None,
+    )
+    if not resultado:
+        return {
+            "score_id": score_id_int,
+            "encontrado": False,
+            "resumo": f"Candidato score_id={score_id_int} não encontrado no modelo ativo.",
+        }
+
+    score = resultado.get("score") or {}
+    explicacao = resultado.get("explicacao") or []
+    empresa = (score.get("empresa") or {}) if isinstance(score.get("empresa"), dict) else {}
+    razao = empresa.get("razao_social") or empresa.get("nome_fantasia") or "empresa"
+    return {
+        "score_id": score_id_int,
+        "encontrado": True,
+        "score": score,
+        "explicacao": explicacao,
+        "resumo": (
+            f"Explicação do candidato {razao} (score_id={score_id_int}): "
+            f"{len(explicacao)} motivo(s) registrado(s)."
+        ),
+    }
+
+
+def ferramenta_status_modelo_prospeccao(
+    db: Session,
+    *,
+    model_version: str | None = None,
+) -> dict[str, Any]:
+    """Versão ativa do ranker REE e métricas-chave de validação."""
+    status = prospeccao_svc.status_modelo_prospeccao(
+        db,
+        model_version=(model_version or "").strip() or None,
+    )
+    if not status:
+        return {
+            "encontrado": False,
+            "resumo": "Nenhum modelo de prospecção ativo encontrado na base.",
+        }
+
+    modelo = status.get("modelo") or {}
+    metricas = status.get("metricas") or {}
+    versao = modelo.get("versao") or "desconhecida"
+    ndcg = metricas.get("validation_ndcg_mean") or metricas.get("train_ndcg_mean")
+    ndcg_txt = f", NDCG validação {ndcg:.4f}" if isinstance(ndcg, (int, float)) else ""
+    return {
+        "encontrado": True,
+        "modelo": modelo,
+        "metricas": metricas,
+        "total_scores": status.get("total_scores", 0),
+        "prioridade": status.get("prioridade") or {},
+        "resumo": (
+            f"Modelo ativo {versao} ({status.get('total_scores', 0)} scores publicados{ndcg_txt})."
+        ),
     }
 
 
@@ -612,6 +724,18 @@ def catalogo_ferramentas() -> list[dict[str, Any]]:
         {"nome": "impacto_geral", "descricao": "Impacto agregado com eficiência logística no intervalo."},
         {"nome": "limites_historico", "descricao": "Datas mínima e máxima disponíveis na base de coletas."},
         {"nome": "busca_unificada", "descricao": "Pesquisa textual em coletas, CRM (pipeline) e contratos."},
+        {
+            "nome": "listar_candidatos_prospeccao",
+            "descricao": "Fila ranqueada de empresas/locais candidatos à prospecção REE (modelo XGBoost).",
+        },
+        {
+            "nome": "explicar_candidato_prospeccao",
+            "descricao": "Motivos e evidências do score de um candidato (parâmetro score_id).",
+        },
+        {
+            "nome": "status_modelo_prospeccao",
+            "descricao": "Versão ativa do ranker REE e métricas-chave (NDCG, amostras, fila publicada).",
+        },
         {"nome": "busca_web", "descricao": "Busca na internet com guardrails e fontes externas auditáveis."},
         {"nome": "catalogo_fontes_web", "descricao": "Catálogo curado de domínios de alta confiança para busca web."},
     ]

@@ -366,13 +366,17 @@ def build_feature_vector(
 # ---------------------------------------------------------------------------
 
 
-def _cep5_digits(empresa: Any, local: Any | None) -> str:
+def _cep_digits(empresa: Any, local: Any | None) -> str:
     raw = ""
     if local is not None:
         raw = getattr(local, "cep", None) or ""
     if not raw:
         raw = getattr(empresa, "cep", None) or ""
-    digits = "".join(c for c in str(raw) if c.isdigit())
+    return "".join(c for c in str(raw) if c.isdigit())
+
+
+def _cep5_digits(empresa: Any, local: Any | None) -> str:
+    digits = _cep_digits(empresa, local)
     return digits[:5] if len(digits) >= 5 else ""
 
 
@@ -447,12 +451,10 @@ def listwise_training_qid(empresa: Any, local: Any | None) -> str:
     if len(cnae) >= 4:
         return f"cnae4:{mun}:{cnae}"
 
-    # 5th: UF + CEP prefix combination (when bairro/CEP/CNAE all missing)
-    # This creates groups by state and approximate postal area, better than "df:municipio"
-    cep_raw = _cep5_digits(empresa, local)
-    if cep_raw and len(cep_raw) >= 3:
-        # Use first 3 digits as postal zone
-        return f"zone:{uf.lower()}:{cep_raw[:3]}"
+    # 5th: UF + CEP3 when only a partial postal prefix is available (3–4 digits)
+    cep_digits = _cep_digits(empresa, local)
+    if 3 <= len(cep_digits) < 5:
+        return f"zone:{uf.lower()}:{cep_digits[:3]}"
 
     # Final fallback: by estado
     return f"df:{uf.lower()}"

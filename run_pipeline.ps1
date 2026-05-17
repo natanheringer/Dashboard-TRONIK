@@ -4,7 +4,7 @@
 #  Fases:
 #    1. Downloads  - harvest IBGE/CKAN/PNCP, fetch Casa dos Dados, CNEFE, Receita
 #    2. Ingestao   - receita-parse, normalize (dedup + geocode + RA + qid)
-#    3. Enriquece  - brasilapi-enrich, aneel, ibram
+#    3. Enriquece  - brasilapi-enrich, aneel, ibram, ibama-ctf
 #    4. ML         - build-features v3.2, train-ranker, score-candidates
 #
 #  USO RAPIDO:
@@ -14,11 +14,13 @@
 #    .\run_pipeline.ps1 -SkipFetch -SkipCnefe -SkipReceita -SkipNormalize  # so retreinar
 #    .\run_pipeline.ps1 -FromStep normalize    # retomar do passo 'normalize' em diante
 #    .\run_pipeline.ps1 -FromStep aneel        # retomar do passo 'aneel' em diante (paralelo)
+#    .\run_pipeline.ps1 -UseInternalLabels     # labels do DB operacional (build-features)
 #
 #  VARIAVEIS DE AMBIENTE UTEIS:
 #    $env:TRONIK_CASADOSDADOS_API_KEY = "sua-chave"
 #    $env:TRONIK_ANEEL_CONSUMIDORES_URL = "https://..."
 #    $env:TRONIK_IBRAM_GERADORES_URL   = "https://..."
+#    $env:TRONIK_IBAMA_CTF_UFS         = "DF,GO"
 # =============================================================================
 
 param(
@@ -31,8 +33,10 @@ param(
     [switch]$SkipBrasilApi,
     [switch]$SkipAneel,
     [switch]$SkipIbram,
+    [switch]$SkipIbamaCtf,
     [string]$FromStep        = "",
     [switch]$DemoOnly,
+    [switch]$UseInternalLabels,
     [int]$BuildLimit         = 0,
     [int]$BrasilApiBatch     = 500
 )
@@ -59,6 +63,7 @@ $allSteps = @(
     "brasilapi-enrich",
     "aneel",
     "ibram",
+    "ibama-ctf",
     "build-features",
     "train-ranker",
     "score-candidates"
@@ -325,7 +330,8 @@ if ($DemoOnly) {
     $SkipCnefe   = $true
     $SkipReceita = $true
     $SkipAneel   = $true
-    $SkipIbram   = $true
+    $SkipIbram     = $true
+    $SkipIbamaCtf  = $true
 }
 
 if ($FromStep) {
@@ -414,6 +420,17 @@ if (-not $SkipIbram) {
     }
 }
 
+if (-not $SkipIbamaCtf) {
+    $ibamaUfs = if ($env:TRONIK_IBAMA_CTF_UFS) { $env:TRONIK_IBAMA_CTF_UFS } else { "DF,GO" }
+    Write-Host "  [INFO] IBAMA CTF/APP: UFs=$ibamaUfs (dadosabertos.ibama.gov.br)" -ForegroundColor DarkGray
+    $parallelSteps += @{
+        Name     = "ibama-ctf"
+        Cmd      = "python -m jobs.prospeccao ibama-ctf --ufs $ibamaUfs"
+        Critical = $false
+        WarnOnly = $false
+    }
+}
+
 # Executar todos em paralelo se houver steps
 if ($parallelSteps.Count -gt 0) {
     Write-Host "  Iniciando $($parallelSteps.Count) jobs em paralelo..." -ForegroundColor Yellow
@@ -429,8 +446,9 @@ if ($parallelSteps.Count -gt 0) {
 Write-Phase "FASE 4/4 - ML: build-features + train + score"
 
 $buildCmd = "python -m jobs.prospeccao build-features --version $Version"
-if ($DemoOnly)         { $buildCmd += " --seed-demo" }
-if ($BuildLimit -gt 0) { $buildCmd += " --limit $BuildLimit" }
+if ($DemoOnly)            { $buildCmd += " --seed-demo" }
+if ($BuildLimit -gt 0)    { $buildCmd += " --limit $BuildLimit" }
+if ($UseInternalLabels)   { $buildCmd += " --use-internal-labels" }
 Run-Step "build-features" $buildCmd -Critical
 
 Run-Step "train-ranker" "python -m jobs.prospeccao train-ranker --pipeline-version $Version" -Critical

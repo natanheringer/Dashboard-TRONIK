@@ -147,6 +147,11 @@ ANEEL_CONSUMIDORES_URL = os.environ.get("TRONIK_ANEEL_CONSUMIDORES_URL", "")
 # --- IBRAM/SEMA-DF (cadastro de geradores de resíduos perigosos) ---
 IBRAM_GERADORES_URL = os.environ.get("TRONIK_IBRAM_GERADORES_URL", "")
 
+# --- IBAMA CTF/APP (pessoas jurídicas inscritas no CTF/APP — CSV por UF) ---
+# TRONIK_IBAMA_CTF_UFS — UFs separadas por vírgula para `ibama-ctf` e harvest step `ibama_ctf`
+#   (default DF,GO; fonte: http://dadosabertos.ibama.gov.br/dados/CTF/APP/{UF}/pessoasJuridicas.csv)
+IBAMA_CTF_DEFAULT_UFS = os.environ.get("TRONIK_IBAMA_CTF_UFS", "DF,GO")
+
 # --- Brasil API (free CNPJ enrichment, no auth required) ---
 BRASILAPI_BASE = os.environ.get(
     "TRONIK_BRASILAPI_BASE",

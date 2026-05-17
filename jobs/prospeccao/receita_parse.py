@@ -317,6 +317,10 @@ def parse_estabelecimentos_to_db(
         "locais_created": 0,
         "total_rows_scanned": 0,
         "rows_filtered_in": 0,
+        "rows_skipped_uf": 0,
+        "rows_skipped_go_not_ride": 0,
+        "rows_df": 0,
+        "rows_go_ride": 0,
         "files_processed": 0,
     }
 
@@ -372,14 +376,20 @@ def parse_estabelecimentos_to_db(
 
             uf = row[_Est.UF].strip().upper()
             if not _is_target_uf(uf):
+                stats["rows_skipped_uf"] += 1
                 continue
 
             muni_code = row[_Est.CODIGO_MUNICIPIO].strip()
             muni_name = muni.get(muni_code, "")
 
             if uf == "GO" and not _is_ride_municipio(muni_name):
+                stats["rows_skipped_go_not_ride"] += 1
                 continue
 
+            if uf == "GO":
+                stats["rows_go_ride"] += 1
+            else:
+                stats["rows_df"] += 1
             stats["rows_filtered_in"] += 1
 
             basico = row[_Est.CNPJ_BASICO].strip()

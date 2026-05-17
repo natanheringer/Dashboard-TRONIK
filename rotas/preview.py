@@ -311,6 +311,23 @@ def parceiro():
         db.close()
 
 
+@preview_bp.route("/prospeccao")
+@admin_preview
+def prospeccao():
+    db = get_db()
+    try:
+        stats = pv.estatisticas_resumo(db)
+        ctx = {
+            "current": "prospeccao",
+            "total_coletores": stats["total_coletores"],
+            "stats": stats,
+            "usuario_nome": _nome_usuario(),
+        }
+        return render_template("preview/prospeccao.html", **ctx)
+    finally:
+        db.close()
+
+
 @preview_bp.route("/gestao")
 @admin_preview
 def gestao():

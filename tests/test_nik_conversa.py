@@ -21,6 +21,96 @@ def test_planejador_aciona_busca_unificada():
     assert "busca_unificada" in nomes
 
 
+def test_planejador_aciona_listar_candidatos_prospeccao():
+    plano = nik_service._planejar_ferramentas("liste os top 10 candidatos de prospecção com prioridade alta")
+    nomes = [p["nome"] for p in plano]
+    assert "listar_candidatos_prospeccao" in nomes
+    item = next(p for p in plano if p["nome"] == "listar_candidatos_prospeccao")
+    assert item["kwargs"].get("prioridade") == "alta"
+    assert item["kwargs"].get("limite") == 10
+
+
+def test_listar_candidatos_prospeccao_retorna_estrutura(db_session, monkeypatch):
+    monkeypatch.setattr(
+        nik_service.nik_tools.prospeccao_svc,
+        "buscar_candidatos_prospeccao",
+        lambda db, **kwargs: [{"id": 1, "prioridade": "alta", "ranking_contexto": 1}],
+    )
+    data = nik_service.nik_tools.ferramenta_listar_candidatos_prospeccao(
+        db_session, limite=5, prioridade="alta"
+    )
+    assert data["total"] == 1
+    assert data["candidatos"][0]["prioridade"] == "alta"
+    assert "resumo" in data
+
+
+def test_planejador_aciona_explicar_candidato_prospeccao():
+    plano = nik_service._planejar_ferramentas("por que esse lead score_id=77 está no topo?")
+    nomes = [p["nome"] for p in plano]
+    assert "explicar_candidato_prospeccao" in nomes
+    item = next(p for p in plano if p["nome"] == "explicar_candidato_prospeccao")
+    assert item["kwargs"].get("score_id") == 77
+
+
+def test_planejador_aciona_status_modelo_prospeccao():
+    plano = nik_service._planejar_ferramentas("qual a versão do modelo de prospecção e as métricas?")
+    nomes = [p["nome"] for p in plano]
+    assert "status_modelo_prospeccao" in nomes
+
+
+def test_planejador_aciona_fila_ree():
+    plano = nik_service._planejar_ferramentas("mostre a fila REE com prioridade alta")
+    nomes = [p["nome"] for p in plano]
+    assert "listar_candidatos_prospeccao" in nomes
+    item = next(p for p in plano if p["nome"] == "listar_candidatos_prospeccao")
+    assert item["kwargs"].get("prioridade") == "alta"
+
+
+def test_explicar_candidato_prospeccao_retorna_estrutura(db_session, monkeypatch):
+    monkeypatch.setattr(
+        nik_service.nik_tools.prospeccao_svc,
+        "explicar_candidato",
+        lambda db, score_id, model_version=None: {
+            "score": {
+                "id": score_id,
+                "prioridade": "alta",
+                "motivos": [{"feature": "cnae_match", "peso": 0.4}],
+                "empresa": {"razao_social": "Acme Ltda"},
+            },
+            "explicacao": [{"feature": "cnae_match", "peso": 0.4}],
+        },
+    )
+    data = nik_service.nik_tools.ferramenta_explicar_candidato_prospeccao(db_session, score_id=12)
+    assert data["encontrado"] is True
+    assert data["score_id"] == 12
+    assert len(data["explicacao"]) == 1
+    assert "Acme" in data["resumo"]
+
+
+def test_explicar_candidato_prospeccao_sem_score_id():
+    data = nik_service.nik_tools.ferramenta_explicar_candidato_prospeccao(None, score_id=None)
+    assert data["encontrado"] is False
+    assert "score_id" in data["resumo"]
+
+
+def test_status_modelo_prospeccao_retorna_estrutura(db_session, monkeypatch):
+    monkeypatch.setattr(
+        nik_service.nik_tools.prospeccao_svc,
+        "status_modelo_prospeccao",
+        lambda db, model_version=None: {
+            "modelo": {"versao": "prospeccao-ree-v3.2", "ativo": True},
+            "metricas": {"validation_ndcg_mean": 0.61},
+            "total_scores": 120,
+            "prioridade": {"alta": 10, "media": 80, "baixa": 30},
+        },
+    )
+    data = nik_service.nik_tools.ferramenta_status_modelo_prospeccao(db_session)
+    assert data["encontrado"] is True
+    assert data["modelo"]["versao"] == "prospeccao-ree-v3.2"
+    assert data["metricas"]["validation_ndcg_mean"] == 0.61
+    assert data["total_scores"] == 120
+
+
 def test_planejador_aciona_busca_web():
     plano = nik_service._planejar_ferramentas("me traga notícia atualizada na internet sobre lixo eletrônico")
     nomes = [p["nome"] for p in plano]
