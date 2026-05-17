@@ -7,50 +7,45 @@ Aqui devem ser registradas todas as rotas e configurações básicas.
 """
 
 # Importações do Flask
+import logging
+import os
+import secrets
+from pathlib import Path
+
+from dotenv import load_dotenv
 from flask import Flask, request
 from flask_cors import CORS
 from flask_login import LoginManager
 from flask_talisman import Talisman
-from dotenv import load_dotenv
-import os
-import secrets
-import logging
-from pathlib import Path
 
 # Importações do SQLAlchemy
 from sqlalchemy import create_engine, text
-from sqlalchemy.orm import sessionmaker, scoped_session
+from sqlalchemy.orm import scoped_session, sessionmaker
+
+# Importações do sistema de inicialização
+from banco_dados.inicializar import (
+    criar_usuario_admin,
+    garantir_usuario_dev,
+)
 
 # Importações dos modelos
 # Importar todos os modelos para garantir que as tabelas sejam criadas
 from banco_dados.modelos import (
-    Base, Usuario, Coletor, Sensor, Coleta,
-    Parceiro, TipoMaterial, TipoSensor, TipoColetor, Notificacao,
-    MetaComercial, Pipeline, Interacao, Tarefa, ContratoRecorrente,
-    # Modelos ML (Módulos 1-3; prospecção futura ver PLANO_ML_TRONIK.md)
-    LeituraSensor, PredicaoEnchimento, TronikScore,
-    NarrativaGerada, NikConversa, NikRelatorioGerado,
-)
-
-# Importações do sistema de inicialização
-from banco_dados.inicializar import (
-    criar_banco,
-    criar_usuario_admin,
-    garantir_usuario_dev,
-    inserir_dados_iniciais,
+    Base,
+    Usuario,
 )
 from banco_dados.seed_tipos import popular_tipos
+
+# Configurar logging centralizado
+from banco_dados.utils.logger import configurar_logging
 
 # Importações dos blueprints
 from rotas.api import api_bp
 from rotas.api._limiter import limiter  # singleton compartilhado pelos blueprints
+from rotas.auth import auth_bp
 from rotas.paginas import paginas_bp
 from rotas.preview import preview_bp
-from rotas.auth import auth_bp
 from rotas.websocket import inicializar_websocket
-
-# Configurar logging centralizado
-from banco_dados.utils.logger import configurar_logging
 
 # Carregar variáveis de ambiente
 load_dotenv()
@@ -101,6 +96,8 @@ def health_check():
 
 # Cache busting para arquivos estáticos em desenvolvimento
 import time
+
+
 @app.context_processor
 def inject_cache_bust():
     """Adiciona versão aos arquivos estáticos para evitar cache"""
@@ -112,7 +109,7 @@ def inject_cache_bust():
         'true',
         'yes',
     )
-    return dict(cache_version=cache_version, preview_demo_banner_enabled=preview_demo_banner)
+    return {"cache_version": cache_version, "preview_demo_banner_enabled": preview_demo_banner}
 
 # Desabilitar cache de arquivos estáticos em desenvolvimento
 if FLASK_ENV == 'development':
@@ -268,6 +265,37 @@ log_file = os.getenv('LOG_FILE', None)
 configurar_logging(nivel=log_level, arquivo_log=log_file)
 logger = logging.getLogger(__name__)
 
+
+def _init_sentry() -> None:
+    """Inicializa Sentry quando SENTRY_DSN estiver definido (opcional)."""
+    dsn = os.getenv("SENTRY_DSN", "").strip()
+    if not dsn:
+        return
+    try:
+        import sentry_sdk
+        from sentry_sdk.integrations.flask import FlaskIntegration
+    except ImportError:
+        logger.warning(
+            "SENTRY_DSN definido mas sentry-sdk nao esta instalado; "
+            "instale com: pip install 'sentry-sdk[flask]>=2.0'"
+        )
+        return
+    try:
+        traces_rate = float(os.getenv("SENTRY_TRACES_SAMPLE_RATE", "0.1"))
+    except ValueError:
+        logger.warning("SENTRY_TRACES_SAMPLE_RATE invalido; usando 0.1")
+        traces_rate = 0.1
+    sentry_sdk.init(
+        dsn=dsn,
+        integrations=[FlaskIntegration()],
+        environment=FLASK_ENV,
+        traces_sample_rate=traces_rate,
+    )
+    logger.info("Sentry inicializado (environment=%s)", FLASK_ENV)
+
+
+_init_sentry()
+
 # ========================================
 # FLASK-MAIL (Notificações por Email)
 # ========================================
@@ -319,17 +347,17 @@ if DATABASE_URL.startswith('postgresql://') or DATABASE_URL.startswith('postgres
         db_url = db_url.replace('postgres://', 'postgresql+psycopg://')
     else:
         db_url = DATABASE_URL
-    
+
     # Configurações de pool e SSL para PostgreSQL
     # Verificar se a URL já tem parâmetros SSL
     connect_args = {
         'connect_timeout': 10,  # Timeout de conexão de 10 segundos
     }
-    
+
     # Se for URL externa (não internal), usar SSL
     if 'internal' not in db_url.lower() and 'localhost' not in db_url.lower():
         connect_args['sslmode'] = 'require'  # Exigir SSL para conexões externas
-    
+
     engine = create_engine(
         db_url,
         echo=False,
@@ -484,10 +512,10 @@ if __name__ == '__main__':
     logger.info(f"Ambiente: {FLASK_ENV}")
     logger.info(f"Banco de dados: {DATABASE_URL}")
     logger.info(f"Rate Limiting: {'Ativado' if limiter.enabled else 'Desativado'}")
-    logger.info(f"Acesse: http://localhost:5000")
-    logger.info(f"Login: http://localhost:5000/auth/login")
+    logger.info("Acesse: http://localhost:5000")
+    logger.info("Login: http://localhost:5000/auth/login")
     logger.info("=" * 50)
-    
+
     # Executar aplicação com WebSocket
     if socketio:
         socketio.run(

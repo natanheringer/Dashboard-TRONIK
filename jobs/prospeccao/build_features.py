@@ -12,6 +12,7 @@ from typing import Any
 from sqlalchemy.orm import Session
 
 from banco_dados.modelos import EmpresaCandidata, FeatureSnapshotProspeccao, LocalCandidato
+from jobs.prospeccao.enrichment_proxies import lookup_proxies
 from jobs.prospeccao.ranker_contract import (
     FEATURE_NAMES,
     FEATURE_SCHEMA_VERSION,
@@ -134,14 +135,14 @@ def _equal_frequency_ordinal_labels(scores: list[float], n_bins: int = 8) -> lis
 
 def _compute_feature_statistics(
     bucket: list[tuple],
-    FEATURE_NAMES: list[str],
+    feature_names: list[str],
 ) -> dict[str, dict[str, float]]:
     """Compute mean, nonzero_pct, and max for each feature from sample."""
     sample_size = min(10_000, len(bucket))
     sample_idxs = list(range(0, len(bucket), max(1, len(bucket) // sample_size)))[:sample_size]
 
     feature_stats = {}
-    for feat_name in FEATURE_NAMES:
+    for feat_name in feature_names:
         vals = []
         for idx in sample_idxs:
             _, _, _, features, _, _ = bucket[idx]
@@ -262,7 +263,17 @@ def build_feature_snapshots(
         locais = empresa.locais or [None]
         for local in locais:
             qid = listwise_training_qid(empresa, local)
-            features = build_feature_vector(empresa, local, neighborhood=qid_stats[qid])
+            lat = getattr(local, "latitude", None) if local else None
+            lon = getattr(local, "longitude", None) if local else None
+            ra = getattr(local, "ra", None) if local else None
+            municipio = getattr(empresa, "municipio", None)
+            proxies = lookup_proxies(lat, lon, ra, municipio)
+            features = build_feature_vector(
+                empresa,
+                local,
+                neighborhood=qid_stats[qid],
+                enrichment_proxies=proxies,
+            )
             raw = heuristic_relevance_continuous(features)
             if internal_index is not None:
                 from jobs.prospeccao.labels_internal import lookup_internal_score
@@ -342,7 +353,7 @@ def build_feature_snapshots(
     for qid_group_idxs in qid_bucket_idxs.values():
         group_scores = [bucket[i][4] for i in qid_group_idxs]
         group_labels = _equal_frequency_ordinal_labels(group_scores, n_bins=n_label_bins)
-        for idx, label in zip(qid_group_idxs, group_labels):
+        for idx, label in zip(qid_group_idxs, group_labels, strict=False):
             ordinals[idx] = label
 
     stats["label_binning"] = (

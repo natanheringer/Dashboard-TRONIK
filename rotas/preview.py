@@ -8,16 +8,24 @@ Acesso: login por padrao; ``PREVIEW_PUBLIC=true`` libera sem autenticacao
 from __future__ import annotations
 
 import os
-from pathlib import Path
 from functools import wraps
+from pathlib import Path
 
-from flask import Blueprint, abort, redirect, render_template, request, send_from_directory, url_for
+from flask import (
+    Blueprint,
+    abort,
+    current_app,
+    redirect,
+    render_template,
+    request,
+    send_from_directory,
+    url_for,
+)
 from flask_login import current_user, login_required
 
-from banco_dados.services import preview_service as pv
-from banco_dados.services import nik_service
-from rotas.api.decorators import get_db
+from banco_dados.services import nik_service, preview_service as pv
 from rotas.api._limiter import limiter
+from rotas.api.decorators import get_db
 
 preview_bp = Blueprint("preview", __name__, url_prefix="/preview")
 limiter.exempt(preview_bp)
@@ -84,8 +92,9 @@ def _nome_usuario() -> str:
 @preview_bp.route("/solicitar-coletor", methods=["POST"])
 def solicitar_coletor():
     """Rota pública para receber solicitações de novos coletores da landing."""
-    from banco_dados.modelos import SolicitacaoColetor
     from flask import jsonify
+
+    from banco_dados.modelos import SolicitacaoColetor
 
     try:
         dados = request.get_json()
@@ -165,21 +174,21 @@ def monitoramento():
         q = (request.args.get("q") or "").strip()
         nivel = (request.args.get("nivel") or "todos").strip().lower()
         page = request.args.get("page", 1, type=int)
-        
+
         if nivel not in {"todos", "crit", "warn", "ok"}:
             nivel = "todos"
-        
+
         # Fetch paginated coletores
         coletores_pagina, total_coletores = pv.coletores_monitoramento_paginado(db, page=page, per_page=50)
-        
+
         # Get full list for stats (reuse para não recarregar)
         stats = pv.estatisticas_resumo(db)
-        
+
         # Build cards with filters
         cards = pv.montar_cards_coletores(coletores_pagina, q, nivel)
         alerta = pv.primeiro_alerta_critico(coletores_pagina)
         recentes = pv.coletas_recentes(db, 8)
-        
+
         # --- ML: TRONIK Score ranking (Módulo 2) ---
         ranking_ml = _obter_ranking_ml(db)
 
@@ -201,7 +210,7 @@ def monitoramento():
         per_page = 50
         total_pages = (total_coletores + per_page - 1) // per_page
         page = min(page, total_pages) if total_pages > 0 else 1
-        
+
         ctx = {
             "current": "monit",
             "total_coletores": stats["total_coletores"],
@@ -401,6 +410,10 @@ def nik():
         historico = []
     finally:
         db.close()
+    planner_cfg = (os.getenv("NIK_AGENT_PLANNER", "heuristic") or "heuristic").strip().lower()
+    if planner_cfg not in {"llm", "heuristic", "auto"}:
+        planner_cfg = "heuristic"
+    current_app.config["NIK_AGENT_PLANNER"] = planner_cfg
     return render_template(
         "preview/nik.html",
         current="nik",

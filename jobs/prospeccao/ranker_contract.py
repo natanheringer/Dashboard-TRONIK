@@ -1,5 +1,7 @@
 """Shared feature contract for the REE prospection ranker.
 
+v3.3: 19-feature vector — OSM POI density + INEP/CNES territorial proxies (Sócrates).
+
 v3.2+: Enhanced listwise QID fallbacks to maximize uniqueness when local.qid is NULL.
 Fallback chain: geo → RA → normalized qid → bairro → CEP5 → CNAE4 → RA_fallback → zone (UF+CEP3).
 16-feature vector (removed logistics_proximity linear + geocode_quality, added has_geocode).
@@ -42,9 +44,12 @@ FEATURE_NAMES = [
     "neighborhood_candidate_density",
     "neighborhood_ree_ratio",
     "has_geocode",
+    "osm_poi_ree_density",
+    "inep_institution_proxy",
+    "cnes_health_proxy",
 ]
 
-FEATURE_SCHEMA_VERSION = "prospeccao-ree-v3.2"
+FEATURE_SCHEMA_VERSION = "prospeccao-ree-v3.3"
 
 # Monotonic constraints for XGBRanker (index-aligned with FEATURE_NAMES).
 # 1 = increasing is always better; 0 = let the tree decide.
@@ -65,6 +70,9 @@ MONOTONIC_CONSTRAINTS = (
     0,   # neighborhood_candidate_density — saturation effects
     0,   # neighborhood_ree_ratio — not always monotonic
     1,   # has_geocode — better to have confirmed coordinates
+    1,   # osm_poi_ree_density — more REE-relevant POIs nearby
+    0,   # inep_institution_proxy — context-dependent
+    0,   # cnes_health_proxy — context-dependent
 )
 
 SEDE_LAT = float(os.getenv("TRONIK_SEDE_LAT", "-15.7942"))
@@ -109,6 +117,9 @@ _FEATURE_LABELS: dict[str, str] = {
     "neighborhood_candidate_density": "Located in area with many candidate businesses",
     "neighborhood_ree_ratio": "Area has high concentration of REE-compatible businesses",
     "has_geocode": "Geocoding coordinates are available",
+    "osm_poi_ree_density": "OSM POI density for electronics/REE activity nearby",
+    "inep_institution_proxy": "INEP school/institution density proxy for the area",
+    "cnes_health_proxy": "CNES health establishment density proxy for the area",
 }
 
 _AGE_LOG_CAP = math.log1p(40)  # ~3.71 — normalizes age_years_log to 0-1
@@ -328,6 +339,7 @@ def build_feature_vector(
     empresa: Any,
     local: Any | None,
     neighborhood: NeighborhoodContext | None = None,
+    enrichment_proxies: dict[str, float] | None = None,
 ) -> dict[str, float]:
     neighborhood = neighborhood or {}
     sec_max, sec_hits = cnae_secondary_scores(
@@ -371,6 +383,10 @@ def build_feature_vector(
         "neighborhood_ree_ratio": neigh_ree,
         "has_geocode": 1.0 if has_coords else 0.0,
     }
+    proxies = enrichment_proxies or {}
+    vector["osm_poi_ree_density"] = float(proxies.get("osm_poi_ree_density", 0.0))
+    vector["inep_institution_proxy"] = float(proxies.get("inep_institution_proxy", 0.0))
+    vector["cnes_health_proxy"] = float(proxies.get("cnes_health_proxy", 0.0))
     validate_feature_contract(vector)
     return vector
 
@@ -525,6 +541,9 @@ def heuristic_relevance_continuous(features: dict[str, float]) -> float:
         + features.get("neighborhood_ree_ratio", 0) * 0.03
         + features.get("neighborhood_candidate_density", 0) * 0.02
         + features.get("has_geocode", 0) * 0.02
+        + features.get("osm_poi_ree_density", 0) * 0.02
+        + features.get("inep_institution_proxy", 0) * 0.015
+        + features.get("cnes_health_proxy", 0) * 0.015
         + geo_bonus
     )
 

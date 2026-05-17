@@ -15,6 +15,7 @@ from sqlalchemy.orm import Session
 
 from banco_dados.modelos import NikConversa, NikRelatorioGerado, Parceiro
 from banco_dados.services import (
+    nik_agent_planner,
     nik_contexto as ctx,
     nik_prompts as prompts,
     nik_provider as provider,
@@ -230,7 +231,7 @@ def _mensagem_pede_web(mensagem: str) -> bool:
 
     # Perguntas de contexto geográfico/setorial tendem a exigir fonte externa.
     locais = ["brasil", "brasilia", "distrito federal", "df", "regional", "local", "mundo", "global"]
-    return bool(any(t in msg for t in temas_externos) and any(l in msg for l in locais))
+    return bool(any(t in msg for t in temas_externos) and any(loc in msg for loc in locais))
 
 
 def _mensagem_pede_documento(mensagem: str) -> bool:
@@ -836,6 +837,27 @@ def _planejar_ferramentas(mensagem: str) -> list[dict[str, Any]]:
     return final
 
 
+def _agent_planner_mode() -> str:
+    modo = (os.getenv("NIK_AGENT_PLANNER", "heuristic") or "heuristic").strip().lower()
+    if modo not in {"llm", "heuristic", "auto"}:
+        return "heuristic"
+    return modo
+
+
+def _planejar_ferramentas_completo(mensagem: str) -> tuple[list[dict[str, Any]], str]:
+    modo = _agent_planner_mode()
+    if modo == "heuristic":
+        return _planejar_ferramentas(mensagem), "heuristic"
+    plano_llm = nik_agent_planner.planejar_ferramentas_llm(mensagem)
+    if modo == "llm":
+        if plano_llm:
+            return plano_llm, "llm"
+        return _planejar_ferramentas(mensagem), "heuristic"
+    if plano_llm:
+        return plano_llm, "auto_llm"
+    return _planejar_ferramentas(mensagem), "auto_heuristic"
+
+
 def _extrair_datas_iso_ou_br(texto: str) -> list[date]:
     out: list[date] = []
     for a, b, c in re.findall(r"\b(\d{4})-(\d{2})-(\d{2})\b", texto):
@@ -1300,6 +1322,10 @@ def _fallback_documento_chat(mensagem: str, contexto: dict[str, Any]) -> dict[st
     }
 
 
+def _planner_mode_resposta(contexto: dict[str, Any]) -> dict[str, str]:
+    return {"planner_mode": str(contexto.get("planner_mode") or "heuristic")}
+
+
 def conversar_ops_thread(
     db: Session,
     mensagem: str,
@@ -1312,6 +1338,7 @@ def conversar_ops_thread(
 
     thread = _normalizar_thread_id(thread_id)
     contexto = _montar_contexto_conversa_integrada(db, mensagem, usuario_id=usuario_id, thread_id=thread)
+    planner_fields = _planner_mode_resposta(contexto)
     pediu_web = _mensagem_pede_web(mensagem)
     modo_routing = "web_research_report" if pediu_web else "chat_ops"
     modelo_conversa_groq = _modelo_tarefa("conversa", mensagem)
@@ -1358,6 +1385,7 @@ def conversar_ops_thread(
             "fontes_web": [],
             "thread_id": thread,
             "web_status": web_status or "empty",
+            **planner_fields,
         }
 
     fontes_web = _fontes_web_contexto(contexto)
@@ -1393,6 +1421,7 @@ def conversar_ops_thread(
             "documento": documento,
             "thread_id": thread,
             "web_status": web_status or ("ok" if fontes_web else "n/a"),
+            **planner_fields,
         }
 
     fallback = (
@@ -1433,6 +1462,7 @@ def conversar_ops_thread(
             "fontes_web": fontes_web,
             "thread_id": thread,
             "web_status": web_status or "ok",
+            **planner_fields,
         }
 
     max_chars = _ttl("NIK_MAX_CHARS_WEB_RELATORIO", 7200) if pediu_web else _ttl("NIK_MAX_CHARS_CONVERSA", 3200)
@@ -1459,6 +1489,7 @@ def conversar_ops_thread(
         "fontes_web": fontes_web,
         "thread_id": thread,
         "web_status": web_status or ("ok" if fontes_web else "n/a"),
+        **planner_fields,
     }
 
 
@@ -1474,7 +1505,7 @@ def _montar_contexto_conversa_integrada(
     thread_id: str = "main",
 ) -> dict[str, Any]:
     consulta = _inferir_consulta_usuario(db, mensagem)
-    plano = _planejar_ferramentas(mensagem)
+    plano, planner_mode = _planejar_ferramentas_completo(mensagem)
 
     for item in plano:
         nome = item.get("nome")
@@ -1500,6 +1531,7 @@ def _montar_contexto_conversa_integrada(
 
     contexto_exec, trace = _executar_plano_ferramentas(db, plano, usuario_id=usuario_id)
     contexto: dict[str, Any] = dict(contexto_exec)
+    contexto["planner_mode"] = planner_mode
     contexto["used_tools"] = [t["tool"] for t in trace if t.get("status") == "ok"]
     contexto["data_sources"] = [t["tool"] for t in trace if t.get("status") == "ok"]
     contexto["tool_trace"] = trace

@@ -61,3 +61,6 @@ pytest-cov==4.1.0
 # ruff>=0.5.0
 # black>=24.3.0
 
+# --- Observabilidade (opcional; requer SENTRY_DSN no .env) ------------------
+# sentry-sdk[flask]>=2.0
+

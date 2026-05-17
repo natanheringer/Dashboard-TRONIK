@@ -55,8 +55,10 @@
   <main class="nik-main-area">
     <header class="nik-main-header">
       <div class="nik-header-title">
-        <h2>Nik Lite</h2>
+        <h2>Nik Ops</h2>
+        <p class="nik-header-subtitle">Nik Ops · agente com ferramentas</p>
       </div>
+      <span id="nik-planner-config-chip" class="nik-planner-chip" hidden></span>
     </header>
 
     <div class="nik-chat-scroll-area" id="nik-chat-thread">
@@ -196,6 +198,7 @@
 {% block scripts_extra %}
 <script>
   (function () {
+    var NIK_AGENT_PLANNER = "{{ config.get('NIK_AGENT_PLANNER', 'heuristic') }}";
     /** Cannon estático (PNG) no chat; animação só na faixa de presença + indicador “digitando”. */
     var CANNON_PNG_URL = "{{ url_for('preview.nik_assets', filename='nik_cannon.png') }}";
     var CANNON_BG_MP4 = "{{ url_for('preview.nik_assets', filename='nik_cannon_animated_bg.mp4') }}";
@@ -331,6 +334,28 @@
 
     function humanizeToolName(name) {
       return String(name || "").replace(/_/g, " ");
+    }
+
+    function plannerModeLabel(mode) {
+      if (mode === "llm" || mode === "auto_llm") return "LLM";
+      if (mode === "heuristic" || mode === "auto_heuristic") return "regras";
+      return "";
+    }
+
+    function buildPlannerBadgeHtml(mode) {
+      var label = plannerModeLabel(mode);
+      if (!label) return "";
+      var isLlm = mode === "llm" || mode === "auto_llm";
+      var cls = "nik-badge-planner" + (isLlm ? " nik-badge-planner--llm" : " nik-badge-planner--heuristic");
+      return (
+        '<span class="' +
+        cls +
+        '" title="Planejador: ' +
+        esc(mode) +
+        '">' +
+        esc(label) +
+        "</span>"
+      );
     }
 
     function buildToolsPanel(usedTools, toolTrace) {
@@ -598,9 +623,16 @@
             '<img src="' + esc(CANNON_PNG_URL) + '" alt="Nik" class="nik-avatar-img">' +
           '</div>';
         
-      var headerHtml = isUser 
-        ? '' 
-        : '<div class="nik-message-author">Nik ' + (status ? '<span class="nik-badge-lite">' + esc(status) + '</span>' : '<span class="nik-badge-lite">Lite</span>') + '</div>';
+      var plannerBadge =
+        !isUser && agentMeta && agentMeta.planner_mode
+          ? buildPlannerBadgeHtml(agentMeta.planner_mode)
+          : "";
+      var headerHtml = isUser
+        ? ""
+        : '<div class="nik-message-author">Nik ' +
+          (status ? '<span class="nik-badge-lite">' + esc(status) + "</span>" : '<span class="nik-badge-lite">Ops</span>') +
+          plannerBadge +
+          "</div>";
 
       var attachmentsHtml = "";
       if (fontesWeb && fontesWeb.length > 0) {
@@ -770,7 +802,8 @@
             used_tools: data.used_tools,
             tool_trace: data.tool_trace,
             routing_model: plannedModel,
-            routing_mode: routeMode
+            routing_mode: routeMode,
+            planner_mode: data.planner_mode
           }
         );
         var usedModel = data.modelo || plannedModel;
@@ -812,10 +845,21 @@
       );
     });
     
+    function initPlannerConfigChip() {
+      var chip = document.getElementById("nik-planner-config-chip");
+      if (!chip) return;
+      var cfg = String(NIK_AGENT_PLANNER || "heuristic").toLowerCase();
+      var isLlm = cfg === "llm" || cfg === "auto";
+      chip.textContent = isLlm ? "Modo: LLM" : "Modo: regras";
+      chip.classList.add(isLlm ? "nik-planner-chip--llm" : "nik-planner-chip--heuristic");
+      chip.hidden = false;
+    }
+
     setTimeout(function () {
       scrollToBottom();
       enrichHistoricoAssistantMessages();
       initPresenceIdle();
+      initPlannerConfigChip();
       wireMediaFallback(document);
     }, 100);
   })();

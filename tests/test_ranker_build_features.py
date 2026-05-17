@@ -1,16 +1,16 @@
-"""Tests for ranker 16-feature vector and equal-frequency label binning."""
+"""Tests for ranker 19-feature vector and equal-frequency label binning."""
 
 from collections import Counter
 from datetime import datetime
-
-import pytest
 
 from jobs.prospeccao.build_features import _equal_frequency_ordinal_labels
 from jobs.prospeccao.ranker_contract import (
     FEATURE_NAMES,
     FEATURE_SCHEMA_VERSION,
+    MONOTONIC_CONSTRAINTS,
     build_feature_vector,
     feature_schema,
+    validate_feature_contract,
 )
 
 
@@ -18,7 +18,7 @@ class MockEmpresa:
     def __init__(self, **kwargs):
         self.cnpj = kwargs.get("cnpj", "00000000000191")
         self.cnae_principal = kwargs.get("cnae_principal", "4751201")
-        self.cnae_secundarios_json = kwargs.get("cnae_secundarios_json", None)
+        self.cnae_secundarios_json = kwargs.get("cnae_secundarios_json")
         self.porte = kwargs.get("porte", "Empresa de Pequeno Porte")
         self.situacao_cadastral = kwargs.get("situacao_cadastral", "ATIVA")
         self.email = kwargs.get("email", "contato@empresa.example")
@@ -28,7 +28,7 @@ class MockEmpresa:
         self.endereco_normalizado = kwargs.get("endereco_normalizado", "SQN 100")
         self.natureza_juridica = kwargs.get("natureza_juridica", "2062")
         self.uf = kwargs.get("uf", "DF")
-        self.municipio_ibge = kwargs.get("municipio_ibge", None)
+        self.municipio_ibge = kwargs.get("municipio_ibge")
         self.data_abertura = kwargs.get("data_abertura", datetime(2015, 1, 1))
 
 
@@ -71,15 +71,19 @@ class TestEqualFrequencyOrdinalLabels:
 
 class TestFeatureVectorContract:
     def test_feature_names_length(self):
-        assert len(FEATURE_NAMES) == 16
+        assert len(FEATURE_NAMES) == 19
 
     def test_schema_version_and_entries(self):
         schema = feature_schema()
-        assert len(schema) == 16
+        assert len(schema) == 19
         assert all(entry["name"] in FEATURE_NAMES for entry in schema)
         assert all(entry["version"] == FEATURE_SCHEMA_VERSION for entry in schema)
+        assert FEATURE_SCHEMA_VERSION == "prospeccao-ree-v3.3"
 
-    def test_build_feature_vector_has_sixteen_keys(self):
+    def test_monotonic_constraints_aligned(self):
+        assert len(MONOTONIC_CONSTRAINTS) == len(FEATURE_NAMES)
+
+    def test_build_feature_vector_has_nineteen_keys(self):
         empresa = MockEmpresa()
         local = MockLocal()
         vec = build_feature_vector(
@@ -88,7 +92,22 @@ class TestFeatureVectorContract:
             neighborhood={"qid_total": 10, "qid_ree_compatible": 4},
         )
         assert set(vec.keys()) == set(FEATURE_NAMES)
-        assert len(vec) == 16
+        assert len(vec) == 19
+        validate_feature_contract(vec)
+
+    def test_enrichment_proxies_merged_when_provided(self):
+        vec = build_feature_vector(
+            MockEmpresa(),
+            MockLocal(),
+            enrichment_proxies={
+                "osm_poi_ree_density": 0.42,
+                "inep_institution_proxy": 0.33,
+                "cnes_health_proxy": 0.21,
+            },
+        )
+        assert vec["osm_poi_ree_density"] == 0.42
+        assert vec["inep_institution_proxy"] == 0.33
+        assert vec["cnes_health_proxy"] == 0.21
 
     def test_has_geocode_reflects_coordinates(self):
         empresa = MockEmpresa()

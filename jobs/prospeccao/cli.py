@@ -91,7 +91,7 @@ def main(argv: list[str] | None = None) -> int:
     s_h.add_argument("--pncp-max-pages", type=int, default=80)
 
     s_build = sub.add_parser("build-features", help="Monta feature_snapshot_prospeccao")
-    s_build.add_argument("--version", type=str, default="prospeccao-ree-v3.2")
+    s_build.add_argument("--version", type=str, default="prospeccao-ree-v3.3")
     s_build.add_argument("--seed-demo", action="store_true", help="Insere candidatos demo para smoke test")
     s_build.add_argument(
         "--limit",
@@ -107,7 +107,7 @@ def main(argv: list[str] | None = None) -> int:
     )
 
     s_train = sub.add_parser("train-ranker", help="Treina XGBRanker ou baseline heuristico")
-    s_train.add_argument("--pipeline-version", type=str, default="prospeccao-ree-v3.2")
+    s_train.add_argument("--pipeline-version", type=str, default="prospeccao-ree-v3.3")
     s_train.add_argument("--model-version", type=str, default=None)
     s_train.add_argument("--no-baseline", action="store_true")
 
@@ -123,8 +123,13 @@ def main(argv: list[str] | None = None) -> int:
 
     sub.add_parser("monitor", help="Relatório JSON de saúde do ranker (cron/ops)")
 
+    sub.add_parser(
+        "enrichment-probe",
+        help="Verifica TRONIK_OSM_POI_PARQUET / INEP / CNES staging para proxies do ranker",
+    )
+
     s_pipe = sub.add_parser("ranker-pipeline", help="build-features + train-ranker + score-candidates")
-    s_pipe.add_argument("--version", type=str, default="prospeccao-ree-v3.2")
+    s_pipe.add_argument("--version", type=str, default="prospeccao-ree-v3.3")
     s_pipe.add_argument("--seed-demo", action="store_true")
     s_pipe.add_argument(
         "--build-limit",
@@ -484,6 +489,12 @@ def main(argv: list[str] | None = None) -> int:
         from jobs.prospeccao.monitor_ranker import run_monitor
 
         return run_monitor()
+
+    if args.cmd == "enrichment-probe":
+        from jobs.prospeccao.enrichment_proxies import probe_enrichment_files
+
+        print(json.dumps(probe_enrichment_files(), ensure_ascii=False, indent=2, default=str))
+        return 0
 
     if args.cmd == "ranker-pipeline":
         from jobs.prospeccao.build_features import build_feature_snapshots
