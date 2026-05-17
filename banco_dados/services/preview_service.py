@@ -79,6 +79,43 @@ def _coords_mapa(c: Coletor) -> Tuple[float, float]:
     return _FALLBACK_LAT + dlat, _FALLBACK_LNG + dlng
 
 
+def resumo_coletores_operacional(db: Session) -> Dict[str, Any]:
+    from banco_dados.services.coletor_service import resumo_operacional
+
+    return resumo_operacional(db)
+
+
+def resumo_prospeccao(db: Session) -> Dict[str, Any]:
+    """Resumo leve da fila REE para o hub do preview (sem carregar candidatos)."""
+    out: Dict[str, Any] = {
+        "modelo_ativo": False,
+        "versao": None,
+        "algoritmo": None,
+        "total_scores": 0,
+        "alta_prioridade": 0,
+    }
+    try:
+        from banco_dados.modelos import ModeloProspeccao, ScoreProspeccao
+
+        model = (
+            db.query(ModeloProspeccao)
+            .filter(ModeloProspeccao.ativo.is_(True))
+            .order_by(ModeloProspeccao.treinado_em.desc())
+            .first()
+        )
+        if not model:
+            return out
+        out["modelo_ativo"] = True
+        out["versao"] = model.versao
+        out["algoritmo"] = model.algoritmo
+        q = db.query(ScoreProspeccao).filter(ScoreProspeccao.modelo_id == model.id)
+        out["total_scores"] = q.count()
+        out["alta_prioridade"] = q.filter(ScoreProspeccao.prioridade == "alta").count()
+    except Exception:
+        pass
+    return out
+
+
 def estatisticas_resumo(db: Session) -> Dict[str, Any]:
     coletores = db.query(Coletor).all()
     sensores = db.query(Sensor).all()

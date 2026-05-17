@@ -21,8 +21,8 @@ def index():
 @paginas_bp.route('/dashboard')
 @login_required
 def dashboard():
-    """Renderiza a página principal do dashboard (protegida por login)."""
-    return render_template('index.html')
+    """Redireciona para o hub operacional preview v2 (legado index.html descontinuado)."""
+    return redirect(url_for('preview.dashboard_home'))
 
 @paginas_bp.route('/relatorios')
 @login_required

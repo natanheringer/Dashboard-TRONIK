@@ -122,6 +122,10 @@ def solicitar_coletor():
 @preview_bp.route("/")
 @auth_preview
 def home():
+    if current_user.is_authenticated:
+        if current_user.admin:
+            return redirect(url_for("preview.dashboard_home"))
+        return redirect(url_for("preview.parceiro"))
     return redirect(url_for("preview.landing_preview"))
 
 
@@ -139,6 +143,8 @@ def dashboard_home():
         ctx = {
             "current": "home",
             "total_coletores": stats["total_coletores"],
+            "resumo_coletores": pv.resumo_coletores_operacional(db),
+            "resumo_prospeccao": pv.resumo_prospeccao(db),
             "stats": stats,
             "data_longa": pv.data_longa_pt(),
             "usuario_nome": _nome_usuario(),

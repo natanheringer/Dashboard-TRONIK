@@ -4,8 +4,9 @@ Serviço de Coletores - Dashboard-TRONIK
 Lógica de negócio para operações com coletores.
 """
 
-from typing import Dict, List, Optional, Tuple
+from typing import Any, Dict, List, Optional, Tuple
 from datetime import datetime
+from sqlalchemy import func, or_
 from sqlalchemy.orm import Session, joinedload
 from banco_dados.modelos import Coletor, Parceiro, TipoMaterial
 from banco_dados.utils import utc_now_naive
@@ -16,6 +17,49 @@ from banco_dados.seguranca import (
 import logging
 
 logger = logging.getLogger(__name__)
+
+# Alinhado a preview_service.NIVEL_ATENCAO e notificacoes.NIVEL_ALERTA_LIXEIRA
+NIVEL_ALERTA_ALTO = 80.0
+_STATUS_INATIVO = frozenset({"QUEBRADA", "MANUTENCAO", "MANUTENÇÃO"})
+
+
+def _status_ativo_expr():
+    st = func.upper(func.coalesce(Coletor.status, "OK"))
+    return ~st.in_(tuple(_STATUS_INATIVO))
+
+
+def resumo_operacional(db: Session) -> Dict[str, Any]:
+    """
+    Resumo operacional agregado dos coletores.
+
+    Returns:
+        total_coletores, ativos, alerta_nivel_alto e sem_geocode (se lat/lng existirem).
+    """
+    total_coletores = db.query(func.count(Coletor.id)).scalar() or 0
+    ativos = db.query(func.count(Coletor.id)).filter(_status_ativo_expr()).scalar() or 0
+    alerta_nivel_alto = (
+        db.query(func.count(Coletor.id))
+        .filter(
+            Coletor.nivel_preenchimento >= NIVEL_ALERTA_ALTO,
+            _status_ativo_expr(),
+        )
+        .scalar()
+        or 0
+    )
+
+    resumo: Dict[str, Any] = {
+        "total_coletores": total_coletores,
+        "ativos": ativos,
+        "alerta_nivel_alto": alerta_nivel_alto,
+    }
+    if hasattr(Coletor, "latitude") and hasattr(Coletor, "longitude"):
+        resumo["sem_geocode"] = (
+            db.query(func.count(Coletor.id))
+            .filter(or_(Coletor.latitude.is_(None), Coletor.longitude.is_(None)))
+            .scalar()
+            or 0
+        )
+    return resumo
 
 
 def validar_dados_coletor(dados: Dict, criar: bool = True, db: Optional[Session] = None) -> List[str]:
@@ -191,4 +235,9 @@ def obter_coletores_com_filtros(
     coletores = query.order_by(Coletor.id).offset(offset).limit(por_pagina).all()
     
     return coletores, total_count
+
+
+# Compat: testes e código legado ainda importam estes nomes.
+obter_lixeiras_com_filtros = obter_coletores_com_filtros
+validar_dados_lixeira = validar_dados_coletor
 

@@ -25,6 +25,7 @@ from sqlalchemy.orm import Session
 from banco_dados.modelos import Coleta, Coletor, ContratoRecorrente, Parceiro, Pipeline
 from banco_dados.services import nik_contexto as ctx
 from banco_dados.services import preview_service as pv
+from banco_dados.services import prospeccao_crm_bridge as crm_bridge
 from banco_dados.services import prospeccao_xgb_service as prospeccao_svc
 from banco_dados.utils.cache import obter_cache
 
@@ -366,6 +367,22 @@ def ferramenta_explicar_candidato_prospeccao(
             f"{len(explicacao)} motivo(s) registrado(s)."
         ),
     }
+
+
+def ferramenta_cruzar_crm_prospeccao(
+    db: Session,
+    *,
+    pipeline_id: Optional[int] = None,
+    empresa: str | None = None,
+    limite_scores: int = 5,
+) -> dict[str, Any]:
+    """Cruza pipeline CRM com scores do ranker REE (pipeline_id ou nome da empresa)."""
+    return crm_bridge.cruzar_crm_prospeccao(
+        db,
+        pipeline_id=pipeline_id,
+        empresa=empresa,
+        limite_scores=max(1, min(int(limite_scores or 5), 20)),
+    )
 
 
 def ferramenta_status_modelo_prospeccao(
@@ -735,6 +752,10 @@ def catalogo_ferramentas() -> list[dict[str, Any]]:
         {
             "nome": "status_modelo_prospeccao",
             "descricao": "Versão ativa do ranker REE e métricas-chave (NDCG, amostras, fila publicada).",
+        },
+        {
+            "nome": "cruzar_crm_prospeccao",
+            "descricao": "Cruza pipeline CRM com scores REE por pipeline_id ou nome da empresa.",
         },
         {"nome": "busca_web", "descricao": "Busca na internet com guardrails e fontes externas auditáveis."},
         {"nome": "catalogo_fontes_web", "descricao": "Catálogo curado de domínios de alta confiança para busca web."},

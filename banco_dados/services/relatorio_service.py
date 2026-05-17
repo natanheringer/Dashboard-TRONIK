@@ -386,3 +386,6 @@ def gerar_relatorio(
         }
     }
 
+
+agrupar_coletas_por_lixeira = agrupar_coletas_por_coletor
+

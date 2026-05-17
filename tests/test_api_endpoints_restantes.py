@@ -31,16 +31,16 @@ class TestConfiguracoes:
 class TestParceiros:
     """Testes do endpoint de parceiros"""
     
-    def test_listar_parceiros_empty(self, client, db_session):
+    def test_listar_parceiros_empty(self, auth_client, db_session):
         """Testa listar parceiros quando não há nenhum"""
-        response = client.get('/api/parceiros')
+        response = auth_client.get('/api/parceiros')
         assert response.status_code == 200
         data = response.get_json()
         assert isinstance(data, list)
         # Pode ter parceiros do seed
         assert len(data) >= 0
     
-    def test_listar_parceiros_with_data(self, client, db_session):
+    def test_listar_parceiros_with_data(self, auth_client, db_session):
         """Testa listar parceiros com dados"""
         # Invalidar cache antes de criar novo parceiro
         from banco_dados.utils.cache import obter_cache
@@ -55,7 +55,7 @@ class TestParceiros:
         # Invalidar cache novamente após criar
         cache.invalidar('parceiros')
         
-        response = client.get('/api/parceiros')
+        response = auth_client.get('/api/parceiros')
         assert response.status_code == 200
         data = response.get_json()
         assert isinstance(data, list)
@@ -63,7 +63,7 @@ class TestParceiros:
         nomes = [p['nome'] for p in data]
         assert 'Parceiro Teste API' in nomes
     
-    def test_listar_parceiros_apenas_ativos(self, client, db_session):
+    def test_listar_parceiros_apenas_ativos(self, auth_client, db_session):
         """Testa que apenas parceiros ativos são retornados"""
         # Invalidar cache
         from banco_dados.utils.cache import obter_cache
@@ -82,7 +82,7 @@ class TestParceiros:
         # Invalidar cache novamente
         cache.invalidar('parceiros')
         
-        response = client.get('/api/parceiros')
+        response = auth_client.get('/api/parceiros')
         assert response.status_code == 200
         data = response.get_json()
         nomes = [p['nome'] for p in data]
@@ -93,9 +93,9 @@ class TestParceiros:
 class TestTipos:
     """Testes dos endpoints de tipos"""
     
-    def test_listar_tipos_material(self, client, db_session):
+    def test_listar_tipos_material(self, auth_client, db_session):
         """Testa listar tipos de material"""
-        response = client.get('/api/tipos/material')
+        response = auth_client.get('/api/tipos/material')
         assert response.status_code == 200
         data = response.get_json()
         assert isinstance(data, list)
@@ -104,9 +104,9 @@ class TestTipos:
         assert 'id' in data[0]
         assert 'nome' in data[0]
     
-    def test_listar_tipos_sensor(self, client, db_session):
+    def test_listar_tipos_sensor(self, auth_client, db_session):
         """Testa listar tipos de sensor"""
-        response = client.get('/api/tipos/sensor')
+        response = auth_client.get('/api/tipos/sensor')
         assert response.status_code == 200
         data = response.get_json()
         assert isinstance(data, list)
@@ -115,9 +115,9 @@ class TestTipos:
         assert 'id' in data[0]
         assert 'nome' in data[0]
     
-    def test_listar_tipos_coletor(self, client, db_session):
+    def test_listar_tipos_coletor(self, auth_client, db_session):
         """Testa listar tipos de coletor"""
-        response = client.get('/api/tipos/coletor')
+        response = auth_client.get('/api/tipos/coletor')
         assert response.status_code == 200
         data = response.get_json()
         assert isinstance(data, list)

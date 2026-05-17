@@ -1,16 +1,50 @@
 {% extends 'preview/base_v2.html' %}
 {% set current = 'home' %}
-{% block title %}Início · Tronik{% endblock %}
+{% block title %}Hub operacional · Tronik{% endblock %}
 {% block head_extra %}
 <link rel="stylesheet" href="{{ url_for('static', filename='css/v2/preview-home.css') }}?v={{ cache_version }}">
 {% endblock %}
 {% block conteudo %}
       <div class="home-hero">
         <div class="home-eyebrow">{{ data_longa }}</div>
-        <h1 class="home-greeting">Olá, {{ usuario_nome }}. <em>O que vamos fazer hoje?</em></h1>
+        <h1 class="home-greeting">Olá, {{ usuario_nome }}. <em>Hub operacional</em></h1>
         <p class="home-subtitle">{{ home_subtitulo }}</p>
         <div id="nik-ops-resumo" class="nik-container"></div>
       </div>
+
+      <section class="hub-kpi-strip" aria-label="Indicadores operacionais">
+        <article class="hub-kpi">
+          <span class="hub-kpi-label">Coletores</span>
+          <strong class="hub-kpi-value" id="kpi-total-coletores">{{ resumo_coletores.total_coletores|default(stats.total_coletores) }}</strong>
+          <span class="hub-kpi-meta">{{ resumo_coletores.ativos|default('—') }} ativos</span>
+        </article>
+        <article class="hub-kpi hub-kpi--warn">
+          <span class="hub-kpi-label">Alerta ≥ 80%</span>
+          <strong class="hub-kpi-value" id="kpi-alerta">{{ resumo_coletores.alerta_nivel_alto|default(stats.alertas_ativos) }}</strong>
+          <span class="hub-kpi-meta">{{ stats.criticos }} críticos</span>
+        </article>
+        <article class="hub-kpi">
+          <span class="hub-kpi-label">Sem geocode</span>
+          <strong class="hub-kpi-value" id="kpi-sem-geo">{{ resumo_coletores.sem_geocode|default('—') }}</strong>
+          <span class="hub-kpi-meta">mapa / rotas</span>
+        </article>
+        <article class="hub-kpi">
+          <span class="hub-kpi-label">Coletas hoje</span>
+          <strong class="hub-kpi-value">{{ stats.coletas_hoje }}</strong>
+          <span class="hub-kpi-meta">nível médio {{ stats.nivel_medio }}%</span>
+        </article>
+        <article class="hub-kpi hub-kpi--ml">
+          <span class="hub-kpi-label">Fila REE</span>
+          <strong class="hub-kpi-value" id="kpi-prosp-total">{{ resumo_prospeccao.total_scores|default(0) }}</strong>
+          <span class="hub-kpi-meta" id="kpi-prosp-meta">
+            {% if resumo_prospeccao.modelo_ativo %}
+              {{ resumo_prospeccao.alta_prioridade }} alta · {{ resumo_prospeccao.versao }}
+            {% else %}
+              pipeline não publicado
+            {% endif %}
+          </span>
+        </article>
+      </section>
 
       <div class="home-grid preview-home-grid">
         <a class="destino-card featured preview-link-reset" href="{{ url_for('preview.monitoramento') }}">
@@ -22,7 +56,7 @@
           </div>
           <h2 class="destino-title">Monitoramento<br>em tempo real</h2>
           <p class="destino-description">
-            Acompanhe o nível de preenchimento de todos os coletores ativos, receba alertas automáticos e tome decisões de coleta baseadas em dados reais.
+            Níveis dos coletores, alertas automáticos, ranking ML e predição de enchimento.
           </p>
           <div class="destino-stats">
             <div class="destino-stat">
@@ -49,7 +83,7 @@
           </div>
           <h2 class="destino-title">Mapa<br>e rotas</h2>
           <p class="destino-description">
-            Visualize a distribuição geográfica com base nas coordenadas cadastradas (ou posição estimada quando ainda não houver GPS).
+            Distribuição geográfica, filtros por parceiro e detalhe por coletor.
           </p>
         </a>
 
@@ -62,12 +96,47 @@
           </div>
           <h2 class="destino-title">Relatórios<br>operacionais</h2>
           <p class="destino-description">
-            Volume coletado, quilometragem e indicadores do período — dados vindos das coletas registradas no sistema.
+            Volume, quilometragem e indicadores por período e parceiro.
           </p>
+        </a>
+      </div>
+
+      <h2 class="hub-section-title">Módulos</h2>
+      <div class="hub-modules-grid">
+        <a class="hub-module-card preview-link-reset" href="{{ url_for('preview.prospeccao') }}">
+          <span class="hub-module-tag">REE</span>
+          <h3>Prospecção</h3>
+          <p>Fila ranqueada de candidatos e motivos do modelo.</p>
+        </a>
+        <a class="hub-module-card preview-link-reset" href="{{ url_for('preview.nik') }}">
+          <span class="hub-module-tag hub-module-tag--ia">IA</span>
+          <h3>Nik</h3>
+          <p>Assistente sobre operação, CRM e ranking REE.</p>
+        </a>
+        <a class="hub-module-card preview-link-reset" href="{{ url_for('paginas.crm') }}">
+          <span class="hub-module-tag">CRM</span>
+          <h3>Pipeline de vendas</h3>
+          <p>Leads, funil e cruzamento com prospecção REE.</p>
+        </a>
+        <a class="hub-module-card preview-link-reset" href="{{ url_for('paginas.comercial') }}">
+          <span class="hub-module-tag">KPI</span>
+          <h3>Comercial</h3>
+          <p>Metas, receita e métricas financeiras.</p>
+        </a>
+        <a class="hub-module-card preview-link-reset" href="{{ url_for('paginas.contratos') }}">
+          <span class="hub-module-tag">REC</span>
+          <h3>Contratos</h3>
+          <p>Recorrência e receita mensal prevista.</p>
+        </a>
+        <a class="hub-module-card preview-link-reset" href="{{ url_for('preview.gestao') }}">
+          <span class="hub-module-tag">OPS</span>
+          <h3>Cadastros</h3>
+          <p>Coletores, sensores, coletas e solicitações.</p>
         </a>
       </div>
 {% endblock %}
 {% block scripts_extra %}
+<script src="{{ url_for('static', filename='js/preview-hub.js') }}?v={{ cache_version }}" defer></script>
 <script>
   document.addEventListener("DOMContentLoaded", function () {
     if (window.NikLoader) {

@@ -128,6 +128,59 @@
     color: var(--ink-secondary);
   }
 
+  .prosp-algo-badge {
+    font-size: 11px;
+    font-weight: 600;
+    letter-spacing: 0.04em;
+    text-transform: uppercase;
+  }
+
+  .prosp-algo-badge--xgb {
+    background: rgba(0, 180, 120, 0.12);
+    color: #0a8f5c;
+    border: 1px solid rgba(0, 180, 120, 0.35);
+  }
+
+  .prosp-algo-badge--heuristic {
+    background: rgba(200, 140, 0, 0.12);
+    color: #9a6b00;
+    border: 1px solid rgba(200, 140, 0, 0.35);
+  }
+
+  .prosp-model-meta {
+    font-size: var(--text-xs);
+    color: var(--ink-tertiary);
+  }
+
+  .prosp-bootstrap-banner {
+    display: none;
+    margin-bottom: var(--space-4);
+    padding: var(--space-4) var(--space-5);
+    border-radius: var(--radius-lg);
+    border: 1px solid var(--signal-warn);
+    background: linear-gradient(135deg, var(--signal-warn-soft) 0%, var(--paper-card) 100%);
+    font-size: var(--text-sm);
+    color: var(--ink-secondary);
+    line-height: 1.5;
+  }
+
+  .prosp-bootstrap-banner.is-visible {
+    display: block;
+  }
+
+  .prosp-bootstrap-banner strong {
+    display: block;
+    font-family: var(--font-display);
+    font-size: var(--text-md);
+    color: var(--ink-primary);
+    margin-bottom: var(--space-2);
+  }
+
+  .prosp-modelo--warn {
+    color: var(--signal-warn);
+    font-weight: 600;
+  }
+
   @media (max-width: 1024px) {
     .rel-layout {
       grid-template-columns: 1fr;
@@ -143,11 +196,18 @@
 <div class="page-header">
   <div class="page-title-group">
     <h1>Prospecção REE</h1>
-    <p>Fila ranqueada de candidatos · modelo XGBoost listwise</p>
+    <p id="prosp-subtitle">Fila ranqueada de candidatos · carregando modelo…</p>
   </div>
   <div class="page-actions">
+    <span id="prosp-algoritmo-badge" class="ml-tag prosp-algo-badge prosp-algo-badge--heuristic" hidden aria-live="polite">—</span>
     <span class="ml-tag ml-tag--score">ML</span>
   </div>
+</div>
+
+<div id="prosp-bootstrap-banner" class="prosp-bootstrap-banner" role="alert" aria-live="polite">
+  <strong>Modelo heurístico (bootstrap)</strong>
+  A fila está sendo ranqueada por regras iniciais, não por um modelo XGBoost treinado.
+  Os scores são indicativos até concluir o treino listwise e publicar um modelo ativo.
 </div>
 
 <div class="rel-layout">
@@ -193,6 +253,7 @@
 
     <div class="prosp-status-bar">
       <span id="prosp-count">—</span>
+      <span id="prosp-modelo" class="rel-hero-footnote" style="margin:0;"></span>
       <span id="prosp-updated" class="rel-hero-footnote" style="margin:0;"></span>
     </div>
 

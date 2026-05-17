@@ -17,19 +17,19 @@ from banco_dados.utils import utc_now_naive
 class TestEstatisticas:
     """Testes do endpoint de estatísticas"""
     
-    def test_obter_estatisticas_empty(self, client, db_session):
+    def test_obter_estatisticas_empty(self, auth_client, db_session):
         """Testa obter estatísticas quando não há dados"""
-        response = client.get('/api/estatisticas')
+        response = auth_client.get('/api/estatisticas')
         assert response.status_code == 200
         data = response.get_json()
-        assert 'total_lixeiras' in data
-        assert 'lixeiras_alerta' in data
+        assert 'total_coletores' in data
+        assert 'coletores_alerta' in data
         assert 'nivel_medio' in data
         assert 'coletas_hoje' in data
-        assert data['total_lixeiras'] == 0
+        assert data['total_coletores'] == 0
         assert data['coletas_hoje'] == 0
     
-    def test_obter_estatisticas_with_data(self, client, db_session):
+    def test_obter_estatisticas_with_data(self, auth_client, db_session):
         """Testa obter estatísticas com dados"""
         # Invalidar cache antes de criar dados
         from banco_dados.utils.cache import obter_cache
@@ -82,14 +82,14 @@ class TestEstatisticas:
         cache.invalidar('estatisticas')
         
         # Obter estatísticas
-        response = client.get('/api/estatisticas')
+        response = auth_client.get('/api/estatisticas')
         assert response.status_code == 200
         data = response.get_json()
-        assert data['total_lixeiras'] == 2
+        assert data['total_coletores'] == 2
         assert 'coletas_hoje' in data
         assert 'nivel_medio' in data
-        assert 'lixeiras_alerta' in data
-        assert data['lixeiras_alerta'] >= 1  # Pelo menos a coletor 2 com 80%
+        assert 'coletores_alerta' in data
+        assert data['coletores_alerta'] >= 1  # Pelo menos a coletor 2 com 80%
 
 
 class TestRelatorios:
@@ -164,7 +164,7 @@ class TestRelatorios:
         assert resumo['km_total'] == 30.0
         assert 'custo_combustivel_total' in resumo
         assert 'lucro_total' in resumo
-        assert 'coletas_por_lixeira' in resumo
+        assert 'coletas_por_coletor' in resumo
     
     def test_obter_relatorios_filter_by_date(self, client, db_session):
         """Testa filtrar relatórios por data"""
@@ -269,13 +269,11 @@ class TestRelatorios:
         db_session.add(coletor)
         db_session.flush()
         
-        # Criar coleta: 100 kg, R$ 2.00/kg
-        # Lucro esperado: 100 * 2.00 = 200.00
+        # 100 kg, sem km/combustível → lucro líquido = LUCRO_BRUTO_POR_KG * volume (1.00/kg)
         coleta = Coleta(
             coletor_id=coletor.id,
             data_hora=utc_now_naive(),
             volume_estimado=100.0,
-            lucro_por_kg=2.0,
             tipo_coletor_id=tipo_coletor.id if tipo_coletor else None,
             parceiro_id=parceiro.id
         )
@@ -289,8 +287,7 @@ class TestRelatorios:
         assert 'resumo' in data
         resumo = data['resumo']
         assert 'lucro_total' in resumo
-        # Verificar cálculo: 100 * 2.00 = 200.00
-        assert abs(resumo['lucro_total'] - 200.0) < 0.01
+        assert abs(resumo['lucro_total'] - 100.0) < 0.01
     
     def test_obter_relatorios_com_dados_invalidos(self, client, db_session):
         """Testa relatórios com dados inválidos (NaN, None, Infinity)"""

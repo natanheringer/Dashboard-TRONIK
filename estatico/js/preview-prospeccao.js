@@ -219,6 +219,81 @@
     }
   }
 
+  function setBootstrapBanner(visible) {
+    var banner = $("prosp-bootstrap-banner");
+    if (!banner) return;
+    banner.classList.toggle("is-visible", !!visible);
+  }
+
+  function algoritmoLabel(algoritmo) {
+    if (algoritmo === "xgboost_ranker") return "XGBoost ranker";
+    if (algoritmo === "heuristic_bootstrap") return "Heurístico (bootstrap)";
+    return algoritmo || "—";
+  }
+
+  function renderAlgoritmoBadge(algoritmo) {
+    var badge = $("prosp-algoritmo-badge");
+    var subtitle = $("prosp-subtitle");
+    if (!badge) return;
+    if (!algoritmo) {
+      badge.hidden = true;
+      if (subtitle) subtitle.textContent = "Fila ranqueada de candidatos · sem modelo ativo";
+      return;
+    }
+    var isBootstrap = algoritmo === "heuristic_bootstrap";
+    badge.hidden = false;
+    badge.textContent = algoritmoLabel(algoritmo);
+    badge.className =
+      "ml-tag prosp-algo-badge " +
+      (isBootstrap ? "prosp-algo-badge--heuristic" : "prosp-algo-badge--xgb");
+    if (subtitle) {
+      subtitle.textContent = isBootstrap
+        ? "Fila ranqueada por regras heurísticas (bootstrap) até treino listwise"
+        : "Fila ranqueada por modelo XGBoost listwise treinado";
+    }
+  }
+
+  async function carregarModelo() {
+    var el = $("prosp-modelo");
+    try {
+      var resp = await fetch("/api/prospeccao/modelo-ativo", {
+        credentials: "same-origin",
+      });
+      var body = await resp.json();
+      if (!resp.ok || !body.ok || !body.dados) {
+        if (el) {
+          el.textContent = "Sem modelo ativo";
+          el.classList.remove("prosp-modelo--warn");
+        }
+        renderAlgoritmoBadge("");
+        setBootstrapBanner(false);
+        return;
+      }
+      var d = body.dados;
+      var m = d.metricas || {};
+      var ndcg = m.validation_ndcg_mean;
+      var algoritmo = d.algoritmo || "";
+      var isBootstrap = algoritmo === "heuristic_bootstrap";
+      renderAlgoritmoBadge(algoritmo);
+      setBootstrapBanner(isBootstrap);
+      if (el) {
+        el.classList.toggle("prosp-modelo--warn", isBootstrap);
+        var meta = [d.versao || "—"];
+        if (ndcg != null) meta.push("NDCG " + ndcg);
+        if (isBootstrap) meta.push("scores indicativos");
+        el.textContent = meta.filter(Boolean).join(" · ");
+        el.classList.add("prosp-model-meta");
+      }
+    } catch (_e) {
+      if (el) {
+        el.textContent = "";
+        el.classList.remove("prosp-modelo--warn");
+      }
+      renderAlgoritmoBadge("");
+      setBootstrapBanner(false);
+    }
+  }
+
   function init() {
     var form = $("form-prosp-filtros");
     if (form) {
@@ -227,6 +302,7 @@
         carregarFila();
       });
     }
+    carregarModelo();
     carregarFila();
   }
 

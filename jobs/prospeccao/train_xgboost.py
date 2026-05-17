@@ -31,6 +31,70 @@ logger = logging.getLogger(__name__)
 MODEL_DIR = config.REPO_ROOT / "data" / "ml" / "prospeccao"
 
 MIN_ACTIVATION_NDCG = 0.30
+EARLY_STOPPING_ROUNDS = 35
+
+
+def _xgb_major_version() -> tuple[int, int, int]:
+    try:
+        import xgboost as xgb
+
+        parts: list[int] = []
+        for token in xgb.__version__.split(".")[:3]:
+            digits = "".join(ch for ch in token if ch.isdigit())
+            parts.append(int(digits or "0"))
+        while len(parts) < 3:
+            parts.append(0)
+        return tuple(parts[:3])
+    except Exception:
+        return (0, 0, 0)
+
+
+def _create_xgb_ranker(
+    candidate: dict[str, Any],
+    *,
+    early_stopping_rounds: int | None = None,
+) -> tuple[Any, str | None]:
+    """Return (ranker, early_stop_mode) where mode is ctor | fit_callback | fit_kwarg | None."""
+    from xgboost import XGBRanker
+
+    ctor = dict(candidate)
+    if early_stopping_rounds is None:
+        return XGBRanker(**ctor), None
+    try:
+        return XGBRanker(**ctor, early_stopping_rounds=early_stopping_rounds), "ctor"
+    except TypeError:
+        if _xgb_major_version() >= (2, 0, 0):
+            return XGBRanker(**ctor), "fit_callback"
+        return XGBRanker(**ctor), "fit_kwarg"
+
+
+def _fit_xgb_ranker(
+    ranker: Any,
+    x: Any,
+    y: Any,
+    group: list[int],
+    *,
+    eval_set: list[tuple[Any, Any]] | None = None,
+    eval_group: list[list[int]] | None = None,
+    early_stopping_rounds: int | None = None,
+    early_stop_mode: str | None = None,
+) -> None:
+    fit_kwargs: dict[str, Any] = {"group": group, "verbose": False}
+    if eval_set:
+        fit_kwargs["eval_set"] = eval_set
+        fit_kwargs["eval_group"] = eval_group
+    if early_stopping_rounds and eval_set and early_stop_mode != "ctor":
+        if early_stop_mode == "fit_callback" or (
+            early_stop_mode is None and _xgb_major_version() >= (2, 0, 0)
+        ):
+            from xgboost.callback import EarlyStopping
+
+            fit_kwargs["callbacks"] = [
+                EarlyStopping(rounds=early_stopping_rounds, save_best=True)
+            ]
+        else:
+            fit_kwargs["early_stopping_rounds"] = early_stopping_rounds
+    ranker.fit(x, y, **fit_kwargs)
 
 
 def _json(data: Any) -> str:
@@ -318,7 +382,6 @@ def train_ranker(
         try:
             import joblib
             import numpy as np
-            from xgboost import XGBRanker
 
             # --- qid-aware train / validation split ---
             train_grouped, val_grouped = _stratified_qid_split(grouped)
@@ -337,23 +400,28 @@ def train_ranker(
 
             for candidate in _ranker_param_candidates():
                 has_eval = x_val_np is not None and val_group_sizes
-                # XGBoost >= 2.x: early_stopping_rounds moved to constructor
-                ctor_kwargs = dict(candidate)
+                es_rounds = EARLY_STOPPING_ROUNDS if has_eval else None
+                ranker, es_mode = _create_xgb_ranker(
+                    candidate, early_stopping_rounds=es_rounds
+                )
+                eval_set = None
+                eval_group = None
                 if has_eval:
-                    ctor_kwargs["early_stopping_rounds"] = 35
-                ranker = XGBRanker(**ctor_kwargs)
-                fit_kwargs: dict[str, Any] = {
-                    "group": train_group_sizes,
-                    "verbose": False,
-                }
-                if has_eval:
-                    fit_kwargs["eval_set"] = [
+                    eval_set = [
                         (x_train_np, y_train_np),
                         (x_val_np, np.asarray(y_val, dtype=float)),
                     ]
-                    fit_kwargs["eval_group"] = [train_group_sizes, val_group_sizes]
-
-                ranker.fit(x_train_np, y_train_np, **fit_kwargs)
+                    eval_group = [train_group_sizes, val_group_sizes]
+                _fit_xgb_ranker(
+                    ranker,
+                    x_train_np,
+                    y_train_np,
+                    train_group_sizes,
+                    eval_set=eval_set,
+                    eval_group=eval_group,
+                    early_stopping_rounds=es_rounds,
+                    early_stop_mode=es_mode,
+                )
 
                 train_pred = [float(v) for v in ranker.predict(x_train_np)]
                 train_ndcg = _mean_ndcg_by_group(y_train, train_pred, train_group_sizes)
@@ -388,20 +456,29 @@ def train_ranker(
 
             # --- Retrain winner on ALL data (with eval_set to capture learning curve) ---
             final_params = dict(best_params)
-            final_params["early_stopping_rounds"] = 35
-            final_ranker = XGBRanker(**final_params)
-            final_fit_kwargs: dict[str, Any] = {
-                "group": group_sizes,
-                "verbose": False,
-            }
-            if x_val_np is not None and val_group_sizes:
-                final_fit_kwargs["eval_set"] = [
+            final_has_eval = x_val_np is not None and val_group_sizes
+            final_es = EARLY_STOPPING_ROUNDS if final_has_eval else None
+            final_ranker, final_es_mode = _create_xgb_ranker(
+                final_params, early_stopping_rounds=final_es
+            )
+            final_eval_set = None
+            final_eval_group = None
+            if final_has_eval:
+                final_eval_set = [
                     (np.asarray(x, dtype=float), np.asarray(y, dtype=float)),
                     (x_val_np, np.asarray(y_val, dtype=float)),
                 ]
-                final_fit_kwargs["eval_group"] = [group_sizes, val_group_sizes]
-
-            final_ranker.fit(np.asarray(x, dtype=float), np.asarray(y, dtype=float), **final_fit_kwargs)
+                final_eval_group = [group_sizes, val_group_sizes]
+            _fit_xgb_ranker(
+                final_ranker,
+                np.asarray(x, dtype=float),
+                np.asarray(y, dtype=float),
+                group_sizes,
+                eval_set=final_eval_set,
+                eval_group=final_eval_group,
+                early_stopping_rounds=final_es,
+                early_stop_mode=final_es_mode,
+            )
 
             full_pred = [float(v) for v in final_ranker.predict(np.asarray(x, dtype=float))]
             full_ndcg = _mean_ndcg_by_group(y, full_pred, group_sizes)
@@ -506,10 +583,11 @@ def train_ranker(
             algoritmo = "xgboost_ranker"
 
         except Exception as exc:
+            metrics["ranker_error"] = f"{exc!s} (interpreter: {sys.executable})"
+            logger.exception("XGBRanker training failed")
             if not allow_baseline:
                 raise
-            metrics["ranker_error"] = f"{exc!s} (interpreter: {sys.executable})"
-            logger.exception("XGBRanker training failed; falling back to heuristic baseline")
+            logger.warning("Falling back to heuristic baseline after ranker failure")
     elif not allow_baseline:
         raise ValueError("Not enough labeled feature snapshots to train XGBRanker")
 

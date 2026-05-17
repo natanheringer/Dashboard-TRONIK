@@ -4,9 +4,18 @@ Serviço CRM - Dashboard-TRONIK
 Lógica de negócio para CRM e pipeline de vendas.
 """
 
+from __future__ import annotations
+
+import re
+import unicodedata
 from datetime import datetime, timedelta
+from typing import Any
+
 from sqlalchemy import func
+from sqlalchemy.orm import joinedload
+
 from banco_dados.modelos import Pipeline, Interacao, Tarefa, Coletor
+from banco_dados.services import prospeccao_xgb_service
 from banco_dados.utils import utc_now_naive
 from banco_dados.utils.db_session import get_db_session
 import logging
@@ -396,6 +405,124 @@ class CRMService:
             for t in resultado:
                 db.expunge(t)
             return resultado
+        finally:
+            db.close()
+
+    @staticmethod
+    def _tokens_busca(*textos: str | None) -> set[str]:
+        tokens: set[str] = set()
+        for texto in textos:
+            if not texto:
+                continue
+            norm = unicodedata.normalize("NFKD", texto).encode("ascii", "ignore").decode("ascii")
+            for parte in re.findall(r"[a-z0-9]{3,}", norm.lower()):
+                tokens.add(parte)
+        return tokens
+
+    @staticmethod
+    def _relevancia_candidato(candidato: dict[str, Any], needles: set[str]) -> float:
+        empresa = candidato.get("empresa") or {}
+        local = candidato.get("local") or {}
+        haystack = " ".join(
+            str(v or "")
+            for v in (
+                empresa.get("razao_social"),
+                empresa.get("nome_fantasia"),
+                empresa.get("bairro"),
+                local.get("bairro"),
+                local.get("endereco"),
+                candidato.get("qid"),
+            )
+        ).lower()
+        if not needles:
+            return float(candidato.get("score") or 0)
+        hits = sum(1 for token in needles if token in haystack)
+        if hits == 0:
+            return 0.0
+        return float(hits * 100) + float(candidato.get("score") or 0)
+
+    @staticmethod
+    def _resumo_candidato(candidato: dict[str, Any]) -> dict[str, Any]:
+        empresa = candidato.get("empresa") or {}
+        nome = (
+            empresa.get("razao_social")
+            or empresa.get("nome_fantasia")
+            or "Candidato REE"
+        )
+        return {
+            "score_id": candidato.get("id"),
+            "score": candidato.get("score"),
+            "score_percentil": candidato.get("score_percentil"),
+            "prioridade": candidato.get("prioridade"),
+            "qid": candidato.get("qid"),
+            "ranking_contexto": candidato.get("ranking_contexto"),
+            "empresa_nome": nome,
+            "empresa_cnpj": empresa.get("cnpj"),
+            "bairro": empresa.get("bairro") or (candidato.get("local") or {}).get("bairro"),
+        }
+
+    @staticmethod
+    def prospeccao_para_pipeline(pipeline_id: int) -> dict[str, Any]:
+        """Melhor candidato REE alinhado ao lead/coletor do pipeline."""
+        db = get_db_session()
+        try:
+            pipeline = (
+                db.query(Pipeline)
+                .options(joinedload(Pipeline.coletor).joinedload(Coletor.parceiro))
+                .filter_by(id=pipeline_id)
+                .first()
+            )
+            if not pipeline:
+                raise ValueError("Pipeline não encontrado")
+
+            coletor = pipeline.coletor
+            parceiro_nome = coletor.parceiro.nome if coletor and coletor.parceiro else None
+            localizacao = coletor.localizacao if coletor else None
+
+            needles = CRMService._tokens_busca(
+                localizacao,
+                parceiro_nome,
+                pipeline.observacoes,
+                pipeline.proxima_acao,
+            )
+
+            qid_hint = None
+            if localizacao:
+                slug = re.sub(r"[^a-z0-9]+", "", localizacao.lower())
+                if len(slug) >= 4:
+                    qid_hint = slug
+
+            candidatos = prospeccao_xgb_service.buscar_candidatos_prospeccao(
+                db,
+                limite=120,
+                qid=None,
+                prioridade=None,
+            )
+
+            if qid_hint:
+                por_qid = [c for c in candidatos if qid_hint in (c.get("qid") or "").lower()]
+                if por_qid:
+                    candidatos = por_qid
+
+            if not candidatos:
+                return {
+                    "pipeline_id": pipeline_id,
+                    "candidato": None,
+                    "qid_hint": qid_hint,
+                }
+
+            melhor = max(candidatos, key=lambda c: CRMService._relevancia_candidato(c, needles))
+            relevancia = CRMService._relevancia_candidato(melhor, needles)
+            if needles and relevancia <= 0:
+                melhor = max(candidatos, key=lambda c: float(c.get("score") or 0))
+                relevancia = float(melhor.get("score") or 0)
+
+            return {
+                "pipeline_id": pipeline_id,
+                "candidato": CRMService._resumo_candidato(melhor),
+                "relevancia": relevancia,
+                "qid_hint": qid_hint,
+            }
         finally:
             db.close()
 

@@ -28,6 +28,7 @@ def health_check():
 
 
 @auxiliares_bp.route('/estatisticas', methods=['GET'])
+@login_required
 @decorators.rate_limit("30 per minute")
 def obter_estatisticas():
     """Endpoint para obter estatísticas gerais"""
@@ -92,6 +93,7 @@ def obter_configuracoes():
 
 
 @auxiliares_bp.route('/parceiros', methods=['GET'])
+@login_required
 def listar_parceiros():
     """Endpoint para listar todos os parceiros (com cache)"""
     db = get_db()
@@ -120,6 +122,7 @@ def listar_parceiros():
 
 
 @auxiliares_bp.route('/tipos/material', methods=['GET'])
+@login_required
 def listar_tipos_material():
     """Endpoint para listar todos os tipos de material (com cache)"""
     db = get_db()
@@ -139,6 +142,7 @@ def listar_tipos_material():
 
 
 @auxiliares_bp.route('/tipos/sensor', methods=['GET'])
+@login_required
 def listar_tipos_sensor():
     """Endpoint para listar todos os tipos de sensor (com cache)"""
     db = get_db()
@@ -158,6 +162,7 @@ def listar_tipos_sensor():
 
 
 @auxiliares_bp.route('/tipos/coletor', methods=['GET'])
+@login_required
 def listar_tipos_coletor():
     """Endpoint para listar todos os tipos de coletor (com cache)"""
     db = get_db()

@@ -12,7 +12,7 @@ from banco_dados.modelos import Coletor
 from banco_dados.serializers import coletor_para_dict
 from banco_dados.services.coletor_service import (
     validar_dados_coletor, criar_coletor, atualizar_coletor,
-    obter_coletores_com_filtros
+    obter_coletores_com_filtros, resumo_operacional,
 )
 from banco_dados.utils.erros import (
     tratar_erro_api, ErroNaoEncontrado, ErroValidacao, 
@@ -26,6 +26,19 @@ logger = obter_logger(__name__)
 
 # Criar blueprint
 coletores_bp = Blueprint('coletores', __name__)
+
+
+@coletores_bp.route('/coletores/resumo', methods=['GET'])
+@login_required
+def resumo_coletores():
+    """Resumo operacional agregado dos coletores."""
+    db = get_db()
+    try:
+        return jsonify(resumo_operacional(db))
+    except Exception as e:
+        return tratar_erro_api(e)
+    finally:
+        db.close()
 
 
 @coletores_bp.route('/coletores', methods=['GET'])

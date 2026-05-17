@@ -82,14 +82,22 @@ app = Flask(__name__, static_folder='estatico', static_url_path='/static')
 @app.route('/api/health', methods=['GET'])
 @app.route('/health', methods=['GET'])  # Também em /health como fallback
 def health_check():
-    """Endpoint simples para health check (sem autenticação, sem dependências)"""
-    from flask import Response
-    # Retornar resposta JSON direta sem passar por middlewares
-    return Response(
-        '{"status":"ok","service":"dashboard-tronik"}',
-        mimetype='application/json',
-        status=200
-    )
+    """Health check leve: SELECT 1 no banco; 503 se o DB estiver indisponível."""
+    from flask import jsonify
+
+    payload = {'status': 'ok', 'service': 'dashboard-tronik'}
+    try:
+        with engine.connect() as conn:
+            conn.execute(text('SELECT 1'))
+    except Exception as exc:
+        logger.error('Health check: banco indisponível: %s', exc)
+        return jsonify({
+            **payload,
+            'status': 'error',
+            'database': 'unavailable',
+            'error': 'database_unreachable',
+        }), 503
+    return jsonify({**payload, 'database': 'ok'}), 200
 
 # Cache busting para arquivos estáticos em desenvolvimento
 import time
@@ -99,7 +107,7 @@ def inject_cache_bust():
     # Em desenvolvimento, usar timestamp para forçar atualização
     # Em produção, usar versão fixa (pode ser atualizada manualmente)
     cache_version = int(time.time()) if FLASK_ENV == 'development' else '1.0.0'
-    preview_demo_banner = os.getenv('PREVIEW_DEMO_BANNER', 'true').strip().lower() in (
+    preview_demo_banner = os.getenv('PREVIEW_DEMO_BANNER', 'false').strip().lower() in (
         '1',
         'true',
         'yes',
@@ -135,6 +143,12 @@ elif len(SECRET_KEY) < 32:
     raise ValueError(f"SECRET_KEY deve ter pelo menos 32 caracteres. Atual: {len(SECRET_KEY)} caracteres.")
 
 app.config['SECRET_KEY'] = SECRET_KEY
+
+app.config['PREVIEW_SHOW_BADGE'] = os.getenv('PREVIEW_SHOW_BADGE', 'false').strip().lower() in (
+    '1',
+    'true',
+    'yes',
+)
 
 # Configurações básicas
 app.config['JSON_SORT_KEYS'] = False
@@ -181,7 +195,7 @@ else:
 @login_manager.request_loader
 def load_user_from_request(request):
     """Permitir health check sem autenticação"""
-    if request.path == '/api/health':
+    if request.path in ('/api/health', '/health'):
         return None
     return None
 
@@ -369,15 +383,20 @@ from banco_dados.schema_compat import aplicar_compat_schema
 
 aplicar_compat_schema(engine)
 
-# Aviso se preview público estiver ligado em produção
-if (
-    FLASK_ENV == "production"
-    and os.getenv("PREVIEW_PUBLIC", "").strip().lower() in {"1", "true", "yes"}
-):
-    logger.warning(
-        "PREVIEW_PUBLIC esta ativo em producao: /preview fica sem login. "
-        "Desligue para ambientes expostos na Internet."
-    )
+# Produção: flags inseguras — log ERROR (não derruba o processo)
+if FLASK_ENV == "production":
+    if os.getenv("PREVIEW_PUBLIC", "").strip().lower() in {"1", "true", "yes"}:
+        logger.error(
+            "SEGURANCA: PREVIEW_PUBLIC=true em producao — /preview sem login. "
+            "Desligue antes de expor na Internet."
+        )
+    if os.getenv("TELEMETRIA_ALLOW_NO_TOKEN", "").strip().lower() in {
+        "1", "true", "yes"
+    }:
+        logger.error(
+            "SEGURANCA: TELEMETRIA_ALLOW_NO_TOKEN=true em producao — "
+            "telemetria aceita POST sem token. Desligue em ambientes expostos."
+        )
 
 # Sempre popular tipos (seguro, não duplica se já existirem)
 logger.info("Populando tabelas de tipos...")

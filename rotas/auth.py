@@ -21,6 +21,14 @@ logger = logging.getLogger(__name__)
 # Criar blueprint de autenticação
 auth_bp = Blueprint('auth', __name__, url_prefix='/auth')
 
+
+def _destino_pos_login(usuario=None):
+    """Destino padrão após login conforme papel do usuário."""
+    user = usuario if usuario is not None else current_user
+    if getattr(user, 'admin', False):
+        return url_for('preview.dashboard_home')
+    return url_for('preview.parceiro')
+
 # Função auxiliar para obter sessão do banco
 def get_db():
     """Retorna uma sessão do banco de dados"""
@@ -42,7 +50,7 @@ def login():
     if request.method == 'GET':
         # Se já estiver logado, redireciona
         if current_user.is_authenticated:
-            return redirect(url_for('preview.dashboard_home'))
+            return redirect(_destino_pos_login())
         return render_template('login.html')
     
     # POST - Processar login
@@ -101,7 +109,7 @@ def login():
             
             # Redirecionar para página solicitada ou dashboard
             next_page = request.args.get('next')
-            return redirect(next_page or url_for('preview.dashboard_home'))
+            return redirect(next_page or _destino_pos_login(usuario))
             
         finally:
             db.close()

@@ -101,12 +101,22 @@ class Parceiro(Base):
 
     id = Column(Integer, primary_key=True, autoincrement=True)
     nome = Column(String(150), unique=True, nullable=False, index=True)
+    cnpj = Column(String(18), unique=True, nullable=True, index=True)
     ativo = Column(Boolean, default=True)
     criado_em = Column(DateTime, default=utc_now_naive)
 
     # Relacionamentos
     coletores = relationship("Coletor", back_populates="parceiro")
     coletas = relationship("Coleta", back_populates="parceiro")
+
+    def to_dict(self):
+        return {
+            'id': self.id,
+            'nome': self.nome,
+            'cnpj': self.cnpj,
+            'ativo': self.ativo,
+            'criado_em': self.criado_em.isoformat() if self.criado_em else None,
+        }
 
     def __repr__(self):
         return f"<Parceiro(id={self.id}, nome='{self.nome}', ativo={self.ativo})>"
@@ -969,6 +979,7 @@ class EmpresaCandidata(Base):
         Index('idx_empresa_candidata_cnae', 'cnae_principal'),
         Index('idx_empresa_candidata_situacao', 'situacao_cadastral'),
         Index('idx_empresa_candidata_origem', 'origem'),
+        Index('idx_empresa_candidata_pipeline', 'pipeline_id'),
     )
 
     id = Column(Integer, primary_key=True, autoincrement=True)
@@ -989,11 +1000,13 @@ class EmpresaCandidata(Base):
     telefone = Column(String(80))
     email = Column(String(180))
     origem = Column(String(80), default='manual')
+    pipeline_id = Column(Integer, ForeignKey("pipeline.id"), nullable=True, index=True)
     criado_em = Column(DateTime, default=utc_now_naive)
     atualizado_em = Column(DateTime, default=utc_now_naive, onupdate=utc_now_naive)
 
     locais = relationship("LocalCandidato", back_populates="empresa")
     feature_snapshots = relationship("FeatureSnapshotProspeccao", back_populates="empresa")
+    pipeline = relationship("Pipeline", backref="empresas_candidatas")
 
     def to_dict(self):
         import json
@@ -1015,6 +1028,7 @@ class EmpresaCandidata(Base):
             'telefone': self.telefone,
             'email': self.email,
             'origem': self.origem,
+            'pipeline_id': self.pipeline_id,
             'criado_em': self.criado_em.isoformat() if self.criado_em else None,
             'atualizado_em': self.atualizado_em.isoformat() if self.atualizado_em else None,
         }

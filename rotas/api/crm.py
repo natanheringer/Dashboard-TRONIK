@@ -7,6 +7,7 @@ Endpoints para CRM e pipeline de vendas.
 from flask import Blueprint, jsonify, request
 from flask_login import login_required, current_user
 from banco_dados.services.crm_service import CRMService
+from banco_dados.services.prospeccao_crm_bridge import buscar_scores_para_pipeline
 from banco_dados.modelos import Pipeline, Interacao, Tarefa
 from banco_dados.utils.db_session import get_db_session
 from banco_dados.utils.logger import obter_logger
@@ -152,6 +153,34 @@ def obter_pipeline(pipeline_id):
     except Exception as e:
         logger.error(f"Erro ao obter pipeline: {str(e)}", exc_info=True)
         return jsonify({'erro': 'Erro ao obter pipeline'}), 500
+    finally:
+        db.close()
+
+
+@crm_bp.route('/pipeline/<int:pipeline_id>/prospeccao', methods=['GET'])
+@login_required
+@decorators.rate_limit("30 per minute")
+def pipeline_prospeccao(pipeline_id):
+    """GET /api/crm/pipeline/<id>/prospeccao — scores de prospecção ligados ao lead."""
+    db = get_db_session()
+    try:
+        resultado = buscar_scores_para_pipeline(db, pipeline_id)
+        if resultado is None:
+            return jsonify({'erro': 'Pipeline não encontrado'}), 404
+
+        scores = resultado.get('scores') or []
+        melhor = (
+            max(scores, key=lambda s: float(s.get('score') or 0))
+            if scores
+            else None
+        )
+        candidato = CRMService._resumo_candidato(melhor) if melhor else None
+        dados = {**resultado, 'candidato': candidato}
+        payload = {'ok': True, 'dados': dados, 'erros': [], **dados}
+        return jsonify(payload), 200
+    except Exception as e:
+        logger.error(f"Erro ao cruzar pipeline com prospecção: {str(e)}", exc_info=True)
+        return jsonify({'erro': 'Erro ao buscar prospecção do pipeline'}), 500
     finally:
         db.close()
 

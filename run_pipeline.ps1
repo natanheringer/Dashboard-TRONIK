@@ -14,7 +14,7 @@
 #    .\run_pipeline.ps1 -SkipFetch -SkipCnefe -SkipReceita -SkipNormalize  # so retreinar
 #    .\run_pipeline.ps1 -FromStep normalize    # retomar do passo 'normalize' em diante
 #    .\run_pipeline.ps1 -FromStep aneel        # retomar do passo 'aneel' em diante (paralelo)
-#    .\run_pipeline.ps1 -UseInternalLabels     # labels do DB operacional (build-features)
+#    .\run_pipeline.ps1 -SkipInternalLabels   # build-features sem labels internas (run rapido)
 #
 #  VARIAVEIS DE AMBIENTE UTEIS:
 #    $env:TRONIK_CASADOSDADOS_API_KEY = "sua-chave"
@@ -36,7 +36,7 @@ param(
     [switch]$SkipIbamaCtf,
     [string]$FromStep        = "",
     [switch]$DemoOnly,
-    [switch]$UseInternalLabels,
+    [switch]$SkipInternalLabels,
     [int]$BuildLimit         = 0,
     [int]$BrasilApiBatch     = 500
 )
@@ -64,6 +64,7 @@ $allSteps = @(
     "aneel",
     "ibram",
     "ibama-ctf",
+    "link-crm",
     "build-features",
     "train-ranker",
     "score-candidates"
@@ -443,12 +444,14 @@ if ($parallelSteps.Count -gt 0) {
 # FASE 4 - ML Pipeline
 # ---------------------------------------------------------------------------
 
-Write-Phase "FASE 4/4 - ML: build-features + train + score"
+Write-Phase "FASE 4/4 - ML: link-crm + build-features + train + score"
+
+Run-Step "link-crm" "python -m jobs.prospeccao link-crm"
 
 $buildCmd = "python -m jobs.prospeccao build-features --version $Version"
 if ($DemoOnly)            { $buildCmd += " --seed-demo" }
 if ($BuildLimit -gt 0)    { $buildCmd += " --limit $BuildLimit" }
-if ($UseInternalLabels)   { $buildCmd += " --use-internal-labels" }
+if (-not $SkipInternalLabels) { $buildCmd += " --use-internal-labels" }
 Run-Step "build-features" $buildCmd -Critical
 
 Run-Step "train-ranker" "python -m jobs.prospeccao train-ranker --pipeline-version $Version" -Critical

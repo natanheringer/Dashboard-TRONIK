@@ -380,6 +380,23 @@ def _cep5_digits(empresa: Any, local: Any | None) -> str:
     return digits[:5] if len(digits) >= 5 else ""
 
 
+def _cep3_digits(empresa: Any, local: Any | None) -> str:
+    digits = _cep_digits(empresa, local)
+    return digits[:3] if len(digits) >= 3 else ""
+
+
+def _hash_bucket_qid(empresa: Any, *, shards: int = 96) -> str:
+    """Stable hash bucket so sparse rows never collapse into a single df:df group."""
+    raw = (
+        getattr(empresa, "cnpj", None)
+        or getattr(empresa, "id", None)
+        or getattr(empresa, "razao_social", None)
+        or id(empresa)
+    )
+    h = hash(str(raw)) & 0xFFFFFFFF
+    return f"ltr~{h % shards}"
+
+
 def _bairro_key(empresa: Any, local: Any | None) -> str | None:
     b = getattr(empresa, "bairro", None) or (getattr(local, "bairro", None) if local else None)
     if not b:
@@ -426,38 +443,48 @@ def listwise_training_qid(empresa: Any, local: Any | None) -> str:
         return "entorno"
 
     # Enhanced fallback chain for DF (or other states)
-    mun = _municipio_key(empresa) or "sem_municipio"
+    mun = _municipio_key(empresa)
+    mun_tag = mun if mun else "sem_municipio"
 
     # 1st: Try bairro (empresa or local)
     bk = _bairro_key(empresa, local)
     if bk:
-        return f"bairro:{mun}:{bk}"
+        return f"bairro:{mun_tag}:{bk}"
 
     # 2nd: Try CEP5 prefix (more specific than CNAE)
     cep5 = _cep5_digits(empresa, local)
     if cep5:
-        return f"cep5:{mun}:{cep5}"
+        return f"cep5:{mun_tag}:{cep5}"
 
-    # 3rd: Try RA from local (even if bairro is missing)
+    # 3rd: CEP3 from empresa/local when municipio is missing (avoids monolithic df:df)
+    if not mun:
+        cep3 = _cep3_digits(empresa, local)
+        if cep3:
+            return f"df:cep3:{uf.lower()}:{cep3}"
+
+    # 4th: Try RA from local (even if bairro is missing)
     if local is not None:
         ra = getattr(local, "ra", None)
         if ra:
             ra_lower = str(ra).strip().lower()
             if ra_lower and ra_lower not in ("df", "entorno"):
-                return f"ra_fallback:{mun}:{ra_lower}"
+                return f"ra_fallback:{mun_tag}:{ra_lower}"
 
-    # 4th: Try CNAE principal (4-digit code)
+    # 5th: Try CNAE principal (4-digit code)
     cnae = sanitize_cnae(getattr(empresa, "cnae_principal", None))[:4]
     if len(cnae) >= 4:
-        return f"cnae4:{mun}:{cnae}"
+        return f"cnae4:{mun_tag}:{cnae}"
 
-    # 5th: UF + CEP3 when only a partial postal prefix is available (3–4 digits)
+    # 6th: UF + CEP3 when only a partial postal prefix is available (3–4 digits)
     cep_digits = _cep_digits(empresa, local)
     if 3 <= len(cep_digits) < 5:
         return f"zone:{uf.lower()}:{cep_digits[:3]}"
 
-    # Final fallback: by estado
-    return f"df:{uf.lower()}"
+    cep3 = _cep3_digits(empresa, local)
+    if cep3:
+        return f"df:cep3:{uf.lower()}:{cep3}"
+
+    return _hash_bucket_qid(empresa)
 
 
 # ---------------------------------------------------------------------------

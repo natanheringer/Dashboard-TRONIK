@@ -481,6 +481,67 @@ def _mensagem_pede_explicacao_lead(mensagem: str) -> bool:
     )
 
 
+def _mensagem_pede_cruzar_crm_prospeccao(mensagem: str) -> bool:
+    msg = (mensagem or "").lower()
+    if any(
+        k in msg
+        for k in [
+            "crm e prospecção",
+            "crm e prospeccao",
+            "crm e prospecao",
+            "cruzar crm",
+            "cruze crm",
+            "cruzamento crm",
+            "pipeline e prospecção",
+            "pipeline e prospeccao",
+            "lead no ranker",
+            "lead no ranking",
+            "está no ranker",
+            "esta no ranker",
+            "está no ranking ree",
+            "esta no ranking ree",
+            "no ranker ree",
+            "score do crm",
+            "crm com prospecção",
+            "crm com prospeccao",
+        ]
+    ):
+        return True
+    return ("crm" in msg or "pipeline" in msg) and "prospec" in msg
+
+
+def _extrair_pipeline_id(mensagem: str) -> Optional[int]:
+    msg = (mensagem or "").strip()
+    for pattern in (
+        r"\bpipeline[_\s-]?id[=:\s]+(\d+)\b",
+        r"\bpipeline\s*#?\s*(\d+)\b",
+        r"\bpipeline\s+(\d+)\b",
+        r"\bid\s+do\s+pipeline[=:\s]+(\d+)\b",
+    ):
+        m = re.search(pattern, msg, flags=re.I)
+        if m:
+            try:
+                return int(m.group(1))
+            except ValueError:
+                continue
+    return None
+
+
+def _extrair_empresa_crm(mensagem: str) -> Optional[str]:
+    msg = (mensagem or "").strip()
+    for pattern in (
+        r"\bempresa\s+[\"']([^\"']{3,120})[\"']",
+        r"\bempresa\s+([A-Za-zÀ-ÿ0-9][A-Za-zÀ-ÿ0-9\s.&-]{2,80}?)(?:\s+(?:no|na|do|da|está|esta|tem|com)\b|$)",
+        r"\bda\s+empresa\s+([A-Za-zÀ-ÿ0-9][A-Za-zÀ-ÿ0-9\s.&-]{2,80}?)(?:\s+(?:no|na|está|esta)\b|$)",
+    ):
+        m = re.search(pattern, msg, flags=re.I)
+        if m:
+            nome = m.group(1).strip(" .,;:")
+            if len(nome) >= 3:
+                return nome
+    return None
+
+
 def _mensagem_pede_status_modelo(mensagem: str) -> bool:
     msg = (mensagem or "").lower()
     if any(
@@ -553,6 +614,7 @@ def _planejar_ferramentas(mensagem: str) -> list[dict[str, Any]]:
     pede_prospeccao = _mensagem_pede_prospeccao(mensagem)
     pede_explicacao_lead = _mensagem_pede_explicacao_lead(mensagem)
     pede_status_modelo = _mensagem_pede_status_modelo(mensagem)
+    pede_cruzar_crm = _mensagem_pede_cruzar_crm_prospeccao(mensagem)
     pede_busca_interna = any(k in msg for k in ["busque", "buscar", "procure", "encontre", "no sistema"])
     pergunta_exploratoria = any(k in msg for k in ["quais", "qual", "quem", "onde"]) and not any(
         k in msg for k in ["relatório", "relatorio", "timeline", "impacto"]
@@ -568,7 +630,21 @@ def _planejar_ferramentas(mensagem: str) -> list[dict[str, Any]]:
         plano.append({"nome": "explicar_candidato_prospeccao", "kwargs": kwargs_explicar})
     if pede_prospeccao:
         plano.append({"nome": "listar_candidatos_prospeccao", "kwargs": _extrair_filtros_prospeccao(mensagem)})
-    if pede_busca_interna or (pergunta_exploratoria and not pede_prospeccao and not pede_explicacao_lead):
+    if pede_cruzar_crm:
+        kwargs_cruzar: dict[str, Any] = {}
+        pipeline_id = _extrair_pipeline_id(mensagem)
+        if pipeline_id is not None:
+            kwargs_cruzar["pipeline_id"] = pipeline_id
+        empresa_nome = _extrair_empresa_crm(mensagem)
+        if empresa_nome:
+            kwargs_cruzar["empresa"] = empresa_nome
+        plano.append({"nome": "cruzar_crm_prospeccao", "kwargs": kwargs_cruzar})
+    if pede_busca_interna or (
+        pergunta_exploratoria
+        and not pede_prospeccao
+        and not pede_explicacao_lead
+        and not pede_cruzar_crm
+    ):
         plano.append({"nome": "busca_unificada", "kwargs": {"consulta": mensagem.strip()}})
     if pede_web:
         plano.append({"nome": "catalogo_fontes_web", "kwargs": {}})
@@ -738,6 +814,7 @@ def _executar_plano_ferramentas(db: Session, plano: list[dict[str, Any]]) -> tup
         "listar_candidatos_prospeccao": nik_tools.ferramenta_listar_candidatos_prospeccao,
         "explicar_candidato_prospeccao": nik_tools.ferramenta_explicar_candidato_prospeccao,
         "status_modelo_prospeccao": nik_tools.ferramenta_status_modelo_prospeccao,
+        "cruzar_crm_prospeccao": nik_tools.ferramenta_cruzar_crm_prospeccao,
     }
     for item in plano:
         nome = item.get("nome")

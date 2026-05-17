@@ -58,6 +58,56 @@ def test_planejador_aciona_status_modelo_prospeccao():
     assert "status_modelo_prospeccao" in nomes
 
 
+def test_planejador_aciona_cruzar_crm_prospeccao_crm_e_prospeccao():
+    plano = nik_service._planejar_ferramentas("cruze CRM e prospecção da empresa Acme Ltda")
+    nomes = [p["nome"] for p in plano]
+    assert "cruzar_crm_prospeccao" in nomes
+    item = next(p for p in plano if p["nome"] == "cruzar_crm_prospeccao")
+    assert item["kwargs"].get("empresa") == "Acme Ltda"
+
+
+def test_planejador_aciona_cruzar_crm_prospeccao_lead_no_ranker():
+    plano = nik_service._planejar_ferramentas("esse lead no ranker está no pipeline 15?")
+    nomes = [p["nome"] for p in plano]
+    assert "cruzar_crm_prospeccao" in nomes
+    item = next(p for p in plano if p["nome"] == "cruzar_crm_prospeccao")
+    assert item["kwargs"].get("pipeline_id") == 15
+
+
+def test_planejador_aciona_cruzar_crm_pipeline_id():
+    plano = nik_service._planejar_ferramentas("cruzamento CRM pipeline_id=42 com scores REE")
+    nomes = [p["nome"] for p in plano]
+    assert "cruzar_crm_prospeccao" in nomes
+    item = next(p for p in plano if p["nome"] == "cruzar_crm_prospeccao")
+    assert item["kwargs"].get("pipeline_id") == 42
+
+
+def test_cruzar_crm_prospeccao_retorna_estrutura(db_session, monkeypatch):
+    monkeypatch.setattr(
+        nik_service.nik_tools.crm_bridge,
+        "cruzar_crm_prospeccao",
+        lambda db, **kwargs: {
+            "encontrado": True,
+            "pipeline_id": kwargs.get("pipeline_id") or 15,
+            "empresa": {"id": 3, "razao_social": "Acme Ltda"},
+            "scores_prospeccao": [{"id": 77, "prioridade": "alta", "ranking_contexto": 1}],
+            "total_scores": 1,
+            "resumo": "Cruzamento CRM ↔ prospecção: pipeline #15; empresa Acme Ltda; 1 score(s) REE.",
+        },
+    )
+    data = nik_service.nik_tools.ferramenta_cruzar_crm_prospeccao(db_session, pipeline_id=15)
+    assert data["encontrado"] is True
+    assert data["pipeline_id"] == 15
+    assert data["total_scores"] == 1
+    assert "Acme" in data["resumo"]
+
+
+def test_cruzar_crm_prospeccao_sem_parametros():
+    data = nik_service.nik_tools.ferramenta_cruzar_crm_prospeccao(None)
+    assert data["encontrado"] is False
+    assert "pipeline_id" in data["resumo"]
+
+
 def test_planejador_aciona_fila_ree():
     plano = nik_service._planejar_ferramentas("mostre a fila REE com prioridade alta")
     nomes = [p["nome"] for p in plano]

@@ -21,6 +21,7 @@ class MockEmpresa:
         self.cnpj = kwargs.get("cnpj", "00000000000191")
         self.razao_social = kwargs.get("razao_social")
         self.nome_fantasia = kwargs.get("nome_fantasia")
+        self.pipeline_id = kwargs.get("pipeline_id")
 
 
 class MockLocal:
@@ -191,3 +192,31 @@ class TestLookupInternalScore:
         plain = InternalSiteSignals(coleta_count=1)
         won = InternalSiteSignals(coleta_count=1, pipeline_won=True)
         assert internal_relevance_continuous(won) > internal_relevance_continuous(plain)
+
+    def test_crm_persisted_link_boosts_score(self):
+        key = normalize_org_name("Parceiro CRM")
+        signals = InternalSiteSignals(coleta_count=1)
+        index = InternalLabelIndex(
+            by_norm_name={key: signals},
+            fechado_pipeline_ids=frozenset({99}),
+            stats={},
+        )
+        empresa = MockEmpresa(razao_social="Parceiro CRM", pipeline_id=99)
+        score, meta = lookup_internal_score(empresa, None, index)
+        assert score is not None
+        assert meta.get("crm_persisted_link") is True
+        empresa_no_link = MockEmpresa(razao_social="Parceiro CRM", pipeline_id=None)
+        score_plain, _ = lookup_internal_score(empresa_no_link, None, index)
+        assert score > score_plain
+
+    def test_crm_persisted_link_ignored_when_pipeline_not_fechado(self):
+        key = normalize_org_name("Parceiro CRM")
+        signals = InternalSiteSignals(coleta_count=1)
+        index = InternalLabelIndex(
+            by_norm_name={key: signals},
+            fechado_pipeline_ids=frozenset(),
+            stats={},
+        )
+        empresa = MockEmpresa(razao_social="Parceiro CRM", pipeline_id=99)
+        score, meta = lookup_internal_score(empresa, None, index)
+        assert meta.get("crm_persisted_link") is not True

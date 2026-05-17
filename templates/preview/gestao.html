@@ -3,6 +3,7 @@
 {% block title %}Gestão · Tronik{% endblock %}
 
 {% block head_extra %}
+<link rel="stylesheet" href="{{ url_for('static', filename='css/v2/preview-home.css') }}?v={{ cache_version }}">
 <style>
   .gestao-tabs {
     display: flex;
@@ -187,6 +188,24 @@
     <h1>Gestão</h1>
     <p>Operações de sistema e cadastro de coletores</p>
   </div>
+</div>
+
+<div class="hub-modules-grid" style="margin-bottom: var(--space-8);">
+  <a class="hub-module-card preview-link-reset" href="{{ url_for('preview.dashboard_home') }}">
+    <span class="hub-module-tag">HUB</span>
+    <h3>Hub operacional</h3>
+    <p>Visão geral e KPIs.</p>
+  </a>
+  <a class="hub-module-card preview-link-reset" href="{{ url_for('preview.prospeccao') }}">
+    <span class="hub-module-tag">REE</span>
+    <h3>Prospecção</h3>
+    <p>Fila de candidatos ranqueados.</p>
+  </a>
+  <a class="hub-module-card preview-link-reset" href="{{ url_for('paginas.crm') }}">
+    <span class="hub-module-tag">CRM</span>
+    <h3>CRM</h3>
+    <p>Pipeline e leads.</p>
+  </a>
 </div>
 
 <div class="gestao-tabs">

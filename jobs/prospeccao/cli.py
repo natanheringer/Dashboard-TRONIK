@@ -160,6 +160,11 @@ def main(argv: list[str] | None = None) -> int:
     s_ibama_ctf.add_argument("--no-destinadores", action="store_true", help="Não marca destinadores/recicladores")
     s_ibama_ctf.add_argument("--no-download", action="store_true", help="Pula download, usa CSVs em data/raw/.../ibama_ctf")
 
+    sub.add_parser(
+        "link-crm",
+        help="Associa empresa_candidata.pipeline_id a deals CRM ganhos (nome = coletor.localizacao)",
+    )
+
     s_ba = sub.add_parser("brasilapi-enrich", help="Enriquece email/telefone/CNAE via Brasil API (free, sem auth)")
     s_ba.add_argument("--batch", type=int, default=500, help="Max CNPJs por execução (default 500)")
     s_ba.add_argument("--sleep", type=float, default=None, help="Pausa entre requests em segundos (default 0.4)")
@@ -352,6 +357,15 @@ def main(argv: list[str] | None = None) -> int:
                 download=not args.no_download,
             )
             db.commit()
+        print(json.dumps(result, ensure_ascii=False, indent=2, default=str))
+        return 0
+
+    if args.cmd == "link-crm":
+        from jobs.prospeccao.db import session_scope
+        from jobs.prospeccao.link_crm_pipeline import sync_pipeline_links
+
+        with session_scope() as db:
+            result = sync_pipeline_links(db)
         print(json.dumps(result, ensure_ascii=False, indent=2, default=str))
         return 0
 
