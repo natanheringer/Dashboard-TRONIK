@@ -23,13 +23,19 @@ def buscar_candidatos_prospeccao(
     model_version: str | None = None,
 ) -> list[dict[str, Any]]:
     """Return the same ranked candidate queue used by dashboard and Nik."""
-    return list_published_scores(
+    rows = list_published_scores(
         db,
         limite=limite,
         qid=qid,
         prioridade=prioridade,
         model_version=model_version,
     )
+    for row in rows:
+        if row.get("empresa_id") is None:
+            emp = row.get("empresa") or {}
+            if isinstance(emp, dict) and emp.get("id") is not None:
+                row["empresa_id"] = emp["id"]
+    return rows
 
 
 def buscar_modelo_ativo(db: Session) -> dict[str, Any] | None:

@@ -6,7 +6,9 @@
   "use strict";
 
   var API_URL = "/api/prospeccao/candidatos";
+  var CRM_PREVIEW_URL = "/preview/crm";
   var TOP_MOTIVOS = 3;
+  var COLSPAN = 7;
 
   function $(id) {
     return document.getElementById(id);
@@ -41,6 +43,82 @@
       return "<li>" + esc(texto) + "</li>";
     });
     return '<ul class="prosp-motivos">' + items.join("") + "</ul>";
+  }
+
+  function resolveEmpresaId(item) {
+    if (item.empresa_id != null) return item.empresa_id;
+    var empresa = item.empresa;
+    return empresa && empresa.id != null ? empresa.id : null;
+  }
+
+  function pipelineApiUrl(empresaId) {
+    return "/api/prospeccao/candidatos/" + encodeURIComponent(empresaId) + "/pipeline";
+  }
+
+  function crmActionCell(item) {
+    var empresaId = resolveEmpresaId(item);
+    if (empresaId == null) {
+      return '<span class="prosp-empty" style="padding:0;">—</span>';
+    }
+    return (
+      '<button type="button" class="btn btn-primary prosp-crm-btn" ' +
+      'data-empresa-id="' +
+      esc(String(empresaId)) +
+      '">Criar lead CRM</button>'
+    );
+  }
+
+  async function criarLeadCrm(empresaId, button) {
+    if (!empresaId) return;
+    if (button) {
+      button.disabled = true;
+      button.textContent = "Criando…";
+    }
+    try {
+      var resp = await fetch(pipelineApiUrl(empresaId), {
+        method: "POST",
+        credentials: "same-origin",
+        headers: { "Content-Type": "application/json" },
+        body: "{}",
+      });
+      var body = await resp.json();
+      if (!resp.ok || !body.ok) {
+        var msg =
+          (body.erros && body.erros[0] && body.erros[0].mensagem) ||
+          "Não foi possível criar o lead no CRM.";
+        throw new Error(msg);
+      }
+      var dados = body.dados || {};
+      var pipelineId = dados.pipeline_id;
+      var msgOk =
+        "Lead CRM #" +
+        pipelineId +
+        " criado." +
+        (dados.ja_vinculado ? " (já estava vinculado)" : "");
+      if (window.previewToast) {
+        window.previewToast(msgOk, "ok");
+      } else {
+        alert(msgOk);
+      }
+      if (button && button.parentElement) {
+        button.parentElement.innerHTML =
+          '<span class="prosp-empty" style="padding:0;">Lead #' +
+          esc(String(pipelineId)) +
+          '</span><a class="prosp-crm-link" href="' +
+          esc(CRM_PREVIEW_URL) +
+          '">Abrir CRM</a>';
+      }
+    } catch (err) {
+      if (window.previewToast) {
+        window.previewToast(err.message || "Erro ao criar lead CRM.", "warn");
+      } else {
+        alert(err.message || "Erro ao criar lead CRM.");
+      }
+      if (button) {
+        button.disabled = false;
+        button.textContent = "Criar lead CRM";
+      }
+    }
   }
 
   function mapLink(local) {
@@ -104,7 +182,9 @@
 
     if (!candidatos.length) {
       tbody.innerHTML =
-        '<tr><td colspan="6" class="prosp-empty">Nenhum candidato na fila com os filtros atuais.</td></tr>';
+        '<tr><td colspan="' +
+        COLSPAN +
+        '" class="prosp-empty">Nenhum candidato na fila com os filtros atuais.</td></tr>';
       return;
     }
 
@@ -129,6 +209,9 @@
           "</td>" +
           "<td>" +
           mapLink(item.local) +
+          "</td>" +
+          "<td>" +
+          crmActionCell(item) +
           "</td>" +
           "</tr>"
         );
@@ -185,7 +268,7 @@
     var tbody = $("prosp-tbody");
     if (tbody) {
       tbody.innerHTML =
-        '<tr><td colspan="6" class="prosp-empty">Carregando…</td></tr>';
+        '<tr><td colspan="' + COLSPAN + '" class="prosp-empty">Carregando…</td></tr>';
     }
 
     try {
@@ -207,7 +290,7 @@
     } catch (err) {
       if (tbody) {
         tbody.innerHTML =
-          '<tr><td colspan="6" class="prosp-empty">' +
+          '<tr><td colspan="' + COLSPAN + '" class="prosp-empty">' +
           esc(err.message || "Erro ao carregar candidatos.") +
           "</td></tr>";
       }
@@ -300,6 +383,14 @@
       form.addEventListener("submit", function (e) {
         e.preventDefault();
         carregarFila();
+      });
+    }
+    var tbody = $("prosp-tbody");
+    if (tbody) {
+      tbody.addEventListener("click", function (e) {
+        var btn = e.target.closest("[data-empresa-id]");
+        if (!btn || btn.disabled) return;
+        criarLeadCrm(btn.getAttribute("data-empresa-id"), btn);
       });
     }
     carregarModelo();

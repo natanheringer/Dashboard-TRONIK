@@ -112,6 +112,30 @@
     text-decoration: underline;
   }
 
+  .prosp-crm-btn {
+    font-size: var(--text-xs);
+    padding: var(--space-2) var(--space-3);
+    white-space: nowrap;
+  }
+
+  .prosp-crm-btn:disabled {
+    opacity: 0.6;
+    cursor: not-allowed;
+  }
+
+  .prosp-crm-link {
+    display: inline-block;
+    margin-top: var(--space-2);
+    font-size: var(--text-xs);
+    font-weight: 600;
+    color: var(--tronik);
+    text-decoration: none;
+  }
+
+  .prosp-crm-link:hover {
+    text-decoration: underline;
+  }
+
   .prosp-empty {
     padding: var(--space-10);
     text-align: center;
@@ -267,11 +291,12 @@
             <th>QID</th>
             <th>Motivos</th>
             <th>Mapa</th>
+            <th>CRM</th>
           </tr>
         </thead>
         <tbody id="prosp-tbody">
           <tr>
-            <td colspan="6" class="prosp-empty">Carregando…</td>
+            <td colspan="7" class="prosp-empty">Carregando…</td>
           </tr>
         </tbody>
       </table>

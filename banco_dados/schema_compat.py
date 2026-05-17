@@ -83,3 +83,52 @@ def aplicar_compat_schema(engine) -> None:
             )
         else:
             _add_column_if_missing(table, "parceiro_id", "INTEGER")
+
+    # Loló Account: tabela conta_comercial (DB legado sem create_all completo)
+    if "conta_comercial" not in insp.get_table_names():
+        with engine.begin() as conn:
+            if is_pg:
+                conn.execute(
+                    text(
+                        """
+                        CREATE TABLE conta_comercial (
+                            id SERIAL PRIMARY KEY,
+                            cnpj VARCHAR(18) UNIQUE,
+                            razao_social VARCHAR(255),
+                            nome_fantasia VARCHAR(255),
+                            parceiro_id INTEGER REFERENCES parceiros(id),
+                            empresa_candidata_id INTEGER REFERENCES empresa_candidata(id),
+                            criado_em TIMESTAMP,
+                            atualizado_em TIMESTAMP
+                        )
+                        """
+                    )
+                )
+            else:
+                conn.execute(
+                    text(
+                        """
+                        CREATE TABLE conta_comercial (
+                            id INTEGER NOT NULL PRIMARY KEY AUTOINCREMENT,
+                            cnpj VARCHAR(18),
+                            razao_social VARCHAR(255),
+                            nome_fantasia VARCHAR(255),
+                            parceiro_id INTEGER,
+                            empresa_candidata_id INTEGER,
+                            criado_em DATETIME,
+                            atualizado_em DATETIME
+                        )
+                        """
+                    )
+                )
+        logger.info("Schema compat: tabela conta_comercial criada.")
+
+    # Pipeline: vínculo com conta comercial (ganho/fechado)
+    if is_pg:
+        _add_column_if_missing(
+            "pipeline",
+            "conta_comercial_id",
+            "INTEGER NULL REFERENCES conta_comercial(id)",
+        )
+    else:
+        _add_column_if_missing("pipeline", "conta_comercial_id", "INTEGER")

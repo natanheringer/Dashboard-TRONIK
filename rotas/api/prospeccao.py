@@ -5,10 +5,11 @@ from __future__ import annotations
 import logging
 
 from flask import Blueprint, jsonify, request
-from flask_login import login_required
+from flask_login import current_user, login_required
 
 from banco_dados.services import prospeccao_xgb_service
-from rotas.api.decorators import get_db
+from banco_dados.services import prospeccao_crm_bridge
+from rotas.api.decorators import admin_required, get_db
 
 logger = logging.getLogger(__name__)
 
@@ -39,6 +40,55 @@ def listar_candidatos():
         return jsonify({"ok": True, "dados": candidatos, "erros": []})
     except Exception as e:
         logger.error("Erro ao listar candidatos de prospecção: %s", e)
+        return jsonify({
+            "ok": False,
+            "dados": None,
+            "erros": [{"codigo": "ERRO_PROSPECCAO", "mensagem": str(e)}],
+        }), 500
+    finally:
+        db.close()
+
+
+@prospeccao_bp.route("/candidatos/<int:empresa_id>/pipeline", methods=["POST"])
+@admin_required
+def criar_pipeline_candidato(empresa_id: int):
+    """Cria lead CRM a partir de empresa candidata à prospecção REE.
+
+    POST /api/prospeccao/candidatos/<empresa_id>/pipeline
+    Body (opcional): { "observacoes", "valor_estimado", "status" }
+    """
+    db = get_db()
+    try:
+        body = request.get_json(silent=True) or {}
+        usuario_id = current_user.id if current_user.is_authenticated else None
+        resultado = prospeccao_crm_bridge.criar_pipeline_de_candidato(
+            db,
+            empresa_id,
+            usuario_id,
+            observacoes=body.get("observacoes"),
+            valor_estimado=body.get("valor_estimado"),
+            status=body.get("status"),
+        )
+        if resultado is None:
+            return jsonify({
+                "ok": False,
+                "dados": None,
+                "erros": [{
+                    "codigo": "EMPRESA_NAO_ENCONTRADA",
+                    "mensagem": f"Empresa candidata #{empresa_id} não encontrada.",
+                }],
+            }), 404
+
+        status_code = 200 if resultado.get("ja_vinculado") else 201
+        return jsonify({"ok": True, "dados": resultado, "erros": []}), status_code
+    except ValueError as e:
+        return jsonify({
+            "ok": False,
+            "dados": None,
+            "erros": [{"codigo": "VALIDACAO", "mensagem": str(e)}],
+        }), 400
+    except Exception as e:
+        logger.error("Erro ao criar pipeline de candidato %s: %s", empresa_id, e)
         return jsonify({
             "ok": False,
             "dados": None,

@@ -9,7 +9,7 @@ from sqlalchemy.orm import Session, joinedload
 
 from banco_dados.modelos import EmpresaCandidata, Parceiro, Pipeline
 from banco_dados.schema_compat import aplicar_compat_schema
-from banco_dados.services import prospeccao_crm_bridge
+from banco_dados.services.account_service import resolver_ou_criar_conta
 from jobs.prospeccao.labels_internal import (
     _PIPELINE_WON_STATUSES,
     extract_cnpjs_from_text,
@@ -76,6 +76,8 @@ def find_empresa_candidata_for_pipeline(db: Session, pipeline: Pipeline) -> Empr
         empresa = _empresa_por_nome_normalizado(db, termo)
         if empresa:
             return empresa
+
+    from banco_dados.services import prospeccao_crm_bridge
 
     for termo in _termos_busca_pipeline(pipeline):
         candidatos = prospeccao_crm_bridge.buscar_candidatos_por_nome_empresa(db, termo, limite=1)
@@ -151,6 +153,7 @@ def process_pipeline_win(db: Session, pipeline: Pipeline) -> dict[str, Any]:
         "empresa_linked": False,
         "empresa_id": None,
         "parceiro": None,
+        "conta_comercial_id": None,
     }
 
     empresa = find_empresa_candidata_for_pipeline(db, pipeline)
@@ -160,6 +163,17 @@ def process_pipeline_win(db: Session, pipeline: Pipeline) -> dict[str, Any]:
             result["empresa_linked"] = True
         result["empresa_id"] = empresa.id
         result["parceiro"] = _upsert_parceiro_from_empresa(db, empresa)
+        parceiro_id = result["parceiro"].get("parceiro_id")
+        conta = resolver_ou_criar_conta(
+            db,
+            cnpj=empresa.cnpj,
+            razao_social=empresa.razao_social,
+            nome_fantasia=empresa.nome_fantasia,
+            empresa_candidata_id=empresa.id,
+            parceiro_id=parceiro_id,
+        )
+        pipeline.conta_comercial_id = conta.id
+        result["conta_comercial_id"] = conta.id
     else:
         result["parceiro"] = {"action": "skipped", "reason": "empresa_nao_encontrada"}
 

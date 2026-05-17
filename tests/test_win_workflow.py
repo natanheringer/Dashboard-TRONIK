@@ -5,7 +5,7 @@ from unittest.mock import patch
 from sqlalchemy import create_engine
 from sqlalchemy.orm import sessionmaker
 
-from banco_dados.modelos import Base, Coletor, EmpresaCandidata, Parceiro, Pipeline
+from banco_dados.modelos import Base, Coletor, ContaComercial, EmpresaCandidata, Parceiro, Pipeline
 from banco_dados.services.crm_service import CRMService
 from banco_dados.services.win_workflow import (
     find_empresa_candidata_for_pipeline,
@@ -54,6 +54,12 @@ def test_process_pipeline_win_links_empresa_and_creates_parceiro():
     assert parceiro.nome == "Eco Recicla Centro Ltda"
     assert parceiro.cnpj == "12345678000195"
     assert result["parceiro"]["action"] == "created"
+    assert result["conta_comercial_id"] is not None
+    db.refresh(pipeline)
+    assert pipeline.conta_comercial_id == result["conta_comercial_id"]
+    conta = db.query(ContaComercial).first()
+    assert conta.cnpj == "12345678000195"
+    assert conta.empresa_candidata_id == empresa.id
 
     db.close()
 

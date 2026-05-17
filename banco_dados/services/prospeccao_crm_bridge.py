@@ -9,8 +9,83 @@ from sqlalchemy.orm import Session, joinedload
 
 from banco_dados.modelos import Coletor, EmpresaCandidata, LocalCandidato, Pipeline, ScoreProspeccao
 from banco_dados.services import prospeccao_xgb_service
+from banco_dados.services.crm_service import CRMService
+from banco_dados.utils import utc_now_naive
 from jobs.prospeccao.labels_internal import extract_cnpjs_from_text, normalize_cnpj, normalize_org_name
 from jobs.prospeccao.publish_scores import _resolve_model
+
+
+def _observacoes_pipeline_prospeccao(
+    empresa: EmpresaCandidata,
+    observacoes_extra: str | None = None,
+) -> str:
+    """Monta observações do lead CRM com razão social e CNPJ da candidata."""
+    nome = (empresa.razao_social or empresa.nome_fantasia or "Empresa").strip()
+    partes = [nome]
+    if empresa.cnpj:
+        partes.append(f"CNPJ: {empresa.cnpj}")
+    if observacoes_extra and str(observacoes_extra).strip():
+        partes.append(str(observacoes_extra).strip())
+    return "\n".join(partes)[:1000]
+
+
+def criar_pipeline_de_candidato(
+    db: Session,
+    empresa_id: int,
+    usuario_id: int | None = None,
+    *,
+    observacoes: str | None = None,
+    valor_estimado: float | None = None,
+    status: str | None = None,
+) -> dict[str, Any] | None:
+    """Cria lead CRM a partir de ``EmpresaCandidata`` e vincula ``pipeline_id``."""
+    empresa = db.query(EmpresaCandidata).filter_by(id=empresa_id).first()
+    if not empresa:
+        return None
+
+    if empresa.pipeline_id:
+        pipeline = db.query(Pipeline).filter_by(id=empresa.pipeline_id).first()
+        if pipeline:
+            return {
+                "pipeline_id": pipeline.id,
+                "empresa_id": empresa.id,
+                "status": pipeline.status,
+                "valor_estimado": float(pipeline.valor_estimado or 0),
+                "origem": pipeline.origem,
+                "ja_vinculado": True,
+            }
+
+    status_final = (status or "lead").strip().lower()
+    if status_final not in CRMService.STATUS_PROBABILIDADE:
+        raise ValueError(f"Status inválido: {status_final}")
+
+    valor = float(valor_estimado) if valor_estimado is not None else 0.0
+    pipeline = Pipeline(
+        status=status_final,
+        valor_estimado=valor,
+        probabilidade=CRMService.STATUS_PROBABILIDADE.get(status_final, 10),
+        responsavel_id=usuario_id,
+        origem="prospeccao_ree",
+        observacoes=_observacoes_pipeline_prospeccao(empresa, observacoes),
+        atualizado_em=utc_now_naive(),
+    )
+    db.add(pipeline)
+    db.flush()
+
+    empresa.pipeline_id = pipeline.id
+    empresa.atualizado_em = utc_now_naive()
+    db.commit()
+    db.refresh(pipeline)
+
+    return {
+        "pipeline_id": pipeline.id,
+        "empresa_id": empresa.id,
+        "status": pipeline.status,
+        "valor_estimado": float(pipeline.valor_estimado or 0),
+        "origem": pipeline.origem,
+        "observacoes": pipeline.observacoes,
+        "ja_vinculado": False,
+    }
 
 
 def _match_empresa_por_nome(

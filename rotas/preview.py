@@ -334,6 +334,38 @@ def prospeccao():
         db.close()
 
 
+def _ctx_admin_shell(current: str) -> dict:
+    db = get_db()
+    try:
+        stats = pv.estatisticas_resumo(db)
+        return {
+            "current": current,
+            "total_coletores": stats["total_coletores"],
+            "stats": stats,
+            "usuario_nome": _nome_usuario(),
+        }
+    finally:
+        db.close()
+
+
+@preview_bp.route("/crm")
+@admin_preview
+def crm():
+    return render_template("preview/crm.html", **_ctx_admin_shell("crm"))
+
+
+@preview_bp.route("/comercial")
+@admin_preview
+def comercial():
+    return render_template("preview/comercial.html", **_ctx_admin_shell("comercial"))
+
+
+@preview_bp.route("/contratos")
+@admin_preview
+def contratos():
+    return render_template("preview/contratos.html", **_ctx_admin_shell("contratos"))
+
+
 @preview_bp.route("/gestao")
 @admin_preview
 def gestao():

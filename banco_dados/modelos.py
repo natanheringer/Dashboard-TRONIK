@@ -123,6 +123,48 @@ class Parceiro(Base):
 
 
 # ----------------------------------------------------------
+# TABELA: Conta comercial (Loló Account)
+# ----------------------------------------------------------
+class ContaComercial(Base):
+    """Conta comercial unificada (CNPJ, prospecção, parceiro operacional)."""
+    __tablename__ = "conta_comercial"
+    __table_args__ = (
+        Index('idx_conta_comercial_cnpj', 'cnpj'),
+        Index('idx_conta_comercial_parceiro', 'parceiro_id'),
+        Index('idx_conta_comercial_empresa', 'empresa_candidata_id'),
+    )
+
+    id = Column(Integer, primary_key=True, autoincrement=True)
+    cnpj = Column(String(18), unique=True, nullable=True, index=True)
+    razao_social = Column(String(255))
+    nome_fantasia = Column(String(255))
+    parceiro_id = Column(Integer, ForeignKey("parceiros.id"), nullable=True, index=True)
+    empresa_candidata_id = Column(
+        Integer, ForeignKey("empresa_candidata.id"), nullable=True, index=True
+    )
+    criado_em = Column(DateTime, default=utc_now_naive)
+    atualizado_em = Column(DateTime, default=utc_now_naive, onupdate=utc_now_naive)
+
+    parceiro = relationship("Parceiro", backref="contas_comerciais")
+    empresa_candidata = relationship("EmpresaCandidata", backref="conta_comercial")
+
+    def to_dict(self):
+        return {
+            'id': self.id,
+            'cnpj': self.cnpj,
+            'razao_social': self.razao_social,
+            'nome_fantasia': self.nome_fantasia,
+            'parceiro_id': self.parceiro_id,
+            'empresa_candidata_id': self.empresa_candidata_id,
+            'criado_em': self.criado_em.isoformat() if self.criado_em else None,
+            'atualizado_em': self.atualizado_em.isoformat() if self.atualizado_em else None,
+        }
+
+    def __repr__(self):
+        return f"<ContaComercial(id={self.id}, cnpj='{self.cnpj}')>"
+
+
+# ----------------------------------------------------------
 # TABELA: Solicitação de Coletor (Landing)
 # ----------------------------------------------------------
 class SolicitacaoColetor(Base):
@@ -401,7 +443,10 @@ class Pipeline(Base):
     proxima_acao = Column(String(200))
     data_proxima_acao = Column(DateTime, index=True)
     responsavel_id = Column(Integer, ForeignKey("usuarios.id"), nullable=True, index=True)
-    
+    conta_comercial_id = Column(
+        Integer, ForeignKey("conta_comercial.id"), nullable=True, index=True
+    )
+
     origem = Column(String(100))  # 'indicacao', 'site', 'rede_social', 'evento', etc
     tipo_servico = Column(String(100))  # 'coleta', 'palestra', 'oficina', 'contrato'
     
@@ -415,6 +460,7 @@ class Pipeline(Base):
     # Relacionamentos
     coletor = relationship("Coletor", backref="pipeline_items")
     responsavel = relationship("Usuario", backref="pipeline_responsavel")
+    conta_comercial = relationship("ContaComercial", backref="pipelines")
     interacoes = relationship("Interacao", back_populates="pipeline", cascade="all, delete-orphan", lazy="dynamic")
     tarefas = relationship("Tarefa", back_populates="pipeline", cascade="all, delete-orphan")
     
@@ -468,6 +514,7 @@ class Pipeline(Base):
             'data_proxima_acao': self.data_proxima_acao.isoformat() if self.data_proxima_acao else None,
             'responsavel': self.responsavel.nome_completo if self.responsavel else None,
             'responsavel_id': self.responsavel_id,
+            'conta_comercial_id': self.conta_comercial_id,
             'origem': self.origem,
             'tipo_servico': self.tipo_servico,
             'observacoes': self.observacoes,
