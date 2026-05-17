@@ -4,20 +4,23 @@ Orquestrador da Nik.
 
 from __future__ import annotations
 
-import os
+import contextlib
 import json
+import os
 import re
 from datetime import date, datetime, time, timedelta
-from typing import Any, Optional
+from typing import Any
 
 from sqlalchemy.orm import Session
 
 from banco_dados.modelos import NikConversa, NikRelatorioGerado, Parceiro
-from banco_dados.services import nik_contexto as ctx
-from banco_dados.services import nik_prompts as prompts
-from banco_dados.services import nik_provider as provider
-from banco_dados.services import nik_tools
-from banco_dados.services import nik_validacao as val
+from banco_dados.services import (
+    nik_contexto as ctx,
+    nik_prompts as prompts,
+    nik_provider as provider,
+    nik_tools,
+    nik_validacao as val,
+)
 from banco_dados.utils.cache import obter_cache
 
 _FALLBACK_RESUMO = (
@@ -227,10 +230,7 @@ def _mensagem_pede_web(mensagem: str) -> bool:
 
     # Perguntas de contexto geográfico/setorial tendem a exigir fonte externa.
     locais = ["brasil", "brasilia", "distrito federal", "df", "regional", "local", "mundo", "global"]
-    if any(t in msg for t in temas_externos) and any(l in msg for l in locais):
-        return True
-
-    return False
+    return bool(any(t in msg for t in temas_externos) and any(l in msg for l in locais))
 
 
 def _mensagem_pede_documento(mensagem: str) -> bool:
@@ -251,7 +251,7 @@ def _mensagem_pede_documento(mensagem: str) -> bool:
     return any(g in msg for g in gatilhos)
 
 
-def _cache_get(chave: str, ttl: int) -> Optional[dict[str, Any]]:
+def _cache_get(chave: str, ttl: int) -> dict[str, Any] | None:
     return obter_cache().obter(chave, ttl)
 
 
@@ -341,9 +341,9 @@ def analise_alerta(db: Session) -> dict[str, Any]:
 
 def narrativa_relatorio(
     db: Session,
-    inicio: Optional[str],
-    fim: Optional[str],
-    parceiro_id: Optional[int],
+    inicio: str | None,
+    fim: str | None,
+    parceiro_id: int | None,
 ) -> dict[str, Any]:
     contexto = ctx.contexto_relatorio(db, inicio, fim, parceiro_id)
     chave = f"nik:ops:relatorio:{contexto['periodo']['inicio']}:{contexto['periodo']['fim']}:{parceiro_id or 'all'}"
@@ -407,7 +407,7 @@ def conversar_ops(db: Session, mensagem: str) -> dict[str, Any]:
     return conversar_ops_thread(db, mensagem, thread_id="main", usuario_id=None)
 
 
-def _normalizar_thread_id(thread_id: Optional[str]) -> str:
+def _normalizar_thread_id(thread_id: str | None) -> str:
     raw = (thread_id or "main").strip().lower()
     if not raw:
         return "main"
@@ -417,7 +417,7 @@ def _normalizar_thread_id(thread_id: Optional[str]) -> str:
 
 def _historico_thread(
     db: Session,
-    usuario_id: Optional[int],
+    usuario_id: int | None,
     thread_id: str,
     limite: int = 8,
 ) -> list[dict[str, Any]]:
@@ -510,7 +510,7 @@ def _mensagem_pede_cruzar_crm_prospeccao(mensagem: str) -> bool:
     return ("crm" in msg or "pipeline" in msg) and "prospec" in msg
 
 
-def _extrair_pipeline_id(mensagem: str) -> Optional[int]:
+def _extrair_pipeline_id(mensagem: str) -> int | None:
     msg = (mensagem or "").strip()
     for pattern in (
         r"\bpipeline[_\s-]?id[=:\s]+(\d+)\b",
@@ -527,7 +527,7 @@ def _extrair_pipeline_id(mensagem: str) -> Optional[int]:
     return None
 
 
-def _extrair_empresa_crm(mensagem: str) -> Optional[str]:
+def _extrair_empresa_crm(mensagem: str) -> str | None:
     msg = (mensagem or "").strip()
     for pattern in (
         r"\bempresa\s+[\"']([^\"']{3,120})[\"']",
@@ -564,7 +564,129 @@ def _mensagem_pede_status_modelo(mensagem: str) -> bool:
     return "modelo" in msg and "prospec" in msg
 
 
-def _extrair_score_id(mensagem: str) -> Optional[int]:
+def _mensagem_pede_comparar_candidatos(mensagem: str) -> bool:
+    msg = (mensagem or "").lower()
+    if any(k in msg for k in ["comparar candidatos", "compare candidatos", "comparar leads", "compare leads"]):
+        return True
+    return any(k in msg for k in ["comparar", "compare", "comparação", "comparacao"]) and any(
+        k in msg for k in ["candidat", "lead", "prospec", "ree", "ranking"]
+    )
+
+
+def _mensagem_pede_roteiro_contato(mensagem: str) -> bool:
+    msg = (mensagem or "").lower()
+    if any(
+        k in msg
+        for k in [
+            "roteiro de contato",
+            "roteiro de ligação",
+            "roteiro de ligacao",
+            "script de ligação",
+            "script de ligacao",
+            "script de contato",
+            "gerar roteiro",
+            "montar roteiro",
+        ]
+    ):
+        return True
+    return any(k in msg for k in ["roteiro", "script", "ligação", "ligacao"]) and any(
+        k in msg for k in ["contato", "ligar", "liga", "comercial", "lead", "candidat"]
+    )
+
+
+def _mensagem_pede_criar_tarefa_comercial(mensagem: str) -> bool:
+    msg = (mensagem or "").lower()
+    if any(
+        k in msg
+        for k in [
+            "criar tarefa",
+            "crie tarefa",
+            "nova tarefa",
+            "criar lembrete",
+            "follow-up crm",
+            "follow up crm",
+            "followup crm",
+            "tarefa no crm",
+            "tarefa comercial",
+        ]
+    ):
+        return True
+    return "tarefa" in msg and any(k in msg for k in ["crm", "comercial", "follow", "lembrete"])
+
+
+def _extrair_score_ids(mensagem: str) -> list[int]:
+    msg = (mensagem or "").strip()
+    ids: list[int] = []
+    for pattern in (
+        r"\bscore[_\s-]?id[=:\s]+(\d+)\b",
+        r"\bscore_id[=:\s]+(\d+)\b",
+        r"\bscores?\s*[=:\s]+(\d+(?:\s*[,;/]\s*\d+)*)\b",
+        r"\bcandidatos?\s+(\d+(?:\s*[,;/]\s*\d+)+)\b",
+    ):
+        for m in re.finditer(pattern, msg, flags=re.I):
+            grupo = m.group(1)
+            for parte in re.split(r"[,;/\s]+", grupo):
+                parte = parte.strip()
+                if parte.isdigit():
+                    ids.append(int(parte))
+    for m in re.finditer(r"\bscore\s+(\d+)\b", msg, flags=re.I):
+        ids.append(int(m.group(1)))
+    vistos: set[int] = set()
+    out: list[int] = []
+    for i in ids:
+        if i in vistos:
+            continue
+        vistos.add(i)
+        out.append(i)
+    return out
+
+
+def _extrair_empresa_ids(mensagem: str) -> list[int]:
+    msg = (mensagem or "").strip()
+    ids: list[int] = []
+    for m in re.finditer(r"\bempresa[_\s-]?id[=:\s]+(\d+)\b", msg, flags=re.I):
+        ids.append(int(m.group(1)))
+    vistos: set[int] = set()
+    out: list[int] = []
+    for i in ids:
+        if i in vistos:
+            continue
+        vistos.add(i)
+        out.append(i)
+    return out
+
+
+def _extrair_titulo_tarefa(mensagem: str) -> str | None:
+    msg = (mensagem or "").strip()
+    for pattern in (
+        r"\btarefa\s+[\"']([^\"']{3,200})[\"']",
+        r"\btítulo\s+[\"']([^\"']{3,200})[\"']",
+        r"\btitulo\s+[\"']([^\"']{3,200})[\"']",
+        r"\bcriar\s+tarefa[:\s]+(.{5,200}?)(?:\s+pipeline|\s+empresa|\s+data|\s+para\s+o\s+crm|$)",
+    ):
+        m = re.search(pattern, msg, flags=re.I)
+        if m:
+            titulo = m.group(1).strip(" .,:;")
+            if len(titulo) >= 3:
+                return titulo
+    return None
+
+
+def _extrair_data_limite_tarefa(mensagem: str) -> str | None:
+    msg = (mensagem or "").strip()
+    m = re.search(r"\bdata[_\s-]?limite[=:\s]+(\S+)", msg, flags=re.I)
+    if m:
+        return m.group(1).strip()
+    m = re.search(r"\b(?:até|ate|para)\s+(\d{2}/\d{2}/\d{4})\b", msg, flags=re.I)
+    if m:
+        return m.group(1)
+    m = re.search(r"\b(\d{4}-\d{2}-\d{2})\b", msg)
+    if m:
+        return m.group(1)
+    return None
+
+
+def _extrair_score_id(mensagem: str) -> int | None:
     msg = (mensagem or "").strip()
     for pattern in (
         r"\bscore[_\s-]?id[=:\s]+(\d+)\b",
@@ -615,6 +737,9 @@ def _planejar_ferramentas(mensagem: str) -> list[dict[str, Any]]:
     pede_explicacao_lead = _mensagem_pede_explicacao_lead(mensagem)
     pede_status_modelo = _mensagem_pede_status_modelo(mensagem)
     pede_cruzar_crm = _mensagem_pede_cruzar_crm_prospeccao(mensagem)
+    pede_comparar = _mensagem_pede_comparar_candidatos(mensagem)
+    pede_roteiro = _mensagem_pede_roteiro_contato(mensagem)
+    pede_tarefa_crm = _mensagem_pede_criar_tarefa_comercial(mensagem)
     pede_busca_interna = any(k in msg for k in ["busque", "buscar", "procure", "encontre", "no sistema"])
     pergunta_exploratoria = any(k in msg for k in ["quais", "qual", "quem", "onde"]) and not any(
         k in msg for k in ["relatório", "relatorio", "timeline", "impacto"]
@@ -639,11 +764,55 @@ def _planejar_ferramentas(mensagem: str) -> list[dict[str, Any]]:
         if empresa_nome:
             kwargs_cruzar["empresa"] = empresa_nome
         plano.append({"nome": "cruzar_crm_prospeccao", "kwargs": kwargs_cruzar})
+    if pede_comparar:
+        kwargs_cmp: dict[str, Any] = {}
+        score_ids = _extrair_score_ids(mensagem)
+        empresa_ids = _extrair_empresa_ids(mensagem)
+        if score_ids:
+            kwargs_cmp["score_ids"] = score_ids
+        if empresa_ids:
+            kwargs_cmp["empresa_ids"] = empresa_ids
+        m_lim = re.search(r"\b(?:top|compare|comparar)\s+(\d{1,2})\b", msg)
+        if m_lim:
+            kwargs_cmp["limite"] = int(m_lim.group(1))
+        plano.append({"nome": "comparar_candidatos", "kwargs": kwargs_cmp})
+    if pede_roteiro:
+        kwargs_rot: dict[str, Any] = {}
+        score_id = _extrair_score_id(mensagem)
+        if score_id is not None:
+            kwargs_rot["score_id"] = score_id
+        empresa_ids = _extrair_empresa_ids(mensagem)
+        if empresa_ids:
+            kwargs_rot["empresa_id"] = empresa_ids[0]
+        pipeline_id = _extrair_pipeline_id(mensagem)
+        if pipeline_id is not None:
+            kwargs_rot["pipeline_id"] = pipeline_id
+        plano.append({"nome": "gerar_roteiro_contato", "kwargs": kwargs_rot})
+    if pede_tarefa_crm:
+        kwargs_tar: dict[str, Any] = {}
+        titulo = _extrair_titulo_tarefa(mensagem)
+        if titulo:
+            kwargs_tar["titulo"] = titulo
+        else:
+            kwargs_tar["titulo"] = mensagem.strip()[:200]
+        pipeline_id = _extrair_pipeline_id(mensagem)
+        if pipeline_id is not None:
+            kwargs_tar["pipeline_id"] = pipeline_id
+        empresa_ids = _extrair_empresa_ids(mensagem)
+        if empresa_ids:
+            kwargs_tar["empresa_id"] = empresa_ids[0]
+        data_lim = _extrair_data_limite_tarefa(mensagem)
+        if data_lim:
+            kwargs_tar["data_limite"] = data_lim
+        plano.append({"nome": "criar_tarefa_comercial", "kwargs": kwargs_tar})
     if pede_busca_interna or (
         pergunta_exploratoria
         and not pede_prospeccao
         and not pede_explicacao_lead
         and not pede_cruzar_crm
+        and not pede_comparar
+        and not pede_roteiro
+        and not pede_tarefa_crm
     ):
         plano.append({"nome": "busca_unificada", "kwargs": {"consulta": mensagem.strip()}})
     if pede_web:
@@ -670,19 +839,15 @@ def _planejar_ferramentas(mensagem: str) -> list[dict[str, Any]]:
 def _extrair_datas_iso_ou_br(texto: str) -> list[date]:
     out: list[date] = []
     for a, b, c in re.findall(r"\b(\d{4})-(\d{2})-(\d{2})\b", texto):
-        try:
+        with contextlib.suppress(ValueError):
             out.append(date(int(a), int(b), int(c)))
-        except ValueError:
-            pass
     for d, m, y in re.findall(r"\b(\d{2})/(\d{2})/(\d{4})\b", texto):
-        try:
+        with contextlib.suppress(ValueError):
             out.append(date(int(y), int(m), int(d)))
-        except ValueError:
-            pass
     return out
 
 
-def _extrair_mes_ano(texto: str) -> Optional[tuple[int, int]]:
+def _extrair_mes_ano(texto: str) -> tuple[int, int] | None:
     meses = {
         "janeiro": 1, "fevereiro": 2, "marco": 3, "março": 3, "abril": 4, "maio": 5, "junho": 6,
         "julho": 7, "agosto": 8, "setembro": 9, "outubro": 10, "novembro": 11, "dezembro": 12,
@@ -701,7 +866,7 @@ def _fim_mes(ano: int, mes: int) -> date:
     return date(ano, mes + 1, 1) - timedelta(days=1)
 
 
-def _periodo_ultimo_ano_com_dados(db: Session) -> Optional[dict[str, str]]:
+def _periodo_ultimo_ano_com_dados(db: Session) -> dict[str, str] | None:
     limites = nik_tools.ferramenta_limites_historico(db)
     fim_raw = limites.get("fim")
     if not fim_raw:
@@ -724,7 +889,7 @@ def _pedido_relatorio_ultimo_ano(mensagem: str) -> bool:
     return any(g in msg for g in gatilhos) and ("relatório" in msg or "relatorio" in msg or "resumo" in msg)
 
 
-def _extrair_parceiro_id_por_texto(db: Session, mensagem: str) -> Optional[int]:
+def _extrair_parceiro_id_por_texto(db: Session, mensagem: str) -> int | None:
     msg = (mensagem or "").lower()
     rows = db.query(Parceiro.id, Parceiro.nome).all()
     for pid, nome in sorted(rows, key=lambda r: len(r[1] or ""), reverse=True):
@@ -744,10 +909,10 @@ def _inferir_consulta_usuario(db: Session, mensagem: str) -> dict[str, Any]:
     mes_ano = _extrair_mes_ano(msg)
     parceiro_id = _extrair_parceiro_id_por_texto(db, mensagem)
 
-    inicio: Optional[date] = None
-    fim: Optional[date] = None
-    ano_inicio: Optional[int] = None
-    ano_fim: Optional[int] = None
+    inicio: date | None = None
+    fim: date | None = None
+    ano_inicio: int | None = None
+    ano_fim: int | None = None
 
     if len(datas) >= 2:
         inicio, fim = datas[0], datas[-1]
@@ -799,7 +964,11 @@ def _inferir_consulta_usuario(db: Session, mensagem: str) -> dict[str, Any]:
     }
 
 
-def _executar_plano_ferramentas(db: Session, plano: list[dict[str, Any]]) -> tuple[dict[str, Any], list[dict[str, Any]]]:
+def _executar_plano_ferramentas(
+    db: Session,
+    plano: list[dict[str, Any]],
+    usuario_id: int | None = None,
+) -> tuple[dict[str, Any], list[dict[str, Any]]]:
     resultado_contexto: dict[str, Any] = {}
     trace: list[dict[str, Any]] = []
     mapa = {
@@ -815,10 +984,15 @@ def _executar_plano_ferramentas(db: Session, plano: list[dict[str, Any]]) -> tup
         "explicar_candidato_prospeccao": nik_tools.ferramenta_explicar_candidato_prospeccao,
         "status_modelo_prospeccao": nik_tools.ferramenta_status_modelo_prospeccao,
         "cruzar_crm_prospeccao": nik_tools.ferramenta_cruzar_crm_prospeccao,
+        "comparar_candidatos": nik_tools.ferramenta_comparar_candidatos,
+        "gerar_roteiro_contato": nik_tools.ferramenta_gerar_roteiro_contato,
+        "criar_tarefa_comercial": nik_tools.ferramenta_criar_tarefa_comercial,
     }
     for item in plano:
         nome = item.get("nome")
-        kwargs = item.get("kwargs", {}) or {}
+        kwargs = dict(item.get("kwargs", {}) or {})
+        if nome == "criar_tarefa_comercial" and usuario_id is not None:
+            kwargs["usuario_id"] = usuario_id
         fn = mapa.get(nome)
         if not fn:
             trace.append({"tool": nome, "status": "unknown_tool", "kwargs": kwargs})
@@ -870,6 +1044,12 @@ def _fontes_para_bloco(bloco: str, fontes_disponiveis: list[str]) -> list[str]:
         fontes.append("explicar_candidato_prospeccao")
     if any(k in b for k in ["modelo", "ndcg", "xgboost", "versão", "versao", "métrica", "metrica"]):
         fontes.append("status_modelo_prospeccao")
+    if any(k in b for k in ["compar", "lado a lado", "versus", "vs "]):
+        fontes.append("comparar_candidatos")
+    if any(k in b for k in ["roteiro", "script", "ligação", "ligacao", "objeção", "objecao"]):
+        fontes.append("gerar_roteiro_contato")
+    if any(k in b for k in ["tarefa", "lembrete", "follow-up", "follow up"]):
+        fontes.append("criar_tarefa_comercial")
     if not fontes:
         fontes.append("snapshot_operacional")
     finais = [f for f in fontes if f in fontes_disponiveis]
@@ -980,6 +1160,32 @@ def _contexto_para_modelo(contexto: dict[str, Any]) -> dict[str, Any]:
     if isinstance(st, dict) and isinstance(st.get("metricas"), dict):
         metricas = st["metricas"]
         st["metricas"] = {k: metricas[k] for k in list(metricas.keys())[:12]}
+    cmp = slim.get("comparar_candidatos")
+    if isinstance(cmp, dict):
+        comp = cmp.get("comparacao", [])
+        if isinstance(comp, list):
+            cmp["comparacao"] = [
+                {
+                    "score_id": c.get("score_id"),
+                    "razao_social": c.get("razao_social"),
+                    "prioridade": c.get("prioridade"),
+                    "score": c.get("score"),
+                    "cnae_principal": c.get("cnae_principal"),
+                    "local": c.get("local"),
+                    "motivos": (c.get("motivos") or [])[:4] if isinstance(c.get("motivos"), list) else [],
+                }
+                for c in comp[:8]
+                if isinstance(c, dict)
+            ]
+    rot = slim.get("gerar_roteiro_contato")
+    if isinstance(rot, dict) and isinstance(rot.get("roteiro"), dict):
+        roteiro = rot["roteiro"]
+        rot["roteiro"] = {
+            "abertura": (roteiro.get("abertura") or "")[:500],
+            "argumentos_ree": (roteiro.get("argumentos_ree") or [])[:5],
+            "objecoes": (roteiro.get("objecoes") or [])[:4],
+            "proximo_passo": (roteiro.get("proximo_passo") or "")[:300],
+        }
     # Catálogo completo aumenta muito o prompt e pouco ajuda no raciocínio final.
     slim.pop("catalogo_ferramentas", None)
     return slim
@@ -1000,7 +1206,7 @@ def _fontes_web_contexto(contexto: dict[str, Any]) -> list[dict[str, str]]:
     return fontes
 
 
-def _resumo_web_sem_modelo(consulta: str, itens_busca: Optional[list] = None) -> str:
+def _resumo_web_sem_modelo(consulta: str, itens_busca: list | None = None) -> str:
     """Fallback quando o modelo falha: ainda usa snippets da Serper se existirem."""
     bruto = itens_busca if isinstance(itens_busca, list) else []
     validos = [i for i in bruto if isinstance(i, dict) and (i.get("titulo") or i.get("url"))]
@@ -1049,7 +1255,7 @@ def _contexto_web_para_sintese(contexto: dict[str, Any]) -> dict[str, Any]:
     return base
 
 
-def _sintese_web_modelo(contexto: dict[str, Any], mensagem: str) -> Optional[dict[str, Any]]:
+def _sintese_web_modelo(contexto: dict[str, Any], mensagem: str) -> dict[str, Any] | None:
     resposta = provider.chamar_modelo(
         prompts.SYSTEM_OPS_WEB_RESEARCH,
         prompts.montar_prompt_ops_web_research(_contexto_web_para_sintese(contexto), mensagem),
@@ -1097,8 +1303,8 @@ def _fallback_documento_chat(mensagem: str, contexto: dict[str, Any]) -> dict[st
 def conversar_ops_thread(
     db: Session,
     mensagem: str,
-    thread_id: Optional[str] = None,
-    usuario_id: Optional[int] = None,
+    thread_id: str | None = None,
+    usuario_id: int | None = None,
 ) -> dict[str, Any]:
     mensagem = (mensagem or "").strip()
     if not mensagem:
@@ -1264,7 +1470,7 @@ def _extrair_anos(texto: str) -> list[int]:
 def _montar_contexto_conversa_integrada(
     db: Session,
     mensagem: str,
-    usuario_id: Optional[int] = None,
+    usuario_id: int | None = None,
     thread_id: str = "main",
 ) -> dict[str, Any]:
     consulta = _inferir_consulta_usuario(db, mensagem)
@@ -1279,9 +1485,8 @@ def _montar_contexto_conversa_integrada(
                 item["kwargs"]["fim"] = consulta["fim"]
             if consulta.get("parceiro_id"):
                 item["kwargs"]["parceiro_id"] = consulta["parceiro_id"]
-        if nome == "busca_unificada":
-            if consulta.get("parceiro_id"):
-                item["kwargs"]["parceiro_id"] = consulta["parceiro_id"]
+        if nome == "busca_unificada" and consulta.get("parceiro_id"):
+            item["kwargs"]["parceiro_id"] = consulta["parceiro_id"]
         if nome in {"timeline_anual", "impacto_geral"}:
             if consulta.get("ano_inicio"):
                 item["kwargs"]["ano_inicio"] = consulta["ano_inicio"]
@@ -1293,7 +1498,7 @@ def _montar_contexto_conversa_integrada(
     if consulta.get("inicio") and consulta.get("fim") and not any(i.get("nome") == "resumo_periodo" for i in plano):
         plano.append({"nome": "resumo_periodo", "kwargs": {"inicio": consulta["inicio"], "fim": consulta["fim"], "parceiro_id": consulta.get("parceiro_id")}})
 
-    contexto_exec, trace = _executar_plano_ferramentas(db, plano)
+    contexto_exec, trace = _executar_plano_ferramentas(db, plano, usuario_id=usuario_id)
     contexto: dict[str, Any] = dict(contexto_exec)
     contexto["used_tools"] = [t["tool"] for t in trace if t.get("status") == "ok"]
     contexto["data_sources"] = [t["tool"] for t in trace if t.get("status") == "ok"]
@@ -1312,10 +1517,10 @@ def _montar_contexto_conversa_integrada(
 
 def salvar_conversa_ops(
     db: Session,
-    usuario_id: Optional[int],
+    usuario_id: int | None,
     pergunta: str,
     resposta_payload: dict[str, Any],
-    thread_id: Optional[str] = None,
+    thread_id: str | None = None,
 ) -> dict[str, Any]:
     registro = NikConversa(
         usuario_id=usuario_id,
@@ -1334,7 +1539,7 @@ def salvar_conversa_ops(
     return saida
 
 
-def listar_conversas_ops(db: Session, usuario_id: Optional[int], limite: int = 20) -> list[dict[str, Any]]:
+def listar_conversas_ops(db: Session, usuario_id: int | None, limite: int = 20) -> list[dict[str, Any]]:
     q = db.query(NikConversa)
     if usuario_id is not None:
         q = q.filter(NikConversa.usuario_id == usuario_id)
@@ -1344,8 +1549,8 @@ def listar_conversas_ops(db: Session, usuario_id: Optional[int], limite: int = 2
 
 def listar_conversas_thread(
     db: Session,
-    usuario_id: Optional[int],
-    thread_id: Optional[str],
+    usuario_id: int | None,
+    thread_id: str | None,
     limite: int = 50,
 ) -> list[dict[str, Any]]:
     tid = _normalizar_thread_id(thread_id)
@@ -1439,10 +1644,10 @@ def _markdown_relatorio_maiara(relatorio: dict[str, Any]) -> str:
 
 def gerar_relatorio_maiara(
     db: Session,
-    usuario_id: Optional[int],
-    inicio: Optional[str],
-    fim: Optional[str],
-    parceiro_id: Optional[int],
+    usuario_id: int | None,
+    inicio: str | None,
+    fim: str | None,
+    parceiro_id: int | None,
     formato: str = "executivo",
 ) -> dict[str, Any]:
     formato = (formato or "executivo").strip().lower()
@@ -1508,6 +1713,6 @@ def gerar_relatorio_maiara(
     return _cache_set(cache_key, resultado)
 
 
-def obter_relatorio_maiara(db: Session, relatorio_id: int) -> Optional[dict[str, Any]]:
+def obter_relatorio_maiara(db: Session, relatorio_id: int) -> dict[str, Any] | None:
     row = db.get(NikRelatorioGerado, relatorio_id)
     return row.to_dict() if row else None

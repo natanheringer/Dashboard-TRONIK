@@ -7,8 +7,7 @@ import logging
 from flask import Blueprint, jsonify, request
 from flask_login import current_user, login_required
 
-from banco_dados.services import prospeccao_xgb_service
-from banco_dados.services import prospeccao_crm_bridge
+from banco_dados.services import prospeccao_crm_bridge, prospeccao_xgb_service
 from rotas.api.decorators import admin_required, get_db
 
 logger = logging.getLogger(__name__)
@@ -89,6 +88,33 @@ def criar_pipeline_candidato(empresa_id: int):
         }), 400
     except Exception as e:
         logger.error("Erro ao criar pipeline de candidato %s: %s", empresa_id, e)
+        return jsonify({
+            "ok": False,
+            "dados": None,
+            "erros": [{"codigo": "ERRO_PROSPECCAO", "mensagem": str(e)}],
+        }), 500
+    finally:
+        db.close()
+
+
+@prospeccao_bp.route("/saude", methods=["GET"])
+@login_required
+def saude():
+    """Saúde do ranker de prospecção: modelo ativo, métricas NDCG, scores publicados.
+
+    GET /api/prospeccao/saude
+    Query params:
+      - model_version: str — versão específica; omitido usa o ativo
+    """
+    db = get_db()
+    try:
+        dados = prospeccao_xgb_service.saude_prospeccao(
+            db,
+            model_version=request.args.get("model_version") or None,
+        )
+        return jsonify({"ok": True, "dados": dados, "erros": []})
+    except Exception as e:
+        logger.error("Erro ao consultar saúde de prospecção: %s", e)
         return jsonify({
             "ok": False,
             "dados": None,

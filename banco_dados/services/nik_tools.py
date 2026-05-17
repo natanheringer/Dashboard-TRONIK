@@ -14,19 +14,30 @@ import random
 import time
 from datetime import date, datetime
 from ipaddress import ip_address
+from typing import Any
 from urllib.error import HTTPError, URLError
 from urllib.parse import urlparse
 from urllib.request import Request, urlopen
-from typing import Any, Optional
 
 from sqlalchemy import func
 from sqlalchemy.orm import Session
 
-from banco_dados.modelos import Coleta, Coletor, ContratoRecorrente, Parceiro, Pipeline
-from banco_dados.services import nik_contexto as ctx
-from banco_dados.services import preview_service as pv
-from banco_dados.services import prospeccao_crm_bridge as crm_bridge
-from banco_dados.services import prospeccao_xgb_service as prospeccao_svc
+from banco_dados.modelos import (
+    Coleta,
+    Coletor,
+    ContratoRecorrente,
+    EmpresaCandidata,
+    Parceiro,
+    Pipeline,
+    ScoreProspeccao,
+)
+from banco_dados.services import (
+    nik_contexto as ctx,
+    preview_service as pv,
+    prospeccao_crm_bridge as crm_bridge,
+    prospeccao_xgb_service as prospeccao_svc,
+)
+from banco_dados.services.crm_service import CRMService
 from banco_dados.utils.cache import obter_cache
 
 _WEB_CHAMADAS_TS: list[float] = []
@@ -38,9 +49,7 @@ def _web_request_transient(exc: Exception) -> bool:
         return True
     if isinstance(exc, HTTPError) and exc.code in (502, 503, 504):
         return True
-    if isinstance(exc, URLError):
-        return True
-    return False
+    return bool(isinstance(exc, URLError))
 
 
 def _web_network_retries() -> int:
@@ -58,7 +67,7 @@ def _serper_post_json(payload: bytes, api_key: str, timeout_s: float) -> str:
         method="POST",
     )
     retries = _web_network_retries()
-    last: Optional[BaseException] = None
+    last: BaseException | None = None
     for attempt in range(retries + 1):
         if attempt > 0:
             delay = min(3.0, 0.2 * (1.6 ** (attempt - 1))) * random.uniform(0.85, 1.15)
@@ -191,7 +200,7 @@ def _periodo_do_ano(ano: int) -> pv.PeriodoRelatorio:
     return pv.PeriodoRelatorio(date(ano, 1, 1), date(ano, 12, 31))
 
 
-def _limites_historico(db: Session) -> tuple[Optional[date], Optional[date]]:
+def _limites_historico(db: Session) -> tuple[date | None, date | None]:
     row = db.query(func.min(Coleta.data_hora), func.max(Coleta.data_hora)).first()
     if not row:
         return None, None
@@ -199,7 +208,7 @@ def _limites_historico(db: Session) -> tuple[Optional[date], Optional[date]]:
     return (minimo.date() if minimo else None, maximo.date() if maximo else None)
 
 
-def ferramenta_limites_historico(db: Session) -> dict[str, Optional[str]]:
+def ferramenta_limites_historico(db: Session) -> dict[str, str | None]:
     inicio, fim = _limites_historico(db)
     return {
         "inicio": inicio.isoformat() if inicio else None,
@@ -213,9 +222,9 @@ def ferramenta_snapshot_operacional(db: Session) -> dict[str, Any]:
 
 def ferramenta_resumo_periodo(
     db: Session,
-    inicio: Optional[str] = None,
-    fim: Optional[str] = None,
-    parceiro_id: Optional[int] = None,
+    inicio: str | None = None,
+    fim: str | None = None,
+    parceiro_id: int | None = None,
 ) -> dict[str, Any]:
     periodo = pv.resolver_periodo(inicio, fim)
     resumo = pv.resumo_relatorios(db, periodo, parceiro_id=parceiro_id)
@@ -228,9 +237,9 @@ def ferramenta_resumo_periodo(
 
 def ferramenta_timeline_anual(
     db: Session,
-    ano_inicio: Optional[int] = None,
-    ano_fim: Optional[int] = None,
-    parceiro_id: Optional[int] = None,
+    ano_inicio: int | None = None,
+    ano_fim: int | None = None,
+    parceiro_id: int | None = None,
 ) -> dict[str, Any]:
     data_min, data_max = _limites_historico(db)
     if not data_min or not data_max:
@@ -271,9 +280,9 @@ def ferramenta_timeline_anual(
 
 def ferramenta_impacto_geral(
     db: Session,
-    ano_inicio: Optional[int] = None,
-    ano_fim: Optional[int] = None,
-    parceiro_id: Optional[int] = None,
+    ano_inicio: int | None = None,
+    ano_fim: int | None = None,
+    parceiro_id: int | None = None,
 ) -> dict[str, Any]:
     timeline = ferramenta_timeline_anual(db, ano_inicio=ano_inicio, ano_fim=ano_fim, parceiro_id=parceiro_id)
     anos = timeline.get("anos", [])
@@ -331,7 +340,7 @@ def ferramenta_listar_candidatos_prospeccao(
 def ferramenta_explicar_candidato_prospeccao(
     db: Session,
     *,
-    score_id: Optional[int] = None,
+    score_id: int | None = None,
     model_version: str | None = None,
 ) -> dict[str, Any]:
     """Evidências e motivos do score para um candidato da fila REE."""
@@ -372,7 +381,7 @@ def ferramenta_explicar_candidato_prospeccao(
 def ferramenta_cruzar_crm_prospeccao(
     db: Session,
     *,
-    pipeline_id: Optional[int] = None,
+    pipeline_id: int | None = None,
     empresa: str | None = None,
     limite_scores: int = 5,
 ) -> dict[str, Any]:
@@ -383,6 +392,322 @@ def ferramenta_cruzar_crm_prospeccao(
         empresa=empresa,
         limite_scores=max(1, min(int(limite_scores or 5), 20)),
     )
+
+
+def _resumo_candidato_comparacao(payload: dict[str, Any]) -> dict[str, Any]:
+    empresa = payload.get("empresa") if isinstance(payload.get("empresa"), dict) else {}
+    local = payload.get("local") if isinstance(payload.get("local"), dict) else {}
+    motivos = payload.get("motivos") or []
+    if not isinstance(motivos, list):
+        motivos = []
+    return {
+        "score_id": payload.get("id"),
+        "empresa_id": payload.get("empresa_id") or empresa.get("id"),
+        "razao_social": empresa.get("razao_social") or empresa.get("nome_fantasia"),
+        "nome_fantasia": empresa.get("nome_fantasia"),
+        "prioridade": payload.get("prioridade"),
+        "score": payload.get("score"),
+        "score_percentil": payload.get("score_percentil"),
+        "ranking_contexto": payload.get("ranking_contexto"),
+        "qid": payload.get("qid"),
+        "cnae_principal": empresa.get("cnae_principal"),
+        "porte": empresa.get("porte"),
+        "local": {
+            "bairro": local.get("bairro") or empresa.get("bairro"),
+            "ra": local.get("ra"),
+            "endereco": local.get("endereco") or empresa.get("endereco_normalizado"),
+            "cep": empresa.get("cep"),
+        },
+        "contato": {
+            "telefone": empresa.get("telefone"),
+            "email": empresa.get("email"),
+        },
+        "motivos": motivos[:6],
+    }
+
+
+def _carregar_score_por_empresa_id(db: Session, empresa_id: int) -> dict[str, Any] | None:
+    model = prospeccao_svc._resolve_model(db)
+    if not model:
+        return None
+    row = (
+        db.query(ScoreProspeccao)
+        .filter(ScoreProspeccao.modelo_id == model.id, ScoreProspeccao.empresa_id == int(empresa_id))
+        .order_by(ScoreProspeccao.ranking_contexto.asc())
+        .first()
+    )
+    if not row:
+        return None
+    explicado = prospeccao_svc.explicar_candidato(db, int(row.id))
+    return (explicado or {}).get("score")
+
+
+def _resolver_payload_candidato(
+    db: Session,
+    *,
+    score_id: int | None = None,
+    empresa_id: int | None = None,
+    pipeline_id: int | None = None,
+) -> dict[str, Any] | None:
+    if score_id is not None:
+        explicado = prospeccao_svc.explicar_candidato(db, int(score_id))
+        return (explicado or {}).get("score")
+    if empresa_id is not None:
+        return _carregar_score_por_empresa_id(db, int(empresa_id))
+    if pipeline_id is not None:
+        cruzado = crm_bridge.buscar_scores_para_pipeline(db, int(pipeline_id))
+        if not cruzado:
+            return None
+        scores = cruzado.get("scores") or []
+        if scores and isinstance(scores[0], dict):
+            return scores[0]
+    return None
+
+
+def _parse_data_limite(data_limite: str | None) -> datetime | None:
+    bruto = (data_limite or "").strip()
+    if not bruto:
+        return None
+    for fmt in ("%Y-%m-%dT%H:%M:%S", "%Y-%m-%d %H:%M:%S", "%Y-%m-%d", "%d/%m/%Y"):
+        try:
+            return datetime.strptime(bruto[:19] if "T" not in bruto and len(bruto) > 10 else bruto, fmt)
+        except ValueError:
+            continue
+    try:
+        return datetime.fromisoformat(bruto.replace("Z", "+00:00")).replace(tzinfo=None)
+    except ValueError:
+        return None
+
+
+def _montar_roteiro_contato(payload: dict[str, Any]) -> dict[str, Any]:
+    empresa = payload.get("empresa") if isinstance(payload.get("empresa"), dict) else {}
+    local = payload.get("local") if isinstance(payload.get("local"), dict) else {}
+    razao = (empresa.get("razao_social") or empresa.get("nome_fantasia") or "sua empresa").strip()
+    bairro = (local.get("bairro") or empresa.get("bairro") or "sua região").strip()
+    cnae = (empresa.get("cnae_principal") or "setor compatível").strip()
+    prioridade = (payload.get("prioridade") or "media").strip()
+    motivos = payload.get("motivos") or []
+    motivos_txt = ""
+    if isinstance(motivos, list) and motivos:
+        trechos = []
+        for m in motivos[:3]:
+            if isinstance(m, dict):
+                feat = m.get("feature") or m.get("nome") or m.get("label")
+                if feat:
+                    trechos.append(str(feat).replace("_", " "))
+            elif m:
+                trechos.append(str(m))
+        if trechos:
+            motivos_txt = "; ".join(trechos)
+
+    abertura = (
+        f"Olá, falo da Tronik. Estamos mapeando parceiros para logística reversa de resíduos eletrônicos (REE) "
+        f"no DF e identificamos {razao} em {bairro} como candidata prioritária ({prioridade}). "
+        "Posso explicar em dois minutos como funciona a coleta recorrente?"
+    )
+    argumentos = [
+        "A Tronik opera coleta de e-waste com rastreabilidade e conformidade ambiental no Distrito Federal.",
+        f"O perfil CNAE {cnae} costuma gerar volume recorrente de equipamentos fora de uso.",
+        "Modelo flexível: pontual ou contrato recorrente, com roteirização próxima à sua base.",
+    ]
+    if motivos_txt:
+        argumentos.append(f"Sinais do nosso ranker REE: {motivos_txt}.")
+    objecoes = [
+        {
+            "objecao": "Já temos fornecedor de descarte.",
+            "resposta": "Podemos complementar picos de volume ou auditoria de destinação final, sem substituir contrato vigente.",
+        },
+        {
+            "objecao": "Não temos volume agora.",
+            "resposta": "Faz sentido começar com diagnóstico gratuito e piloto; muitos parceiros iniciam com uma coleta teste.",
+        },
+        {
+            "objecao": "Preciso falar com outra área.",
+            "resposta": "Posso enviar um resumo executivo e agendar retorno com facilities/compras no horário de vocês.",
+        },
+    ]
+    proximo_passo = (
+        "Registrar interação no CRM, enviar proposta de piloto de coleta REE e agendar visita técnica "
+        "ou ligação de follow-up em até 3 dias úteis."
+    )
+    return {
+        "abertura": abertura,
+        "argumentos_ree": argumentos,
+        "objecoes": objecoes,
+        "proximo_passo": proximo_passo,
+    }
+
+
+def ferramenta_comparar_candidatos(
+    db: Session,
+    *,
+    score_ids: list[int] | None = None,
+    empresa_ids: list[int] | None = None,
+    limite: int = 5,
+) -> dict[str, Any]:
+    """Compara candidatos REE lado a lado (scores, CNAE, local, motivos)."""
+    limite_efetivo = max(1, min(int(limite or 5), 10))
+    payloads: list[dict[str, Any]] = []
+    vistos: set[int] = set()
+
+    for sid in score_ids or []:
+        try:
+            sid_int = int(sid)
+        except (TypeError, ValueError):
+            continue
+        if sid_int in vistos:
+            continue
+        explicado = prospeccao_svc.explicar_candidato(db, sid_int)
+        score = (explicado or {}).get("score")
+        if score:
+            vistos.add(sid_int)
+            payloads.append(score)
+        if len(payloads) >= limite_efetivo:
+            break
+
+    if len(payloads) < limite_efetivo:
+        for eid in empresa_ids or []:
+            try:
+                eid_int = int(eid)
+            except (TypeError, ValueError):
+                continue
+            score = _carregar_score_por_empresa_id(db, eid_int)
+            if not score:
+                continue
+            sid = score.get("id")
+            if sid is not None and int(sid) in vistos:
+                continue
+            if sid is not None:
+                vistos.add(int(sid))
+            payloads.append(score)
+            if len(payloads) >= limite_efetivo:
+                break
+
+    if not payloads:
+        fila = prospeccao_svc.buscar_candidatos_prospeccao(db, limite=limite_efetivo)
+        payloads = fila[:limite_efetivo]
+
+    comparacao = [_resumo_candidato_comparacao(p) for p in payloads if isinstance(p, dict)]
+    if not comparacao:
+        return {
+            "encontrado": False,
+            "total": 0,
+            "comparacao": [],
+            "resumo": "Nenhum candidato encontrado para comparar. Informe score_ids ou empresa_ids.",
+        }
+
+    nomes = [c.get("razao_social") or "?" for c in comparacao]
+    return {
+        "encontrado": True,
+        "total": len(comparacao),
+        "comparacao": comparacao,
+        "resumo": f"Comparação lado a lado de {len(comparacao)} candidato(s): {', '.join(nomes[:5])}.",
+    }
+
+
+def ferramenta_gerar_roteiro_contato(
+    db: Session,
+    *,
+    score_id: int | None = None,
+    empresa_id: int | None = None,
+    pipeline_id: int | None = None,
+) -> dict[str, Any]:
+    """Roteiro estruturado de contato comercial (abertura, REE, objeções, próximo passo)."""
+    if score_id is None and empresa_id is None and pipeline_id is None:
+        return {
+            "encontrado": False,
+            "resumo": "Informe score_id, empresa_id ou pipeline_id para gerar o roteiro de contato.",
+        }
+
+    payload = _resolver_payload_candidato(
+        db,
+        score_id=score_id,
+        empresa_id=empresa_id,
+        pipeline_id=pipeline_id,
+    )
+    if not payload:
+        ref = (
+            f"score_id={score_id}"
+            if score_id is not None
+            else f"empresa_id={empresa_id}"
+            if empresa_id is not None
+            else f"pipeline_id={pipeline_id}"
+        )
+        return {
+            "encontrado": False,
+            "resumo": f"Candidato não encontrado para {ref}.",
+        }
+
+    empresa = payload.get("empresa") if isinstance(payload.get("empresa"), dict) else {}
+    razao = empresa.get("razao_social") or empresa.get("nome_fantasia") or "empresa"
+    roteiro = _montar_roteiro_contato(payload)
+    return {
+        "encontrado": True,
+        "score_id": payload.get("id"),
+        "empresa_id": payload.get("empresa_id") or empresa.get("id"),
+        "pipeline_id": pipeline_id,
+        "razao_social": razao,
+        "roteiro": roteiro,
+        "resumo": f"Roteiro de contato gerado para {razao} (score_id={payload.get('id')}).",
+    }
+
+
+def ferramenta_criar_tarefa_comercial(
+    db: Session,
+    titulo: str,
+    *,
+    pipeline_id: int | None = None,
+    empresa_id: int | None = None,
+    data_limite: str | None = None,
+    descricao: str | None = None,
+    usuario_id: int | None = None,
+) -> dict[str, Any]:
+    """Cria tarefa comercial no CRM (via CRMService)."""
+    titulo_limpo = (titulo or "").strip()
+    if not titulo_limpo:
+        return {
+            "criado": False,
+            "resumo": "Informe o título da tarefa comercial.",
+        }
+    if usuario_id is None:
+        return {
+            "criado": False,
+            "resumo": "Usuário não identificado: tarefa CRM exige sessão autenticada.",
+        }
+
+    pipeline_efetivo = pipeline_id
+    if pipeline_efetivo is None and empresa_id is not None:
+        empresa = db.query(EmpresaCandidata).filter_by(id=int(empresa_id)).first()
+        if empresa and empresa.pipeline_id:
+            pipeline_efetivo = int(empresa.pipeline_id)
+
+    descricao_final = (descricao or "").strip() or None
+    if empresa_id is not None and not descricao_final:
+        empresa = db.query(EmpresaCandidata).filter_by(id=int(empresa_id)).first()
+        if empresa:
+            nome = (empresa.razao_social or empresa.nome_fantasia or "").strip()
+            if nome:
+                descricao_final = f"Tarefa vinculada à empresa candidata {nome} (empresa_id={empresa_id})."
+
+    dados: dict[str, Any] = {
+        "titulo": titulo_limpo[:200],
+        "descricao": descricao_final,
+        "pipeline_id": pipeline_efetivo,
+        "prioridade": "media",
+    }
+    data_venc = _parse_data_limite(data_limite)
+    if data_venc:
+        dados["data_vencimento"] = data_venc
+
+    tarefa = CRMService.criar_tarefa(dados, int(usuario_id))
+    return {
+        "criado": True,
+        "tarefa_id": tarefa.id,
+        "titulo": tarefa.titulo,
+        "pipeline_id": tarefa.pipeline_id,
+        "data_vencimento": tarefa.data_vencimento.isoformat() if tarefa.data_vencimento else None,
+        "resumo": f"Tarefa CRM #{tarefa.id} criada: {tarefa.titulo}.",
+    }
 
 
 def ferramenta_status_modelo_prospeccao(
@@ -422,7 +747,7 @@ def ferramenta_busca_unificada(
     db: Session,
     consulta: str,
     limite: int = 8,
-    parceiro_id: Optional[int] = None,
+    parceiro_id: int | None = None,
 ) -> dict[str, Any]:
     termo = _normalizar_texto(consulta or "")
     if not termo:
@@ -595,9 +920,7 @@ def _host_permitido(hostname: str) -> bool:
     except ValueError:
         pass
     allowlist = [d.strip().lower() for d in (os.getenv("NIK_WEB_ALLOWED_DOMAINS", "") or "").split(",") if d.strip()]
-    if allowlist and not any(host == d or host.endswith(f".{d}") for d in allowlist):
-        return False
-    return True
+    return not (allowlist and not any(host == d or host.endswith(f".{d}") for d in allowlist))
 
 
 def _rate_limit_ok() -> bool:
@@ -756,6 +1079,18 @@ def catalogo_ferramentas() -> list[dict[str, Any]]:
         {
             "nome": "cruzar_crm_prospeccao",
             "descricao": "Cruza pipeline CRM com scores REE por pipeline_id ou nome da empresa.",
+        },
+        {
+            "nome": "comparar_candidatos",
+            "descricao": "Compara candidatos REE lado a lado (score, CNAE, local, motivos).",
+        },
+        {
+            "nome": "gerar_roteiro_contato",
+            "descricao": "Roteiro de ligação/contato (abertura, argumentos REE, objeções, próximo passo).",
+        },
+        {
+            "nome": "criar_tarefa_comercial",
+            "descricao": "Cria tarefa ou lembrete no CRM comercial (título, pipeline, prazo).",
         },
         {"nome": "busca_web", "descricao": "Busca na internet com guardrails e fontes externas auditáveis."},
         {"nome": "catalogo_fontes_web", "descricao": "Catálogo curado de domínios de alta confiança para busca web."},

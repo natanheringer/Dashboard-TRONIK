@@ -121,6 +121,8 @@ def main(argv: list[str] | None = None) -> int:
     s_pub.add_argument("--prioridade", type=str, default=None)
     s_pub.add_argument("--model-version", type=str, default=None)
 
+    sub.add_parser("monitor", help="Relatório JSON de saúde do ranker (cron/ops)")
+
     s_pipe = sub.add_parser("ranker-pipeline", help="build-features + train-ranker + score-candidates")
     s_pipe.add_argument("--version", type=str, default="prospeccao-ree-v3.2")
     s_pipe.add_argument("--seed-demo", action="store_true")
@@ -323,7 +325,7 @@ def main(argv: list[str] | None = None) -> int:
         from jobs.prospeccao.aneel_ingest import sync_aneel_consumidores
         from jobs.prospeccao.db import session_scope
 
-        ufs = set(u.strip().upper() for u in args.ufs.split(",") if u.strip())
+        ufs = {u.strip().upper() for u in args.ufs.split(",") if u.strip()}
         with session_scope() as db:
             result = sync_aneel_consumidores(db, url=args.url, ufs=ufs)
             db.commit()
@@ -331,9 +333,10 @@ def main(argv: list[str] | None = None) -> int:
         return 0
 
     if args.cmd == "ibram":
-        from jobs.prospeccao.ibram_ingest import sync_ibram_geradores
-        from jobs.prospeccao.db import session_scope
         from pathlib import Path as _Path
+
+        from jobs.prospeccao.db import session_scope
+        from jobs.prospeccao.ibram_ingest import sync_ibram_geradores
 
         csv_path = _Path(args.file) if args.file else None
         with session_scope() as db:
@@ -394,10 +397,9 @@ def main(argv: list[str] | None = None) -> int:
         return 0
 
     if args.cmd == "receita-parse":
+        from jobs.prospeccao import paths as pathutil
         from jobs.prospeccao.db import session_scope
         from jobs.prospeccao.receita_parse import parse_estabelecimentos_to_db
-
-        from jobs.prospeccao import paths as pathutil
         dirs = pathutil.ensure_raw_layout()
         with session_scope() as db:
             result = parse_estabelecimentos_to_db(db, dirs["receita"], two_pass=not args.no_two_pass)
@@ -477,6 +479,11 @@ def main(argv: list[str] | None = None) -> int:
             )
         print(json.dumps(result, ensure_ascii=False, indent=2, default=str))
         return 0
+
+    if args.cmd == "monitor":
+        from jobs.prospeccao.monitor_ranker import run_monitor
+
+        return run_monitor()
 
     if args.cmd == "ranker-pipeline":
         from jobs.prospeccao.build_features import build_feature_snapshots

@@ -1,6 +1,4 @@
-from banco_dados.services import nik_service
-from banco_dados.services import nik_prompts
-from banco_dados.services import nik_provider as nik_provider_module
+from banco_dados.services import nik_prompts, nik_provider as nik_provider_module, nik_service
 from banco_dados.services.nik_provider import NikResposta
 
 
@@ -159,6 +157,133 @@ def test_status_modelo_prospeccao_retorna_estrutura(db_session, monkeypatch):
     assert data["modelo"]["versao"] == "prospeccao-ree-v3.2"
     assert data["metricas"]["validation_ndcg_mean"] == 0.61
     assert data["total_scores"] == 120
+
+
+def test_planejador_aciona_comparar_candidatos():
+    plano = nik_service._planejar_ferramentas("compare os candidatos score_id=10 e score_id=20 lado a lado")
+    nomes = [p["nome"] for p in plano]
+    assert "comparar_candidatos" in nomes
+    item = next(p for p in plano if p["nome"] == "comparar_candidatos")
+    assert item["kwargs"].get("score_ids") == [10, 20]
+
+
+def test_planejador_aciona_gerar_roteiro_contato():
+    plano = nik_service._planejar_ferramentas("monte um script de ligação para o lead score_id=55")
+    nomes = [p["nome"] for p in plano]
+    assert "gerar_roteiro_contato" in nomes
+    item = next(p for p in plano if p["nome"] == "gerar_roteiro_contato")
+    assert item["kwargs"].get("score_id") == 55
+
+
+def test_planejador_aciona_criar_tarefa_comercial():
+    plano = nik_service._planejar_ferramentas(
+        'criar tarefa "Ligar para Acme" pipeline_id=9 data_limite=2026-05-20'
+    )
+    nomes = [p["nome"] for p in plano]
+    assert "criar_tarefa_comercial" in nomes
+    item = next(p for p in plano if p["nome"] == "criar_tarefa_comercial")
+    assert item["kwargs"].get("titulo") == "Ligar para Acme"
+    assert item["kwargs"].get("pipeline_id") == 9
+    assert item["kwargs"].get("data_limite") == "2026-05-20"
+
+
+def test_comparar_candidatos_retorna_estrutura(db_session, monkeypatch):
+    monkeypatch.setattr(
+        nik_service.nik_tools.prospeccao_svc,
+        "explicar_candidato",
+        lambda db, score_id, model_version=None: {
+            "score": {
+                "id": score_id,
+                "prioridade": "alta",
+                "score": 0.91,
+                "ranking_contexto": 1,
+                "empresa": {"razao_social": f"Empresa {score_id}", "cnae_principal": "4751-2/01"},
+                "local": {"bairro": "Asa Norte", "ra": "RA I"},
+                "motivos": [{"feature": "cnae_match"}],
+            },
+            "explicacao": [],
+        },
+    )
+    data = nik_service.nik_tools.ferramenta_comparar_candidatos(
+        db_session, score_ids=[10, 20], limite=5
+    )
+    assert data["encontrado"] is True
+    assert data["total"] == 2
+    assert len(data["comparacao"]) == 2
+    assert data["comparacao"][0]["cnae_principal"] == "4751-2/01"
+    assert "motivos" in data["comparacao"][0]
+
+
+def test_gerar_roteiro_contato_retorna_estrutura(db_session, monkeypatch):
+    monkeypatch.setattr(
+        nik_service.nik_tools.prospeccao_svc,
+        "explicar_candidato",
+        lambda db, score_id, model_version=None: {
+            "score": {
+                "id": score_id,
+                "prioridade": "alta",
+                "empresa": {"razao_social": "Loja Tech DF", "cnae_principal": "4752-1/00", "bairro": "Taguatinga"},
+                "local": {"bairro": "Taguatinga", "ra": "RA III"},
+                "motivos": [{"feature": "densidade_comercial"}],
+            },
+            "explicacao": [],
+        },
+    )
+    data = nik_service.nik_tools.ferramenta_gerar_roteiro_contato(db_session, score_id=33)
+    assert data["encontrado"] is True
+    roteiro = data["roteiro"]
+    assert "abertura" in roteiro
+    assert "argumentos_ree" in roteiro
+    assert len(roteiro["objecoes"]) >= 2
+    assert "proximo_passo" in roteiro
+    assert "Loja Tech" in data["resumo"]
+
+
+def test_gerar_roteiro_contato_sem_parametros():
+    data = nik_service.nik_tools.ferramenta_gerar_roteiro_contato(None)
+    assert data["encontrado"] is False
+    assert "score_id" in data["resumo"]
+
+
+def test_criar_tarefa_comercial_mock_crm(db_session, monkeypatch):
+    class TarefaFake:
+        id = 99
+        titulo = "Follow-up REE"
+        pipeline_id = 7
+        data_vencimento = None
+
+        def to_dict(self):
+            return {"id": self.id, "titulo": self.titulo}
+
+    monkeypatch.setattr(
+        nik_service.nik_tools.CRMService,
+        "criar_tarefa",
+        lambda dados, uid: TarefaFake(),
+    )
+    data = nik_service.nik_tools.ferramenta_criar_tarefa_comercial(
+        db_session,
+        "Follow-up REE",
+        pipeline_id=7,
+        usuario_id=1,
+    )
+    assert data["criado"] is True
+    assert data["tarefa_id"] == 99
+    assert "Follow-up" in data["resumo"]
+
+
+def test_criar_tarefa_comercial_sem_usuario():
+    data = nik_service.nik_tools.ferramenta_criar_tarefa_comercial(
+        None, "Ligar amanhã", usuario_id=None
+    )
+    assert data["criado"] is False
+    assert "Usuário" in data["resumo"]
+
+
+def test_catalogo_ferramentas_inclui_novas_tools():
+    nomes = {f["nome"] for f in nik_service.nik_tools.catalogo_ferramentas()}
+    assert "comparar_candidatos" in nomes
+    assert "gerar_roteiro_contato" in nomes
+    assert "criar_tarefa_comercial" in nomes
 
 
 def test_planejador_aciona_busca_web():
@@ -402,7 +527,7 @@ def test_nik_conversa_api(auth_client, monkeypatch):
     )
     resp = auth_client.post("/api/nik/ops/conversa", json={"mensagem": "Oi, Nik", "thread_id": "maiara"})
     assert resp.status_code == 200
-    assert "Resposta para: Oi, Nik" == resp.get_json()["texto"]
+    assert resp.get_json()["texto"] == "Resposta para: Oi, Nik"
     assert resp.get_json()["thread_id"] == "maiara"
 
 

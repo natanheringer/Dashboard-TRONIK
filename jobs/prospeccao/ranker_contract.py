@@ -312,6 +312,18 @@ def neighborhood_features(qid_total: int, qid_ree_compatible: int) -> tuple[floa
 NeighborhoodContext = dict[str, int]
 
 
+def validate_feature_contract(features: dict[str, float]) -> None:
+    """Ensure feature dict keys match FEATURE_NAMES (catches OSM/INEP/CNES drift)."""
+    keys = set(features.keys())
+    expected = set(FEATURE_NAMES)
+    extra = keys - expected
+    missing = expected - keys
+    if extra or missing:
+        raise ValueError(
+            f"Feature contract mismatch: extra={sorted(extra)} missing={sorted(missing)}"
+        )
+
+
 def build_feature_vector(
     empresa: Any,
     local: Any | None,
@@ -332,7 +344,7 @@ def build_feature_vector(
         getattr(local, "latitude", None) is not None
         and getattr(local, "longitude", None) is not None
     )
-    return {
+    vector = {
         "cnae_ree_fit": cnae_ree_fit(getattr(empresa, "cnae_principal", None)),
         "cnae_secondary_max_fit": sec_max,
         "cnae_secondary_hit_count": sec_hits,
@@ -359,6 +371,8 @@ def build_feature_vector(
         "neighborhood_ree_ratio": neigh_ree,
         "has_geocode": 1.0 if has_coords else 0.0,
     }
+    validate_feature_contract(vector)
+    return vector
 
 
 # ---------------------------------------------------------------------------

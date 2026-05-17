@@ -31,12 +31,8 @@
         <input type="text" placeholder="Pesquisar..." />
       </div>
     </div>
-    
-        <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="11" cy="11" r="8"></circle><line x1="21" y1="21" x2="16.65" y2="16.65"></line></svg>
-        <input type="text" placeholder="Pesquisar..." />
-      </div>
-    </div>
-    
+
+    <div class="nik-sidebar-scroll">
       <div class="nik-sidebar-section">
         <div class="nik-sidebar-label">Projetos</div>
         <div class="nik-sidebar-item" onclick="document.getElementById('nik-chat-input').value='Gerar relatório Maiara'; document.getElementById('nik-chat-form').dispatchEvent(new Event('submit', { cancelable: true, bubbles: true }));">
@@ -154,14 +150,18 @@
     </div>
 
     <div class="nik-input-area">
-      <div class="nik-suggestions">
-        <button class="nik-suggestion-chip" onclick="document.getElementById('nik-chat-input').value='Quais são as principais iniciativas operacionais?'; document.getElementById('nik-chat-form').dispatchEvent(new Event('submit', { cancelable: true, bubbles: true }));">
-           <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z"></path></svg>
-           Quais são as principais iniciativas operacionais hoje?
+      <div class="nik-suggestions" id="nik-quick-actions">
+        <button type="button" class="nik-suggestion-chip nik-quick-chip" data-nik-prefill="Liste os top candidatos REE da fila de prospecção">
+          <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M12 2l3.09 6.26L22 9.27l-5 4.87 1.18 6.88L12 17.77l-6.18 3.25L7 14.14 2 9.27l6.91-1.01L12 2z"></path></svg>
+          Top candidatos REE
         </button>
-        <button class="nik-suggestion-chip" onclick="document.getElementById('nik-chat-input').value='Gere um relatório executivo para a Maiara'; document.getElementById('nik-chat-form').dispatchEvent(new Event('submit', { cancelable: true, bubbles: true }));">
-           <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"></path><polyline points="14 2 14 8 20 8"></polyline><line x1="16" y1="13" x2="8" y2="13"></line><line x1="16" y1="17" x2="8" y2="17"></line><polyline points="10 9 9 9 8 9"></polyline></svg>
-           Gerar um relatório executivo para a Maiara
+        <button type="button" class="nik-suggestion-chip nik-quick-chip" data-nik-prefill="Qual o status do modelo de prospecção REE ativo?">
+          <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="10"></circle><line x1="12" y1="16" x2="12" y2="12"></line><line x1="12" y1="8" x2="12.01" y2="8"></line></svg>
+          Status do modelo
+        </button>
+        <button type="button" class="nik-suggestion-chip nik-quick-chip" data-nik-prefill="Compare os leads do CRM com os scores de prospecção REE">
+          <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M16 3h5v5"></path><path d="M8 3H3v5"></path><path d="M21 11v8a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-8"></path><path d="M12 12v9"></path><path d="m7 17 5-5 5 5"></path></svg>
+          Comparar leads
         </button>
       </div>
       
@@ -316,10 +316,95 @@
       setPresenceState("wave");
     }
 
+    var PROSPECCAO_TOOLS = {
+      listar_candidatos_prospeccao: true,
+      explicar_candidato_prospeccao: true,
+      status_modelo_prospeccao: true,
+      cruzar_crm_prospeccao: true
+    };
+
     function esc(value) {
       var div = document.createElement("div");
       div.textContent = String(value || "");
       return div.innerHTML;
+    }
+
+    function humanizeToolName(name) {
+      return String(name || "").replace(/_/g, " ");
+    }
+
+    function buildToolsPanel(usedTools, toolTrace) {
+      var tools = Array.isArray(usedTools) ? usedTools.filter(Boolean) : [];
+      var trace = Array.isArray(toolTrace) ? toolTrace : [];
+      if (!tools.length && !trace.length) return "";
+
+      var names = tools.length
+        ? tools.slice()
+        : trace.map(function (entry) { return entry && entry.tool; }).filter(Boolean);
+      var unique = [];
+      names.forEach(function (name) {
+        if (unique.indexOf(name) === -1) unique.push(name);
+      });
+
+      var chipsHtml = unique.map(function (tool) {
+        var isPros = !!PROSPECCAO_TOOLS[tool];
+        var cls = "nik-tool-chip" + (isPros ? " nik-tool-chip--prospeccao" : "");
+        var badge = isPros ? '<span class="nik-tool-chip-badge">REE</span>' : "";
+        return '<span class="' + cls + '">' + badge + esc(humanizeToolName(tool)) + "</span>";
+      }).join("");
+
+      var traceHtml = "";
+      if (trace.length) {
+        traceHtml = '<ul class="nik-tool-trace-list">';
+        trace.forEach(function (entry) {
+          if (!entry) return;
+          var status = String(entry.status || "ok").toLowerCase();
+          var statusCls = status === "ok" ? "ok" : status === "error" ? "error" : "warn";
+          var kwargs = entry.kwargs && typeof entry.kwargs === "object" ? entry.kwargs : {};
+          var kwargsKeys = Object.keys(kwargs);
+          var kwargsHtml = kwargsKeys.length
+            ? '<span class="nik-tool-trace-kwargs">' + esc(JSON.stringify(kwargs)) + "</span>"
+            : "";
+          traceHtml +=
+            '<li class="nik-tool-trace-item nik-tool-trace-item--' + statusCls + '">' +
+            "<code>" + esc(entry.tool || "?") + "</code>" +
+            '<span class="nik-tool-trace-status">' + esc(status) + "</span>" +
+            kwargsHtml +
+            "</li>";
+        });
+        traceHtml += "</ul>";
+      }
+
+      return (
+        '<details class="nik-tool-trace">' +
+        '<summary class="nik-tool-trace-summary">Ferramentas usadas <span class="nik-tool-trace-count">' +
+        unique.length +
+        "</span></summary>" +
+        '<div class="nik-tool-trace-body">' +
+        '<div class="nik-tool-chips">' +
+        chipsHtml +
+        "</div>" +
+        traceHtml +
+        "</div>" +
+        "</details>"
+      );
+    }
+
+    function buildMessageFooter(meta) {
+      if (!meta) return "";
+      var parts = [];
+      if (meta.routing_model && meta.routing_model !== "n/a") {
+        parts.push(
+          '<span class="nik-msg-footer-model" title="Modelo planejado">' +
+          esc(meta.routing_model) +
+          "</span>"
+        );
+      }
+      if (meta.routing_mode && meta.routing_mode !== "n/a") {
+        parts.push('<span class="nik-msg-footer-route">' + esc(meta.routing_mode) + "</span>");
+      }
+      if (!parts.length) return "";
+      return '<div class="nik-message-footer">' + parts.join('<span class="nik-msg-footer-sep">·</span>') + "</div>";
     }
 
     /**
@@ -500,7 +585,7 @@
       }
     });
 
-    function appendMessage(label, text, cls, status, fontesWeb, documento, nikAnimKey) {
+    function appendMessage(label, text, cls, status, fontesWeb, documento, agentMeta) {
       var thread = document.getElementById("nik-chat-thread").querySelector(".nik-chat-content-inner");
       var msgDiv = document.createElement("div");
       
@@ -554,13 +639,20 @@
 
       var bodyHtml = isUser ? esc(text) : formatNikPlainTextForChat(text);
       var bodyClass = isUser ? "nik-message-text" : "nik-message-text nik-message-text--rich";
+      var toolsHtml =
+        !isUser && agentMeta
+          ? buildToolsPanel(agentMeta.used_tools, agentMeta.tool_trace)
+          : "";
+      var footerHtml = !isUser && agentMeta ? buildMessageFooter(agentMeta) : "";
 
       msgDiv.innerHTML = avatarHtml + 
         '<div class="nik-message-body">' + 
           headerHtml + 
           '<div class="' + bodyClass + '">' + bodyHtml + '</div>' + 
           documentoHtml +
-          attachmentsHtml + 
+          attachmentsHtml +
+          toolsHtml +
+          footerHtml +
         '</div>';
 
       var typingEl = document.getElementById("nik-typing-indicator");
@@ -665,19 +757,29 @@
         var replyIsDoubt =
           /não consegui|erro|sessão expirou|não está autenticado|tente novamente/i.test(String(replyText || ""));
         setPresenceState(replyIsDoubt ? "doubt" : "success");
+        var routeMode = data.routing_mode || "n/a";
+        var plannedModel = data.routing_model || "n/a";
         appendMessage(
           "Nik",
           replyText,
           "nik-chat-assistant",
           data.modo_contexto,
           data.fontes_web || [],
-          data.documento || null
+          data.documento || null,
+          {
+            used_tools: data.used_tools,
+            tool_trace: data.tool_trace,
+            routing_model: plannedModel,
+            routing_mode: routeMode
+          }
         );
-        var routeMode = data.routing_mode || "n/a";
-        var plannedModel = data.routing_model || "n/a";
         var usedModel = data.modelo || plannedModel;
         var webStatus = data.web_status && data.web_status !== "n/a" ? " · web: " + data.web_status : "";
-        runtimeStatus.textContent = "Routing: " + routeMode + " -> " + usedModel + webStatus;
+        var plannedHint =
+          plannedModel && plannedModel !== usedModel && plannedModel !== "n/a"
+            ? " (planejado: " + plannedModel + ")"
+            : "";
+        runtimeStatus.textContent = "Routing: " + routeMode + " -> " + usedModel + plannedHint + webStatus;
         await sleep(replyIsDoubt ? 2400 : 1700);
         setPresenceState("wave");
       } catch (err) {
@@ -689,6 +791,17 @@
         await sleep(2200);
         setPresenceState("wave");
       }
+    });
+
+    document.querySelectorAll("[data-nik-prefill]").forEach(function (btn) {
+      btn.addEventListener("click", function () {
+        var msg = btn.getAttribute("data-nik-prefill");
+        if (!msg) return;
+        input.value = msg;
+        input.style.height = "auto";
+        input.dispatchEvent(new Event("input", { bubbles: true }));
+        form.dispatchEvent(new Event("submit", { cancelable: true, bubbles: true }));
+      });
     });
 
     document.querySelector("[data-nik-seed]").addEventListener("click", function () {

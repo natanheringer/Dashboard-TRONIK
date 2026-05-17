@@ -7,8 +7,8 @@ from __future__ import annotations
 from flask import Blueprint, Response, jsonify, request
 from flask_login import current_user, login_required
 
-from banco_dados.services import nik_service as nik
-from rotas.api.decorators import get_db
+from banco_dados.services import nik_service as nik, nik_tools
+from rotas.api.decorators import admin_required, get_db
 
 nik_bp = Blueprint("nik", __name__, url_prefix="/nik")
 
@@ -69,6 +69,14 @@ def ops_conversa():
         return jsonify(nik.salvar_conversa_ops(db, uid, mensagem, resposta, thread_id=thread_id))
     finally:
         db.close()
+
+
+@nik_bp.route("/ops/ferramentas")
+@login_required
+@admin_required
+def ops_ferramentas():
+    """Catálogo de ferramentas agentic da Nik (debug/admin)."""
+    return jsonify({"ferramentas": nik_tools.catalogo_ferramentas()})
 
 
 @nik_bp.route("/ops/conversas")

@@ -5,8 +5,6 @@ from __future__ import annotations
 import json
 from typing import Any
 
-import json
-
 from sqlalchemy import func
 from sqlalchemy.orm import Session
 
@@ -91,6 +89,13 @@ _METRICAS_CHAVE = (
     "n_samples",
     "n_groups",
 )
+
+
+def saude_prospeccao(db: Session, model_version: str | None = None) -> dict[str, Any]:
+    """Health snapshot for GET /api/prospeccao/saude and monitor CLI."""
+    from jobs.prospeccao.pipeline_health import build_pipeline_health_report
+
+    return build_pipeline_health_report(db, model_version=model_version)
 
 
 def status_modelo_prospeccao(db: Session, model_version: str | None = None) -> dict[str, Any] | None:
