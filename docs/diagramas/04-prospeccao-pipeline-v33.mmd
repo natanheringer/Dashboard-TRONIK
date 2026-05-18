@@ -1,0 +1,28 @@
+%% Pipeline de prospecção REE (run_pipeline.ps1 + CLI) — maio/2026
+flowchart LR
+  subgraph ingest["Ingestão"]
+    R[Receita / Casa dos Dados]
+    H[harvest CKAN IBGE PNCP]
+    C[CNEFE geocode]
+    E[BrasilAPI ANEEL IBRAM IBAMA]
+  end
+  subgraph core["Core"]
+    N[normalize]
+    L[link-crm]
+    BE[build-enrichment]
+    F[build-features v3.3]
+    T[train-ranker]
+    S[score-candidates]
+    P[publish-scores]
+  end
+  subgraph out["Consumo"]
+    API[/api/prospeccao]
+    UI[/preview/prospeccao]
+    NIK[Nik tools REE]
+    CRM[CRM bridge]
+  end
+  ingest --> N --> L --> BE --> F --> T --> S --> P
+  P --> API
+  API --> UI
+  API --> NIK
+  API --> CRM

@@ -15,7 +15,7 @@ Os demais módulos (predição de enchimento, score de coletores, narrativa ESG)
 
 **Código (subtração maio/2026):** removidos do repositório o modelo ORM `locais_prospeccao`, o serviço `banco_dados/services/ml_prospeccao.py`, a rota preview `/prospeccao`, a camada de prospects/heatmap no mapa e os endpoints `/api/ml/prospeccao*`, para não colidir com a implementação futura descrita neste plano. Instalações antigas podem ainda ter a tabela física `locais_prospeccao` no banco; pode-se eliminá-la com migração manual se desejado.
 
-**Diagramas do sistema:** ver [docs/ARQUITETURA.md](docs/ARQUITETURA.md).
+**Diagramas do sistema:** ver [docs/DIAGRAMAS.md](docs/DIAGRAMAS.md) (índice completo) e [docs/ARQUITETURA.md](docs/ARQUITETURA.md).
 
 ---
 

@@ -2,7 +2,7 @@
 
 Documento alinhado ao repositório atual (preview v2, API modular, telemetria, ML parcial, jobs de ingestão). Diagramas em Mermaid (GitHub / VS Code / MkDocs).
 
-**Relacionados:** [PLANO_ML_TRONIK.md](../PLANO_ML_TRONIK.md) · [jobs/prospeccao/README.md](../jobs/prospeccao/README.md) · [ESTADO_ATUAL_PROJETO.md](ESTADO_ATUAL_PROJETO.md)
+**Relacionados:** [DIAGRAMAS.md](DIAGRAMAS.md) (índice completo) · [PLANO_ML_TRONIK.md](../PLANO_ML_TRONIK.md) · [jobs/prospeccao/README.md](../jobs/prospeccao/README.md) · [ESTADO_ATUAL_PROJETO.md](ESTADO_ATUAL_PROJETO.md)
 
 ---
 
@@ -54,8 +54,8 @@ flowchart TB
   APP --> SCH
 ```
 
-- **`/api`**: coletores, coletas, sensores, comercial, CRM, contratos, ML (`/api/ml/...`), telemetria autenticada.
-- **`/preview`**: UI v2 (monitoramento, mapa, relatórios, gestão, parceiro, Nik) — normalmente exige utilizador autenticado conforme rotas.
+- **`/api`**: coletores, coletas, sensores, comercial, CRM, contratos, prospecção (`/api/prospeccao/*`), ML (`/api/ml/...`), Nik (`/api/nik/*`), telemetria autenticada.
+- **`/preview`**: UI v2 (hub, monitoramento, mapa, relatórios, prospecção, Nik, gestão, CRM/comercial/contratos no shell v2) — `auth_preview` / `admin_preview` conforme rota.
 - **`/auth`**: login, logout, registo.
 - **WebSocket**: atualização em tempo quase real no preview (ex.: níveis).
 
@@ -81,32 +81,36 @@ sequenceDiagram
 
 ## Fluxo de dados ML (estado atual)
 
+Ver diagrama detalhado: [13-ml-coletores-legado.mmd](diagramas/13-ml-coletores-legado.mmd) e [04-prospeccao-pipeline-v33.mmd](diagramas/04-prospeccao-pipeline-v33.mmd).
+
 ```mermaid
 flowchart TB
-  subgraph hoje["Implementado"]
-    M1[ml_predicao enchimento]
-    M2[ml_score ranking coletores]
-    M3[ml_narrativa Ollama cache]
-    API_ML[GET POST /api/ml]
+  subgraph sched["APScheduler"]
+    M1[ml_predicao 12h]
+    M2[ml_score 24h]
+    M3[ml_narrativa]
+    M4[pipeline prospeccao opcional]
   end
-  subgraph plano["Planeado PLANO_ML_TRONIK"]
-    ING[jobs/prospeccao harvest]
-    RAW[(data/raw/prospeccao)]
-    XGB[XGBRanker prospeccao REE]
-    TBL[(score_prospeccao futuro)]
+  subgraph ml_ops["ML coletores"]
+    P1[ml_predicao]
+    P2[ml_score]
+    P3[ml_narrativa]
   end
-  SCH[APScheduler] --> M1
-  SCH --> M2
-  SCH --> M3
-  API_ML --> M1
-  API_ML --> M2
-  API_ML --> M3
-  ING --> RAW
-  RAW -.->|normalize train score| XGB
-  XGB -.-> TBL
+  subgraph ml_ree["Prospecção REE v3.3"]
+    JOB[jobs/prospeccao]
+    XGB[XGBRanker]
+    DB[(score_prospeccao)]
+  end
+  API_ML[/api/ml] --> P1
+  API_ML --> P2
+  API_PROSP[/api/prospeccao] --> DB
+  M4 --> JOB --> XGB --> DB
+  M1 --> P1
+  M2 --> P2
+  M3 --> P3
 ```
 
-A **prospecção geográfica antiga** (heatmap, `locais_prospeccao`, `/api/ml/prospeccao`) foi **removida** do código para não conflitar com o pipeline futuro. Ingestão pública vive em **`python -m jobs.prospeccao`** (ver README do pacote).
+A **prospecção geográfica antiga** (heatmap, `locais_prospeccao`, `/api/ml/prospeccao`) foi **removida**. O eixo REE atual: ingestão batch → rank listwise → fila em `/preview/prospeccao`, API `/api/prospeccao/*` e ferramentas Nik.
 
 ---
 

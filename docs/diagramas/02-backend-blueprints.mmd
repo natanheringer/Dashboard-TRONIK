@@ -1,0 +1,15 @@
+%% Componentes Flask (blueprints)
+flowchart TB
+  APP[app.py Flask app]
+  AUTH[rotas.auth]
+  APIBP[rotas.api /api]
+  PAG[rotas.paginas]
+  PRE[rotas.preview /preview]
+  WS[rotas.websocket SocketIO]
+  SCH[banco_dados.agendamento APScheduler]
+  APP --> AUTH
+  APP --> APIBP
+  APP --> PAG
+  APP --> PRE
+  APP --> WS
+  APP --> SCH
