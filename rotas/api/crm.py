@@ -164,10 +164,15 @@ def obter_pipeline(pipeline_id):
 @login_required
 @decorators.rate_limit("30 per minute")
 def pipeline_prospeccao(pipeline_id):
-    """GET /api/crm/pipeline/<id>/prospeccao — scores de prospecção ligados ao lead."""
+    """GET /api/crm/pipeline/<id>/prospeccao — scores de prospecção ligados ao lead.
+
+    Query: model_version (opcional) — mesma semântica que GET /api/prospeccao/candidatos.
+    """
     db = get_db_session()
     try:
-        resultado = buscar_scores_para_pipeline(db, pipeline_id)
+        resultado = buscar_scores_para_pipeline(
+            db, pipeline_id, model_version=request.args.get("model_version") or None
+        )
         if resultado is None:
             return jsonify({'erro': 'Pipeline não encontrado'}), 404
 

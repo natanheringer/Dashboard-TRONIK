@@ -4,16 +4,52 @@ from __future__ import annotations
 
 from typing import Any
 
+from sqlalchemy import case
 from sqlalchemy.orm import Session
 
 from banco_dados.modelos import EmpresaCandidata, LocalCandidato, ModeloProspeccao, ScoreProspeccao
 
 
-def _resolve_model(db: Session, model_version: str | None = None) -> ModeloProspeccao | None:
+def resolve_model(db: Session, model_version: str | None = None) -> ModeloProspeccao | None:
+    """Resolve prospection model row: explicit version or newest active model."""
     query = db.query(ModeloProspeccao)
     if model_version:
         return query.filter(ModeloProspeccao.versao == model_version).first()
     return query.filter(ModeloProspeccao.ativo.is_(True)).order_by(ModeloProspeccao.treinado_em.desc()).first()
+
+
+def serialize_published_score_row(
+    score: ScoreProspeccao,
+    empresa: EmpresaCandidata | None,
+    local: LocalCandidato | None,
+    **extras: Any,
+) -> dict[str, Any]:
+    """Single shape for dashboard API, CRM bridge, and explain — no duplicated field lists."""
+    payload = score.to_dict()
+    payload["empresa"] = empresa.to_dict() if empresa else None
+    payload["local"] = local.to_dict() if local else None
+    if extras:
+        payload.update(extras)
+    return payload
+
+
+def percentile_map_for_qid(db: Session, model_id: int, qid: str) -> dict[int, float]:
+    """Map score.id -> percentile (0–100) within the same QID for this model."""
+    qid_scores = (
+        db.query(ScoreProspeccao.id, ScoreProspeccao.score)
+        .filter(
+            ScoreProspeccao.modelo_id == model_id,
+            ScoreProspeccao.qid == qid,
+        )
+        .order_by(ScoreProspeccao.score.desc())
+        .all()
+    )
+    if not qid_scores:
+        return {}
+    out: dict[int, float] = {}
+    for idx, (score_id, _) in enumerate(qid_scores):
+        out[score_id] = round(100 * (1 - idx / len(qid_scores)), 1)
+    return out
 
 
 def list_published_scores(
@@ -33,6 +69,11 @@ def list_published_scores(
 
     score_percentil: Percentile rank (0-100) within the same QID group, showing relative performance.
 
+    Ordering:
+    - With ``qid``: listwise order (``ranking_contexto`` ascending).
+    - Without ``qid``: global queue for operators — priority tier (alta → media → baixa), then score
+      descending, then rank within context — so ``limite`` is a true top-N across the published pool.
+
     Args:
         db: SQLAlchemy session
         limite: Max results (default 50)
@@ -41,52 +82,50 @@ def list_published_scores(
         model_version: Specific model version; if None, uses latest active model
 
     Returns:
-        List of score dicts with nested empresa/local details and percentile, sorted by qid, then ranking_contexto
+        List of score dicts with nested empresa/local details and percentile
     """
-    model = _resolve_model(db, model_version)
+    model = resolve_model(db, model_version)
     if not model:
         return []
+
+    prioridade_ordem = case(
+        (ScoreProspeccao.prioridade == "alta", 0),
+        (ScoreProspeccao.prioridade == "media", 1),
+        (ScoreProspeccao.prioridade == "baixa", 2),
+        else_=3,
+    )
 
     query = (
         db.query(ScoreProspeccao, EmpresaCandidata, LocalCandidato)
         .outerjoin(EmpresaCandidata, ScoreProspeccao.empresa_id == EmpresaCandidata.id)
         .outerjoin(LocalCandidato, ScoreProspeccao.local_id == LocalCandidato.id)
         .filter(ScoreProspeccao.modelo_id == model.id)
-        .order_by(ScoreProspeccao.qid.asc(), ScoreProspeccao.ranking_contexto.asc())
     )
     if qid:
-        query = query.filter(ScoreProspeccao.qid == qid)
+        query = query.filter(ScoreProspeccao.qid == qid).order_by(ScoreProspeccao.ranking_contexto.asc())
+    else:
+        query = query.order_by(
+            prioridade_ordem,
+            ScoreProspeccao.score.desc(),
+            ScoreProspeccao.ranking_contexto.asc(),
+            ScoreProspeccao.qid.asc(),
+        )
     if prioridade:
         query = query.filter(ScoreProspeccao.prioridade == prioridade)
 
     rows = []
-    # Cache percentiles per QID to avoid redundant calculations
     percentile_cache: dict[str, dict[int, float]] = {}
 
     for score, empresa, local in query.limit(limite).all():
-        payload = score.to_dict()
-        payload["empresa"] = empresa.to_dict() if empresa else None
-        payload["local"] = local.to_dict() if local else None
-
-        # Calculate score_percentil: position in QID distribution (0-100)
         if score.qid not in percentile_cache:
-            qid_scores = (
-                db.query(ScoreProspeccao.id, ScoreProspeccao.score)
-                .filter(
-                    ScoreProspeccao.modelo_id == model.id,
-                    ScoreProspeccao.qid == score.qid,
-                )
-                .order_by(ScoreProspeccao.score.desc())
-                .all()
-            )
-            # Build rank→percentile mapping: top rank gets 100, last gets 0
-            percentile_cache[score.qid] = {}
-            if qid_scores:
-                for idx, (score_id, _) in enumerate(qid_scores):
-                    percentile = round(100 * (1 - idx / len(qid_scores)), 1)
-                    percentile_cache[score.qid][score_id] = percentile
-
-        payload["score_percentil"] = percentile_cache[score.qid].get(score.id, 0.0)
+            percentile_cache[score.qid] = percentile_map_for_qid(db, model.id, score.qid)
+        pct_map = percentile_cache[score.qid]
+        payload = serialize_published_score_row(
+            score,
+            empresa,
+            local,
+            score_percentil=pct_map.get(score.id, 0.0),
+        )
         rows.append(payload)
 
     return rows

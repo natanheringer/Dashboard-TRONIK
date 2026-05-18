@@ -100,7 +100,8 @@ _GENERIC_EMAIL_DOMAINS = frozenset({
     "bol.com.br", "uol.com.br", "terra.com.br", "ig.com.br", "live.com",
 })
 
-_FEATURE_LABELS: dict[str, str] = {
+# Human-readable reasons for CRM/shap/top_reasons — must mirror FEATURE_NAMES 1:1.
+FEATURE_REASON_LABELS: dict[str, str] = {
     "cnae_ree_fit": "Primary CNAE compatible with electronics/e-waste",
     "cnae_secondary_max_fit": "Secondary CNAE matches REE activity",
     "cnae_secondary_hit_count": "Multiple secondary CNAEs in REE sector",
@@ -122,6 +123,15 @@ _FEATURE_LABELS: dict[str, str] = {
     "cnes_health_proxy": "CNES health establishment density proxy for the area",
 }
 
+_miss_reason = set(FEATURE_NAMES) - set(FEATURE_REASON_LABELS)
+_extra_reason = set(FEATURE_REASON_LABELS) - set(FEATURE_NAMES)
+if _miss_reason or _extra_reason:
+    raise RuntimeError(
+        "FEATURE_REASON_LABELS drift vs FEATURE_NAMES: "
+        f"missing={sorted(_miss_reason)} extra={sorted(_extra_reason)}"
+    )
+del _miss_reason, _extra_reason
+
 _AGE_LOG_CAP = math.log1p(40)  # ~3.71 — normalizes age_years_log to 0-1
 
 
@@ -138,6 +148,14 @@ def feature_schema() -> list[dict[str, str]]:
 
 def sanitize_cnae(cnae: str | None) -> str:
     return "".join(ch for ch in (cnae or "") if ch.isalnum())
+
+
+def normalize_cep8(cep: str | None) -> str | None:
+    """Return exactly eight CEP digits or None (ranker + joins assume real CEP or NULL)."""
+    if not cep:
+        return None
+    digits = "".join(c for c in str(cep) if c.isdigit())
+    return digits if len(digits) == 8 else None
 
 
 def cnae_ree_fit(cnae: str | None) -> float:
@@ -573,21 +591,30 @@ def top_reasons(
     features: dict[str, float],
     shap_values: dict[str, float] | None = None,
     limit: int = 4,
+    *,
+    min_fallback_value: float | None = None,
 ) -> list[dict[str, Any]]:
-    """Feature-importance explanations. Uses SHAP values when available."""
+    """Feature-importance explanations. Uses SHAP values when available.
+
+    When SHAP is unavailable, optionally drop low-magnitude signals before sorting
+    (e.g. ``min_fallback_value=0.1`` for CRM motivos parity with historic behavior).
+    """
     if shap_values:
         ranked = sorted(shap_values.items(), key=lambda item: abs(item[1]), reverse=True)
         return [
             {
                 "feature": name,
-                "reason": _FEATURE_LABELS.get(name, name),
+                "reason": FEATURE_REASON_LABELS.get(name, name),
                 "value": round(float(features.get(name, 0)), 4),
                 "shap": round(float(val), 4),
             }
             for name, val in ranked[:limit]
         ]
-    ranked = sorted(features.items(), key=lambda item: item[1], reverse=True)
+    pairs = list(features.items())
+    if min_fallback_value is not None:
+        pairs = [(name, val) for name, val in pairs if val > min_fallback_value]
+    ranked = sorted(pairs, key=lambda item: item[1], reverse=True)
     return [
-        {"feature": name, "reason": _FEATURE_LABELS.get(name, name), "value": round(float(value), 4)}
+        {"feature": name, "reason": FEATURE_REASON_LABELS.get(name, name), "value": round(float(value), 4)}
         for name, value in ranked[:limit]
     ]

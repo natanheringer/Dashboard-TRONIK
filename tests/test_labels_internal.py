@@ -193,7 +193,7 @@ class TestLookupInternalScore:
         won = InternalSiteSignals(coleta_count=1, pipeline_won=True)
         assert internal_relevance_continuous(won) > internal_relevance_continuous(plain)
 
-    def test_crm_persisted_link_boosts_score(self):
+    def test_crm_persisted_link_boosts_score_when_enabled(self):
         key = normalize_org_name("Parceiro CRM")
         signals = InternalSiteSignals(coleta_count=1)
         index = InternalLabelIndex(
@@ -202,12 +202,32 @@ class TestLookupInternalScore:
             stats={},
         )
         empresa = MockEmpresa(razao_social="Parceiro CRM", pipeline_id=99)
-        score, meta = lookup_internal_score(empresa, None, index)
+        score, meta = lookup_internal_score(
+            empresa, None, index, apply_crm_persisted_boost=True
+        )
         assert score is not None
         assert meta.get("crm_persisted_link") is True
         empresa_no_link = MockEmpresa(razao_social="Parceiro CRM", pipeline_id=None)
-        score_plain, _ = lookup_internal_score(empresa_no_link, None, index)
+        score_plain, _ = lookup_internal_score(
+            empresa_no_link, None, index, apply_crm_persisted_boost=True
+        )
         assert score > score_plain
+
+    def test_crm_persisted_link_boost_disabled_by_default(self):
+        key = normalize_org_name("Parceiro CRM")
+        signals = InternalSiteSignals(coleta_count=1)
+        index = InternalLabelIndex(
+            by_norm_name={key: signals},
+            fechado_pipeline_ids=frozenset({99}),
+            stats={},
+        )
+        empresa_linked = MockEmpresa(razao_social="Parceiro CRM", pipeline_id=99)
+        empresa_plain = MockEmpresa(razao_social="Parceiro CRM", pipeline_id=None)
+        s_link, m_link = lookup_internal_score(empresa_linked, None, index)
+        s_plain, m_plain = lookup_internal_score(empresa_plain, None, index)
+        assert s_link == s_plain
+        assert m_link.get("crm_persisted_link") is not True
+        assert m_plain.get("crm_persisted_link") is not True
 
     def test_crm_persisted_link_ignored_when_pipeline_not_fechado(self):
         key = normalize_org_name("Parceiro CRM")

@@ -8,7 +8,8 @@ from typing import Any
 from sqlalchemy import func
 from sqlalchemy.orm import Session
 
-from banco_dados.modelos import ModeloProspeccao, ScoreProspeccao
+from banco_dados.modelos import ScoreProspeccao
+from jobs.prospeccao.publish_scores import resolve_model
 
 _NDCG_KEYS = (
     "validation_ndcg_mean",
@@ -18,29 +19,45 @@ _NDCG_KEYS = (
 )
 
 
-def _resolve_model(db: Session, model_version: str | None = None) -> ModeloProspeccao | None:
-    query = db.query(ModeloProspeccao)
-    if model_version:
-        return query.filter(ModeloProspeccao.versao == model_version).first()
-    return query.filter(ModeloProspeccao.ativo.is_(True)).order_by(ModeloProspeccao.treinado_em.desc()).first()
-
-
 def build_pipeline_health_report(
     db: Session,
     *,
     model_version: str | None = None,
 ) -> dict[str, Any]:
     """JSON-serializable health snapshot for /api/prospeccao/saude and monitor CLI."""
-    model = _resolve_model(db, model_version)
+    model = resolve_model(db, model_version)
     if not model:
+        msg = "Nenhum modelo de prospecção ativo no banco."
         return {
             "modelo_ativo": False,
             "algoritmo": None,
             "scores_publicados": 0,
             "ultimo_treino": None,
             "metricas": {},
-            "warning": "Nenhum modelo de prospecção ativo no banco.",
-            "warnings": ["Nenhum modelo de prospecção ativo no banco."],
+            "warning": msg,
+            "warnings": [],
+            "errors": [msg],
+        }
+
+    if not model.ativo:
+        msg = f"Modelo {model.versao!r} não está ativo."
+        scores_inativos = (
+            db.query(func.count(ScoreProspeccao.id))
+            .filter(ScoreProspeccao.modelo_id == model.id)
+            .scalar()
+            or 0
+        )
+        return {
+            "modelo_ativo": False,
+            "versao": model.versao,
+            "algoritmo": model.algoritmo,
+            "pipeline_version": model.pipeline_version,
+            "scores_publicados": int(scores_inativos),
+            "ultimo_treino": model.treinado_em.isoformat() if model.treinado_em else None,
+            "metricas": {},
+            "warning": msg,
+            "warnings": [],
+            "errors": [msg],
         }
 
     metricas_brutas = json.loads(model.metricas_json) if model.metricas_json else {}
@@ -65,6 +82,8 @@ def build_pipeline_health_report(
 
     warnings: list[str] = []
     warning: str | None = None
+    errors: list[str] = []
+
     if model.algoritmo == "heuristic_bootstrap":
         warning = (
             "Modelo heuristic_bootstrap ativo — grupos rotulados insuficientes para XGBRanker; "
@@ -84,4 +103,5 @@ def build_pipeline_health_report(
         "metricas": metricas,
         "warning": warning,
         "warnings": warnings,
+        "errors": errors,
     }

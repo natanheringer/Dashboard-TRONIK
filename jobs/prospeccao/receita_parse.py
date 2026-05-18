@@ -25,6 +25,7 @@ from sqlalchemy.orm import Session
 
 from banco_dados.modelos import EmpresaCandidata, LocalCandidato
 from jobs.prospeccao import config
+from jobs.prospeccao.ranker_contract import normalize_cep8, sanitize_cnae
 
 logger = logging.getLogger(__name__)
 
@@ -82,8 +83,7 @@ class _Emp:
 def _iter_csv_in_zip(zip_path: Path) -> Iterator[list[str]]:
     """Yield rows from the first CSV inside a ZIP (latin-1, semicolon).
 
-    NOTE: Uses errors='replace' for encoding issues. A warning is logged if
-    encoding replacement occurs, as it may indicate data quality issues.
+    Uses errors='replace' for bad byte sequences (Receita dumps are mostly latin-1).
     """
     with zipfile.ZipFile(zip_path) as zf:
         names = [n for n in zf.namelist() if not n.startswith("__MACOSX")]
@@ -95,15 +95,10 @@ def _iter_csv_in_zip(zip_path: Path) -> Iterator[list[str]]:
                 delimiter=config.RECEITA_CSV_SEPARATOR,
             )
             yield from reader
-    # Log warning about encoding replacement
-    logger.warning(
-        "File %s processed with encoding error replacement — check for data quality issues",
-        zip_path.name,
-    )
 
 
-def parse_municipios_lookup(receita_dir: Path) -> dict[str, tuple[str, str]]:
-    """Build {receita_code: (name, receita_code)} from Municipios.zip.
+def parse_municipios_lookup(receita_dir: Path) -> dict[str, str]:
+    """Build {receita_municipio_code: municipality_name} from Municipios.zip.
 
     The Receita municipal code is NOT the IBGE code. The mapping to IBGE
     requires the Tesouro Nacional TABMUN.csv. For now we store the Receita
@@ -250,6 +245,12 @@ def _format_phone(ddd: str, tel: str) -> str | None:
     return tel
 
 
+def _compose_cnpj(basico: str, ordem: str, dv: str) -> str | None:
+    """14-digit CNPJ or None (Receita occasionally has bad join rows)."""
+    digits = "".join(ch for ch in f"{basico}{ordem}{dv}" if ch.isdigit())
+    return digits if len(digits) == 14 else None
+
+
 def _parse_secondary_cnaes(raw: str) -> list[str]:
     """Comma-separated CNAE codes in a single field.
 
@@ -319,6 +320,7 @@ def parse_estabelecimentos_to_db(
         "rows_filtered_in": 0,
         "rows_skipped_uf": 0,
         "rows_skipped_go_not_ride": 0,
+        "rows_skipped_invalid_cnpj": 0,
         "rows_df": 0,
         "rows_go_ride": 0,
         "files_processed": 0,
@@ -343,7 +345,12 @@ def parse_estabelecimentos_to_db(
                     muni_name = muni.get(muni_code, "")
                     if not _is_ride_municipio(muni_name):
                         continue
-                needed_basicos.add(row[_Est.CNPJ_BASICO].strip())
+                basico = row[_Est.CNPJ_BASICO].strip()
+                ordem = row[_Est.CNPJ_ORDEM].strip()
+                dv = row[_Est.CNPJ_DV].strip()
+                if not _compose_cnpj(basico, ordem, dv):
+                    continue
+                needed_basicos.add(basico)
         logger.info("Pass 1 done: %d unique cnpj_basicos in DF+RIDE", len(needed_basicos))
 
     # --- Load Empresas ---
@@ -395,7 +402,10 @@ def parse_estabelecimentos_to_db(
             basico = row[_Est.CNPJ_BASICO].strip()
             ordem = row[_Est.CNPJ_ORDEM].strip()
             dv = row[_Est.CNPJ_DV].strip()
-            cnpj = f"{basico}{ordem}{dv}"
+            cnpj = _compose_cnpj(basico, ordem, dv)
+            if not cnpj:
+                stats["rows_skipped_invalid_cnpj"] += 1
+                continue
 
             emp = empresas.get(basico, {})
             situacao_code = row[_Est.SITUACAO_CADASTRAL].strip()
@@ -418,14 +428,16 @@ def parse_estabelecimentos_to_db(
 
             empresa.razao_social = razao_social or empresa.razao_social
             empresa.nome_fantasia = row[_Est.NOME_FANTASIA].strip() or empresa.nome_fantasia
-            empresa.cnae_principal = row[_Est.CNAE_PRINCIPAL].strip() or None
+            cnae_pri_raw = row[_Est.CNAE_PRINCIPAL].strip() or None
+            cnae_pri = sanitize_cnae(cnae_pri_raw) or None
+            empresa.cnae_principal = cnae_pri
             empresa.cnae_secundarios_json = json.dumps(secondary_cnaes) if secondary_cnaes else None
             empresa.porte = config.RECEITA_PORTE_MAP.get(porte_code, porte_code)
             empresa.natureza_juridica = natj.get(nat_code, nat_code) if nat_code else None
             empresa.situacao_cadastral = config.RECEITA_SITUACAO_MAP.get(situacao_code, situacao_code)
             empresa.data_abertura = _parse_date(row[_Est.DATA_INICIO])
             empresa.bairro = row[_Est.BAIRRO].strip() or None
-            empresa.cep = row[_Est.CEP].strip() or None
+            empresa.cep = normalize_cep8(row[_Est.CEP].strip() or None)
             empresa.uf = uf
             empresa.municipio = muni_name or None
             empresa.telefone = _format_phone(row[_Est.DDD1], row[_Est.TELEFONE1])
@@ -451,7 +463,7 @@ def parse_estabelecimentos_to_db(
                     empresa_id=empresa.id,
                     endereco=_build_address(row),
                     bairro=row[_Est.BAIRRO].strip() or None,
-                    cep=row[_Est.CEP].strip() or None,
+                    cep=normalize_cep8(row[_Est.CEP].strip() or None),
                     origem="receita",
                 )
                 db.add(local)

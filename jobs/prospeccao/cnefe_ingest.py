@@ -129,6 +129,11 @@ def parse_cnefe_zip(
         if cep_i is None and logr_i is None:
             logger.warning("No CEP or logradouro column in %s", zip_path)
             continue
+        if filter_ride and muni_i is None:
+            logger.warning(
+                "CNEFE %s: sem coluna de município — filtro RIDE desativado para este ficheiro",
+                zip_path.name,
+            )
 
         total = 0
         kept = 0

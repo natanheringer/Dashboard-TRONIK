@@ -524,9 +524,24 @@ def main(argv: list[str] | None = None) -> int:
                 limit=args.build_limit,
                 use_internal_labels=args.use_internal_labels,
             )
+            if built.get("empresas", 0) < 1:
+                print(
+                    json.dumps(
+                        {
+                            "ok": False,
+                            "short_circuited_after": "build-features",
+                            "built": built,
+                            "reason": "Nenhuma empresa_candidata para build-features; train/score não executados.",
+                        },
+                        ensure_ascii=False,
+                        indent=2,
+                        default=str,
+                    )
+                )
+                return 1
             trained = train_ranker(db, pipeline_version=args.version)
             scored = score_candidates(db, model_version=trained["versao"], pipeline_version=args.version)
-        print(json.dumps({"built": built, "trained": trained, "scored": scored}, ensure_ascii=False, indent=2, default=str))
+        print(json.dumps({"ok": True, "built": built, "trained": trained, "scored": scored}, ensure_ascii=False, indent=2, default=str))
         return 0
 
     return 1

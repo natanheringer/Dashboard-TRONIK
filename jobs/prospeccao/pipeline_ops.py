@@ -113,40 +113,84 @@ def run_scheduled_pipeline() -> dict[str, Any]:
 
     steps_out: list[dict[str, Any]] = []
 
+    def _step(step_args: list[str]) -> bool:
+        steps_out.append(_run_cli_step(step_args, timeout_s=step_timeout))
+        return bool(steps_out[-1].get("ok"))
+
     if not skip_ingest:
         harvest_steps = os.getenv(
             "PROSPECCAO_PIPELINE_INGEST_STEPS",
             "ibge,geoportal,ckan_meta,pncp",
         )
-        steps_out.append(
-            _run_cli_step(
-                ["harvest", "--steps", harvest_steps],
-                timeout_s=step_timeout,
-            )
-        )
+        if not _step(["harvest", "--steps", harvest_steps]):
+            return {
+                "ok": False,
+                "mode": "python_cli",
+                "version": version,
+                "steps": steps_out,
+                "short_circuited_after": steps_out[-1].get("step"),
+            }
 
-    if not skip_normalize:
-        steps_out.append(_run_cli_step(["normalize"], timeout_s=step_timeout))
+    if not skip_normalize and not _step(["normalize"]):
+        return {
+            "ok": False,
+            "mode": "python_cli",
+            "version": version,
+            "steps": steps_out,
+            "short_circuited_after": steps_out[-1].get("step"),
+        }
 
-    steps_out.append(_run_cli_step(["link-crm"], timeout_s=step_timeout))
+    if not _step(["link-crm"]):
+        return {
+            "ok": False,
+            "mode": "python_cli",
+            "version": version,
+            "steps": steps_out,
+            "short_circuited_after": steps_out[-1].get("step"),
+        }
 
-    if os.getenv("PROSPECCAO_BUILD_ENRICHMENT", "false").lower() == "true":
-        steps_out.append(_run_cli_step(["build-enrichment"], timeout_s=step_timeout))
+    if (
+        os.getenv("PROSPECCAO_BUILD_ENRICHMENT", "false").lower() == "true"
+        and not _step(["build-enrichment"])
+    ):
+        return {
+            "ok": False,
+            "mode": "python_cli",
+            "version": version,
+            "steps": steps_out,
+            "short_circuited_after": steps_out[-1].get("step"),
+        }
 
     build_args = ["build-features", "--version", version]
     if use_internal:
         build_args.append("--use-internal-labels")
     if build_limit:
         build_args.extend(["--limit", str(build_limit)])
-    steps_out.append(_run_cli_step(build_args, timeout_s=step_timeout))
+    if not _step(build_args):
+        return {
+            "ok": False,
+            "mode": "python_cli",
+            "version": version,
+            "steps": steps_out,
+            "short_circuited_after": steps_out[-1].get("step"),
+        }
 
-    steps_out.append(
-        _run_cli_step(
-            ["train-ranker", "--pipeline-version", version],
-            timeout_s=step_timeout,
-        )
-    )
-    steps_out.append(_run_cli_step(["score-candidates"], timeout_s=step_timeout))
+    if not _step(["train-ranker", "--pipeline-version", version]):
+        return {
+            "ok": False,
+            "mode": "python_cli",
+            "version": version,
+            "steps": steps_out,
+            "short_circuited_after": steps_out[-1].get("step"),
+        }
 
-    ok = all(s.get("ok") for s in steps_out)
-    return {"ok": ok, "mode": "python_cli", "version": version, "steps": steps_out}
+    if not _step(["score-candidates"]):
+        return {
+            "ok": False,
+            "mode": "python_cli",
+            "version": version,
+            "steps": steps_out,
+            "short_circuited_after": steps_out[-1].get("step"),
+        }
+
+    return {"ok": True, "mode": "python_cli", "version": version, "steps": steps_out}

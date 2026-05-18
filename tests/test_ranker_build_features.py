@@ -6,10 +6,12 @@ from datetime import datetime
 from jobs.prospeccao.build_features import _equal_frequency_ordinal_labels
 from jobs.prospeccao.ranker_contract import (
     FEATURE_NAMES,
+    FEATURE_REASON_LABELS,
     FEATURE_SCHEMA_VERSION,
     MONOTONIC_CONSTRAINTS,
     build_feature_vector,
     feature_schema,
+    top_reasons,
     validate_feature_contract,
 )
 
@@ -73,6 +75,9 @@ class TestFeatureVectorContract:
     def test_feature_names_length(self):
         assert len(FEATURE_NAMES) == 19
 
+    def test_reason_labels_mirror_feature_contract(self):
+        assert set(FEATURE_REASON_LABELS) == set(FEATURE_NAMES)
+
     def test_schema_version_and_entries(self):
         schema = feature_schema()
         assert len(schema) == 19
@@ -118,6 +123,11 @@ class TestFeatureVectorContract:
         )
         assert with_coords["has_geocode"] == 1.0
         assert without_coords["has_geocode"] == 0.0
+
+    def test_top_reasons_respects_fallback_floor_without_shap(self):
+        feats = {"a": 0.05, "b": 0.5}
+        reasons = top_reasons(feats, None, limit=5, min_fallback_value=0.1)
+        assert [r["feature"] for r in reasons] == ["b"]
 
     def test_all_values_are_numeric(self):
         vec = build_feature_vector(MockEmpresa(), MockLocal())

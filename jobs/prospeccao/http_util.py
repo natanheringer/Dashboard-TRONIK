@@ -134,9 +134,9 @@ def stream_download(
         headers=headers,
     ) as resp:
         if resume_offset > 0 and resp.status_code not in (200, 206):
-            resp.raise_for_status()
-        else:
-            resp.raise_for_status()
+            msg = f"Resume failed: status={resp.status_code} url={url[:160]}"
+            raise requests.HTTPError(msg, response=resp)
+        resp.raise_for_status()
         for chunk in resp.iter_content(chunk_size=chunk_size):
             if not chunk:
                 continue

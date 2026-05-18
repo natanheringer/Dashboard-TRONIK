@@ -16,7 +16,11 @@ from jobs.prospeccao.labels_internal import (
     normalize_cnpj,
     normalize_org_name,
 )
-from jobs.prospeccao.publish_scores import _resolve_model
+from jobs.prospeccao.publish_scores import (
+    percentile_map_for_qid,
+    resolve_model,
+    serialize_published_score_row,
+)
 
 
 def _observacoes_pipeline_prospeccao(
@@ -58,6 +62,9 @@ def criar_pipeline_de_candidato(
                 "origem": pipeline.origem,
                 "ja_vinculado": True,
             }
+        empresa.pipeline_id = None
+        empresa.atualizado_em = utc_now_naive()
+        db.flush()
 
     status_final = (status or "lead").strip().lower()
     if status_final not in CRMService.STATUS_PROBABILIDADE:
@@ -123,24 +130,24 @@ def _match_empresa_por_nome(
     return None
 
 
-def _score_row_to_dict(
-    score: ScoreProspeccao,
-    empresa: EmpresaCandidata | None,
-    local: LocalCandidato | None,
-    *,
-    match_source: str,
-) -> dict[str, Any]:
-    payload = score.to_dict()
-    payload["empresa"] = empresa.to_dict() if empresa else None
-    payload["local"] = local.to_dict() if local else None
-    payload["match_source"] = match_source
-    return payload
+def _attach_score_percentis(db: Session, model_id: int, rows: list[dict[str, Any]]) -> None:
+    cache: dict[str, dict[int, float]] = {}
+    for row in rows:
+        qid = row.get("qid")
+        sid = row.get("id")
+        if not qid or sid is None:
+            row["score_percentil"] = 0.0
+            continue
+        if qid not in cache:
+            cache[qid] = percentile_map_for_qid(db, model_id, str(qid))
+        row["score_percentil"] = cache[qid].get(int(sid), 0.0)
 
 
 def buscar_candidatos_por_nome_empresa(
     db: Session,
     nome: str,
     limite: int = 5,
+    model_version: str | None = None,
 ) -> list[dict[str, Any]]:
     """Match published prospection scores by normalized company name."""
     busca_norm = normalize_org_name(nome)
@@ -148,7 +155,7 @@ def buscar_candidatos_por_nome_empresa(
     if not busca_norm and not cnpjs_busca:
         return []
 
-    model = _resolve_model(db)
+    model = resolve_model(db, model_version)
     if not model:
         return []
 
@@ -165,10 +172,15 @@ def buscar_candidatos_por_nome_empresa(
         source = _match_empresa_por_nome(busca_norm, empresa, cnpjs_busca=cnpjs_busca)
         if not source:
             continue
-        matches.append((score.score, _score_row_to_dict(score, empresa, local, match_source=source)))
+        matches.append((
+            score.score,
+            serialize_published_score_row(score, empresa, local, match_source=source),
+        ))
 
     matches.sort(key=lambda item: item[0], reverse=True)
-    return [row for _, row in matches[:limite]]
+    out = [row for _, row in matches[:limite]]
+    _attach_score_percentis(db, model.id, out)
+    return out
 
 
 def _termos_busca_pipeline(pipeline: Pipeline, coletor: Coletor | None) -> list[str]:
@@ -180,7 +192,12 @@ def _termos_busca_pipeline(pipeline: Pipeline, coletor: Coletor | None) -> list[
     return [t for t in termos if t]
 
 
-def buscar_scores_para_pipeline(db: Session, pipeline_id: int) -> dict[str, Any] | None:
+def buscar_scores_para_pipeline(
+    db: Session,
+    pipeline_id: int,
+    *,
+    model_version: str | None = None,
+) -> dict[str, Any] | None:
     """Resolve CRM pipeline to prospection scores and explain hints."""
     pipeline = (
         db.query(Pipeline)
@@ -197,7 +214,7 @@ def buscar_scores_para_pipeline(db: Session, pipeline_id: int) -> dict[str, Any]
     scores: list[dict[str, Any]] = []
 
     for termo in termos:
-        for item in buscar_candidatos_por_nome_empresa(db, termo, limite=5):
+        for item in buscar_candidatos_por_nome_empresa(db, termo, limite=5, model_version=model_version):
             score_id = item.get("id")
             if score_id is None or score_id in vistos:
                 continue
@@ -209,7 +226,7 @@ def buscar_scores_para_pipeline(db: Session, pipeline_id: int) -> dict[str, Any]
         score_id = item.get("id")
         if score_id is None:
             continue
-        explain = prospeccao_xgb_service.explicar_candidato(db, score_id)
+        explain = prospeccao_xgb_service.explicar_candidato(db, score_id, model_version)
         hints.append({
             "score_id": score_id,
             "match_source": item.get("match_source"),
@@ -269,6 +286,7 @@ def cruzar_crm_prospeccao(
     pipeline_id: int | None = None,
     empresa: str | None = None,
     limite_scores: int = 5,
+    model_version: str | None = None,
 ) -> dict[str, Any]:
     """Cruza pipeline CRM com scores do ranker REE (por pipeline_id ou nome da empresa)."""
     empresa_txt = (empresa or "").strip() or None
@@ -286,7 +304,7 @@ def cruzar_crm_prospeccao(
     termos_busca: list[str] = []
 
     if pipeline_id is not None:
-        cruzado = buscar_scores_para_pipeline(db, int(pipeline_id))
+        cruzado = buscar_scores_para_pipeline(db, int(pipeline_id), model_version=model_version)
         if not cruzado:
             return {
                 "encontrado": False,
@@ -305,14 +323,16 @@ def cruzar_crm_prospeccao(
         hints = cruzado.get("hints") or []
         termos_busca = cruzado.get("termos_busca") or []
         if empresa_txt:
-            extra = buscar_candidatos_por_nome_empresa(db, empresa_txt, limite=limite)
+            extra = buscar_candidatos_por_nome_empresa(
+                db, empresa_txt, limite=limite, model_version=model_version
+            )
             vistos = {s.get("id") for s in scores}
             for item in extra:
                 if item.get("id") not in vistos:
                     scores.append(item)
                     vistos.add(item.get("id"))
     elif empresa_txt:
-        scores = buscar_candidatos_por_nome_empresa(db, empresa_txt, limite=limite)
+        scores = buscar_candidatos_por_nome_empresa(db, empresa_txt, limite=limite, model_version=model_version)
         pipelines_relacionados = _pipelines_por_nome_empresa(db, empresa_txt, limite=3)
         if pipelines_relacionados:
             pipeline_resumo = pipelines_relacionados[0]

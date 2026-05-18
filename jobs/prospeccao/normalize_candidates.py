@@ -8,7 +8,6 @@ from __future__ import annotations
 import json
 import logging
 import re
-import unicodedata
 from pathlib import Path
 from typing import Any
 
@@ -16,7 +15,8 @@ from sqlalchemy import func
 from sqlalchemy.orm import Session
 
 from banco_dados.modelos import EmpresaCandidata, LocalCandidato
-from jobs.prospeccao import config, paths as pathutil
+from jobs.prospeccao import paths as pathutil
+from jobs.prospeccao.ranker_contract import listwise_training_qid
 
 logger = logging.getLogger(__name__)
 
@@ -24,13 +24,6 @@ logger = logging.getLogger(__name__)
 # ---------------------------------------------------------------------------
 # CNEFE geocoding
 # ---------------------------------------------------------------------------
-
-def _normalize_logradouro(raw: str) -> str:
-    s = raw.strip().lower()
-    s = unicodedata.normalize("NFKD", s)
-    s = "".join(c for c in s if not unicodedata.combining(c))
-    s = re.sub(r"\s+", " ", s)
-    return s
 
 
 def geocode_candidates(db: Session, cnefe_dir: Path | None = None) -> dict[str, int]:
@@ -47,6 +40,16 @@ def geocode_candidates(db: Session, cnefe_dir: Path | None = None) -> dict[str, 
         return {"geocoded": 0, "already_had_coords": 0, "no_match": 0, "out_of_scope": 0}
 
     stats = {"geocoded": 0, "already_had_coords": 0, "no_match": 0, "out_of_scope": 0}
+    already_had = (
+        db.query(func.count(LocalCandidato.id))
+        .filter(
+            LocalCandidato.latitude.isnot(None),
+            LocalCandidato.longitude.isnot(None),
+        )
+        .scalar()
+        or 0
+    )
+    stats["already_had_coords"] = already_had
     locais = db.query(LocalCandidato).filter(
         LocalCandidato.latitude.is_(None) | LocalCandidato.longitude.is_(None),
     ).all()
@@ -73,12 +76,6 @@ def geocode_candidates(db: Session, cnefe_dir: Path | None = None) -> dict[str, 
             stats["geocoded"] += 1
         else:
             stats["no_match"] += 1
-
-    already = db.query(func.count(LocalCandidato.id)).filter(
-        LocalCandidato.latitude.isnot(None),
-        LocalCandidato.longitude.isnot(None),
-    ).scalar() or 0
-    stats["already_had_coords"] = already
 
     db.flush()
     logger.info("Geocoding: %s", stats)
@@ -188,63 +185,26 @@ def assign_ra(db: Session, geojson_path: Path | None = None) -> dict[str, int]:
 # QID generation
 # ---------------------------------------------------------------------------
 
-_RIDE_NAMES_LOWER: set[str] = {
-    name.lower() for name in config.RIDE_ENTORNO_MUNICIPIOS.values()
-}
-
 
 def assign_qid(db: Session) -> dict[str, int]:
     """Assign qid to local_candidato rows that lack one.
 
-    Enhanced rules for diversity (avoids monolithic "df" bucket):
-      - With RA: qid = "ra:<ra_lower>"
-      - With bairro: qid = "bairro:<bairro_lower>"
-      - With CEP (first 5 digits): qid = "cep5:<cep5>"
-      - GO state: qid = "entorno:<municipio_lower>"
-      - Fallback: qid = "uf:<estado_lower>" or "orphan"
-
-    Ensures better distribution for listwise LTR grouping.
+    Uses ``listwise_training_qid`` (same grouping as ``build_features``) so DB
+    labels match the ranker contract and rows are not accidentally collapsed
+    across municipalities.
     """
-    stats = {"assigned": 0, "already_had": 0}
+    stats = {"assigned": 0, "orphan": 0}
     locais = db.query(LocalCandidato).filter(LocalCandidato.qid.is_(None)).all()
 
     for local in locais:
         empresa = local.empresa
-        # Guard: skip orphans without empresa
         if not empresa:
             local.qid = "orphan"
+            stats["orphan"] += 1
             stats["assigned"] += 1
             continue
 
-        uf = empresa.uf.strip().upper() if empresa.uf else ""
-        qid = None
-
-        # Priority order: RA → bairro → CEP5 → GO→state → UF
-        if local.ra and local.ra.strip():
-            qid = f"ra:{local.ra.strip().lower()}"
-        elif local.bairro:
-            qid = f"bairro:{local.bairro.lower()}"
-        elif local.cep:
-            cep_clean = "".join(c for c in str(local.cep) if c.isdigit())
-            if len(cep_clean) >= 5:
-                qid = f"cep5:{cep_clean[:5]}"
-        elif empresa.cep:
-            cep_clean = "".join(c for c in str(empresa.cep) if c.isdigit())
-            if len(cep_clean) >= 5:
-                qid = f"cep5:{cep_clean[:5]}"
-
-        if not qid:
-            if uf == "GO":
-                municipio = empresa.municipio if empresa else None
-                if municipio:
-                    qid = f"entorno:{municipio.strip().lower()}"
-                else:
-                    qid = "entorno"
-            else:
-                # Final fallback by UF (better than generic "df")
-                qid = f"uf:{uf.lower()}" if uf else "sem_uf"
-
-        local.qid = qid
+        local.qid = listwise_training_qid(empresa, local)
         stats["assigned"] += 1
 
     db.flush()

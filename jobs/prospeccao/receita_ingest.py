@@ -30,12 +30,10 @@ def discover_working_base(
         for probe in probes:
             url = base + probe
             try:
-                r = session().head(url, allow_redirects=True, timeout=request_timeout())
-                ok = r.ok
-                r.close()
-                if ok:
-                    logger.info("Receita: base OK %s (probe %s)", base, probe)
-                    return base.rstrip("/") + "/"
+                with session().head(url, allow_redirects=True, timeout=request_timeout()) as r:
+                    if r.ok:
+                        logger.info("Receita: base OK %s (probe %s)", base, probe)
+                        return base.rstrip("/") + "/"
             except Exception as e:
                 logger.debug("Probe falhou %s: %s", url, e)
     return None

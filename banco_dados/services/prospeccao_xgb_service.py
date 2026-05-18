@@ -8,8 +8,13 @@ from typing import Any
 from sqlalchemy import func
 from sqlalchemy.orm import Session
 
-from banco_dados.modelos import EmpresaCandidata, LocalCandidato, ModeloProspeccao, ScoreProspeccao
-from jobs.prospeccao.publish_scores import list_published_scores
+from banco_dados.modelos import EmpresaCandidata, LocalCandidato, ScoreProspeccao
+from jobs.prospeccao.publish_scores import (
+    list_published_scores,
+    percentile_map_for_qid,
+    resolve_model,
+    serialize_published_score_row,
+)
 
 
 def buscar_candidatos_prospeccao(
@@ -38,7 +43,7 @@ def buscar_candidatos_prospeccao(
 
 def buscar_modelo_ativo(db: Session) -> dict[str, Any] | None:
     """Return summary of the active prospection ranker model."""
-    model = _resolve_model(db)
+    model = resolve_model(db)
     if not model:
         return None
     return {
@@ -49,15 +54,8 @@ def buscar_modelo_ativo(db: Session) -> dict[str, Any] | None:
     }
 
 
-def _resolve_model(db: Session, model_version: str | None = None) -> ModeloProspeccao | None:
-    query = db.query(ModeloProspeccao)
-    if model_version:
-        return query.filter(ModeloProspeccao.versao == model_version).first()
-    return query.filter(ModeloProspeccao.ativo.is_(True)).order_by(ModeloProspeccao.treinado_em.desc()).first()
-
-
 def explicar_candidato(db: Session, score_id: int, model_version: str | None = None) -> dict[str, Any] | None:
-    model = _resolve_model(db, model_version)
+    model = resolve_model(db, model_version)
     if not model:
         return None
 
@@ -72,9 +70,13 @@ def explicar_candidato(db: Session, score_id: int, model_version: str | None = N
         return None
 
     score, empresa, local = row
-    payload = score.to_dict()
-    payload["empresa"] = empresa.to_dict() if empresa else None
-    payload["local"] = local.to_dict() if local else None
+    pct = percentile_map_for_qid(db, model.id, score.qid)
+    payload = serialize_published_score_row(
+        score,
+        empresa,
+        local,
+        score_percentil=pct.get(score.id, 0.0),
+    )
     return {
         "score": payload,
         "explicacao": payload.get("motivos", []),
@@ -100,7 +102,7 @@ def saude_prospeccao(db: Session, model_version: str | None = None) -> dict[str,
 
 def status_modelo_prospeccao(db: Session, model_version: str | None = None) -> dict[str, Any] | None:
     """Versão ativa do ranker e métricas principais persistidas no banco."""
-    model = _resolve_model(db, model_version)
+    model = resolve_model(db, model_version)
     if not model:
         return None
 

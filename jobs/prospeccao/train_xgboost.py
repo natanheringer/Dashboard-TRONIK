@@ -34,6 +34,15 @@ MIN_ACTIVATION_NDCG = 0.30
 EARLY_STOPPING_ROUNDS = 35
 
 
+def _artifact_stem(model_version: str) -> str:
+    """Filesystem-safe stem for joblib paths (no dirs / odd unicode)."""
+    stem = "".join(
+        c if (c.isalnum() or c in "._-") else "_"
+        for c in (model_version or "").strip()
+    ).strip("._-")
+    return stem[:180] or "model"
+
+
 def _xgb_major_version() -> tuple[int, int, int]:
     try:
         import xgboost as xgb
@@ -454,30 +463,23 @@ def train_ranker(
                 except Exception:
                     val_ndcg_selected = None
 
-            # --- Retrain winner on ALL data (with eval_set to capture learning curve) ---
+            # --- Retrain winner on ALL data: tree count from CV winner only (no eval on val). ---
             final_params = dict(best_params)
-            final_has_eval = x_val_np is not None and val_group_sizes
-            final_es = EARLY_STOPPING_ROUNDS if final_has_eval else None
-            final_ranker, final_es_mode = _create_xgb_ranker(
-                final_params, early_stopping_rounds=final_es
+            bi = getattr(best_ranker, "best_iteration", None)
+            if bi is not None:
+                final_params["n_estimators"] = int(bi) + 1
+            final_ranker, _final_es_mode = _create_xgb_ranker(
+                final_params, early_stopping_rounds=None
             )
-            final_eval_set = None
-            final_eval_group = None
-            if final_has_eval:
-                final_eval_set = [
-                    (np.asarray(x, dtype=float), np.asarray(y, dtype=float)),
-                    (x_val_np, np.asarray(y_val, dtype=float)),
-                ]
-                final_eval_group = [group_sizes, val_group_sizes]
             _fit_xgb_ranker(
                 final_ranker,
                 np.asarray(x, dtype=float),
                 np.asarray(y, dtype=float),
                 group_sizes,
-                eval_set=final_eval_set,
-                eval_group=final_eval_group,
-                early_stopping_rounds=final_es,
-                early_stop_mode=final_es_mode,
+                eval_set=None,
+                eval_group=None,
+                early_stopping_rounds=None,
+                early_stop_mode=None,
             )
 
             full_pred = [float(v) for v in final_ranker.predict(np.asarray(x, dtype=float))]
@@ -510,6 +512,7 @@ def train_ranker(
             metrics["search_results"] = search_results
             metrics["feature_importance"] = _feature_importance(final_ranker)
             metrics["retrained_on_full_data"] = True
+            metrics["final_fit_val_eval"] = False
 
             # --- Extract learning curve from evals_result_ if available ---
             try:
@@ -571,7 +574,7 @@ def train_ranker(
 
             # --- Persist artifact with feature importance ---
             MODEL_DIR.mkdir(parents=True, exist_ok=True)
-            artifact = MODEL_DIR / f"{model_version}.joblib"
+            artifact = MODEL_DIR / f"{_artifact_stem(model_version)}.joblib"
             feature_importance_data = _feature_importance(final_ranker)
             artifact_data = {
                 "model": final_ranker,

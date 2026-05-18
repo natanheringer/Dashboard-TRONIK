@@ -17,11 +17,16 @@ import os
 from pathlib import Path
 from typing import Any
 
-from jobs.prospeccao.ranker_contract import haversine_km
+from jobs.prospeccao.ranker_contract import FEATURE_NAMES, haversine_km
 
 logger = logging.getLogger(__name__)
 
 PROXY_KEYS = ("osm_poi_ree_density", "inep_institution_proxy", "cnes_health_proxy")
+if set(PROXY_KEYS) - set(FEATURE_NAMES):
+    raise RuntimeError(
+        "PROXY_KEYS must name features present in ranker_contract.FEATURE_NAMES "
+        f"(unknown={sorted(set(PROXY_KEYS) - set(FEATURE_NAMES))})"
+    )
 
 _ENV_OSM = "TRONIK_OSM_POI_PARQUET"
 _ENV_INEP = "TRONIK_INEP_CENSO_PARQUET"

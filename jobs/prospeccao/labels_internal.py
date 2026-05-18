@@ -9,6 +9,11 @@ Joins prospection candidates (empresa_candidata) to internal ops via:
 Used by build-features when ``use_internal_labels=True``: internal continuous score
 replaces the heuristic bootstrap where a match exists; listwise equal-frequency binning
 per qid is unchanged so XGBRanker training stays compatible.
+
+Training labels default to **ops-only** signals. Optional ``apply_crm_persisted_boost``
+can add a bonus when ``empresa.pipeline_id`` points at a CRM row already marked won —
+that encodes deal outcome, is not a model feature, and would leak label information
+into the ranker targets if enabled during ``build-features``.
 """
 
 from __future__ import annotations
@@ -413,8 +418,15 @@ def lookup_internal_score(
     empresa: EmpresaCandidata,
     local: LocalCandidato | None,
     index: InternalLabelIndex,
+    *,
+    apply_crm_persisted_boost: bool = False,
 ) -> tuple[float | None, dict[str, Any]]:
-    """Return continuous relevance and metadata when ops data matches this candidate."""
+    """Return continuous relevance and metadata when ops data matches this candidate.
+
+    ``apply_crm_persisted_boost``: when True, adds a fixed bonus if the candidate row
+    is already linked (``pipeline_id``) to a CRM pipeline in a won state. Keep False
+    when this score feeds training labels to avoid outcome leakage.
+    """
     signals, match_source = lookup_internal_signals(empresa, local, index)
     if not signals:
         return None, {"matched": False}
@@ -440,7 +452,11 @@ def lookup_internal_score(
         "cnpj_match": cnpj_match,
     }
     pipeline_id = getattr(empresa, "pipeline_id", None)
-    if pipeline_id and pipeline_id in index.fechado_pipeline_ids:
+    if (
+        apply_crm_persisted_boost
+        and pipeline_id
+        and pipeline_id in index.fechado_pipeline_ids
+    ):
         score = round(score + _CRM_PERSISTED_LINK_BOOST, 4)
         meta["crm_persisted_link"] = True
         meta["pipeline_id"] = pipeline_id

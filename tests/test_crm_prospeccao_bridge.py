@@ -11,13 +11,13 @@ class TestBuscarCandidatosPorNomeEmpresa:
         db = MagicMock()
         assert prospeccao_crm_bridge.buscar_candidatos_por_nome_empresa(db, "   ") == []
 
-    @patch("banco_dados.services.prospeccao_crm_bridge._resolve_model")
+    @patch("banco_dados.services.prospeccao_crm_bridge.resolve_model")
     def test_retorna_vazio_sem_modelo_ativo(self, mock_resolve):
         mock_resolve.return_value = None
         db = MagicMock()
         assert prospeccao_crm_bridge.buscar_candidatos_por_nome_empresa(db, "Eco Recicla") == []
 
-    @patch("banco_dados.services.prospeccao_crm_bridge._resolve_model")
+    @patch("banco_dados.services.prospeccao_crm_bridge.resolve_model")
     def test_filtra_por_nome_normalizado(self, mock_resolve):
         mock_resolve.return_value = MagicMock(id=1)
 
@@ -103,7 +103,7 @@ class TestBuscarScoresParaPipeline:
         assert resultado["scores"][0]["id"] == 7
         assert resultado["hints"][0]["score_id"] == 7
         assert resultado["hints"][0]["explicacao"] == ["porte_grande", "cnae_ree"]
-        mock_buscar.assert_called_once_with(db, "Cliente Teste", limite=5)
+        mock_buscar.assert_called_once_with(db, "Cliente Teste", limite=5, model_version=None)
 
     def test_pipeline_inexistente(self):
         db = MagicMock()
@@ -119,7 +119,7 @@ def test_pipeline_prospeccao_exige_login(client):
 def test_pipeline_prospeccao_autenticado(auth_client, monkeypatch):
     monkeypatch.setattr(
         "rotas.api.crm.buscar_scores_para_pipeline",
-        lambda db, pipeline_id: {
+        lambda db, pipeline_id, model_version=None: {
             "pipeline_id": pipeline_id,
             "pipeline_status": "lead",
             "scores": [
@@ -160,7 +160,7 @@ def test_pipeline_prospeccao_autenticado(auth_client, monkeypatch):
 def test_pipeline_prospeccao_nao_encontrado(auth_client, monkeypatch):
     monkeypatch.setattr(
         "rotas.api.crm.buscar_scores_para_pipeline",
-        lambda db, pipeline_id: None,
+        lambda db, pipeline_id, model_version=None: None,
     )
     resp = auth_client.get("/api/crm/pipeline/99/prospeccao")
     assert resp.status_code == 404

@@ -24,7 +24,8 @@ def test_saude_sem_modelo(db_session):
     report = build_pipeline_health_report(db_session)
     assert report["modelo_ativo"] is False
     assert report["scores_publicados"] == 0
-    assert report["warnings"]
+    assert report["errors"]
+    assert not report["warnings"]
 
 
 def test_saude_com_modelo_heuristic_bootstrap(db_session):

@@ -61,8 +61,12 @@ def run_harvest(
         try:
             out = fn()
             if isinstance(out, dict) and out:
-                sample = next(iter(out.values()))
-                if isinstance(sample, list) and sample and hasattr(sample[0], "as_posix"):
+                first_val = next(iter(out.values()))
+                if (
+                    isinstance(first_val, list)
+                    and first_val
+                    and hasattr(first_val[0], "as_posix")
+                ):
                     report["ok"][name] = {k: [str(p) for p in v] for k, v in out.items()}
                 else:
                     report["ok"][name] = out

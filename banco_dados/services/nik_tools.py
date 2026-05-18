@@ -39,6 +39,7 @@ from banco_dados.services import (
 )
 from banco_dados.services.crm_service import CRMService
 from banco_dados.utils.cache import obter_cache
+from jobs.prospeccao.publish_scores import resolve_model
 
 _WEB_CHAMADAS_TS: list[float] = []
 
@@ -384,6 +385,7 @@ def ferramenta_cruzar_crm_prospeccao(
     pipeline_id: int | None = None,
     empresa: str | None = None,
     limite_scores: int = 5,
+    model_version: str | None = None,
 ) -> dict[str, Any]:
     """Cruza pipeline CRM com scores do ranker REE (pipeline_id ou nome da empresa)."""
     return crm_bridge.cruzar_crm_prospeccao(
@@ -391,6 +393,7 @@ def ferramenta_cruzar_crm_prospeccao(
         pipeline_id=pipeline_id,
         empresa=empresa,
         limite_scores=max(1, min(int(limite_scores or 5), 20)),
+        model_version=model_version,
     )
 
 
@@ -427,7 +430,7 @@ def _resumo_candidato_comparacao(payload: dict[str, Any]) -> dict[str, Any]:
 
 
 def _carregar_score_por_empresa_id(db: Session, empresa_id: int) -> dict[str, Any] | None:
-    model = prospeccao_svc._resolve_model(db)
+    model = resolve_model(db)
     if not model:
         return None
     row = (
@@ -1154,6 +1157,7 @@ _PARAMETROS_OPENAI: dict[str, dict[str, Any]] = {
         pipeline_id={"type": "integer", "description": "ID do pipeline CRM."},
         empresa={"type": "string", "description": "Nome da empresa para cruzar."},
         limite_scores={"type": "integer", "description": "Máximo de scores retornados."},
+        model_version={"type": "string", "description": "Versão do modelo REE (opcional)."},
     ),
     "comparar_candidatos": _schema_props(
         score_ids={

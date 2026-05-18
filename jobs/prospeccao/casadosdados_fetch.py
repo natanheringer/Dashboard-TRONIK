@@ -13,6 +13,7 @@ Fetches in proximity order from sede (Recanto das Emas):
 
 from __future__ import annotations
 
+import json
 import logging
 import time
 from datetime import datetime
@@ -23,6 +24,7 @@ from sqlalchemy.orm import Session
 from banco_dados.modelos import EmpresaCandidata, LocalCandidato
 from jobs.prospeccao import config
 from jobs.prospeccao.http_util import session
+from jobs.prospeccao.ranker_contract import normalize_cep8, sanitize_cnae
 
 logger = logging.getLogger(__name__)
 
@@ -164,18 +166,56 @@ def _build_fetch_plan(tiers: str = "all") -> list[dict[str, str]]:
 # ---------------------------------------------------------------------------
 
 def _clean_cnpj(raw: str) -> str:
-    return raw.replace(".", "").replace("/", "").replace("-", "").strip()
+    """Digits-only CNPJ (14 chars when valid)."""
+    return "".join(c for c in str(raw) if c.isdigit())
 
 
-def _normalize_cep(cep: str | None) -> str | None:
-    """Normaliza e valida CEP: remove caracteres não-dígitos, retorna None se inválido."""
-    if not cep:
+def _cnae_secundarios_to_json(raw: Any) -> str | None:
+    """API may return JSON text, list[str], or list[{codigo: ...}] — DB stores JSON array text."""
+    if raw is None:
         return None
-    cep_clean = "".join(c for c in cep if c.isdigit())
-    if len(cep_clean) != 8:
-        logger.debug("CEP inválido (comprimento != 8): %s → %s", cep, cep_clean)
+    if isinstance(raw, str):
+        t = raw.strip()
+        if not t:
+            return None
+        try:
+            parsed = json.loads(t)
+        except json.JSONDecodeError:
+            return None
+        return _cnae_secundarios_to_json(parsed)
+    if not isinstance(raw, list):
         return None
-    return cep_clean
+    seen: set[str] = set()
+    codes: list[str] = []
+    for item in raw:
+        if isinstance(item, dict):
+            digits = "".join(ch for ch in str(item.get("codigo") or "") if ch.isdigit())
+        else:
+            digits = "".join(ch for ch in str(item) if ch.isdigit())
+        if len(digits) >= 4 and digits not in seen:
+            seen.add(digits)
+            codes.append(digits)
+    return json.dumps(codes, ensure_ascii=False) if codes else None
+
+
+def _cnae_principal_from_record(rec: dict[str, Any]) -> str | None:
+    """Best-effort primary CNAE (v5 field names vary)."""
+    candidates: list[Any] = []
+    v = rec.get("cnae_fiscal_principal")
+    if isinstance(v, dict):
+        candidates.append(v.get("codigo"))
+    else:
+        candidates.append(v)
+    cnae_fiscal = rec.get("cnae_fiscal")
+    if isinstance(cnae_fiscal, dict):
+        candidates.append(cnae_fiscal.get("codigo"))
+    for raw in candidates:
+        if raw is None:
+            continue
+        s = sanitize_cnae(str(raw).strip())
+        if s:
+            return s
+    return None
 
 
 def _upsert_from_record(db: Session, rec: dict[str, Any]) -> tuple[bool, bool]:
@@ -184,7 +224,7 @@ def _upsert_from_record(db: Session, rec: dict[str, Any]) -> tuple[bool, bool]:
     Implementa merge inteligente: não sobrescreve campos válidos da Receita com None.
     """
     cnpj = _clean_cnpj(str(rec.get("cnpj", "")))
-    if not cnpj or len(cnpj) < 8:
+    if len(cnpj) != 14:
         return False, False
 
     endereco = rec.get("endereco", {}) or {}
@@ -205,6 +245,10 @@ def _upsert_from_record(db: Session, rec: dict[str, Any]) -> tuple[bool, bool]:
     else:
         logger.debug("Empresa existente enriquecida via Casa dos Dados: CNPJ=%s", cnpj)
 
+    pri = _cnae_principal_from_record(rec)
+    if pri and not empresa.cnae_principal:
+        empresa.cnae_principal = pri
+
     empresa.razao_social = rec.get("razao_social") or empresa.razao_social
     empresa.nome_fantasia = rec.get("nome_fantasia") or empresa.nome_fantasia
     empresa.situacao_cadastral = sit.get("situacao_cadastral") or empresa.situacao_cadastral
@@ -223,7 +267,7 @@ def _upsert_from_record(db: Session, rec: dict[str, Any]) -> tuple[bool, bool]:
     empresa.bairro = bairro or empresa.bairro
 
     # Normalizar e validar CEP
-    cep_novo = _normalize_cep(endereco.get("cep"))
+    cep_novo = normalize_cep8(endereco.get("cep"))
     empresa.cep = cep_novo or empresa.cep
 
     empresa.uf = (endereco.get("uf") or "").strip().upper() or empresa.uf
@@ -247,9 +291,11 @@ def _upsert_from_record(db: Session, rec: dict[str, Any]) -> tuple[bool, bool]:
     novo_telefone = rec.get("telefone", "").strip() if rec.get("telefone") else None
     empresa.telefone = novo_telefone or empresa.telefone
 
-    novo_cnae_sec = rec.get("cnae_secundarios_json") or rec.get("cnaes_secundarias")
-    if novo_cnae_sec:
-        empresa.cnae_secundarios_json = novo_cnae_sec
+    sec_json = _cnae_secundarios_to_json(
+        rec.get("cnae_secundarios_json") or rec.get("cnaes_secundarias"),
+    )
+    if sec_json and not empresa.cnae_secundarios_json:
+        empresa.cnae_secundarios_json = sec_json
 
     # Marcar origem: se é nova, vem de Casa dos Dados; se é enriquecimento, deixar como está
     if is_new_empresa:

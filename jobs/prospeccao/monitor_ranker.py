@@ -13,7 +13,8 @@ def run_monitor(*, model_version: str | None = None) -> int:
     with session_scope() as db:
         report = build_pipeline_health_report(db, model_version=model_version)
     print(json.dumps(report, ensure_ascii=False, indent=2))
-    healthy = report.get("modelo_ativo") and not report.get("warnings")
+    # errors = fatal for cron (sem modelo ativo, modelo inativo, etc.); warnings = heuristic_bootstrap / empty scores
+    healthy = bool(report.get("modelo_ativo")) and not (report.get("errors") or [])
     return 0 if healthy else 1
 
 
