@@ -86,7 +86,7 @@ def client(test_db, db_session, monkeypatch):
     # Configurar app para testes
     app.config['TESTING'] = True
     app.config['WTF_CSRF_ENABLED'] = False
-    app.config['SECRET_KEY'] = 'test-secret-key'
+    app.config['SECRET_KEY'] = 'test-secret-key-with-32-plus-chars!!'
     app.config['LOGIN_DISABLED'] = False  # Manter autenticação ativa nos testes
 
     # Substituir sessão do banco pela sessão de teste

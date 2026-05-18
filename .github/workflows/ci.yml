@@ -34,5 +34,5 @@ jobs:
       - name: Pytest
         env:
           FLASK_ENV: testing
-          SECRET_KEY: ci-test-secret
+          SECRET_KEY: ci-test-secret-key-with-32-plus-chars!!
         run: pytest tests/test_*.py -m "not slow" --tb=short -q
