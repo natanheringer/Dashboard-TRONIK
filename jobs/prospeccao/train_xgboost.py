@@ -246,7 +246,16 @@ def _stratified_qid_split(
     validation_ratio: float = 0.2,
     seed: int = 42,
 ) -> tuple[dict[str, list[FeatureSnapshotProspeccao]], dict[str, list[FeatureSnapshotProspeccao]]]:
-    """Hold out entire qid groups so validation measures cross-group generalization."""
+    """Hold out entire qid groups so validation measures cross-group generalization.
+
+    TODO: Replace random stratification with temporal split using criado_em field.
+    Current approach uses random.Random(seed=42) which ignores snapshot creation dates.
+    Should instead:
+    1. Sort qids by earliest criado_em timestamp in each group
+    2. Hold out last ~20% (chronologically) for validation
+    3. Use earlier 80% for training
+    This prevents data leakage when snapshots are ordered chronologically.
+    """
     qids = [qid for qid, items in grouped.items() if len(items) >= 2]
     if len(qids) < 2:
         return grouped, {}
@@ -256,6 +265,14 @@ def _stratified_qid_split(
     rng.shuffle(shuffled)
     holdout_count = max(1, int(round(len(shuffled) * validation_ratio)))
     holdout = set(shuffled[:holdout_count])
+
+    # ASSERTION: warn if validation set is suspiciously small (< 5 qids)
+    if len(holdout) < 5:
+        logger.warning(
+            "_stratified_qid_split: validation set has only %d qids (< 5) — "
+            "may not represent cross-group generalization well",
+            len(holdout)
+        )
 
     train_grouped: dict[str, list[FeatureSnapshotProspeccao]] = {}
     val_grouped: dict[str, list[FeatureSnapshotProspeccao]] = {}
@@ -397,8 +414,16 @@ def train_ranker(
             x_train, y_train, train_group_sizes = _matrix(train_grouped)
             x_val, y_val, val_group_sizes = _matrix(val_grouped)
 
-            x_train_np = np.asarray(x_train, dtype=float)
-            y_train_np = np.asarray(y_train, dtype=float)
+            # --- Filter singleton groups from training (listwise ranking requires size >= 2) ---
+            valid_mask = np.array(
+                [size >= 2 for size in train_group_sizes for _ in range(size)]
+            )
+            x_train_filtered = [x_train[i] for i in range(len(x_train)) if valid_mask[i]]
+            y_train_filtered = [y_train[i] for i in range(len(y_train)) if valid_mask[i]]
+            train_group_sizes_filtered = [s for s in train_group_sizes if s >= 2]
+
+            x_train_np = np.asarray(x_train_filtered, dtype=float)
+            y_train_np = np.asarray(y_train_filtered, dtype=float)
             x_val_np = np.asarray(x_val, dtype=float) if x_val else None
 
             # --- Hyperparameter search ---
@@ -420,12 +445,12 @@ def train_ranker(
                         (x_train_np, y_train_np),
                         (x_val_np, np.asarray(y_val, dtype=float)),
                     ]
-                    eval_group = [train_group_sizes, val_group_sizes]
+                    eval_group = [train_group_sizes_filtered, val_group_sizes]
                 _fit_xgb_ranker(
                     ranker,
                     x_train_np,
                     y_train_np,
-                    train_group_sizes,
+                    train_group_sizes_filtered,
                     eval_set=eval_set,
                     eval_group=eval_group,
                     early_stopping_rounds=es_rounds,
@@ -433,7 +458,7 @@ def train_ranker(
                 )
 
                 train_pred = [float(v) for v in ranker.predict(x_train_np)]
-                train_ndcg = _mean_ndcg_by_group(y_train, train_pred, train_group_sizes)
+                train_ndcg = _mean_ndcg_by_group(y_train_filtered, train_pred, train_group_sizes_filtered)
                 val_ndcg = None
                 if x_val_np is not None and val_group_sizes:
                     val_pred = [float(v) for v in ranker.predict(x_val_np)]

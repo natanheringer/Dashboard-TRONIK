@@ -188,7 +188,11 @@ def cnae_secondary_scores(cnae_secundarios_json: str | None) -> tuple[float, flo
 
 
 def porte_ordinal(porte: str | None) -> float:
-    """Continuous 0-1 scale letting XGBoost find optimal split points."""
+    """Continuous 0-1 scale letting XGBoost find optimal split points.
+
+    Note: "Demais" (Receita undefined size) is mapped to 0.5 (neutral).
+    Only "Grande" receives 1.0 (high confidence).
+    """
     value = (porte or "").strip().lower()
     if value == "mei" or "microempreendedor" in value:
         return 0.15
@@ -198,8 +202,10 @@ def porte_ordinal(porte: str | None) -> float:
         return 0.55
     if any(tok in value for tok in ("medio", "médio")):
         return 0.75
-    if any(tok in value for tok in ("grande", "demais")):
+    if "grande" in value:
         return 1.0
+    if "demais" in value:
+        return 0.5
     return 0.40
 
 
@@ -283,9 +289,13 @@ def logistics_proximity(latitude: float | None, longitude: float | None) -> floa
 
 
 def logistics_proximity_exp(latitude: float | None, longitude: float | None) -> float:
-    """Exponential decay — more realistic distance penalty than linear."""
+    """Exponential decay — more realistic distance penalty than linear.
+
+    Returns NaN when coordinates are missing (XGBoost handles NaN natively).
+    Avoids implicit imputation with incorrect geographic signal.
+    """
     if latitude is None or longitude is None:
-        return 0.25
+        return float('nan')
     km = haversine_km(SEDE_LAT, SEDE_LNG, float(latitude), float(longitude))
     return math.exp(-km / 25.0)
 

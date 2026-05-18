@@ -22,7 +22,7 @@ import logging
 import re
 import unicodedata
 from dataclasses import dataclass, field
-from datetime import datetime
+from datetime import datetime, timezone
 from typing import Any
 
 from sqlalchemy import func
@@ -167,14 +167,19 @@ def _register(index: dict[str, InternalSiteSignals], key: str, signals: Internal
         index[key] = signals
 
 
-def build_internal_label_index(db: Session) -> InternalLabelIndex:
-    """Scan parceiro / coletor / coleta / contrato / pipeline and build join indexes."""
+def build_internal_label_index(db: Session, cutoff_date: datetime | None = None) -> InternalLabelIndex:
+    """Scan parceiro / coletor / coleta / contrato / pipeline and build join indexes.
+
+    Args:
+        db: Database session.
+        cutoff_date: If provided, filter coletas and contratos to this datetime (prevents data leakage).
+    """
     by_norm_name: dict[str, InternalSiteSignals] = {}
     by_norm_localizacao: dict[str, InternalSiteSignals] = {}
     by_cnpj: dict[str, InternalSiteSignals] = {}
     by_pipeline_won: dict[str, InternalSiteSignals] = {}
     localizacao_digit_blobs: list[tuple[str, InternalSiteSignals]] = []
-    now = datetime.utcnow()
+    now = datetime.now(timezone.utc)
 
     parceiros = {p.id: p for p in db.query(Parceiro).all()}
     for parceiro in parceiros.values():
@@ -188,27 +193,24 @@ def build_internal_label_index(db: Session) -> InternalLabelIndex:
             ),
         )
 
-    coleta_agg = (
-        db.query(
-            Coleta.coletor_id.label("coletor_id"),
-            func.count(Coleta.id).label("coleta_count"),
-            func.coalesce(func.sum(Coleta.volume_estimado), 0.0).label("volume_total"),
-            func.max(Coleta.data_hora).label("last_coleta_at"),
-        )
-        .group_by(Coleta.coletor_id)
-        .all()
+    coleta_query = db.query(
+        Coleta.coletor_id.label("coletor_id"),
+        func.count(Coleta.id).label("coleta_count"),
+        func.coalesce(func.sum(Coleta.volume_estimado), 0.0).label("volume_total"),
+        func.max(Coleta.data_hora).label("last_coleta_at"),
     )
+    if cutoff_date is not None:
+        coleta_query = coleta_query.filter(Coleta.data_hora <= cutoff_date)
+    coleta_agg = coleta_query.group_by(Coleta.coletor_id).all()
     coleta_by_coletor = {row.coletor_id: row for row in coleta_agg}
 
-    contrato_agg = (
-        db.query(
-            ContratoRecorrente.coletor_id.label("coletor_id"),
-            func.max(ContratoRecorrente.valor_mensal).label("valor_mensal"),
-        )
-        .filter(ContratoRecorrente.status == "ativo")
-        .group_by(ContratoRecorrente.coletor_id)
-        .all()
-    )
+    contrato_query = db.query(
+        ContratoRecorrente.coletor_id.label("coletor_id"),
+        func.max(ContratoRecorrente.valor_mensal).label("valor_mensal"),
+    ).filter(ContratoRecorrente.status == "ativo")
+    if cutoff_date is not None:
+        contrato_query = contrato_query.filter(ContratoRecorrente.created_at <= cutoff_date)
+    contrato_agg = contrato_query.group_by(ContratoRecorrente.coletor_id).all()
     contrato_by_coletor = {row.coletor_id: row for row in contrato_agg}
 
     pipeline_obs_by_coletor: dict[int, list[str]] = {}
@@ -321,12 +323,13 @@ def internal_relevance_continuous(
     *,
     cnpj_match: bool = False,
 ) -> float:
-    """Unbounded ops score: contracts > pipeline won > recency > volume > coleta > parceiro."""
+    """Unbounded ops score: contracts > recency > volume > coleta > parceiro.
+
+    Note: pipeline_won is outcome data and should not contribute to training labels.
+    """
     score = 0.0
     if signals.parceiro_ativo:
         score += 5.0
-    if signals.pipeline_won:
-        score += 25.0
     if cnpj_match:
         score += 12.0
     if signals.has_active_contract:
@@ -336,7 +339,7 @@ def internal_relevance_continuous(
     if signals.volume_total_kg > 0:
         score += min(signals.volume_total_kg / 10.0, 25.0)
     if signals.last_coleta_at:
-        days = max(0, (datetime.utcnow() - signals.last_coleta_at).days)
+        days = max(0, (datetime.now(timezone.utc) - signals.last_coleta_at).days)
         if days <= 30:
             score += 20.0
         elif days <= 90:
