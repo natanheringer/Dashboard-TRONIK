@@ -35,8 +35,8 @@ def predicao_coletor(coletor_id: int):
       - dias_historico: int (default 7) — dias de série para retornar
     """
     from banco_dados.services.ml_predicao import (
-        predizer_enchimento_coletor,
         obter_serie_historica,
+        predizer_enchimento_coletor,
     )
 
     db = get_db()

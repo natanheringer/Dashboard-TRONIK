@@ -1,6 +1,5 @@
 """Tests for IBAMA CTF/APP CSV parsing helpers (no network)."""
 
-import pytest
 
 from jobs.prospeccao.ibama_ctf_ingest import (
     _ATIVIDADE_FIELDS,
@@ -33,10 +32,10 @@ class TestFindField:
 class TestParseCsvBytes:
     def test_semicolon_delimited_utf8(self):
         raw = (
-            "cnpj;razao_social;atividade\n"
-            "12345678000199;Eco Eletronica;Industria de material eletrico\n"
-            "98765432000111;Loja X;Comercio varejista\n"
-        ).encode("utf-8")
+            b"cnpj;razao_social;atividade\n"
+            b"12345678000199;Eco Eletronica;Industria de material eletrico\n"
+            b"98765432000111;Loja X;Comercio varejista\n"
+        )
         rows = _parse_csv_bytes(raw)
         assert len(rows) == 2
         assert rows[0]["cnpj"] == "12345678000199"

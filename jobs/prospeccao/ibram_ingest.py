@@ -33,7 +33,6 @@ from sqlalchemy.orm import Session
 
 from banco_dados.modelos import EmpresaCandidata
 from jobs.prospeccao import config
-from jobs.prospeccao import paths as pathutil
 from jobs.prospeccao.http_util import get_json
 
 logger = logging.getLogger(__name__)

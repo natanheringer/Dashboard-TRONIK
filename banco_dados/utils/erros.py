@@ -9,8 +9,8 @@ So a funcao `tratar_erro_api` depende do Flask, e o import e feito
 on-demand dentro dela.
 """
 
-from typing import Any, Dict, List, Optional
 import logging
+from typing import Any
 
 logger = logging.getLogger(__name__)
 
@@ -26,7 +26,7 @@ logger = logging.getLogger(__name__)
 
 class ErroAPI(Exception):
     """Exceção base para erros da API"""
-    def __init__(self, mensagem: str, codigo: int = 400, detalhes: Optional[Dict] = None):
+    def __init__(self, mensagem: str, codigo: int = 400, detalhes: dict | None = None):
         self.mensagem = mensagem
         self.codigo = codigo
         self.detalhes = detalhes or {}
@@ -35,13 +35,13 @@ class ErroAPI(Exception):
 
 class ErroValidacao(ErroAPI):
     """Erro de validação de dados"""
-    def __init__(self, mensagem: str, detalhes: Optional[Dict] = None):
+    def __init__(self, mensagem: str, detalhes: dict | None = None):
         super().__init__(mensagem, codigo=400, detalhes=detalhes)
 
 
 class ErroNaoEncontrado(ErroAPI):
     """Recurso não encontrado"""
-    def __init__(self, recurso: str, id_recurso: Optional[int] = None):
+    def __init__(self, recurso: str, id_recurso: int | None = None):
         mensagem = f"{recurso} não encontrado"
         if id_recurso:
             mensagem += f" (ID: {id_recurso})"
@@ -90,8 +90,8 @@ def resposta_erro(
     mensagem: str,
     status: int = 400,
     codigo: str = "ERRO_API",
-    campo: Optional[str] = None,
-    detalhes: Optional[Dict[str, Any]] = None,
+    campo: str | None = None,
+    detalhes: dict[str, Any] | None = None,
 ) -> tuple:
     """Retorna uma resposta de erro no envelope padrao.
 
@@ -99,7 +99,7 @@ def resposta_erro(
     """
     from flask import jsonify
 
-    item: Dict[str, Any] = {"codigo": codigo, "mensagem": mensagem}
+    item: dict[str, Any] = {"codigo": codigo, "mensagem": mensagem}
     if campo:
         item["campo"] = campo
     if detalhes:
@@ -138,10 +138,10 @@ def tratar_erro_api(erro: Exception) -> tuple:
     return resposta_erro(mensagem=mensagem, status=500, codigo="ERRO_INTERNO")
 
 
-def validar_requisicao_json(dados: Optional[Dict]) -> None:
+def validar_requisicao_json(dados: dict | None) -> None:
     """
     Valida se a requisição contém dados JSON válidos.
-    
+
     Raises:
         ErroValidacao: Se dados não fornecidos
     """
@@ -149,15 +149,15 @@ def validar_requisicao_json(dados: Optional[Dict]) -> None:
         raise ErroValidacao("Dados JSON não fornecidos")
 
 
-def validar_recurso_existe(recurso, nome_recurso: str, id_recurso: Optional[int] = None) -> None:
+def validar_recurso_existe(recurso, nome_recurso: str, id_recurso: int | None = None) -> None:
     """
     Valida se um recurso existe.
-    
+
     Args:
         recurso: Objeto do recurso (ou None)
         nome_recurso: Nome do recurso (ex: "Coletor")
         id_recurso: ID do recurso (opcional)
-    
+
     Raises:
         ErroNaoEncontrado: Se recurso não existe
     """
@@ -168,18 +168,18 @@ def validar_recurso_existe(recurso, nome_recurso: str, id_recurso: Optional[int]
 def validar_tipo(valor, tipo_esperado, nome_campo: str = "campo"):
     """
     Valida se um valor é do tipo esperado.
-    
+
     Args:
         valor: Valor a validar
         tipo_esperado: Tipo esperado (int, str, float, bool, list, dict)
         nome_campo: Nome do campo para mensagem de erro
-    
+
     Raises:
         ErroValidacao se o tipo não corresponder
     """
     if valor is None:
         return
-    
+
     tipo_map = {
         int: (int,),
         str: (str,),
@@ -188,9 +188,9 @@ def validar_tipo(valor, tipo_esperado, nome_campo: str = "campo"):
         list: (list,),
         dict: (dict,)
     }
-    
+
     tipos_aceitos = tipo_map.get(tipo_esperado, (tipo_esperado,))
-    
+
     if not isinstance(valor, tipos_aceitos):
         raise ErroValidacao(f"{nome_campo} deve ser do tipo {tipo_esperado.__name__}")
 
@@ -198,25 +198,25 @@ def validar_tipo(valor, tipo_esperado, nome_campo: str = "campo"):
 def validar_range(valor, min_val=None, max_val=None, nome_campo: str = "campo"):
     """
     Valida se um valor numérico está dentro de um range.
-    
+
     Args:
         valor: Valor a validar
         min_val: Valor mínimo (inclusive)
         max_val: Valor máximo (inclusive)
         nome_campo: Nome do campo para mensagem de erro
-    
+
     Raises:
         ErroValidacao se o valor estiver fora do range
     """
     if valor is None:
         return
-    
+
     if not isinstance(valor, (int, float)):
         raise ErroValidacao(f"{nome_campo} deve ser numérico")
-    
+
     if min_val is not None and valor < min_val:
         raise ErroValidacao(f"{nome_campo} deve ser >= {min_val}")
-    
+
     if max_val is not None and valor > max_val:
         raise ErroValidacao(f"{nome_campo} deve ser <= {max_val}")
 

@@ -18,8 +18,7 @@ import zipfile
 from pathlib import Path
 from typing import Any
 
-from jobs.prospeccao import config
-from jobs.prospeccao import paths as pathutil
+from jobs.prospeccao import config, paths as pathutil
 from jobs.prospeccao.http_util import download_url_to_path
 
 logger = logging.getLogger(__name__)

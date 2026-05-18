@@ -16,15 +16,15 @@ import io
 import json
 import logging
 import zipfile
+from collections.abc import Iterator
 from datetime import datetime
 from pathlib import Path
-from typing import Any, Iterator
+from typing import Any
 
 from sqlalchemy.orm import Session
 
 from banco_dados.modelos import EmpresaCandidata, LocalCandidato
 from jobs.prospeccao import config
-from jobs.prospeccao import paths as pathutil
 
 logger = logging.getLogger(__name__)
 

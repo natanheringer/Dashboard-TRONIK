@@ -6,7 +6,7 @@ from __future__ import annotations
 
 import json
 import re
-from typing import Any, Optional
+from typing import Any
 
 
 def sanitizar_texto(texto: str, max_chars: int = 2000) -> str:
@@ -34,7 +34,7 @@ def sanitizar_texto_paragrafos(texto: str, max_chars: int = 8000) -> str:
     return out.strip()
 
 
-def extrair_json_do_output(texto: str) -> Optional[dict[str, Any]]:
+def extrair_json_do_output(texto: str) -> dict[str, Any] | None:
     bruto = (texto or "").strip()
     if not bruto:
         return None
@@ -69,7 +69,7 @@ def validar_resposta_ops(
     return limpo if len(limpo) >= 20 else fallback
 
 
-def validar_resposta_landing(texto: str, tipo_bloco: str) -> Optional[dict[str, Any]]:
+def validar_resposta_landing(texto: str, tipo_bloco: str) -> dict[str, Any] | None:
     parsed = extrair_json_do_output(texto)
     if not parsed:
         return None
@@ -92,7 +92,7 @@ def validar_resposta_landing(texto: str, tipo_bloco: str) -> Optional[dict[str, 
     return parsed
 
 
-def validar_relatorio_maiara(texto: str) -> Optional[dict[str, Any]]:
+def validar_relatorio_maiara(texto: str) -> dict[str, Any] | None:
     parsed = extrair_json_do_output(texto)
     if not parsed:
         return None
@@ -139,7 +139,7 @@ def validar_relatorio_maiara(texto: str) -> Optional[dict[str, Any]]:
     return parsed
 
 
-def validar_documento_chat(texto: str) -> Optional[dict[str, Any]]:
+def validar_documento_chat(texto: str) -> dict[str, Any] | None:
     parsed = extrair_json_do_output(texto)
     if not parsed:
         return None

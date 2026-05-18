@@ -7,8 +7,7 @@ import logging
 from pathlib import Path
 from typing import Any
 
-from jobs.prospeccao import config
-from jobs.prospeccao import paths as pathutil
+from jobs.prospeccao import config, paths as pathutil
 from jobs.prospeccao.http_util import get_json, throttle
 
 logger = logging.getLogger(__name__)

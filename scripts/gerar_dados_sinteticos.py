@@ -21,7 +21,6 @@ import os
 import random
 import sys
 from datetime import datetime, timedelta
-from typing import List, Tuple
 
 # Adicionar raiz do projeto ao path
 sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
@@ -107,7 +106,7 @@ def _gerar_serie_coletor(
     inicio: datetime,
     fim: datetime,
     intervalo_min: int = 15,
-) -> List[dict]:
+) -> list[dict]:
     """Gera série temporal sintética para um coletor."""
     leituras = []
     nivel = random.uniform(0, 30)  # nível inicial aleatório
@@ -146,10 +145,9 @@ def _gerar_serie_coletor(
         nivel += incremento
 
         # Simular coleta (reset)
-        if nivel >= perfil['coleta_threshold']:
-            if random.random() > 0.3:  # 70% chance de coletar
-                nivel = random.uniform(2, 12)
-                logger.debug(f"  Coleta simulada no coletor {coletor_id} em {t}")
+        if nivel >= perfil['coleta_threshold'] and random.random() > 0.3:  # 70% chance de coletar
+            nivel = random.uniform(2, 12)
+            logger.debug(f"  Coleta simulada no coletor {coletor_id} em {t}")
 
         nivel = max(0, min(100, nivel))
 
@@ -256,7 +254,7 @@ def gerar_dados_sinteticos(
             )
 
             # Inserir em batch
-            batch = [LeituraSensor(**l) for l in leituras]
+            batch = [LeituraSensor(**leitura) for leitura in leituras]
             db.bulk_save_objects(batch)
             stats['leituras_geradas'] += len(batch)
 
@@ -265,7 +263,7 @@ def gerar_dados_sinteticos(
         db.commit()
 
         leituras_por_coletor = stats['leituras_geradas'] // max(stats['coletores'], 1)
-        logger.info(f"\n✅ Dados sintéticos gerados com sucesso!")
+        logger.info("\n✅ Dados sintéticos gerados com sucesso!")
         logger.info(f"   Total: {stats['leituras_geradas']} leituras")
         logger.info(f"   Média: {leituras_por_coletor} leituras/coletor")
 

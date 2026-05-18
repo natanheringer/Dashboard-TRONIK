@@ -5,13 +5,12 @@ Montagem de contextos para os prompts da Nik.
 from __future__ import annotations
 
 from datetime import date, timedelta
-from typing import Any, Optional
+from typing import Any
 
 from sqlalchemy.orm import Session
 
 from banco_dados.modelos import Coletor
-from banco_dados.services import nik_mock
-from banco_dados.services import preview_service as pv
+from banco_dados.services import nik_mock, preview_service as pv
 
 
 def _usar_mock(db: Session) -> bool:
@@ -44,7 +43,7 @@ def contexto_resumo_operacional(db: Session) -> dict[str, Any]:
     }
 
 
-def contexto_coletor(db: Session, coletor_id: int) -> Optional[dict[str, Any]]:
+def contexto_coletor(db: Session, coletor_id: int) -> dict[str, Any] | None:
     if _usar_mock(db):
         detalhe = nik_mock.mock_detalhe_coletor(coletor_id)
         if not detalhe:
@@ -65,7 +64,7 @@ def contexto_coletor(db: Session, coletor_id: int) -> Optional[dict[str, Any]]:
     }
 
 
-def contexto_alerta(db: Session) -> Optional[dict[str, Any]]:
+def contexto_alerta(db: Session) -> dict[str, Any] | None:
     if _usar_mock(db):
         alerta = nik_mock.mock_alerta()
         if not alerta:
@@ -89,9 +88,9 @@ def contexto_alerta(db: Session) -> Optional[dict[str, Any]]:
 
 def contexto_relatorio(
     db: Session,
-    inicio_raw: Optional[str],
-    fim_raw: Optional[str],
-    parceiro_id: Optional[int],
+    inicio_raw: str | None,
+    fim_raw: str | None,
+    parceiro_id: int | None,
 ) -> dict[str, Any]:
     if _usar_mock(db):
         resumo_mock = nik_mock.mock_relatorio()

@@ -4,6 +4,7 @@ Garante que novos módulos não quebram o registro central nem expõem GETs sem 
 """
 
 import importlib
+
 import pytest
 
 API_BLUEPRINT_MODULES = [

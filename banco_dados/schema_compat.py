@@ -55,6 +55,12 @@ def aplicar_compat_schema(engine) -> None:
     else:
         _add_column_if_missing("nik_conversas", "thread_id", "VARCHAR(80)")
 
+    # Resumo compacto da thread (memória de longo prazo)
+    if is_pg:
+        _add_column_if_missing("nik_conversas", "resumo_thread", "TEXT NULL")
+    else:
+        _add_column_if_missing("nik_conversas", "resumo_thread", "TEXT")
+
     # Prospecção: vínculo persistido empresa_candidata -> pipeline CRM (ganho/fechado)
     if "empresa_candidata" in insp.get_table_names():
         if is_pg:

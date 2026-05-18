@@ -414,6 +414,8 @@ def nik():
     if planner_cfg not in {"llm", "heuristic", "auto"}:
         planner_cfg = "heuristic"
     current_app.config["NIK_AGENT_PLANNER"] = planner_cfg
+    mm = os.getenv("NIK_MULTIMODAL_ENABLED", "false").strip().lower() in {"1", "true", "yes"}
+    current_app.config["NIK_MULTIMODAL_ENABLED"] = mm
     return render_template(
         "preview/nik.html",
         current="nik",

@@ -4,16 +4,25 @@ Rotas Auxiliares - Dashboard-TRONIK
 Endpoints auxiliares (estatísticas, tipos, parceiros, configurações).
 """
 
+from datetime import datetime
+
 from flask import Blueprint, jsonify, request
 from flask_login import login_required
-from rotas.api.decorators import escopo_parceiro_id, get_db
-from rotas.api import decorators
-from banco_dados.modelos import Coletor, Coleta, Parceiro, TipoMaterial, TipoSensor, TipoColetor, Sensor
+
+from banco_dados.modelos import (
+    Coleta,
+    Coletor,
+    Parceiro,
+    Sensor,
+    TipoColetor,
+    TipoMaterial,
+    TipoSensor,
+)
 from banco_dados.utils.cache import obter_cache
 from banco_dados.utils.erros import tratar_erro_api
 from banco_dados.utils.logger import obter_logger
-from datetime import datetime
-import random
+from rotas.api import decorators
+from rotas.api.decorators import escopo_parceiro_id, get_db
 
 logger = obter_logger(__name__)
 
@@ -61,10 +70,10 @@ def obter_estatisticas():
                 sensores = db.query(Sensor).all()
 
             total_coletores = len(coletores)
-            coletores_alerta = len([l for l in coletores if l.nivel_preenchimento > 80])
+            coletores_alerta = len([c for c in coletores if c.nivel_preenchimento > 80])
 
             if total_coletores > 0:
-                nivel_medio = sum(l.nivel_preenchimento for l in coletores) / total_coletores
+                nivel_medio = sum(c.nivel_preenchimento for c in coletores) / total_coletores
             else:
                 nivel_medio = 0.0
 
@@ -84,7 +93,7 @@ def obter_estatisticas():
             }
 
         estatisticas = cache.obter_ou_calcular(cache_key, calcular_estatisticas, ttl_segundos=300)
-        
+
         return jsonify(estatisticas)
     except Exception as e:
         return tratar_erro_api(e)
@@ -117,9 +126,9 @@ def listar_parceiros():
     try:
         # Usar cache para parceiros (TTL: 1 hora)
         cache = obter_cache()
-        
+
         def buscar_parceiros():
-            parceiros = db.query(Parceiro).filter(Parceiro.ativo == True).all()
+            parceiros = db.query(Parceiro).filter(Parceiro.ativo).all()
             return [
                 {
                     "id": p.id,
@@ -129,7 +138,7 @@ def listar_parceiros():
                 }
                 for p in parceiros
             ]
-        
+
         resultado = cache.obter_ou_calcular('parceiros', buscar_parceiros, ttl_segundos=3600)
         return jsonify(resultado)
     except Exception as e:
@@ -145,11 +154,11 @@ def listar_tipos_material():
     db = get_db()
     try:
         cache = obter_cache()
-        
+
         def buscar_tipos():
             tipos = db.query(TipoMaterial).all()
             return [{"id": t.id, "nome": t.nome} for t in tipos]
-        
+
         resultado = cache.obter_ou_calcular('tipos_material', buscar_tipos, ttl_segundos=3600)
         return jsonify(resultado)
     except Exception as e:
@@ -165,11 +174,11 @@ def listar_tipos_sensor():
     db = get_db()
     try:
         cache = obter_cache()
-        
+
         def buscar_tipos():
             tipos = db.query(TipoSensor).all()
             return [{"id": t.id, "nome": t.nome} for t in tipos]
-        
+
         resultado = cache.obter_ou_calcular('tipos_sensor', buscar_tipos, ttl_segundos=3600)
         return jsonify(resultado)
     except Exception as e:
@@ -185,11 +194,11 @@ def listar_tipos_coletor():
     db = get_db()
     try:
         cache = obter_cache()
-        
+
         def buscar_tipos():
             tipos = db.query(TipoColetor).all()
             return [{"id": t.id, "nome": t.nome} for t in tipos]
-        
+
         resultado = cache.obter_ou_calcular('tipos_coletor', buscar_tipos, ttl_segundos=3600)
         return jsonify(resultado)
     except Exception as e:
@@ -206,47 +215,48 @@ def simular_niveis():
     db = get_db()
     try:
         from banco_dados.utils.validacao import (
-            validar_dados_requisicao, validar_tipo_campo, validar_range
+            validar_dados_requisicao,
+            validar_tipo_campo,
         )
-        
+
         dados = request.get_json()
         dados = validar_dados_requisicao(dados, ['coletores'])
-        
+
         # Validar estrutura
         validar_tipo_campo(dados.get('coletores'), list, 'coletores')
-        
+
         if not dados.get('coletores'):
             return jsonify({"erro": "Lista de coletores não pode estar vazia"}), 400
-        
+
         coletores_atualizados = []
-        
+
         for item in dados['coletores']:
             # Validar estrutura do item
             if not isinstance(item, dict):
                 continue
-                
+
             coletor_id = item.get('id')
             novo_nivel = item.get('nivel')
-            
+
             if not coletor_id or novo_nivel is None:
                 continue
-            
+
             # Validar tipos
             try:
                 coletor_id = int(coletor_id)
                 novo_nivel = float(novo_nivel)
             except (ValueError, TypeError):
                 continue
-            
+
             # Validar range do nível
             if novo_nivel < 0 or novo_nivel > 100:
                 continue
-            
+
             coletor = db.query(Coletor).filter(Coletor.id == coletor_id).first()
             if coletor:
                 # Atualizar nível
                 coletor.nivel_preenchimento = novo_nivel
-                
+
                 # Atualizar status baseado no nível
                 if coletor.nivel_preenchimento >= 95:
                     coletor.status = "CHEIA"
@@ -254,19 +264,19 @@ def simular_niveis():
                     coletor.status = "ALERTA"
                 else:
                     coletor.status = "OK"
-                
+
                 coletores_atualizados.append({
                     "id": coletor.id,
                     "nivel_preenchimento": coletor.nivel_preenchimento,
                     "status": coletor.status
                 })
-        
+
         db.commit()
-        
+
         # Invalidar cache de estatísticas
         cache = obter_cache()
         cache.invalidar('estatisticas')
-        
+
         return jsonify({
             "mensagem": f"{len(coletores_atualizados)} coletor(s) atualizada(s)",
             "coletores": coletores_atualizados
@@ -302,14 +312,14 @@ def atualizar_status_solicitacao(id):
         from banco_dados.modelos import SolicitacaoColetor
         dados = request.get_json()
         novo_status = dados.get('status')
-        
+
         if novo_status not in ['aprovado', 'recusado', 'pendente']:
             return jsonify({"erro": "Status inválido"}), 400
-            
+
         solicitacao = db.query(SolicitacaoColetor).filter_by(id=id).first()
         if not solicitacao:
             return jsonify({"erro": "Solicitação não encontrada"}), 404
-            
+
         solicitacao.status = novo_status
         db.commit()
         return jsonify({"mensagem": f"Solicitação {novo_status}", "solicitacao": solicitacao.to_dict()})

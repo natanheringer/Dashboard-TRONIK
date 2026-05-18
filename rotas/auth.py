@@ -5,15 +5,14 @@ Rotas de Autenticação - Dashboard-TRONIK
 Gerencia login, logout e registro de usuários.
 """
 
-from flask import Blueprint, request, jsonify, render_template, redirect, url_for, flash
-from flask_login import login_user, logout_user, login_required, current_user
-from banco_dados.modelos import Usuario
-from banco_dados.seguranca import (
-    validar_email, validar_senha, validar_username, sanitizar_string
-)
-from datetime import datetime
-from banco_dados.utils import utc_now_naive
 import logging
+
+from flask import Blueprint, flash, jsonify, redirect, render_template, request, url_for
+from flask_login import current_user, login_required, login_user, logout_user
+
+from banco_dados.modelos import Usuario
+from banco_dados.seguranca import sanitizar_string
+from banco_dados.utils import utc_now_naive
 
 # Configurar logging
 logger = logging.getLogger(__name__)
@@ -52,27 +51,27 @@ def login():
         if current_user.is_authenticated:
             return redirect(_destino_pos_login())
         return render_template('login.html')
-    
+
     # POST - Processar login
     try:
         dados = request.get_json() if request.is_json else request.form
-        
+
         username = sanitizar_string(dados.get('username', ''))
         senha = dados.get('senha', '')
-        
+
         if not username or not senha:
             if request.is_json:
                 return jsonify({"erro": "Username e senha são obrigatórios"}), 400
             flash("Username e senha são obrigatórios", "error")
             return render_template('login.html')
-        
+
         db = get_db()
         try:
             # Buscar usuário por username ou email
             usuario = db.query(Usuario).filter(
                 (Usuario.username == username) | (Usuario.email == username)
             ).first()
-            
+
             if not usuario or not usuario.verificar_senha(senha):
                 # Logar tentativa sem expor informações sensíveis
                 logger.warning(f"Tentativa de login falhada para username: {username[:3]}***")
@@ -80,22 +79,22 @@ def login():
                     return jsonify({"erro": "Credenciais inválidas"}), 401
                 flash("Credenciais inválidas", "error")
                 return render_template('login.html')
-            
+
             if not usuario.ativo:
                 logger.warning(f"Tentativa de login com usuário inativo: {username}")
                 if request.is_json:
                     return jsonify({"erro": "Usuário inativo"}), 403
                 flash("Usuário inativo. Entre em contato com o administrador.", "error")
                 return render_template('login.html')
-            
+
             # Login bem-sucedido
             usuario.ultimo_login = utc_now_naive()
             db.commit()
-            
+
             login_user(usuario, remember=bool(dados.get('remember', False)))
-            
+
             logger.info(f"Login bem-sucedido: {usuario.username}")
-            
+
             if request.is_json:
                 return jsonify({
                     "mensagem": "Login realizado com sucesso",
@@ -106,14 +105,14 @@ def login():
                         "admin": usuario.admin
                     }
                 }), 200
-            
+
             # Redirecionar para página solicitada ou dashboard
             next_page = request.args.get('next')
             return redirect(next_page or _destino_pos_login(usuario))
-            
+
         finally:
             db.close()
-            
+
     except Exception as e:
         logger.error(f"Erro no login: {str(e)}")
         if request.is_json:
@@ -130,10 +129,10 @@ def logout():
         username = current_user.username if current_user.is_authenticated else "desconhecido"
         logout_user()
         logger.info(f"Logout realizado: {username}")
-        
+
         if request.is_json:
             return jsonify({"mensagem": "Logout realizado com sucesso"}), 200
-        
+
         flash("Logout realizado com sucesso", "success")
         return redirect(url_for('auth.login'))
     except Exception as e:
@@ -147,19 +146,19 @@ def logout():
 def registro():
     """
     Página e endpoint de registro - DESABILITADO POR SEGURANÇA
-    
+
     Registro público foi desabilitado por segurança.
     Para criar novos usuários ou alterar senhas, use:
     - scripts/alterar_senha_usuarios.py
     - Ou crie manualmente via banco de dados
     """
     logger.warning(f"Tentativa de acesso ao registro público bloqueada de {request.remote_addr}")
-    
+
     if request.is_json:
         return jsonify({
             "erro": "Registro público desabilitado por segurança. Entre em contato com o administrador."
         }), 403
-    
+
     flash("Registro público desabilitado por segurança. Entre em contato com o administrador.", "error")
     return redirect(url_for('auth.login'))
 

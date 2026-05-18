@@ -22,9 +22,8 @@ from typing import Any
 from sqlalchemy.orm import Session
 
 from banco_dados.modelos import EmpresaCandidata
-from jobs.prospeccao import config
-from jobs.prospeccao import paths as pathutil
-from jobs.prospeccao.http_util import get_json, session as http_session, download_url_to_path
+from jobs.prospeccao import config, paths as pathutil
+from jobs.prospeccao.http_util import download_url_to_path, get_json
 
 logger = logging.getLogger(__name__)
 

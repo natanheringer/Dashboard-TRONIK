@@ -4,7 +4,6 @@ from __future__ import annotations
 
 from typing import Any
 
-from sqlalchemy import func
 from sqlalchemy.orm import Session
 
 from banco_dados.modelos import EmpresaCandidata, LocalCandidato, ModeloProspeccao, ScoreProspeccao

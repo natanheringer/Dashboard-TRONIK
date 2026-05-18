@@ -9,6 +9,7 @@ Executado via APScheduler 1x/mês ou sob demanda.
 
 from __future__ import annotations
 
+import contextlib
 import json
 import logging
 import os
@@ -16,10 +17,9 @@ import re
 import time
 from datetime import datetime, timedelta
 from pathlib import Path
-from typing import Any, Dict, List, Optional
+from typing import Any
 
 import requests
-from sqlalchemy import func
 from sqlalchemy.orm import Session
 
 from banco_dados.modelos import Coleta, NarrativaGerada, Parceiro
@@ -77,7 +77,7 @@ Regras obrigatórias:
 # PROVIDERS LLM
 # ==============================================================
 
-def _chamar_groq(prompt: str) -> Optional[str]:
+def _chamar_groq(prompt: str) -> str | None:
     """Chama a API do Groq (OpenAI-compatible)."""
     if not GROQ_API_KEY:
         logger.debug("GROQ_API_KEY não configurada, pulando Groq")
@@ -111,7 +111,7 @@ def _chamar_groq(prompt: str) -> Optional[str]:
         return None
 
 
-def _chamar_ollama(prompt: str) -> Optional[str]:
+def _chamar_ollama(prompt: str) -> str | None:
     """Chama a API do Ollama (local ou remoto)."""
     try:
         response = requests.post(
@@ -136,7 +136,7 @@ def _chamar_ollama(prompt: str) -> Optional[str]:
         return None
 
 
-def _chamar_gemini(prompt: str) -> Optional[str]:
+def _chamar_gemini(prompt: str) -> str | None:
     """Chama a API do Google Gemini."""
     if not GEMINI_API_KEY:
         logger.debug("GEMINI_API_KEY não configurada, pulando Gemini")
@@ -170,7 +170,7 @@ def _chamar_gemini(prompt: str) -> Optional[str]:
         return None
 
 
-def _chamar_llm_chain(prompt: str) -> tuple[Optional[str], str, str]:
+def _chamar_llm_chain(prompt: str) -> tuple[str | None, str, str]:
     """Tenta LLMs em cadeia: Groq → Ollama → Gemini.
 
     Returns:
@@ -200,7 +200,7 @@ def _agregar_dados_parceiro(
     parceiro_id: int,
     periodo_inicio: datetime,
     periodo_fim: datetime,
-) -> Optional[Dict[str, Any]]:
+) -> dict[str, Any] | None:
     """Agrega dados de coleta do parceiro no período."""
     parceiro = db.query(Parceiro).filter(Parceiro.id == parceiro_id).first()
     if not parceiro:
@@ -224,7 +224,7 @@ def _agregar_dados_parceiro(
     co2_evitado = round(total_kg * CO2_FATOR, 1)
 
     # Top material (se disponível)
-    materiais: Dict[str, float] = {}
+    materiais: dict[str, float] = {}
     for c in coletas:
         tipo = c.tipo_coletor.nome if c.tipo_coletor else 'Geral'
         materiais[tipo] = materiais.get(tipo, 0) + float(c.volume_estimado or 0)
@@ -267,7 +267,7 @@ def _agregar_dados_parceiro(
 # MONTAGEM DO PROMPT
 # ==============================================================
 
-def _montar_prompt(dados: Dict[str, Any]) -> str:
+def _montar_prompt(dados: dict[str, Any]) -> str:
     """Monta prompt a partir dos dados agregados.
 
     Tenta usar template de arquivo, fallback para template inline.
@@ -275,10 +275,8 @@ def _montar_prompt(dados: Dict[str, Any]) -> str:
     # Tentar carregar template
     template = None
     if PROMPT_TEMPLATE_PATH.exists():
-        try:
+        with contextlib.suppress(Exception):
             template = PROMPT_TEMPLATE_PATH.read_text(encoding='utf-8')
-        except Exception:
-            pass
 
     if template:
         # Substituir variáveis no template
@@ -315,17 +313,17 @@ def _montar_prompt(dados: Dict[str, Any]) -> str:
 # VALIDAÇÃO PÓS-GERAÇÃO
 # ==============================================================
 
-def _validar_numeros(texto: str, dados: Dict[str, Any]) -> bool:
+def _validar_numeros(texto: str, dados: dict[str, Any]) -> bool:
     """Valida se os números no texto batem com os dados de input.
 
     Extrai números do texto via regex e verifica se os valores-chave
     aparecem corretamente.
     """
-    numeros_texto = re.findall(r'[\d.,]+', texto.replace('.', '').replace(',', '.'))
+    re.findall(r'[\d.,]+', texto.replace('.', '').replace(',', '.'))
 
     # Verificações críticas
-    total_kg_str = str(int(dados['total_kg'])) if dados['total_kg'] == int(dados['total_kg']) else str(dados['total_kg'])
-    co2_str = str(int(dados['co2_evitado'])) if dados['co2_evitado'] == int(dados['co2_evitado']) else str(dados['co2_evitado'])
+    str(int(dados['total_kg'])) if dados['total_kg'] == int(dados['total_kg']) else str(dados['total_kg'])
+    str(int(dados['co2_evitado'])) if dados['co2_evitado'] == int(dados['co2_evitado']) else str(dados['co2_evitado'])
 
     # Se total_kg aparece no texto com valor diferente, rejeitar
     # Abordagem: verificar que pelo menos os valores-chave aparecem
@@ -351,10 +349,10 @@ def _validar_numeros(texto: str, dados: Dict[str, Any]) -> bool:
 def gerar_narrativa_parceiro(
     db: Session,
     parceiro_id: int,
-    periodo_inicio: Optional[datetime] = None,
-    periodo_fim: Optional[datetime] = None,
+    periodo_inicio: datetime | None = None,
+    periodo_fim: datetime | None = None,
     forcar_nova: bool = False,
-) -> Dict[str, Any]:
+) -> dict[str, Any]:
     """Gera narrativa de impacto para um parceiro.
 
     Args:
@@ -448,7 +446,7 @@ def gerar_narrativa_parceiro(
     return result
 
 
-def gerar_narrativas_todos_parceiros(db: Session) -> Dict[str, Any]:
+def gerar_narrativas_todos_parceiros(db: Session) -> dict[str, Any]:
     """Gera narrativas para todos os parceiros ativos.
 
     Chamado pelo APScheduler 1x/mês.
@@ -481,7 +479,7 @@ def gerar_narrativas_todos_parceiros(db: Session) -> Dict[str, Any]:
 
 def obter_ultima_narrativa(
     db: Session, parceiro_id: int
-) -> Optional[Dict[str, Any]]:
+) -> dict[str, Any] | None:
     """Retorna a última narrativa gerada para um parceiro."""
     narrativa = (
         db.query(NarrativaGerada)

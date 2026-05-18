@@ -10,8 +10,8 @@ Executado via APScheduler 2x/dia.
 from __future__ import annotations
 
 import logging
-from datetime import datetime, timedelta
-from typing import Any, Dict, List, Optional, Tuple
+from datetime import timedelta
+from typing import Any
 
 import numpy as np
 from sqlalchemy.orm import Session
@@ -28,7 +28,7 @@ MIN_DIAS_AUTOETS = 3       # mínimo para AutoETS
 HORIZONTE_HORAS = 168      # prever até 7 dias à frente
 
 
-def _regressao_linear(timestamps: np.ndarray, niveis: np.ndarray) -> Tuple[float, float]:
+def _regressao_linear(timestamps: np.ndarray, niveis: np.ndarray) -> tuple[float, float]:
     """Regressão linear simples: nível = a*t + b.
 
     Args:
@@ -47,17 +47,17 @@ def _regressao_linear(timestamps: np.ndarray, niveis: np.ndarray) -> Tuple[float
 
 
 def _predizer_linear(
-    leituras: List[LeituraSensor],
+    leituras: list[LeituraSensor],
     nivel_atual: float,
-) -> Dict[str, Any]:
+) -> dict[str, Any]:
     """Predição via regressão linear (MVP, zero dependências extras)."""
     if len(leituras) < 2:
         return {'dados_suficientes': False}
 
     # Converter timestamps para horas relativas
     t0 = leituras[0].timestamp
-    horas = np.array([(l.timestamp - t0).total_seconds() / 3600 for l in leituras])
-    niveis = np.array([l.nivel for l in leituras])
+    horas = np.array([(r.timestamp - t0).total_seconds() / 3600 for r in leituras])
+    niveis = np.array([r.nivel for r in leituras])
 
     slope, intercept = _regressao_linear(horas, niveis)
 
@@ -112,9 +112,9 @@ def _predizer_linear(
 
 
 def _predizer_autoets(
-    leituras: List[LeituraSensor],
+    leituras: list[LeituraSensor],
     nivel_atual: float,
-) -> Dict[str, Any]:
+) -> dict[str, Any]:
     """Predição SOTA via statsforecast AutoETS."""
     try:
         import pandas as pd
@@ -130,8 +130,8 @@ def _predizer_autoets(
     # Montar DataFrame no formato do statsforecast
     df = pd.DataFrame({
         'unique_id': ['coletor'] * len(leituras),
-        'ds': [l.timestamp for l in leituras],
-        'y': [l.nivel for l in leituras],
+        'ds': [r.timestamp for r in leituras],
+        'y': [r.nivel for r in leituras],
     })
     df = df.sort_values('ds').reset_index(drop=True)
 
@@ -205,7 +205,7 @@ def predizer_enchimento_coletor(
     db: Session,
     coletor_id: int,
     usar_autoets: bool = True,
-) -> Dict[str, Any]:
+) -> dict[str, Any]:
     """Prediz enchimento de um coletor específico.
 
     Args:
@@ -253,7 +253,7 @@ def predizer_enchimento_coletor(
     return resultado
 
 
-def recalcular_predicoes_todos(db: Session) -> Dict[str, Any]:
+def recalcular_predicoes_todos(db: Session) -> dict[str, Any]:
     """Recalcula predições para todos os coletores ativos.
 
     Chamado pelo APScheduler 2x/dia.
@@ -319,7 +319,7 @@ def recalcular_predicoes_todos(db: Session) -> Dict[str, Any]:
 
 def obter_serie_historica(
     db: Session, coletor_id: int, dias: int = 7
-) -> List[Dict[str, Any]]:
+) -> list[dict[str, Any]]:
     """Retorna série histórica de leituras para visualização.
 
     Args:
@@ -340,4 +340,4 @@ def obter_serie_historica(
         .order_by(LeituraSensor.timestamp.asc())
         .all()
     )
-    return [l.to_dict() for l in leituras]
+    return [r.to_dict() for r in leituras]

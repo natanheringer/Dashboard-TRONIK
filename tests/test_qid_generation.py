@@ -1,6 +1,7 @@
 """Tests for enhanced QID generation in ranker_contract and normalize_candidates."""
 
 import pytest
+
 from jobs.prospeccao.ranker_contract import listwise_training_qid
 
 
@@ -11,20 +12,20 @@ class MockEmpresa:
         self.razao_social = kwargs.get('razao_social', 'Test Company')
         self.uf = kwargs.get('uf', 'DF')
         self.municipio = kwargs.get('municipio', 'Brasilia')
-        self.bairro = kwargs.get('bairro', None)
-        self.cep = kwargs.get('cep', None)
+        self.bairro = kwargs.get('bairro')
+        self.cep = kwargs.get('cep')
         self.cnae_principal = kwargs.get('cnae_principal', '4751201')
 
 
 class MockLocal:
     """Mock local_candidato object for testing."""
     def __init__(self, **kwargs):
-        self.latitude = kwargs.get('latitude', None)
-        self.longitude = kwargs.get('longitude', None)
-        self.ra = kwargs.get('ra', None)
-        self.bairro = kwargs.get('bairro', None)
-        self.cep = kwargs.get('cep', None)
-        self.qid = kwargs.get('qid', None)
+        self.latitude = kwargs.get('latitude')
+        self.longitude = kwargs.get('longitude')
+        self.ra = kwargs.get('ra')
+        self.bairro = kwargs.get('bairro')
+        self.cep = kwargs.get('cep')
+        self.qid = kwargs.get('qid')
 
 
 class TestListwiseTrainingQid:

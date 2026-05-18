@@ -4,10 +4,15 @@ Endpoints da Nik.
 
 from __future__ import annotations
 
+import base64
+import contextlib
+import re
+
 from flask import Blueprint, Response, jsonify, request
 from flask_login import current_user, login_required
 
 from banco_dados.services import nik_service as nik, nik_tools
+from banco_dados.services.nik_service import NIK_IMAGEM_MAX_BYTES
 from rotas.api.decorators import admin_required, get_db
 
 nik_bp = Blueprint("nik", __name__, url_prefix="/nik")
@@ -52,6 +57,69 @@ def ops_relatorio():
     db = get_db()
     try:
         return jsonify(nik.narrativa_relatorio(db, inicio, fim, parceiro_id))
+    finally:
+        db.close()
+
+
+_DATA_URL_B64 = re.compile(r"^data:image/[\w+.-]+;base64,", re.IGNORECASE)
+
+
+def _decodificar_base64_imagem(raw: str) -> bytes:
+    texto = (raw or "").strip()
+    if _DATA_URL_B64.match(texto):
+        texto = texto.split(",", 1)[1]
+    return base64.b64decode(texto, validate=True)
+
+
+def _extrair_imagem_ops_request() -> tuple[bytes | None, str, int | None, str | None, str | None]:
+    """Multipart (campo imagem/image) ou JSON com image_base64 / imagem_base64."""
+    coletor_id: int | None = None
+    pergunta: str | None = None
+    mime = "image/jpeg"
+
+    if request.files:
+        arquivo = request.files.get("imagem") or request.files.get("image")
+        if arquivo:
+            coletor_id = request.form.get("coletor_id", type=int)
+            pergunta = (request.form.get("pergunta") or request.form.get("mensagem") or "").strip() or None
+            mime = (arquivo.mimetype or mime).split(";")[0].strip() or mime
+            return arquivo.read(), mime, coletor_id, pergunta, None
+
+    payload = request.get_json(silent=True) or {}
+    if payload.get("coletor_id") is not None:
+        with contextlib.suppress(TypeError, ValueError):
+            coletor_id = int(payload["coletor_id"])
+    pergunta = (payload.get("pergunta") or payload.get("mensagem") or "").strip() or None
+    mime = (payload.get("mime") or payload.get("mime_type") or mime).split(";")[0].strip() or mime
+    b64 = payload.get("image_base64") or payload.get("imagem_base64") or payload.get("data")
+    if b64:
+        try:
+            return _decodificar_base64_imagem(str(b64)), mime, coletor_id, pergunta, None
+        except (ValueError, base64.binascii.Error):
+            return None, mime, coletor_id, None, "image_base64 inválido"
+    return None, mime, coletor_id, None, "Envie multipart (imagem) ou JSON com image_base64"
+
+
+@nik_bp.route("/ops/analisar-imagem", methods=["POST"])
+@login_required
+@admin_required
+def ops_analisar_imagem():
+    image_bytes, mime, coletor_id, pergunta, erro = _extrair_imagem_ops_request()
+    if erro or not image_bytes:
+        return jsonify({"erro": erro or "Imagem ausente"}), 400
+    if len(image_bytes) > NIK_IMAGEM_MAX_BYTES:
+        return jsonify({"erro": "Imagem excede o limite de 4 MB"}), 413
+
+    db = get_db()
+    try:
+        resultado = nik.analisar_imagem_coletor(
+            db,
+            image_bytes,
+            coletor_id,
+            mime=mime,
+            pergunta=pergunta,
+        )
+        return jsonify(resultado)
     finally:
         db.close()
 

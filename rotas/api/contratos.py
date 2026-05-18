@@ -4,14 +4,16 @@ API Contratos - Dashboard-TRONIK
 Endpoints para gestão de contratos recorrentes.
 """
 
+from datetime import datetime
+
 from flask import Blueprint, jsonify, request
 from flask_login import login_required
+
+from banco_dados.modelos import Coletor, ContratoRecorrente
 from banco_dados.services.contrato_service import ContratoService
-from banco_dados.modelos import ContratoRecorrente, Coletor
 from banco_dados.utils.db_session import get_db_session
 from banco_dados.utils.logger import obter_logger
 from rotas.api import decorators
-from datetime import datetime
 
 logger = obter_logger(__name__)
 
@@ -24,9 +26,9 @@ contratos_bp = Blueprint('contratos_api', __name__, url_prefix='/contratos')
 def listar_contratos():
     """
     GET /api/contratos
-    
+
     Lista contratos recorrentes
-    
+
     Query Parameters:
     - status: Filtrar por status (ativo, pausado, cancelado, vencido)
     - coletor_id: Filtrar por coletor/cliente
@@ -37,7 +39,7 @@ def listar_contratos():
         status = request.args.get('status')
         coletor_id = request.args.get('coletor_id', type=int)
         apenas_ativos = request.args.get('apenas_ativos', 'false').lower() == 'true'
-        
+
         if apenas_ativos:
             contratos = ContratoService.listar_contratos_ativos()
         elif coletor_id:
@@ -50,7 +52,7 @@ def listar_contratos():
             # Expurgar objetos
             for c in contratos:
                 db.expunge(c)
-        
+
         return jsonify([c.to_dict() for c in contratos]), 200
     except Exception as e:
         logger.error(f"Erro ao listar contratos: {str(e)}", exc_info=True)
@@ -65,9 +67,9 @@ def listar_contratos():
 def criar_contrato():
     """
     POST /api/contratos
-    
+
     Cria novo contrato recorrente
-    
+
     Body:
     {
         "coletor_id": 1,
@@ -84,24 +86,28 @@ def criar_contrato():
     """
     try:
         from banco_dados.utils.validacao import (
-            validar_dados_requisicao, validar_id_positivo, validar_tipo_campo,
-            validar_range, validar_tamanho_string, sanitizar_dados_entrada
+            sanitizar_dados_entrada,
+            validar_dados_requisicao,
+            validar_id_positivo,
+            validar_range,
+            validar_tamanho_string,
+            validar_tipo_campo,
         )
-        
+
         dados = request.get_json()
         dados = validar_dados_requisicao(dados, ['coletor_id', 'titulo', 'valor_mensal'])
-        
+
         # Sanitizar dados de entrada
         campos_string = ['titulo', 'descricao', 'observacoes', 'frequencia_coleta']
         dados = sanitizar_dados_entrada(dados, campos_string)
-        
+
         # Validações específicas
-        coletor_id = validar_id_positivo(dados.get('coletor_id'), 'coletor_id')
+        validar_id_positivo(dados.get('coletor_id'), 'coletor_id')
         validar_tipo_campo(dados.get('titulo'), str, 'titulo')
         validar_tamanho_string(dados.get('titulo'), min_len=1, max_len=200, nome_campo='titulo')
         validar_tipo_campo(dados.get('valor_mensal'), (int, float), 'valor_mensal')
         validar_range(dados.get('valor_mensal'), min_val=0, max_val=1000000, nome_campo='valor_mensal')
-        
+
         # Validar que coletor existe
         db = get_db_session()
         try:
@@ -110,7 +116,7 @@ def criar_contrato():
                 return jsonify({'erro': 'Coletor não encontrada'}), 404
         finally:
             db.close()
-        
+
         # Converter datas se fornecidas
         if 'data_inicio' in dados and dados['data_inicio']:
             try:
@@ -119,7 +125,7 @@ def criar_contrato():
                 )
             except (ValueError, AttributeError):
                 return jsonify({'erro': 'Formato de data_inicio inválido (use ISO 8601)'}), 400
-        
+
         if 'data_vencimento' in dados and dados['data_vencimento']:
             try:
                 dados['data_vencimento'] = datetime.fromisoformat(
@@ -127,7 +133,7 @@ def criar_contrato():
                 )
             except (ValueError, AttributeError):
                 return jsonify({'erro': 'Formato de data_vencimento inválido (use ISO 8601)'}), 400
-        
+
         contrato = ContratoService.criar_contrato(dados)
         return jsonify(contrato.to_dict()), 201
     except ValueError as e:
@@ -147,7 +153,7 @@ def obter_contrato(contrato_id):
         contrato = db.query(ContratoRecorrente).filter_by(id=contrato_id).first()
         if not contrato:
             return jsonify({'erro': 'Contrato não encontrado'}), 404
-        
+
         db.expunge(contrato)
         return jsonify(contrato.to_dict()), 200
     except Exception as e:
@@ -163,30 +169,32 @@ def obter_contrato(contrato_id):
 def atualizar_contrato(contrato_id):
     """
     PUT /api/contratos/<id>
-    
+
     Atualiza contrato existente
-    
+
     Body: Mesmos campos do POST (todos opcionais)
     """
     try:
         from banco_dados.utils.validacao import (
-            validar_dados_requisicao, validar_data_iso, sanitizar_dados_entrada
+            sanitizar_dados_entrada,
+            validar_dados_requisicao,
+            validar_data_iso,
         )
-        
+
         dados = request.get_json()
         dados = validar_dados_requisicao(dados)
-        
+
         # Sanitizar dados de entrada
         campos_string = ['titulo', 'descricao', 'frequencia_coleta', 'observacoes']
         dados = sanitizar_dados_entrada(dados, campos_string)
-        
+
         # Converter data_vencimento se fornecida (usando validação padronizada)
         if 'data_vencimento' in dados and dados['data_vencimento']:
             try:
                 dados['data_vencimento'] = validar_data_iso(dados['data_vencimento'], 'data_vencimento')
             except Exception as e:
                 return jsonify({'erro': str(e)}), 400
-        
+
         contrato = ContratoService.atualizar_contrato(contrato_id, dados)
         return jsonify(contrato.to_dict()), 200
     except ValueError as e:
@@ -202,9 +210,9 @@ def atualizar_contrato(contrato_id):
 def cancelar_contrato(contrato_id):
     """
     POST /api/contratos/<id>/cancelar
-    
+
     Cancela um contrato
-    
+
     Body (opcional):
     {
         "motivo": "Cliente solicitou cancelamento"
@@ -213,7 +221,7 @@ def cancelar_contrato(contrato_id):
     try:
         dados = request.get_json() or {}
         motivo = dados.get('motivo')
-        
+
         contrato = ContratoService.cancelar_contrato(contrato_id, motivo)
         return jsonify(contrato.to_dict()), 200
     except ValueError as e:
@@ -229,9 +237,9 @@ def cancelar_contrato(contrato_id):
 def calcular_receita_mensal():
     """
     GET /api/contratos/receita-mensal
-    
+
     Calcula receita mensal esperada de contratos ativos
-    
+
     Query Parameters:
     - mes: Mês (1-12, padrão: mês atual)
     - ano: Ano (padrão: ano atual)
@@ -239,7 +247,7 @@ def calcular_receita_mensal():
     try:
         mes = request.args.get('mes', type=int)
         ano = request.args.get('ano', type=int)
-        
+
         receita = ContratoService.calcular_receita_mensal_contratos(mes, ano)
         return jsonify({'receita_mensal': receita}), 200
     except Exception as e:
@@ -252,9 +260,9 @@ def calcular_receita_mensal():
 def listar_contratos_vencendo():
     """
     GET /api/contratos/vencendo
-    
+
     Lista contratos que vencem nos próximos N dias
-    
+
     Query Parameters:
     - dias: Número de dias (padrão: 30)
     """
@@ -262,7 +270,7 @@ def listar_contratos_vencendo():
         dias = request.args.get('dias', 30, type=int)
         if dias < 1 or dias > 365:
             dias = 30
-        
+
         contratos = ContratoService.identificar_contratos_vencendo(dias)
         return jsonify([c.to_dict() for c in contratos]), 200
     except Exception as e:

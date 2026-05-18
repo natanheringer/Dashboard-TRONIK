@@ -11,7 +11,11 @@ from banco_dados.modelos import Coletor, EmpresaCandidata, LocalCandidato, Pipel
 from banco_dados.services import prospeccao_xgb_service
 from banco_dados.services.crm_service import CRMService
 from banco_dados.utils import utc_now_naive
-from jobs.prospeccao.labels_internal import extract_cnpjs_from_text, normalize_cnpj, normalize_org_name
+from jobs.prospeccao.labels_internal import (
+    extract_cnpjs_from_text,
+    normalize_cnpj,
+    normalize_org_name,
+)
 from jobs.prospeccao.publish_scores import _resolve_model
 
 

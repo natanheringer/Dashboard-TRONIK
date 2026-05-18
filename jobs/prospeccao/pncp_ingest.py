@@ -9,12 +9,12 @@ from __future__ import annotations
 
 import json
 import logging
+from collections.abc import Iterator
 from datetime import date, timedelta
 from pathlib import Path
-from typing import Any, Iterator, Optional
+from typing import Any
 
-from jobs.prospeccao import config
-from jobs.prospeccao import paths as pathutil
+from jobs.prospeccao import config, paths as pathutil
 from jobs.prospeccao.http_util import get_json, throttle
 
 logger = logging.getLogger(__name__)
@@ -30,8 +30,8 @@ def fetch_contratacoes_publicacao(
     data_final: str,
     uf: str = "DF",
     pagina: int = 1,
-    codigo_modalidade_contratacao: Optional[int] = None,
-    codigo_municipio_ibge: Optional[str] = None,
+    codigo_modalidade_contratacao: int | None = None,
+    codigo_municipio_ibge: str | None = None,
     tamanho_pagina: int = 20,
 ) -> dict[str, Any]:
     """
@@ -68,7 +68,7 @@ def fetch_contratacoes_publicacao(
         try:
             return get_json(url, params=params3)
         except Exception:
-            raise first
+            raise first from None
 
 
 def iter_contratacoes_publicacao(
@@ -112,7 +112,7 @@ def sync_contratacoes_df_periodo(
     out = dirs["pncp_consulta"] / f"contratacoes_publicacao_{di}_{df}.jsonl"
 
     n = 0
-    total_pages: Optional[int] = None
+    total_pages: int | None = None
     with out.open("w", encoding="utf-8") as fp:
         for p in range(1, max_pages + 1):
             if total_pages is not None and p > total_pages:

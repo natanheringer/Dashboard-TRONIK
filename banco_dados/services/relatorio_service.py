@@ -4,18 +4,17 @@ Serviço de Relatórios - Dashboard-TRONIK
 Lógica de negócio para geração de relatórios financeiros e operacionais.
 """
 
-from typing import Dict, List, Optional, Tuple
-from datetime import datetime
-from sqlalchemy.orm import Session, joinedload
-from banco_dados.modelos import Coleta
-from banco_dados.serializers import coleta_para_dict
 import logging
 import math
+from datetime import datetime
+
+from sqlalchemy.orm import Session, joinedload
+
+from banco_dados.modelos import Coleta
+from banco_dados.serializers import coleta_para_dict
+from banco_dados.utils.constantes import CONSUMO_KM_POR_LITRO, LUCRO_BRUTO_POR_KG
 
 logger = logging.getLogger(__name__)
-
-# Constantes (importadas de utils.constantes para centralização)
-from banco_dados.utils.constantes import CONSUMO_KM_POR_LITRO, LUCRO_BRUTO_POR_KG
 
 
 def calcular_lucro_liquido_por_kg(
@@ -25,42 +24,42 @@ def calcular_lucro_liquido_por_kg(
 ) -> float:
     """
     Calcula o lucro líquido por kg subtraindo os custos de combustível.
-    
+
     Fórmula:
     - Lucro bruto por kg = R$ 1,00 (fixo)
     - Custo de combustível = (km_percorrido / CONSUMO_KM_POR_LITRO) * preco_combustivel
     - Custo por kg = custo_combustivel / volume_estimado
     - Lucro líquido por kg = lucro_bruto_por_kg - custo_por_kg
-    
+
     Args:
         volume_estimado: Volume coletado em kg
         km_percorrido: Distância percorrida em km
         preco_combustivel: Preço do combustível por litro
-        
+
     Returns:
         Lucro líquido por kg (pode ser negativo se custos excederem receita)
     """
     if not volume_estimado or volume_estimado <= 0:
         return 0.0
-    
+
     try:
         volume = float(volume_estimado)
         km = float(km_percorrido) if km_percorrido else 0.0
         preco = float(preco_combustivel) if preco_combustivel else 0.0
-        
+
         if math.isnan(volume) or not math.isfinite(volume) or volume <= 0:
             return 0.0
-        
+
         # Calcular custo de combustível total
         if km > 0 and preco > 0:
             custo_combustivel_total = (km / CONSUMO_KM_POR_LITRO) * preco
             custo_por_kg = custo_combustivel_total / volume
         else:
             custo_por_kg = 0.0
-        
+
         # Lucro líquido = bruto - custos
         lucro_liquido_por_kg = LUCRO_BRUTO_POR_KG - custo_por_kg
-        
+
         return round(lucro_liquido_por_kg, 4)
     except (ValueError, TypeError, ZeroDivisionError):
         return 0.0
@@ -73,12 +72,12 @@ def calcular_lucro_liquido_total(
 ) -> float:
     """
     Calcula o lucro líquido total (não por kg) de uma coleta.
-    
+
     Args:
         volume_estimado: Volume coletado em kg
         km_percorrido: Distância percorrida em km
         preco_combustivel: Preço do combustível por litro
-        
+
     Returns:
         Lucro líquido total em reais
     """
@@ -88,18 +87,18 @@ def calcular_lucro_liquido_total(
 
 def processar_filtros_data(
     query,
-    data_inicio: Optional[str] = None,
-    data_fim: Optional[str] = None
-) -> Tuple[any, Optional[datetime], Optional[datetime]]:
+    data_inicio: str | None = None,
+    data_fim: str | None = None
+) -> tuple[any, datetime | None, datetime | None]:
     """
     Processa filtros de data e aplica à query.
-    
+
     Returns:
         Tuple[query, data_inicio_obj, data_fim_obj]
     """
     data_inicio_obj = None
     data_fim_obj = None
-    
+
     if data_inicio:
         try:
             if len(data_inicio) == 10:
@@ -109,7 +108,7 @@ def processar_filtros_data(
             query = query.filter(Coleta.data_hora >= data_inicio_obj)
         except Exception as e:
             logger.warning(f"Erro ao processar data_inicio: {e}")
-    
+
     if data_fim:
         try:
             if len(data_fim) == 10:
@@ -119,23 +118,23 @@ def processar_filtros_data(
             query = query.filter(Coleta.data_hora <= data_fim_obj)
         except Exception as e:
             logger.warning(f"Erro ao processar data_fim: {e}")
-    
+
     return query, data_inicio_obj, data_fim_obj
 
 
-def calcular_metricas_financeiras(coletas: List[Coleta]) -> Dict:
+def calcular_metricas_financeiras(coletas: list[Coleta]) -> dict:
     """
     Calcula métricas financeiras a partir de uma lista de coletas.
-    
+
     Returns:
         Dict com total_coletas, volume_total, km_total, custo_combustivel_total,
         lucro_total, lucro_medio_por_coleta
     """
     if not coletas or not isinstance(coletas, list):
         coletas = []
-    
+
     total_coletas = len(coletas)
-    
+
     # Validar e somar volumes
     volume_total = 0.0
     for c in coletas:
@@ -146,7 +145,7 @@ def calcular_metricas_financeiras(coletas: List[Coleta]) -> Dict:
                     volume_total += vol
             except (ValueError, TypeError):
                 pass
-    
+
     # Validar e somar km
     km_total = 0.0
     for c in coletas:
@@ -157,7 +156,7 @@ def calcular_metricas_financeiras(coletas: List[Coleta]) -> Dict:
                     km_total += km
             except (ValueError, TypeError):
                 pass
-    
+
     # Calcular custo de combustível
     custo_combustivel_total = 0.0
     for c in coletas:
@@ -171,7 +170,7 @@ def calcular_metricas_financeiras(coletas: List[Coleta]) -> Dict:
                         custo_combustivel_total += custo
             except (ValueError, TypeError):
                 pass
-    
+
     # Calcular lucro líquido total (usando cálculo baseado em custos de combustível)
     lucro_total = 0.0
     for c in coletas:
@@ -180,7 +179,7 @@ def calcular_metricas_financeiras(coletas: List[Coleta]) -> Dict:
                 volume = float(c.volume_estimado) if c.volume_estimado is not None else 0.0
                 km = float(c.km_percorrido) if c.km_percorrido is not None else 0.0
                 preco = float(c.preco_combustivel) if c.preco_combustivel is not None else 0.0
-                
+
                 if not math.isnan(volume) and math.isfinite(volume) and volume > 0:
                     # Usar cálculo de lucro líquido (bruto - custos)
                     lucro = calcular_lucro_liquido_total(volume, km, preco)
@@ -188,7 +187,7 @@ def calcular_metricas_financeiras(coletas: List[Coleta]) -> Dict:
                         lucro_total += lucro
             except (ValueError, TypeError):
                 pass
-    
+
     return {
         "total_coletas": total_coletas,
         "volume_total": round(volume_total, 2),
@@ -199,13 +198,13 @@ def calcular_metricas_financeiras(coletas: List[Coleta]) -> Dict:
     }
 
 
-def agrupar_coletas_por_coletor(coletas: List[Coleta]) -> List[Dict]:
+def agrupar_coletas_por_coletor(coletas: list[Coleta]) -> list[dict]:
     """Agrupa coletas por coletor e calcula totais"""
     coletas_por_coletor = {}
-    
+
     if not coletas or not isinstance(coletas, list):
         return []
-    
+
     for coleta in coletas:
         if not coleta or not hasattr(coleta, 'coletor_id'):
             continue
@@ -218,7 +217,7 @@ def agrupar_coletas_por_coletor(coletas: List[Coleta]) -> List[Dict]:
                 "km_total": 0.0,
                 "lucro_total": 0.0
             }
-        
+
         coletas_por_coletor[coletor_id]["total_coletas"] += 1
         if coleta.volume_estimado is not None:
             try:
@@ -246,23 +245,23 @@ def agrupar_coletas_por_coletor(coletas: List[Coleta]) -> List[Dict]:
                         coletas_por_coletor[coletor_id]["lucro_total"] += lucro
             except (ValueError, TypeError):
                 pass
-    
+
     return list(coletas_por_coletor.values())
 
 
-def agrupar_coletas_por_parceiro(coletas: List[Coleta]) -> List[Dict]:
+def agrupar_coletas_por_parceiro(coletas: list[Coleta]) -> list[dict]:
     """Agrupa coletas por parceiro e calcula totais"""
     coletas_por_parceiro = {}
-    
+
     if not coletas or not isinstance(coletas, list):
         return []
-    
+
     for coleta in coletas:
         if not coleta:
             continue
         parceiro_id = coleta.parceiro_id
         parceiro_nome = coleta.parceiro.nome if (coleta.parceiro and hasattr(coleta.parceiro, 'nome')) else 'Sem Parceiro'
-        
+
         if parceiro_id not in coletas_por_parceiro:
             coletas_por_parceiro[parceiro_id] = {
                 "parceiro_id": parceiro_id,
@@ -271,7 +270,7 @@ def agrupar_coletas_por_parceiro(coletas: List[Coleta]) -> List[Dict]:
                 "volume_total": 0.0,
                 "lucro_total": 0.0
             }
-        
+
         coletas_por_parceiro[parceiro_id]["total_coletas"] += 1
         if coleta.volume_estimado is not None:
             try:
@@ -292,22 +291,22 @@ def agrupar_coletas_por_parceiro(coletas: List[Coleta]) -> List[Dict]:
                         coletas_por_parceiro[parceiro_id]["lucro_total"] += lucro
             except (ValueError, TypeError):
                 pass
-    
+
     return list(coletas_por_parceiro.values())
 
 
 def obter_coletas_com_filtros(
     db: Session,
-    data_inicio: Optional[str] = None,
-    data_fim: Optional[str] = None,
-    parceiro_id: Optional[int] = None,
-    tipo_operacao: Optional[str] = None,
+    data_inicio: str | None = None,
+    data_fim: str | None = None,
+    parceiro_id: int | None = None,
+    tipo_operacao: str | None = None,
     pagina: int = 1,
     por_pagina: int = 50
-) -> Tuple[List[Coleta], int]:
+) -> tuple[list[Coleta], int]:
     """
     Obtém coletas com filtros aplicados e paginação.
-    
+
     Returns:
         Tuple[List[Coleta], total_count]
     """
@@ -317,38 +316,38 @@ def obter_coletas_com_filtros(
         joinedload(Coleta.parceiro),
         joinedload(Coleta.tipo_coletor)
     )
-    
+
     # Aplicar filtros de data
     query, _, _ = processar_filtros_data(query, data_inicio, data_fim)
-    
+
     # Filtros adicionais
     if parceiro_id:
         query = query.filter(Coleta.parceiro_id == parceiro_id)
     if tipo_operacao:
         query = query.filter(Coleta.tipo_operacao == tipo_operacao)
-    
+
     # Contar total (antes da paginação)
     total_count = query.count()
-    
+
     # Aplicar paginação
     offset = (pagina - 1) * por_pagina
     coletas = query.order_by(Coleta.data_hora.desc()).offset(offset).limit(por_pagina).all()
-    
+
     return coletas, total_count
 
 
 def gerar_relatorio(
     db: Session,
-    data_inicio: Optional[str] = None,
-    data_fim: Optional[str] = None,
-    parceiro_id: Optional[int] = None,
-    tipo_operacao: Optional[str] = None,
+    data_inicio: str | None = None,
+    data_fim: str | None = None,
+    parceiro_id: int | None = None,
+    tipo_operacao: str | None = None,
     pagina: int = 1,
     por_pagina: int = 50
-) -> Dict:
+) -> dict:
     """
     Gera relatório completo com dados financeiros e operacionais.
-    
+
     Returns:
         Dict com periodo, resumo, detalhes, paginacao
     """
@@ -356,17 +355,17 @@ def gerar_relatorio(
     coletas, total_count = obter_coletas_com_filtros(
         db, data_inicio, data_fim, parceiro_id, tipo_operacao, pagina, por_pagina
     )
-    
+
     # Calcular métricas
     metricas = calcular_metricas_financeiras(coletas)
-    
+
     # Agrupar dados
     coletas_por_coletor = agrupar_coletas_por_coletor(coletas)
     coletas_por_parceiro = agrupar_coletas_por_parceiro(coletas)
-    
+
     # Serializar detalhes
     detalhes = [coleta_para_dict(c) for c in coletas]
-    
+
     return {
         "periodo": {
             "data_inicio": data_inicio,

@@ -13,7 +13,7 @@ from sqlalchemy.orm import Session
 
 from banco_dados.modelos import FeatureSnapshotProspeccao, ModeloProspeccao, ScoreProspeccao
 from jobs.prospeccao import config
-from jobs.prospeccao.ranker_contract import FEATURE_NAMES, heuristic_score, top_reasons
+from jobs.prospeccao.ranker_contract import FEATURE_NAMES, heuristic_score
 
 logger = logging.getLogger(__name__)
 
@@ -118,7 +118,7 @@ def _predict_and_explain(
             explainer = shap.TreeExplainer(ranker)
             shap_values = explainer.shap_values(x)
             shap_maps = [
-                dict(zip(features, (float(v) for v in row_shap)))
+                dict(zip(features, (float(v) for v in row_shap), strict=False))
                 for row_shap in shap_values
             ]
         except Exception as exc:
@@ -199,7 +199,7 @@ def score_candidates(
         predictions, shap_maps = _predict_and_explain(model, feature_rows)
         explanations = shap_maps or [None] * len(rows)
         ranked = sorted(
-            zip(rows, feature_rows, predictions, explanations),
+            zip(rows, feature_rows, predictions, explanations, strict=False),
             key=lambda item: item[2],
             reverse=True,
         )

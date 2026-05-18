@@ -11,17 +11,21 @@ Funções implementadas:
 - resetar_banco(): Remove e recria todas as tabelas
 """
 
+import json
+import logging
+import os
+from datetime import datetime
+
 from sqlalchemy import create_engine
 from sqlalchemy.orm import sessionmaker
+
 from banco_dados.modelos import (
-    Base, Coletor, Sensor, Coleta, Usuario,
-    Parceiro, TipoMaterial, TipoSensor, TipoColetor
+    Base,
+    Coleta,
+    Coletor,
+    Usuario,
 )
 from banco_dados.seed_tipos import popular_tipos
-import json
-from datetime import datetime
-import os
-import logging
 
 logger = logging.getLogger(__name__)
 
@@ -133,14 +137,14 @@ def criar_usuario_admin(engine):
     """
     Session = sessionmaker(bind=engine)
     session = Session()
-    
+
     try:
         # Verificar se já existe admin
-        admin_existente = session.query(Usuario).filter(Usuario.admin == True).first()
+        admin_existente = session.query(Usuario).filter(Usuario.admin).first()
         if admin_existente:
             logger.info(f"Usuário admin já existe: {admin_existente.username}")
             return
-        
+
         admin_username = os.getenv("ADMIN_USERNAME")
         admin_email = os.getenv("ADMIN_EMAIL")
         admin_password = os.getenv("ADMIN_PASSWORD")
@@ -169,18 +173,18 @@ def criar_usuario_admin(engine):
                     "use FLASK_ENV=development para credenciais DEV_* automáticas."
                 )
                 return
-        
+
         # Validar força básica da senha (mais flexível para admin inicial)
         if len(admin_password) < 8:
             logger.error("❌ Senha do admin muito curta. Mínimo 8 caracteres.")
             # Não logar a senha em si
             return
-        
+
         # Aviso se a senha não for muito forte, mas permite
         if len(admin_password) < 12:
             logger.warning("⚠️  Senha do admin é curta. Recomendado: pelo menos 12 caracteres.")
             # Não logar a senha em si
-        
+
         # Criar admin
         admin = Usuario(
             username=admin_username,
@@ -190,12 +194,12 @@ def criar_usuario_admin(engine):
             admin=True
         )
         admin.set_senha(admin_password)
-        
+
         session.add(admin)
         session.commit()
         logger.info(f"✅ Usuário admin criado: {admin_username}")
         logger.info(f"   Email: {admin_email}")
-        
+
     except Exception as e:
         logger.error(f"ERRO ao criar usuário admin: {e}")
         session.rollback()

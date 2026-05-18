@@ -4,10 +4,8 @@ from __future__ import annotations
 
 import logging
 from pathlib import Path
-from typing import List, Optional
 
-from jobs.prospeccao import config
-from jobs.prospeccao import paths as pathutil
+from jobs.prospeccao import config, paths as pathutil
 from jobs.prospeccao.http_util import download_url_to_path, request_timeout, session
 
 logger = logging.getLogger(__name__)
@@ -35,9 +33,9 @@ def _zip_url_for_year(year: str) -> str:
 
 
 def download_censo_escolar_microdados_zip(
-    year: Optional[str] = None,
+    year: str | None = None,
     *,
-    max_mb: Optional[int] = None,
+    max_mb: int | None = None,
 ) -> Path:
     """
     ZIP oficial microdados (vários GB em anos recentes).
@@ -54,7 +52,7 @@ def download_censo_escolar_microdados_zip(
     return dest
 
 
-def probe_censo_escolar_years(years: Optional[List[str]] = None) -> Optional[str]:
+def probe_censo_escolar_years(years: list[str] | None = None) -> str | None:
     """Devolve o primeiro ano cujo ZIP responde HEAD OK."""
     for y in years or ["2024", "2023", "2022", "2021"]:
         url = _zip_url_for_year(y)

@@ -33,7 +33,7 @@ _VOZ = """
 Tom e estilo:
 - Acolhedora, simpática e profissional. Pode usar uns emojis para quebrar o gelo.
 - Português brasileiro direto, como quem conhece a operação por dentro.
-- Frases animadoras e impactantes. Terminologia do setor. Uma vez que se apresentou, siga a conversa naturalmente. 
+- Frases animadoras e impactantes. Terminologia do setor. Uma vez que se apresentou, siga a conversa naturalmente.
 - Confiante e prático. Se falta dado, diga "mas não posso confirmar isso agora".
 - Atenha-se aos dados do contexto, mas não se limite a eles.
 - Você é a Nik, seu dever é ajudar o operador a entender a operação e tomar decisões.\
@@ -99,6 +99,19 @@ Leia os números juntos e diga o que significam.
 """
 )
 
+SYSTEM_OPS_IMAGEM = (
+    _PERSONA_TEXTO
+    + """
+
+Tarefa: analisar uma foto enviada pela equipe (coletor, ambiente, etiqueta, nível visível).
+Interprete o que a imagem revela para a operação de coleta de e-waste.
+
+1. Descreva brevemente o que vê e o que é relevante para logística reversa.
+2. Se houver contexto de coletor nos dados, cruze com preenchimento, bateria e parceiro.
+3. Sugira próximo passo concreto (coletar, investigar, aguardar, contatar parceiro).
+"""
+)
+
 SYSTEM_OPS_CONVERSA = (
     _PERSONA_TEXTO
     + """
@@ -106,7 +119,7 @@ SYSTEM_OPS_CONVERSA = (
 Tarefa: conversa operacional livre com a equipe da Tronik.
 
 Diretrizes:
-- Responda como assistente interno que conhece os dados. 
+- Responda como assistente interno que conhece os dados.
 - Use dados do contexto quando existirem; cite tendências e cruzamentos.
 - Para análise mais longa, organize em parágrafos com subtítulos simples (sem markdown).
 - Fora do domínio Tronik: responda de forma útil.
@@ -228,6 +241,10 @@ def montar_prompt_ops_resumo(contexto: dict[str, Any]) -> str:
 
 def montar_prompt_ops_coletor(contexto: dict[str, Any]) -> str:
     return f"Dados do coletor e contexto geral:\n{_json_compacto(contexto)}"
+
+
+def montar_prompt_ops_imagem(contexto: dict[str, Any]) -> str:
+    return f"Contexto do coletor vinculado:\n{_json_compacto(contexto)}"
 
 
 def montar_prompt_ops_alerta(contexto: dict[str, Any]) -> str:

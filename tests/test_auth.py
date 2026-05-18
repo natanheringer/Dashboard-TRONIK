@@ -4,9 +4,9 @@ Testes de Autenticação - Dashboard-TRONIK
 Testa login, registro e logout de usuários.
 """
 
-import pytest
-import sys
 import os
+import sys
+
 sys.path.insert(0, os.path.abspath(os.path.join(os.path.dirname(__file__), '..')))
 
 from banco_dados.modelos import Usuario
@@ -14,13 +14,13 @@ from banco_dados.modelos import Usuario
 
 class TestLogin:
     """Testes de login"""
-    
+
     def test_login_page_loads(self, client):
         """Testa se a página de login carrega"""
         response = client.get('/auth/login')
         assert response.status_code == 200
         assert b'Login' in response.data or b'login' in response.data.lower()
-    
+
     def test_login_success_json(self, client, db_session):
         """Testa login bem-sucedido via JSON"""
         # Criar usuário de teste
@@ -33,19 +33,19 @@ class TestLogin:
         usuario.set_senha('testpass123')
         db_session.add(usuario)
         db_session.commit()
-        
+
         # Tentar fazer login
         response = client.post('/auth/login', json={
             'username': 'testuser',
             'senha': 'testpass123'
         })
-        
+
         assert response.status_code == 200
         data = response.get_json()
         assert data['mensagem'] == 'Login realizado com sucesso'
         assert data['usuario']['username'] == 'testuser'
         assert data['usuario']['email'] == 'test@example.com'
-    
+
     def test_login_with_email(self, client, db_session):
         """Testa login usando email em vez de username"""
         # Criar usuário de teste com dados únicos
@@ -58,29 +58,29 @@ class TestLogin:
         usuario.set_senha('testpass123')
         db_session.add(usuario)
         db_session.commit()
-        
+
         # Tentar fazer login com email
         response = client.post('/auth/login', json={
             'username': 'testemail@example.com',
             'senha': 'testpass123'
         })
-        
+
         assert response.status_code == 200
         data = response.get_json()
         assert data['mensagem'] == 'Login realizado com sucesso'
-    
+
     def test_login_invalid_credentials(self, client):
         """Testa login com credenciais inválidas"""
         response = client.post('/auth/login', json={
             'username': 'nonexistent',
             'senha': 'wrongpass'
         })
-        
+
         assert response.status_code == 401
         data = response.get_json()
         assert 'erro' in data
         assert 'inválidas' in data['erro'].lower() or 'credenciais' in data['erro'].lower()
-    
+
     def test_login_missing_fields(self, client):
         """Testa login sem campos obrigatórios"""
         # Sem username
@@ -88,13 +88,13 @@ class TestLogin:
             'senha': 'testpass123'
         })
         assert response.status_code == 400
-        
+
         # Sem senha
         response = client.post('/auth/login', json={
             'username': 'testuser'
         })
         assert response.status_code == 400
-    
+
     def test_login_inactive_user(self, client, db_session):
         """Testa login com usuário inativo"""
         # Criar usuário inativo
@@ -107,13 +107,13 @@ class TestLogin:
         usuario.set_senha('testpass123')
         db_session.add(usuario)
         db_session.commit()
-        
+
         # Tentar fazer login
         response = client.post('/auth/login', json={
             'username': 'inactive',
             'senha': 'testpass123'
         })
-        
+
         assert response.status_code == 403
         data = response.get_json()
         assert 'inativo' in data['erro'].lower()
@@ -139,7 +139,7 @@ class TestRegistro:
 
 class TestLogout:
     """Testes de logout"""
-    
+
     def test_logout_requires_login(self, client):
         """Testa que logout requer autenticação"""
         response = client.post('/auth/logout')

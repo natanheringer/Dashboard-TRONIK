@@ -15,7 +15,15 @@ from pathlib import Path
 from sqlalchemy import create_engine
 from sqlalchemy.orm import sessionmaker
 
-from banco_dados.modelos import Coleta, Coletor, Parceiro, Sensor, TipoColetor, TipoMaterial, TipoSensor
+from banco_dados.modelos import (
+    Coleta,
+    Coletor,
+    Parceiro,
+    Sensor,
+    TipoColetor,
+    TipoMaterial,
+    TipoSensor,
+)
 from banco_dados.seed_tipos import popular_tipos
 
 

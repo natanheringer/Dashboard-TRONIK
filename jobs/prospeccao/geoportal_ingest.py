@@ -10,11 +10,10 @@ from __future__ import annotations
 import json
 import logging
 from pathlib import Path
-from typing import Any, Optional
+from typing import Any
 from urllib.parse import urlencode
 
-from jobs.prospeccao import config
-from jobs.prospeccao import paths as pathutil
+from jobs.prospeccao import config, paths as pathutil
 from jobs.prospeccao.http_util import get_json, throttle
 
 logger = logging.getLogger(__name__)
@@ -51,9 +50,9 @@ def query_layer_geojson_page(
 
 def sync_ra_geojson(
     *,
-    feature_url: Optional[str] = None,
+    feature_url: str | None = None,
     page_size: int = 2000,
-    max_features: Optional[int] = None,
+    max_features: int | None = None,
 ) -> Path:
     """Concatena features num único FeatureCollection (respeitando limite)."""
     url_base = feature_url or config.GEOPORTAL_RA_FEATURE_URL

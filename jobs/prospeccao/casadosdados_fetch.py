@@ -13,7 +13,6 @@ Fetches in proximity order from sede (Recanto das Emas):
 
 from __future__ import annotations
 
-import json
 import logging
 import time
 from datetime import datetime
@@ -140,7 +139,7 @@ def _build_fetch_plan(tiers: str = "all") -> list[dict[str, str]]:
         if code not in config.ENTORNO_INNER_RING
     ]
 
-    requested = set(t.strip() for t in tiers.lower().split(","))
+    requested = {t.strip() for t in tiers.lower().split(",")}
     do_all = "all" in requested
     do_df = "df" in requested or do_all
 

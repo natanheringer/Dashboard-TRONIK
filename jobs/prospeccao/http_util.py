@@ -6,7 +6,7 @@ import hashlib
 import logging
 import time
 from dataclasses import dataclass
-from typing import Any, BinaryIO, Optional
+from typing import Any, BinaryIO
 
 import requests
 from requests.adapters import HTTPAdapter
@@ -19,7 +19,7 @@ logger = logging.getLogger(__name__)
 _SESSION: requests.Session | None = None
 
 
-def request_timeout(timeout: Optional[float] = None) -> float | tuple[float, float]:
+def request_timeout(timeout: float | None = None) -> float | tuple[float, float]:
     """Return a requests timeout with bounded connect and read phases."""
     if timeout is not None:
         return timeout
@@ -60,8 +60,8 @@ def session() -> requests.Session:
 def get_json(
     url: str,
     *,
-    params: Optional[dict[str, Any]] = None,
-    timeout: Optional[float] = None,
+    params: dict[str, Any] | None = None,
+    timeout: float | None = None,
 ) -> Any:
     logger.debug("HTTP GET json: %s params=%s", url, params)
     r = session().get(url, params=params, timeout=request_timeout(timeout))
@@ -69,7 +69,7 @@ def get_json(
     return r.json()
 
 
-def post_json(url: str, *, json_body: Optional[dict[str, Any]] = None) -> Any:
+def post_json(url: str, *, json_body: dict[str, Any] | None = None) -> Any:
     logger.debug("HTTP POST json: %s", url)
     r = session().post(url, json=json_body or {}, timeout=request_timeout())
     r.raise_for_status()
@@ -82,7 +82,7 @@ class DownloadResult:
     bytes_written: int
     skipped: bool
     truncated: bool
-    sha256: Optional[str] = None
+    sha256: str | None = None
 
 
 @dataclass
@@ -90,11 +90,11 @@ class LinkCheckResult:
     url: str
     ok: bool
     method: str
-    status_code: Optional[int] = None
-    final_url: Optional[str] = None
-    content_type: Optional[str] = None
-    content_length: Optional[int] = None
-    error: Optional[str] = None
+    status_code: int | None = None
+    final_url: str | None = None
+    content_type: str | None = None
+    content_length: int | None = None
+    error: str | None = None
 
 
 def _sha256_stream(fp: BinaryIO, chunk: int = 1 << 20) -> str:
@@ -111,7 +111,7 @@ def stream_download(
     url: str,
     dest: BinaryIO,
     *,
-    max_bytes: Optional[int] = None,
+    max_bytes: int | None = None,
     chunk_size: int = 1 << 20,
     pause_s: float = 0.0,
     resume_offset: int = 0,
@@ -163,7 +163,7 @@ def download_url_to_path(
     url: str,
     dest_path: Any,
     *,
-    max_bytes: Optional[int] = None,
+    max_bytes: int | None = None,
     resume: bool = True,
     skip_if_same_size: bool = True,
     compute_hash: bool = False,
@@ -174,7 +174,7 @@ def download_url_to_path(
     tenta continuar.
     """
     dest_path.parent.mkdir(parents=True, exist_ok=True)
-    cl: Optional[str] = None
+    cl: str | None = None
     ar = False
     try:
         head = session().head(url, allow_redirects=True, timeout=request_timeout())
@@ -219,7 +219,7 @@ def download_url_to_path(
 def check_url(
     url: str,
     *,
-    timeout: Optional[float] = None,
+    timeout: float | None = None,
     allow_get_fallback: bool = True,
 ) -> LinkCheckResult:
     """Validate a data URL with HEAD, falling back to a small GET when needed."""

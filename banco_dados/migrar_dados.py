@@ -6,11 +6,13 @@ Migra dados existentes do modelo antigo para o novo modelo.
 Converte coordenadas string para latitude/longitude e tipos string para FKs.
 """
 
+import logging
+
 from sqlalchemy import create_engine
 from sqlalchemy.orm import sessionmaker
-from banco_dados.modelos import Base, Coletor, Sensor, Coleta, TipoMaterial, TipoSensor
+
+from banco_dados.modelos import Base, Coletor, Sensor, TipoMaterial, TipoSensor
 from banco_dados.seed_tipos import popular_tipos
-import logging
 
 logger = logging.getLogger(__name__)
 
@@ -18,16 +20,16 @@ logger = logging.getLogger(__name__)
 def converter_coordenadas_string(coordenadas_str):
     """
     Converte coordenadas de string "lat, lon" para (latitude, longitude).
-    
+
     Args:
         coordenadas_str: String no formato "latitude, longitude"
-    
+
     Returns:
         tuple: (latitude, longitude) ou (None, None) se inválido
     """
     if not coordenadas_str or not coordenadas_str.strip():
         return (None, None)
-    
+
     try:
         # Remover espaços e dividir por vírgula
         partes = coordenadas_str.strip().split(',')
@@ -39,25 +41,25 @@ def converter_coordenadas_string(coordenadas_str):
                 return (lat, lon)
     except (ValueError, AttributeError):
         pass
-    
+
     return (None, None)
 
 
 def mapear_tipo_material(tipo_str):
     """
     Mapeia tipo de material string para ID.
-    
+
     Args:
         tipo_str: String com tipo de material
-    
+
     Returns:
         int: ID do tipo de material ou None
     """
     if not tipo_str:
         return None
-    
+
     tipo_str = tipo_str.strip().lower()
-    
+
     # Mapeamento básico
     mapeamento = {
         'plástico': 'Plástico',
@@ -70,29 +72,29 @@ def mapear_tipo_material(tipo_str):
         'eletrônico': 'Eletrônico',
         'eletronico': 'Eletrônico',
     }
-    
-    tipo_normalizado = mapeamento.get(tipo_str, None)
+
+    tipo_normalizado = mapeamento.get(tipo_str)
     if not tipo_normalizado:
         return None
-    
+
     return tipo_normalizado
 
 
 def mapear_tipo_sensor(tipo_str):
     """
     Mapeia tipo de sensor string para ID.
-    
+
     Args:
         tipo_str: String com tipo de sensor
-    
+
     Returns:
         int: ID do tipo de sensor ou None
     """
     if not tipo_str:
         return None
-    
+
     tipo_str = tipo_str.strip().lower()
-    
+
     # Mapeamento básico
     mapeamento = {
         'ultrassônico': 'Ultrassônico',
@@ -103,25 +105,25 @@ def mapear_tipo_sensor(tipo_str):
         'infravermelho': 'Infravermelho',
         'infrared': 'Infravermelho',
     }
-    
-    tipo_normalizado = mapeamento.get(tipo_str, None)
+
+    tipo_normalizado = mapeamento.get(tipo_str)
     if not tipo_normalizado:
         return None
-    
+
     return tipo_normalizado
 
 
 def migrar_dados(engine, backup=True):
     """
     Migra dados existentes para o novo modelo.
-    
+
     Args:
         engine: SQLAlchemy engine
         backup: Se True, faz backup antes de migrar
     """
     Session = sessionmaker(bind=engine)
     session = Session()
-    
+
     stats = {
         'lixeiras_migradas': 0,
         'lixeiras_com_coordenadas': 0,
@@ -131,22 +133,22 @@ def migrar_dados(engine, backup=True):
         'sensores_sem_tipo': 0,
         'erros': []
     }
-    
+
     try:
         logger.info("Iniciando migração de dados...")
-        
+
         # ============================================================
         # 1. Garantir que tipos estão populados
         # ============================================================
         logger.info("Garantindo que tipos estão populados...")
         popular_tipos(engine)
-        
+
         # ============================================================
         # 2. Migrar Lixeiras
         # ============================================================
         logger.info("Migrando coletores...")
         coletores = session.query(Coletor).all()
-        
+
         for coletor in coletores:
             try:
                 # Converter coordenadas
@@ -161,7 +163,7 @@ def migrar_dados(engine, backup=True):
                         logger.warning(f"Coordenadas inválidas na coletor {coletor.id}: {coletor.coordenadas}")
                 else:
                     stats['lixeiras_sem_coordenadas'] += 1
-                
+
                 # Converter tipo de material
                 if coletor.tipo:
                     tipo_nome = mapear_tipo_material(coletor.tipo)
@@ -171,9 +173,9 @@ def migrar_dados(engine, backup=True):
                         ).first()
                         if tipo_material:
                             coletor.tipo_material_id = tipo_material.id
-                
+
                 stats['lixeiras_migradas'] += 1
-                
+
             except Exception as e:
                 stats['erros'].append({
                     'tipo': 'coletor',
@@ -181,16 +183,16 @@ def migrar_dados(engine, backup=True):
                     'erro': str(e)
                 })
                 logger.error(f"Erro ao migrar coletor {coletor.id}: {e}")
-        
+
         session.commit()
         logger.info(f"✅ {stats['lixeiras_migradas']} coletores migradas")
-        
+
         # ============================================================
         # 3. Migrar Sensores
         # ============================================================
         logger.info("Migrando sensores...")
         sensores = session.query(Sensor).all()
-        
+
         for sensor in sensores:
             try:
                 # Converter tipo de sensor
@@ -207,9 +209,9 @@ def migrar_dados(engine, backup=True):
                         stats['sensores_sem_tipo'] += 1
                 else:
                     stats['sensores_sem_tipo'] += 1
-                
+
                 stats['sensores_migrados'] += 1
-                
+
             except Exception as e:
                 stats['erros'].append({
                     'tipo': 'sensor',
@@ -217,10 +219,10 @@ def migrar_dados(engine, backup=True):
                     'erro': str(e)
                 })
                 logger.error(f"Erro ao migrar sensor {sensor.id}: {e}")
-        
+
         session.commit()
         logger.info(f"✅ {stats['sensores_migrados']} sensores migrados")
-        
+
         # ============================================================
         # 4. Resumo
         # ============================================================
@@ -231,12 +233,12 @@ def migrar_dados(engine, backup=True):
         logger.info(f"   Sensores migrados: {stats['sensores_migrados']}")
         logger.info(f"   Sensores com tipo: {stats['sensores_com_tipo']}")
         logger.info(f"   Sensores sem tipo: {stats['sensores_sem_tipo']}")
-        
+
         if stats['erros']:
             logger.warning(f"   Erros encontrados: {len(stats['erros'])}")
-        
+
         return stats
-        
+
     except Exception as e:
         logger.error(f"❌ Erro fatal na migração: {e}")
         session.rollback()
@@ -253,6 +255,7 @@ if __name__ == "__main__":
     )
 
     from sqlalchemy import create_engine
+
     from banco_dados.modelos import Base
 
     # Criar engine com WAL mode para operações longas
@@ -269,13 +272,13 @@ if __name__ == "__main__":
     with engine.begin() as conn:
         conn.execute("PRAGMA journal_mode=WAL")
         conn.execute("PRAGMA synchronous=NORMAL")
-    
+
     # Garantir que tabelas existem
     Base.metadata.create_all(engine)
-    
+
     # Executar migração
     stats = migrar_dados(engine, backup=True)
-    
+
     print("\n" + "="*60)
     print("RESUMO DA MIGRAÇÃO")
     print("="*60)

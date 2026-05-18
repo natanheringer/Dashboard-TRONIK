@@ -4,19 +4,17 @@ from __future__ import annotations
 
 import logging
 from pathlib import Path
-from typing import Optional
 
-from jobs.prospeccao import config
-from jobs.prospeccao import paths as pathutil
+from jobs.prospeccao import config, paths as pathutil
 from jobs.prospeccao.http_util import download_url_to_path
 
 logger = logging.getLogger(__name__)
 
 
 def download_pbf(
-    url: Optional[str] = None,
+    url: str | None = None,
     *,
-    max_mb: Optional[int] = None,
+    max_mb: int | None = None,
     filename: str = "extract.osm.pbf",
 ) -> Path:
     u = url or config.GEOFABRIK_DEFAULT_PBF

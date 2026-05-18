@@ -10,9 +10,9 @@ os.environ.setdefault("SECRET_KEY", "temp-script-key-at-least-32-chars-long!!")
 
 from sqlalchemy import text
 
-import app as A
+import app
 
-eng = A.engine
+eng = app.engine
 dialect = eng.dialect.name
 print("Dialect:", dialect)
 

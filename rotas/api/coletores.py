@@ -4,23 +4,24 @@ Rotas de Coletores - Dashboard-TRONIK
 Endpoints para operações CRUD de coletores.
 """
 
-from flask import Blueprint, jsonify, request, current_app
+from flask import Blueprint, jsonify, request
 from flask_login import login_required
-from rotas.api import decorators
-from rotas.api.decorators import admin_required, escopo_parceiro_id, get_db, get_limiter
+from sqlalchemy.orm import joinedload
+
 from banco_dados.modelos import Coletor
 from banco_dados.serializers import coletor_para_dict
 from banco_dados.services.coletor_service import (
-    validar_dados_coletor, criar_coletor, atualizar_coletor,
-    obter_coletores_com_filtros, resumo_operacional,
+    atualizar_coletor,
+    criar_coletor,
+    obter_coletores_com_filtros,
+    resumo_operacional,
+    validar_dados_coletor,
 )
-from banco_dados.utils.erros import (
-    tratar_erro_api, ErroNaoEncontrado, ErroValidacao, 
-    validar_requisicao_json, validar_tipo, validar_range
-)
-from banco_dados.utils.validacao import validar_paginacao
+from banco_dados.utils.erros import ErroNaoEncontrado, ErroValidacao, tratar_erro_api
 from banco_dados.utils.logger import obter_logger
-from sqlalchemy.orm import joinedload
+from banco_dados.utils.validacao import validar_paginacao
+from rotas.api import decorators
+from rotas.api.decorators import admin_required, escopo_parceiro_id, get_db
 
 logger = obter_logger(__name__)
 
@@ -53,19 +54,19 @@ def listar_coletores():
             request.args.get('pagina', type=int),
             request.args.get('por_pagina', type=int)
         )
-        
+
         # Filtros
         status = request.args.get('status')
         parceiro_id = escopo_parceiro_id(request.args.get('parceiro_id', type=int))
-        
+
         # Obter coletores com filtros e paginação
         coletores, total_count = obter_coletores_com_filtros(
             db, status=status, parceiro_id=parceiro_id,
             pagina=pagina, por_pagina=por_pagina
         )
-        
-        resultado = [coletor_para_dict(l) for l in coletores]
-        
+
+        resultado = [coletor_para_dict(c) for c in coletores]
+
         return jsonify({
             "dados": resultado,
             "paginacao": {
@@ -91,10 +92,10 @@ def obter_lixeira(coletor_id):
             joinedload(Coletor.parceiro),
             joinedload(Coletor.tipo_material)
         ).filter(Coletor.id == coletor_id).first()
-        
+
         if not coletor:
             raise ErroNaoEncontrado("Coletor", coletor_id)
-        
+
         return jsonify(coletor_para_dict(coletor))
     except Exception as e:
         return tratar_erro_api(e)
@@ -109,32 +110,30 @@ def criar_coletor_endpoint():
     """Endpoint para criar uma nova coletor"""
     db = get_db()
     try:
-        from banco_dados.utils.validacao import (
-            validar_dados_requisicao, sanitizar_dados_entrada
-        )
-        
+        from banco_dados.utils.validacao import sanitizar_dados_entrada, validar_dados_requisicao
+
         dados = request.get_json()
         dados = validar_dados_requisicao(dados)
-        
+
         # Sanitizar dados de entrada
         campos_string = ['localizacao', 'status', 'observacoes']
         dados = sanitizar_dados_entrada(dados, campos_string)
-        
+
         # Validar dados
         erros = validar_dados_coletor(dados, criar=True, db=db)
         if erros:
             raise ErroValidacao("Erros de validação", {"detalhes": erros})
-        
+
         # Criar coletor
         novo_coletor = criar_coletor(db, dados)
-        
+
         # Emitir atualização via WebSocket
         try:
             from rotas.websocket import emitir_atualizacao_coletor
             emitir_atualizacao_coletor(coletor_para_dict(novo_coletor), 'coletor_criado')
         except Exception as e:
             logger.warning(f"Erro ao emitir atualização WebSocket: {e}")
-        
+
         # Geocodificação automática se não tiver coordenadas
         if not novo_coletor.latitude or not novo_coletor.longitude:
             try:
@@ -152,7 +151,7 @@ def criar_coletor_endpoint():
                     logger.info(f"Coordenadas geocodificadas automaticamente para coletor {novo_coletor.id}")
             except Exception as e:
                 logger.warning(f"Geocodificação automática falhou para coletor {novo_coletor.id}: {e}")
-        
+
         return jsonify(coletor_para_dict(novo_coletor)), 201
     except Exception as e:
         db.rollback()
@@ -171,37 +170,35 @@ def atualizar_coletor_endpoint(coletor_id):
         coletor = db.query(Coletor).filter(Coletor.id == coletor_id).first()
         if not coletor:
             raise ErroNaoEncontrado("Coletor", coletor_id)
-        
-        from banco_dados.utils.validacao import (
-            validar_dados_requisicao, sanitizar_dados_entrada
-        )
-        
+
+        from banco_dados.utils.validacao import sanitizar_dados_entrada, validar_dados_requisicao
+
         dados = request.get_json()
         dados = validar_dados_requisicao(dados)
-        
+
         # Sanitizar dados de entrada
         campos_string = ['localizacao', 'status', 'observacoes']
         dados = sanitizar_dados_entrada(dados, campos_string)
-        
+
         # Validar dados
         erros = validar_dados_coletor(dados, criar=False, db=db)
         if erros:
             raise ErroValidacao("Erros de validação", {"detalhes": erros})
-        
+
         # Verificar se localização mudou (para geocodificação)
         localizacao_mudou = 'localizacao' in dados and dados['localizacao'] != coletor.localizacao
         coordenadas_fornecidas = 'latitude' in dados or 'longitude' in dados
-        
+
         # Atualizar coletor
         coletor = atualizar_coletor(db, coletor, dados)
-        
+
         # Emitir atualização via WebSocket
         try:
             from rotas.websocket import emitir_atualizacao_coletor
             emitir_atualizacao_coletor(coletor_para_dict(coletor))
         except Exception as e:
             logger.warning(f"Erro ao emitir atualização WebSocket: {e}")
-        
+
         # Geocodificação automática se necessário
         if not coordenadas_fornecidas and (localizacao_mudou or not coletor.latitude or not coletor.longitude):
             try:
@@ -218,7 +215,7 @@ def atualizar_coletor_endpoint(coletor_id):
                     logger.info(f"Coordenadas geocodificadas automaticamente para coletor {coletor.id}")
             except Exception as e:
                 logger.warning(f"Geocodificação automática falhou para coletor {coletor.id}: {e}")
-        
+
         return jsonify(coletor_para_dict(coletor))
     except Exception as e:
         db.rollback()
@@ -237,10 +234,10 @@ def deletar_lixeira(coletor_id):
         coletor = db.query(Coletor).filter(Coletor.id == coletor_id).first()
         if not coletor:
             raise ErroNaoEncontrado("Coletor", coletor_id)
-        
+
         db.delete(coletor)
         db.commit()
-        
+
         return jsonify({"mensagem": "Coletor deletada com sucesso"}), 200
     except Exception as e:
         db.rollback()
@@ -258,10 +255,10 @@ def geocodificar_lixeira(coletor_id):
         coletor = db.query(Coletor).filter(Coletor.id == coletor_id).first()
         if not coletor:
             raise ErroNaoEncontrado("Coletor", coletor_id)
-        
+
         from banco_dados.geocodificacao import geocodificar_coletor
         sucesso, mensagem = geocodificar_coletor(db, coletor_id)
-        
+
         if sucesso:
             db.refresh(coletor)
             return jsonify({

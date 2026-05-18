@@ -4,10 +4,11 @@ Utilitário de Sessão de Banco - Dashboard-TRONIK
 Helper para obter sessão do banco de dados nos serviços.
 """
 
+import os
+
 from flask import current_app, has_app_context
 from sqlalchemy import create_engine
-from sqlalchemy.orm import sessionmaker, scoped_session
-import os
+from sqlalchemy.orm import sessionmaker
 
 
 def get_db_session():

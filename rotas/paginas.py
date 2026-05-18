@@ -6,7 +6,7 @@ Rotas para as páginas web do dashboard.
 Gerencia a navegação e renderização das páginas.
 """
 
-from flask import Blueprint, render_template, redirect, url_for
+from flask import Blueprint, redirect, render_template, url_for
 from flask_login import login_required
 
 # Criar blueprint das páginas

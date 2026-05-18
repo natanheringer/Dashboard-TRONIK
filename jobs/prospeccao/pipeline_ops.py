@@ -130,6 +130,9 @@ def run_scheduled_pipeline() -> dict[str, Any]:
 
     steps_out.append(_run_cli_step(["link-crm"], timeout_s=step_timeout))
 
+    if os.getenv("PROSPECCAO_BUILD_ENRICHMENT", "false").lower() == "true":
+        steps_out.append(_run_cli_step(["build-enrichment"], timeout_s=step_timeout))
+
     build_args = ["build-features", "--version", version]
     if use_internal:
         build_args.append("--use-internal-labels")

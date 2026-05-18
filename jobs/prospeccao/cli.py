@@ -124,6 +124,11 @@ def main(argv: list[str] | None = None) -> int:
     sub.add_parser("monitor", help="Relatório JSON de saúde do ranker (cron/ops)")
 
     sub.add_parser(
+        "build-enrichment",
+        help="Materializa parquets OSM/INEP/CNES em data/ml/staging (Sócrates)",
+    )
+
+    sub.add_parser(
         "enrichment-probe",
         help="Verifica TRONIK_OSM_POI_PARQUET / INEP / CNES staging para proxies do ranker",
     )
@@ -489,6 +494,15 @@ def main(argv: list[str] | None = None) -> int:
         from jobs.prospeccao.monitor_ranker import run_monitor
 
         return run_monitor()
+
+    if args.cmd == "build-enrichment":
+        from jobs.prospeccao.build_enrichment_staging import build_all_enrichment
+        from jobs.prospeccao.enrichment_proxies import probe_enrichment_files
+
+        built = build_all_enrichment()
+        probe = probe_enrichment_files()
+        print(json.dumps({"built": built, "probe": probe}, ensure_ascii=False, indent=2, default=str))
+        return 0
 
     if args.cmd == "enrichment-probe":
         from jobs.prospeccao.enrichment_proxies import probe_enrichment_files

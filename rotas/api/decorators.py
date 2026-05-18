@@ -15,8 +15,8 @@ Agora delegamos direto ao singleton, que ja existe no momento do import.
 
 from __future__ import annotations
 
+from collections.abc import Callable
 from functools import wraps
-from typing import Callable, Optional
 
 from flask import abort, current_app, jsonify
 from flask_login import current_user, login_required
@@ -53,7 +53,7 @@ def admin_page_required(f: Callable) -> Callable:
     return decorated_function
 
 
-def escopo_parceiro_id(solicitado: Optional[int] = None) -> Optional[int]:
+def escopo_parceiro_id(solicitado: int | None = None) -> int | None:
     """Força parceiro_id do usuario quando vinculado a um parceiro (nao-admin)."""
     if not current_user.is_authenticated or current_user.admin:
         return solicitado

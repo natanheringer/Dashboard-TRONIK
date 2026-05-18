@@ -4,6 +4,7 @@ Orquestrador da Nik.
 
 from __future__ import annotations
 
+import base64
 import contextlib
 import json
 import os
@@ -36,6 +37,8 @@ _FALLBACK_ALERTA = (
 _FALLBACK_RELATORIO = (
     "Os dados do período estão consolidados acima. A narrativa automática não está disponível neste momento."
 )
+_FALLBACK_MULTIMODAL_DESABILITADO = "multimodal desabilitado"
+NIK_IMAGEM_MAX_BYTES = 4 * 1024 * 1024
 _FALLBACK_BLOCO_LANDING: dict[str, dict[str, str]] = {
     "fala_nik": {
         "titulo": "Lixo eletrônico não desaparece sozinho",
@@ -65,6 +68,10 @@ _FALLBACK_BLOCO_LANDING: dict[str, dict[str, str]] = {
 
 def _nik_habilitada() -> bool:
     return os.getenv("NIK_ENABLED", "false").strip().lower() in {"1", "true", "yes"}
+
+
+def multimodal_habilitado() -> bool:
+    return provider.multimodal_habilitado()
 
 
 def _ttl(env_key: str, default: int) -> int:
@@ -302,6 +309,87 @@ def resumo_operacional(db: Session) -> dict[str, Any]:
     )
 
 
+def analisar_imagem_coletor(
+    db: Session,
+    image_bytes: bytes,
+    coletor_id: int | None = None,
+    *,
+    mime: str = "image/jpeg",
+    pergunta: str | None = None,
+) -> dict[str, Any]:
+    """Análise visual de foto de coletor (foundation multimodal; sem câmera ao vivo)."""
+    if len(image_bytes) > NIK_IMAGEM_MAX_BYTES:
+        return {
+            "texto": "Imagem excede o limite de 4 MB.",
+            "fonte": "validacao",
+            "modelo": None,
+            "coletor_id": coletor_id,
+        }
+
+    if not multimodal_habilitado():
+        return {
+            "texto": _FALLBACK_MULTIMODAL_DESABILITADO,
+            "fonte": "multimodal_desabilitado",
+            "modelo": None,
+            "coletor_id": coletor_id,
+        }
+
+    if not _nik_habilitada():
+        return {
+            "texto": _FALLBACK_MULTIMODAL_DESABILITADO,
+            "fonte": "nik_desabilitada",
+            "modelo": None,
+            "coletor_id": coletor_id,
+        }
+
+    modelo = os.getenv("NIK_MODELO_OPS", "google/gemma-3-27b-it")
+    routed = _modelo_tarefa("ops_coletor")
+    if provider.modelo_suporta_visao(routed):
+        modelo = routed
+    elif not provider.modelo_suporta_visao(modelo):
+        return {
+            "texto": _FALLBACK_MULTIMODAL_DESABILITADO,
+            "fonte": "modelo_sem_visao",
+            "modelo": None,
+            "coletor_id": coletor_id,
+        }
+
+    user_text = (pergunta or "Analise esta imagem no contexto operacional do coletor Tronik.").strip()
+    if coletor_id is not None:
+        contexto = ctx.contexto_coletor(db, coletor_id)
+        if contexto:
+            user_text = f"{user_text}\n\n{prompts.montar_prompt_ops_imagem(contexto)}"
+        else:
+            user_text = f"{user_text}\n\nColetor id={coletor_id} não encontrado no banco."
+
+    image_b64 = base64.b64encode(image_bytes).decode("ascii")
+    resposta = provider.chamar_modelo_visao(
+        prompts.SYSTEM_OPS_IMAGEM,
+        user_text,
+        image_b64,
+        mime=mime,
+        modelo=modelo,
+        max_tokens=_ttl("NIK_MAX_TOKENS_OPS", 512),
+        temperature=float(os.getenv("NIK_TEMPERATURE_OPS", "0.3")),
+    )
+
+    fallback = "Não foi possível analisar a imagem neste momento."
+    texto = val.validar_resposta_ops(
+        resposta.texto if resposta.sucesso else "",
+        fallback,
+        max_chars=_ttl("NIK_MAX_CHARS_CONVERSA", 3200),
+    )
+    return {
+        "texto": texto,
+        "fonte": "modelo" if resposta.sucesso and texto != fallback else "fallback",
+        "modelo": resposta.modelo_usado if resposta.sucesso else None,
+        "coletor_id": coletor_id,
+        "tokens_prompt": resposta.tokens_prompt,
+        "tokens_resposta": resposta.tokens_resposta,
+        "latencia_ms": resposta.latencia_ms,
+    }
+
+
 def analise_coletor(db: Session, coletor_id: int) -> dict[str, Any]:
     contexto = ctx.contexto_coletor(db, coletor_id)
     if not contexto:
@@ -416,19 +504,117 @@ def _normalizar_thread_id(thread_id: str | None) -> str:
     return safe[:80] or "main"
 
 
+_THREAD_RESUMO_LIMIAR = 12
+_THREAD_RESUMO_MSGS = 20
+_THREAD_RESUMO_MAX_CHARS = 400
+
+
+def _modelo_resumo_thread() -> str:
+    return os.getenv("NIK_MODELO_RESUMO", "gemma-3-1b-it")
+
+
+def _query_thread_conversas(
+    db: Session,
+    usuario_id: int | None,
+    thread_id: str,
+):
+    tid = _normalizar_thread_id(thread_id)
+    q = db.query(NikConversa).filter(NikConversa.thread_id == tid)
+    if usuario_id is not None:
+        q = q.filter(NikConversa.usuario_id == usuario_id)
+    return q, tid
+
+
+def _obter_resumo_thread(
+    db: Session,
+    usuario_id: int | None,
+    thread_id: str,
+) -> str | None:
+    q, _ = _query_thread_conversas(db, usuario_id, thread_id)
+    latest = q.order_by(NikConversa.criado_em.desc()).first()
+    if not latest or not latest.resumo_thread:
+        return None
+    texto = (latest.resumo_thread or "").strip()
+    return texto[:_THREAD_RESUMO_MAX_CHARS] if texto else None
+
+
+def _montar_prompt_resumo_thread(rows: list[NikConversa]) -> str:
+    linhas: list[str] = []
+    for r in rows:
+        pergunta = (r.pergunta or "").strip()[:500]
+        resposta = (r.resposta or "").strip()[:500]
+        linhas.append(f"Usuário: {pergunta}\nNik: {resposta}")
+    corpo = "\n\n".join(linhas)
+    return (
+        "Resuma a conversa abaixo em português, em no máximo 400 caracteres. "
+        "Mantenha fatos, nomes, números e decisões relevantes. Sem markdown.\n\n"
+        f"{corpo}"
+    )
+
+
+def _resumir_thread_se_necessario(
+    db: Session,
+    usuario_id: int | None,
+    thread_id: str,
+) -> str | None:
+    """Gera resumo LLM quando a thread passa de 12 mensagens; persiste na linha mais recente."""
+    q, tid = _query_thread_conversas(db, usuario_id, thread_id)
+    total = q.count()
+    if total <= _THREAD_RESUMO_LIMIAR:
+        return _obter_resumo_thread(db, usuario_id, tid)
+
+    rows = q.order_by(NikConversa.criado_em.desc()).limit(_THREAD_RESUMO_MSGS).all()
+    rows.reverse()
+    if not rows:
+        return None
+
+    resposta = provider.chamar_modelo(
+        "Você resume conversas operacionais de forma objetiva e factual.",
+        _montar_prompt_resumo_thread(rows),
+        modelo=_modelo_resumo_thread(),
+        max_tokens=180,
+        temperature=0.2,
+    )
+    if not resposta.sucesso or not (resposta.texto or "").strip():
+        return _obter_resumo_thread(db, usuario_id, tid)
+
+    resumo = re.sub(r"\s+", " ", resposta.texto.strip())[:_THREAD_RESUMO_MAX_CHARS]
+    latest = q.order_by(NikConversa.criado_em.desc()).first()
+    if latest and resumo:
+        latest.resumo_thread = resumo
+        db.commit()
+    return resumo or None
+
+
 def _historico_thread(
     db: Session,
     usuario_id: int | None,
     thread_id: str,
     limite: int = 8,
 ) -> list[dict[str, Any]]:
-    q = db.query(NikConversa)
-    if usuario_id is not None:
-        q = q.filter(NikConversa.usuario_id == usuario_id)
-    q = q.filter(NikConversa.thread_id == thread_id)
+    q, tid = _query_thread_conversas(db, usuario_id, thread_id)
     rows = q.order_by(NikConversa.criado_em.desc()).limit(max(1, min(limite, 20))).all()
     rows.reverse()
-    return [{"pergunta": r.pergunta, "resposta": r.resposta, "criado_em": r.criado_em.isoformat() if r.criado_em else None} for r in rows]
+    hist = [
+        {
+            "pergunta": r.pergunta,
+            "resposta": r.resposta,
+            "criado_em": r.criado_em.isoformat() if r.criado_em else None,
+        }
+        for r in rows
+    ]
+    resumo = _obter_resumo_thread(db, usuario_id, tid)
+    if resumo:
+        hist.insert(
+            0,
+            {
+                "pergunta": "(resumo da thread)",
+                "resposta": resumo,
+                "criado_em": None,
+                "tipo": "resumo_thread",
+            },
+        )
+    return hist
 
 
 def _mensagem_pede_prospeccao(mensagem: str) -> bool:
@@ -1096,6 +1282,9 @@ def _gerar_citacoes_por_bloco(texto: str, contexto: dict[str, Any]) -> list[dict
 def _contexto_para_modelo(contexto: dict[str, Any]) -> dict[str, Any]:
     """Reduz payload para economizar tokens sem perder sinal analítico."""
     slim = dict(contexto)
+    resumo_thr = slim.get("thread_resumo")
+    if isinstance(resumo_thr, str) and resumo_thr.strip():
+        slim["thread_resumo"] = resumo_thr.strip()[:_THREAD_RESUMO_MAX_CHARS]
     hist = slim.get("historico_thread", [])
     if isinstance(hist, list):
         slim["historico_thread"] = [
@@ -1103,6 +1292,7 @@ def _contexto_para_modelo(contexto: dict[str, Any]) -> dict[str, Any]:
                 "pergunta": str(h.get("pergunta", ""))[:240],
                 "resposta": str(h.get("resposta", ""))[:320],
                 "criado_em": h.get("criado_em"),
+                **({"tipo": h["tipo"]} if h.get("tipo") else {}),
             }
             for h in hist[-3:]
             if isinstance(h, dict)
@@ -1326,6 +1516,10 @@ def _planner_mode_resposta(contexto: dict[str, Any]) -> dict[str, str]:
     return {"planner_mode": str(contexto.get("planner_mode") or "heuristic")}
 
 
+def _nik_agent_loop_habilitado() -> bool:
+    return os.getenv("NIK_AGENT_LOOP", "false").strip().lower() in {"1", "true", "yes"}
+
+
 def conversar_ops_thread(
     db: Session,
     mensagem: str,
@@ -1337,9 +1531,16 @@ def conversar_ops_thread(
         return {"texto": "Escreva uma pergunta para a Nik.", "fonte": "sistema", "modelo": None}
 
     thread = _normalizar_thread_id(thread_id)
+    pediu_web = _mensagem_pede_web(mensagem)
+    pediu_documento = _mensagem_pede_documento(mensagem)
+
+    if _nik_agent_loop_habilitado() and not pediu_web and not pediu_documento:
+        from banco_dados.services import nik_agent_loop
+
+        return nik_agent_loop.executar_loop_agente(db, mensagem, usuario_id, thread)
+
     contexto = _montar_contexto_conversa_integrada(db, mensagem, usuario_id=usuario_id, thread_id=thread)
     planner_fields = _planner_mode_resposta(contexto)
-    pediu_web = _mensagem_pede_web(mensagem)
     modo_routing = "web_research_report" if pediu_web else "chat_ops"
     modelo_conversa_groq = _modelo_tarefa("conversa", mensagem)
     use_nv_chat = (
@@ -1392,7 +1593,6 @@ def conversar_ops_thread(
     sintese_web = _sintese_web_modelo(contexto, mensagem) if pediu_web else None
     if sintese_web:
         contexto["sintese_web"] = sintese_web
-    pediu_documento = _mensagem_pede_documento(mensagem)
     if pediu_documento:
         resposta_doc = provider.chamar_modelo(
             prompts.SYSTEM_OPS_DOCUMENTO,
@@ -1538,6 +1738,9 @@ def _montar_contexto_conversa_integrada(
     contexto["catalogo_ferramentas"] = nik_tools.catalogo_ferramentas()
     contexto["consulta_interpretada"] = consulta
     contexto["thread_id"] = thread_id
+    thread_resumo = _resumir_thread_se_necessario(db, usuario_id, thread_id)
+    if thread_resumo:
+        contexto["thread_resumo"] = thread_resumo
     contexto["historico_thread"] = _historico_thread(db, usuario_id, thread_id, limite=8)
     if _pedido_relatorio_ultimo_ano(mensagem):
         contexto["periodo_interpretado"] = "ultimo_ano_com_dados"

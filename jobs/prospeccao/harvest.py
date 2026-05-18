@@ -9,8 +9,8 @@ from __future__ import annotations
 import logging
 import time
 import traceback
-from datetime import datetime, timezone
-from typing import Any, Optional
+from datetime import UTC, datetime
+from typing import Any
 
 from jobs.prospeccao import paths as pathutil
 
@@ -18,12 +18,12 @@ logger = logging.getLogger(__name__)
 
 
 def run_harvest(
-    steps: Optional[list[str]] = None,
+    steps: list[str] | None = None,
     *,
     dry_run: bool = False,
     ckan_max: int = 200,
     ckan_show_max: int = 30,
-    ckan_link_max: Optional[int] = 300,
+    ckan_link_max: int | None = 300,
     pncp_dias: int = 14,
     pncp_max_pages: int = 80,
     ckan_org_max_pkg: int = 8,
@@ -42,7 +42,7 @@ def run_harvest(
     ]
     pathutil.ensure_raw_layout()
     report: dict[str, Any] = {
-        "started_at": datetime.now(timezone.utc).isoformat(),
+        "started_at": datetime.now(UTC).isoformat(),
         "dry_run": dry_run,
         "steps": steps,
         "ok": {},
@@ -145,10 +145,9 @@ def run_harvest(
         run("cnefe", lambda: sync_cnefe(download=True))
 
     if "receita_parse" in steps:
+        from jobs.prospeccao import paths as _pathutil
         from jobs.prospeccao.db import session_scope
         from jobs.prospeccao.receita_parse import parse_estabelecimentos_to_db
-
-        from jobs.prospeccao import paths as _pathutil
         _dirs = _pathutil.ensure_raw_layout()
 
         def _receita_parse():
@@ -182,9 +181,9 @@ def run_harvest(
         run("aneel_consumidores", _aneel)
 
     if "ibram" in steps:
-        from jobs.prospeccao.ibram_ingest import sync_ibram_geradores
-        from jobs.prospeccao.db import session_scope
         from jobs.prospeccao import config as _config
+        from jobs.prospeccao.db import session_scope
+        from jobs.prospeccao.ibram_ingest import sync_ibram_geradores
 
         def _ibram():
             url = getattr(_config, "IBRAM_GERADORES_URL", "").strip() or None
@@ -196,9 +195,9 @@ def run_harvest(
         run("ibram_geradores", _ibram)
 
     if "ibama_ctf" in steps:
+        from jobs.prospeccao import config as _config
         from jobs.prospeccao.db import session_scope
         from jobs.prospeccao.ibama_ctf_ingest import sync_ibama_ctf
-        from jobs.prospeccao import config as _config
 
         def _ibama_ctf():
             ufs = {
@@ -224,9 +223,9 @@ def run_harvest(
             }
 
     if "brasilapi_enrich" in steps:
+        from jobs.prospeccao import config as _config
         from jobs.prospeccao.brasilapi_enrich import enrich_via_brasilapi
         from jobs.prospeccao.db import session_scope
-        from jobs.prospeccao import config as _config
 
         def _brasilapi():
             with session_scope() as db:
@@ -240,7 +239,7 @@ def run_harvest(
 
         run("brasilapi_enrich", _brasilapi)
 
-    report["finished_at"] = datetime.now(timezone.utc).isoformat()
+    report["finished_at"] = datetime.now(UTC).isoformat()
     logger.info(
         "Harvest complete: ok=%s errors=%s report=%s",
         len(report["ok"]),

@@ -1096,3 +1096,110 @@ def catalogo_ferramentas() -> list[dict[str, Any]]:
         {"nome": "catalogo_fontes_web", "descricao": "Catálogo curado de domínios de alta confiança para busca web."},
     ]
 
+
+def _schema_vazio() -> dict[str, Any]:
+    return {"type": "object", "properties": {}, "additionalProperties": False}
+
+
+def _schema_props(**fields: dict[str, Any]) -> dict[str, Any]:
+    required = [k for k, v in fields.items() if v.get("required")]
+    props = {k: {kk: vv for kk, vv in v.items() if kk != "required"} for k, v in fields.items()}
+    out: dict[str, Any] = {"type": "object", "properties": props, "additionalProperties": False}
+    if required:
+        out["required"] = required
+    return out
+
+
+_PARAMETROS_OPENAI: dict[str, dict[str, Any]] = {
+    "snapshot_operacional": _schema_vazio(),
+    "limites_historico": _schema_vazio(),
+    "catalogo_fontes_web": _schema_vazio(),
+    "resumo_periodo": _schema_props(
+        inicio={"type": "string", "description": "Data início ISO (YYYY-MM-DD)."},
+        fim={"type": "string", "description": "Data fim ISO (YYYY-MM-DD)."},
+        parceiro_id={"type": "integer", "description": "ID do parceiro comercial."},
+    ),
+    "timeline_anual": _schema_props(
+        ano_inicio={"type": "integer", "description": "Ano inicial."},
+        ano_fim={"type": "integer", "description": "Ano final."},
+        parceiro_id={"type": "integer", "description": "ID do parceiro."},
+    ),
+    "impacto_geral": _schema_props(
+        ano_inicio={"type": "integer", "description": "Ano inicial."},
+        ano_fim={"type": "integer", "description": "Ano final."},
+        parceiro_id={"type": "integer", "description": "ID do parceiro."},
+    ),
+    "busca_unificada": _schema_props(
+        consulta={"type": "string", "description": "Termo de busca.", "required": True},
+        limite={"type": "integer", "description": "Máximo de itens (1-30)."},
+        parceiro_id={"type": "integer", "description": "Filtrar por parceiro."},
+    ),
+    "busca_web": _schema_props(
+        consulta={"type": "string", "description": "Consulta para busca externa.", "required": True},
+    ),
+    "listar_candidatos_prospeccao": _schema_props(
+        limite={"type": "integer", "description": "Quantidade de candidatos (1-50)."},
+        qid={"type": "string", "description": "Contexto QID do ranking."},
+        prioridade={"type": "string", "description": "alta, media ou baixa."},
+        model_version={"type": "string", "description": "Versão do modelo REE."},
+    ),
+    "explicar_candidato_prospeccao": _schema_props(
+        score_id={"type": "integer", "description": "ID do score do candidato.", "required": True},
+        model_version={"type": "string", "description": "Versão do modelo REE."},
+    ),
+    "status_modelo_prospeccao": _schema_props(
+        model_version={"type": "string", "description": "Versão do modelo REE."},
+    ),
+    "cruzar_crm_prospeccao": _schema_props(
+        pipeline_id={"type": "integer", "description": "ID do pipeline CRM."},
+        empresa={"type": "string", "description": "Nome da empresa para cruzar."},
+        limite_scores={"type": "integer", "description": "Máximo de scores retornados."},
+    ),
+    "comparar_candidatos": _schema_props(
+        score_ids={
+            "type": "array",
+            "items": {"type": "integer"},
+            "description": "Lista de score_id para comparar.",
+        },
+        empresa_ids={
+            "type": "array",
+            "items": {"type": "integer"},
+            "description": "Lista de empresa_id para comparar.",
+        },
+        limite={"type": "integer", "description": "Máximo de candidatos na comparação."},
+    ),
+    "gerar_roteiro_contato": _schema_props(
+        score_id={"type": "integer", "description": "ID do score do candidato."},
+        empresa_id={"type": "integer", "description": "ID da empresa candidata."},
+        pipeline_id={"type": "integer", "description": "ID do pipeline CRM."},
+    ),
+    "criar_tarefa_comercial": _schema_props(
+        titulo={"type": "string", "description": "Título da tarefa CRM.", "required": True},
+        pipeline_id={"type": "integer", "description": "ID do pipeline CRM."},
+        empresa_id={"type": "integer", "description": "ID da empresa candidata."},
+        data_limite={"type": "string", "description": "Prazo ISO ou DD/MM/YYYY."},
+        descricao={"type": "string", "description": "Descrição opcional."},
+    ),
+}
+
+
+def ferramentas_openai_schema() -> list[dict[str, Any]]:
+    """Converte o catálogo interno em definições OpenAI function-calling."""
+    saida: list[dict[str, Any]] = []
+    for item in catalogo_ferramentas():
+        nome = str(item.get("nome") or "").strip()
+        if not nome:
+            continue
+        params = _PARAMETROS_OPENAI.get(nome, _schema_vazio())
+        saida.append(
+            {
+                "type": "function",
+                "function": {
+                    "name": nome,
+                    "description": str(item.get("descricao") or nome),
+                    "parameters": params,
+                },
+            }
+        )
+    return saida
+

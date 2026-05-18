@@ -5,10 +5,10 @@ Testa funcionalidades de geocodificação.
 Usa mocks para evitar requisições reais ao Nominatim durante os testes.
 """
 
-import pytest
-import sys
 import os
-from unittest.mock import patch, MagicMock
+import sys
+from unittest.mock import MagicMock, patch
+
 sys.path.insert(0, os.path.abspath(os.path.join(os.path.dirname(__file__), '..')))
 
 from banco_dados.modelos import Coletor, Parceiro, TipoMaterial, Usuario
@@ -16,12 +16,12 @@ from banco_dados.modelos import Coletor, Parceiro, TipoMaterial, Usuario
 
 class TestGeocodificacaoEndpoint:
     """Testes do endpoint de geocodificação manual"""
-    
+
     def test_geocodificar_lixeira_requires_auth(self, client):
         """Testa que geocodificar coletor requer autenticação"""
         response = client.post('/api/coletor/1/geocodificar', json={})
         assert response.status_code == 401 or response.status_code == 302
-    
+
     def test_geocodificar_lixeira_not_found(self, client, db_session):
         """Testa geocodificar coletor inexistente"""
         # Fazer login
@@ -34,16 +34,16 @@ class TestGeocodificacaoEndpoint:
         usuario.set_senha('TestPass123!')
         db_session.add(usuario)
         db_session.commit()
-        
+
         client.post('/auth/login', json={
             'username': 'testuser_geo',
             'senha': 'TestPass123!'
         })
-        
+
         # Tentar geocodificar coletor inexistente
         response = client.post('/api/coletor/99999/geocodificar', json={})
         assert response.status_code == 404
-    
+
     @patch('banco_dados.geocodificacao.geocodificar_endereco')
     def test_geocodificar_lixeira_success(self, mock_geocodificar, client, db_session):
         """Testa geocodificação bem-sucedida de coletor"""
@@ -54,7 +54,7 @@ class TestGeocodificacaoEndpoint:
             'display_name': 'Teste Localização, Brasília, DF',
             'importance': 0.8
         }
-        
+
         # Fazer login
         usuario = Usuario(
             username='testuser_geo_success',
@@ -65,18 +65,18 @@ class TestGeocodificacaoEndpoint:
         usuario.set_senha('TestPass123!')
         db_session.add(usuario)
         db_session.commit()
-        
+
         client.post('/auth/login', json={
             'username': 'testuser_geo_success',
             'senha': 'TestPass123!'
         })
-        
+
         # Criar coletor sem coordenadas
         tipo_material = db_session.query(TipoMaterial).first()
         parceiro = Parceiro(nome='Parceiro Geo')
         db_session.add(parceiro)
         db_session.flush()
-        
+
         coletor = Coletor(
             localizacao='Shopping Conjunto Nacional',
             nivel_preenchimento=50.0,
@@ -86,29 +86,29 @@ class TestGeocodificacaoEndpoint:
         )
         db_session.add(coletor)
         db_session.commit()
-        
+
         # Geocodificar
         response = client.post(f'/api/coletor/{coletor.id}/geocodificar', json={
             'cidade': 'Brasília',
             'estado': 'DF'
         })
-        
+
         assert response.status_code == 200
         data = response.get_json()
         assert 'mensagem' in data
         # O endpoint retorna apenas mensagem, não o objeto coletor
-        
+
         # Verificar que foi atualizado no banco
         lixeira_atualizada = db_session.query(Coletor).filter_by(id=coletor.id).first()
         assert lixeira_atualizada.latitude == -15.8000
         assert lixeira_atualizada.longitude == -47.9000
-    
+
     @patch('banco_dados.geocodificacao.geocodificar_endereco')
     def test_geocodificar_lixeira_failure(self, mock_geocodificar, client, db_session):
         """Testa geocodificação quando falha"""
         # Mock retornando None (não encontrado)
         mock_geocodificar.return_value = None
-        
+
         # Fazer login
         usuario = Usuario(
             username='testuser_geo_fail',
@@ -119,18 +119,18 @@ class TestGeocodificacaoEndpoint:
         usuario.set_senha('TestPass123!')
         db_session.add(usuario)
         db_session.commit()
-        
+
         client.post('/auth/login', json={
             'username': 'testuser_geo_fail',
             'senha': 'TestPass123!'
         })
-        
+
         # Criar coletor
         tipo_material = db_session.query(TipoMaterial).first()
         parceiro = Parceiro(nome='Parceiro Geo Fail')
         db_session.add(parceiro)
         db_session.flush()
-        
+
         coletor = Coletor(
             localizacao='Endereço Inexistente 12345',
             nivel_preenchimento=50.0,
@@ -140,10 +140,10 @@ class TestGeocodificacaoEndpoint:
         )
         db_session.add(coletor)
         db_session.commit()
-        
+
         # Tentar geocodificar (deve falhar e usar fallback)
         response = client.post(f'/api/coletor/{coletor.id}/geocodificar', json={})
-        
+
         # Pode retornar 200 com coordenadas de fallback ou 400 com erro
         # Dependendo da implementação de geocodificar_lixeira
         assert response.status_code in [200, 400]
@@ -151,7 +151,7 @@ class TestGeocodificacaoEndpoint:
 
 class TestGeocodificacaoAutomatica:
     """Testes de geocodificação automática na criação/atualização"""
-    
+
     @patch('banco_dados.geocodificacao.geocodificar_endereco')
     def test_criar_lixeira_geocodificacao_automatica(self, mock_geocodificar, client, db_session):
         """Testa geocodificação automática ao criar coletor sem coordenadas"""
@@ -162,7 +162,7 @@ class TestGeocodificacaoAutomatica:
             'display_name': 'Nova Localização, Brasília, DF',
             'importance': 0.7
         }
-        
+
         # Fazer login
         usuario = Usuario(
             username='testuser_auto_geo',
@@ -173,18 +173,18 @@ class TestGeocodificacaoAutomatica:
         usuario.set_senha('TestPass123!')
         db_session.add(usuario)
         db_session.commit()
-        
+
         client.post('/auth/login', json={
             'username': 'testuser_auto_geo',
             'senha': 'TestPass123!'
         })
-        
+
         # Criar parceiro e tipo material
         tipo_material = db_session.query(TipoMaterial).first()
         parceiro = Parceiro(nome='Parceiro Auto Geo')
         db_session.add(parceiro)
         db_session.flush()
-        
+
         # Criar coletor sem coordenadas (deve geocodificar automaticamente)
         dados = {
             'localizacao': 'Hotel Royal Tulip',
@@ -194,9 +194,9 @@ class TestGeocodificacaoAutomatica:
             'tipo_material_id': tipo_material.id if tipo_material else None
             # Não fornecer latitude/longitude
         }
-        
+
         response = client.post('/api/coletor', json=dados)
-        
+
         assert response.status_code == 201
         data = response.get_json()
         # Deve ter coordenadas (geocodificadas automaticamente)
@@ -204,7 +204,7 @@ class TestGeocodificacaoAutomatica:
         assert 'longitude' in data
         assert data['latitude'] == -15.7900
         assert data['longitude'] == -47.8800
-    
+
     @patch('banco_dados.geocodificacao.geocodificar_endereco')
     def test_atualizar_lixeira_geocodificacao_automatica(self, mock_geocodificar, client, db_session):
         """Testa geocodificação automática ao atualizar localização"""
@@ -215,7 +215,7 @@ class TestGeocodificacaoAutomatica:
             'display_name': 'Nova Localização Atualizada, Brasília, DF',
             'importance': 0.75
         }
-        
+
         # Fazer login
         usuario = Usuario(
             username='testuser_update_geo',
@@ -226,18 +226,18 @@ class TestGeocodificacaoAutomatica:
         usuario.set_senha('TestPass123!')
         db_session.add(usuario)
         db_session.commit()
-        
+
         client.post('/auth/login', json={
             'username': 'testuser_update_geo',
             'senha': 'TestPass123!'
         })
-        
+
         # Criar coletor sem coordenadas
         tipo_material = db_session.query(TipoMaterial).first()
         parceiro = Parceiro(nome='Parceiro Update Geo')
         db_session.add(parceiro)
         db_session.flush()
-        
+
         coletor = Coletor(
             localizacao='Localização Original',
             nivel_preenchimento=50.0,
@@ -247,12 +247,12 @@ class TestGeocodificacaoAutomatica:
         )
         db_session.add(coletor)
         db_session.commit()
-        
+
         # Atualizar localização (deve geocodificar automaticamente)
         response = client.put(f'/api/coletor/{coletor.id}', json={
             'localizacao': 'Shopping Iguatemi Brasília'
         })
-        
+
         assert response.status_code == 200
         data = response.get_json()
         # Deve ter coordenadas (geocodificadas automaticamente)
@@ -264,17 +264,17 @@ class TestGeocodificacaoAutomatica:
 
 class TestGeocodificacaoFuncao:
     """Testes da função de geocodificação (com mock)"""
-    
+
     def test_geocodificar_endereco_vazio(self):
         """Testa geocodificação com endereço vazio"""
         from banco_dados.geocodificacao import geocodificar_endereco
-        
+
         resultado = geocodificar_endereco('')
         assert resultado is None
-        
+
         resultado = geocodificar_endereco(None)
         assert resultado is None
-    
+
     @patch('banco_dados.geocodificacao.requests.get')
     def test_geocodificar_endereco_success(self, mock_get):
         """Testa geocodificação bem-sucedida (mock)"""
@@ -292,17 +292,17 @@ class TestGeocodificacaoFuncao:
         }]
         mock_response.status_code = 200
         mock_get.return_value = mock_response
-        
+
         from banco_dados.geocodificacao import geocodificar_endereco
-        
+
         resultado = geocodificar_endereco('Brasília')
-        
+
         assert resultado is not None
         assert 'latitude' in resultado
         assert 'longitude' in resultado
         assert resultado['latitude'] == -15.7942
         assert resultado['longitude'] == -47.8822
-    
+
     @patch('banco_dados.geocodificacao.requests.get')
     def test_geocodificar_endereco_not_found(self, mock_get):
         """Testa geocodificação quando endereço não é encontrado"""
@@ -311,11 +311,11 @@ class TestGeocodificacaoFuncao:
         mock_response.json.return_value = []
         mock_response.status_code = 200
         mock_get.return_value = mock_response
-        
+
         from banco_dados.geocodificacao import geocodificar_endereco
-        
+
         resultado = geocodificar_endereco('Endereço Inexistente 12345')
-        
+
         # Deve retornar coordenadas de fallback (Brasília)
         assert resultado is not None
         assert 'latitude' in resultado

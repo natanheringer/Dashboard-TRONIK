@@ -3,7 +3,7 @@
 from __future__ import annotations
 
 import json
-from datetime import datetime, timezone
+from datetime import UTC, datetime
 from pathlib import Path
 from typing import Any
 
@@ -35,7 +35,7 @@ def ensure_raw_layout() -> dict[str, Path]:
 def write_manifest(name: str, payload: dict[str, Any]) -> Path:
     dirs = ensure_raw_layout()
     meta = dirs["meta"]
-    stamp = datetime.now(timezone.utc).strftime("%Y%m%dT%H%M%SZ")
+    stamp = datetime.now(UTC).strftime("%Y%m%dT%H%M%SZ")
     path = meta / f"{name}_{stamp}.json"
     path.write_text(
         json.dumps(payload, ensure_ascii=False, indent=2, default=str),

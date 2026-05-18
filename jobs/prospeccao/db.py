@@ -3,10 +3,10 @@
 from __future__ import annotations
 
 import os
+from collections.abc import Iterator
 from contextlib import contextmanager
-from typing import Iterator
 
-from sqlalchemy import create_engine, event, text
+from sqlalchemy import create_engine, event
 from sqlalchemy.orm import Session, sessionmaker
 
 from banco_dados.modelos import Base

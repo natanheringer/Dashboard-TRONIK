@@ -2,16 +2,15 @@
 Testes do serviço de coletores — listagem, filtros e contagem (stats de paginação).
 """
 
-import pytest
 from datetime import datetime
 
 from banco_dados.modelos import Coletor, Parceiro, TipoMaterial
 from banco_dados.services.coletor_service import (
-    validar_dados_coletor,
-    processar_ultima_coleta,
-    criar_coletor,
     atualizar_coletor,
+    criar_coletor,
     obter_coletores_com_filtros,
+    processar_ultima_coleta,
+    validar_dados_coletor,
 )
 
 

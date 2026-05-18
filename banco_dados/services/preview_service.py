@@ -9,9 +9,10 @@ from __future__ import annotations
 import hashlib
 import os
 from collections import defaultdict
+from collections.abc import Sequence
 from dataclasses import dataclass
 from datetime import date, datetime, timedelta
-from typing import Any, Dict, List, Optional, Sequence, Tuple
+from typing import Any
 
 from sqlalchemy import func
 from sqlalchemy.orm import Session, joinedload
@@ -28,7 +29,7 @@ _FALLBACK_LAT = -15.793889
 _FALLBACK_LNG = -47.882778
 
 
-def classificacao_ui(nivel: float, status: Optional[str]) -> str:
+def classificacao_ui(nivel: float, status: str | None) -> str:
     st = (status or "OK").upper()
     if st in {"QUEBRADA", "MANUTENCAO", "MANUTENÇÃO"}:
         return "neutral"
@@ -48,7 +49,7 @@ def rotulo_badge(classe: str) -> str:
     }.get(classe, "Normal")
 
 
-def empty_state(titulo: str, descricao: str, sugestao: str = "") -> Dict[str, Any]:
+def empty_state(titulo: str, descricao: str, sugestao: str = "") -> dict[str, Any]:
     """Helper para criar estrutura de empty state consistente."""
     return {
         "vazio": True,
@@ -58,19 +59,19 @@ def empty_state(titulo: str, descricao: str, sugestao: str = "") -> Dict[str, An
     }
 
 
-def _media_bateria(sensores: Sequence[Sensor]) -> Optional[float]:
+def _media_bateria(sensores: Sequence[Sensor]) -> float | None:
     if not sensores:
         return None
     return sum(s.bateria for s in sensores) / len(sensores)
 
 
-def _fmt_data(dt: Optional[datetime]) -> str:
+def _fmt_data(dt: datetime | None) -> str:
     if not dt:
         return "—"
     return dt.strftime("%d/%m/%Y")
 
 
-def _coords_mapa(c: Coletor) -> Tuple[float, float]:
+def _coords_mapa(c: Coletor) -> tuple[float, float]:
     if c.latitude is not None and c.longitude is not None:
         return float(c.latitude), float(c.longitude)
     h = hashlib.md5(str(c.id).encode(), usedforsecurity=False).hexdigest()
@@ -79,15 +80,15 @@ def _coords_mapa(c: Coletor) -> Tuple[float, float]:
     return _FALLBACK_LAT + dlat, _FALLBACK_LNG + dlng
 
 
-def resumo_coletores_operacional(db: Session) -> Dict[str, Any]:
+def resumo_coletores_operacional(db: Session) -> dict[str, Any]:
     from banco_dados.services.coletor_service import resumo_operacional
 
     return resumo_operacional(db)
 
 
-def resumo_prospeccao(db: Session) -> Dict[str, Any]:
+def resumo_prospeccao(db: Session) -> dict[str, Any]:
     """Resumo leve da fila REE para o hub do preview (sem carregar candidatos)."""
-    out: Dict[str, Any] = {
+    out: dict[str, Any] = {
         "modelo_ativo": False,
         "versao": None,
         "algoritmo": None,
@@ -116,7 +117,7 @@ def resumo_prospeccao(db: Session) -> Dict[str, Any]:
     return out
 
 
-def estatisticas_resumo(db: Session) -> Dict[str, Any]:
+def estatisticas_resumo(db: Session) -> dict[str, Any]:
     coletores = db.query(Coletor).all()
     sensores = db.query(Sensor).all()
     hoje = date.today()
@@ -146,7 +147,7 @@ def estatisticas_resumo(db: Session) -> Dict[str, Any]:
     }
 
 
-def coletores_monitoramento(db: Session) -> List[Coletor]:
+def coletores_monitoramento(db: Session) -> list[Coletor]:
     return (
         db.query(Coletor)
         .options(
@@ -161,26 +162,26 @@ def coletores_monitoramento(db: Session) -> List[Coletor]:
 
 def coletores_monitoramento_paginado(
     db: Session, page: int = 1, per_page: int = 50
-) -> Tuple[List[Coletor], int]:
+) -> tuple[list[Coletor], int]:
     """Retorna coletores com paginação e total de registros.
-    
+
     Args:
         db: SQLAlchemy session
         page: Número da página (1-indexed)
         per_page: Itens por página
-        
+
     Returns:
         Tupla (coletores, total_count)
     """
     page = max(1, page)
     per_page = max(1, min(per_page, 200))  # Limitar a 200 por razões de performance
-    
+
     query = db.query(Coletor).options(
         joinedload(Coletor.parceiro),
         joinedload(Coletor.tipo_material),
         joinedload(Coletor.sensores),
     )
-    
+
     total = query.count()
     coletores = (
         query
@@ -189,7 +190,7 @@ def coletores_monitoramento_paginado(
         .limit(per_page)
         .all()
     )
-    
+
     return coletores, total
 
 
@@ -197,9 +198,9 @@ def montar_cards_coletores(
     coletores: Sequence[Coletor],
     filtro_texto: str = "",
     filtro_nivel: str = "todos",
-) -> List[Dict[str, Any]]:
+) -> list[dict[str, Any]]:
     q = filtro_texto.strip().lower()
-    out: List[Dict[str, Any]] = []
+    out: list[dict[str, Any]] = []
     for c in coletores:
         cls = classificacao_ui(float(c.nivel_preenchimento or 0), c.status)
         if filtro_nivel == "crit" and cls != "crit":
@@ -240,7 +241,7 @@ def montar_cards_coletores(
     return out
 
 
-def primeiro_alerta_critico(coletores: Sequence[Coletor]) -> Optional[Dict[str, Any]]:
+def primeiro_alerta_critico(coletores: Sequence[Coletor]) -> dict[str, Any] | None:
     for c in sorted(
         coletores,
         key=lambda x: float(x.nivel_preenchimento or 0),
@@ -266,7 +267,7 @@ def primeiro_alerta_critico(coletores: Sequence[Coletor]) -> Optional[Dict[str, 
     return None
 
 
-def coletas_recentes(db: Session, limite: int = 8) -> List[Dict[str, Any]]:
+def coletas_recentes(db: Session, limite: int = 8) -> list[dict[str, Any]]:
     rows = (
         db.query(Coleta)
         .options(
@@ -299,7 +300,7 @@ def coletas_recentes(db: Session, limite: int = 8) -> List[Dict[str, Any]]:
     return out
 
 
-def coletores_geojson(db: Session) -> List[Dict[str, Any]]:
+def coletores_geojson(db: Session) -> list[dict[str, Any]]:
     coletores = coletores_monitoramento(db)
     feats = []
     for c in coletores:
@@ -326,17 +327,17 @@ def coletores_geojson(db: Session) -> List[Dict[str, Any]]:
 
 
 def filtrar_marcadores_mapa(
-    marcadores: List[Dict[str, Any]],
-    nivel: Optional[str],
-    parceiro_id: Optional[int],
-    q: Optional[str],
-) -> List[Dict[str, Any]]:
+    marcadores: list[dict[str, Any]],
+    nivel: str | None,
+    parceiro_id: int | None,
+    q: str | None,
+) -> list[dict[str, Any]]:
     """Filtros alinhados à UI do mapa preview (query string)."""
     n = (nivel or "todos").strip().lower()
     if n not in {"todos", "crit", "warn", "ok", "neutral"}:
         n = "todos"
     qn = (q or "").strip().lower()
-    out: List[Dict[str, Any]] = []
+    out: list[dict[str, Any]] = []
     for m in marcadores:
         if n != "todos" and m.get("classe") != n:
             continue
@@ -359,7 +360,7 @@ def filtrar_marcadores_mapa(
     return out
 
 
-def coordenadas_sede_mapa() -> Optional[Dict[str, Any]]:
+def coordenadas_sede_mapa() -> dict[str, Any] | None:
     """Marcador opcional da sede (env). Sem variáveis, retorna None."""
     lat_s = (os.getenv("TRONIK_SEDE_LAT") or "").strip()
     lng_s = (os.getenv("TRONIK_SEDE_LNG") or "").strip()
@@ -374,7 +375,7 @@ def coordenadas_sede_mapa() -> Optional[Dict[str, Any]]:
     return {"lat": lat, "lng": lng, "label": label}
 
 
-def detalhe_coletor_mapa(db: Session, coletor_id: int) -> Optional[Dict[str, Any]]:
+def detalhe_coletor_mapa(db: Session, coletor_id: int) -> dict[str, Any] | None:
     c = (
         db.query(Coletor)
         .options(
@@ -413,8 +414,8 @@ class PeriodoRelatorio:
 
 
 def resolver_periodo(
-    inicio_raw: Optional[str],
-    fim_raw: Optional[str],
+    inicio_raw: str | None,
+    fim_raw: str | None,
     dias_padrao: int = 30,
 ) -> PeriodoRelatorio:
     fim = date.today()
@@ -433,8 +434,8 @@ def resolver_periodo(
 def resumo_relatorios(
     db: Session,
     periodo: PeriodoRelatorio,
-    parceiro_id: Optional[int] = None,
-) -> Dict[str, Any]:
+    parceiro_id: int | None = None,
+) -> dict[str, Any]:
     t0 = datetime.combine(periodo.inicio, datetime.min.time())
     t1 = datetime.combine(periodo.fim + timedelta(days=1), datetime.min.time())
     q = (
@@ -460,7 +461,7 @@ def resumo_relatorios(
         float(c.lucro_por_kg or 0) * float(c.volume_estimado or 0) for c in coletas
     )
 
-    por_dia: Dict[date, int] = defaultdict(int)
+    por_dia: dict[date, int] = defaultdict(int)
     for c in coletas:
         if c.data_hora:
             por_dia[c.data_hora.date()] += 1
@@ -468,7 +469,7 @@ def resumo_relatorios(
     serie = [{"data": d.isoformat(), "count": por_dia[d]} for d in dias_ordenados]
 
     # Top coletores por numero de coletas no periodo
-    por_coletor: Dict[int, int] = defaultdict(int)
+    por_coletor: dict[int, int] = defaultdict(int)
     for c in coletas:
         por_coletor[c.coletor_id] += 1
     top_ids = sorted(por_coletor.keys(), key=lambda i: por_coletor[i], reverse=True)[:5]
@@ -487,7 +488,7 @@ def resumo_relatorios(
         )
 
     # Volume por parceiro (substitui grafico ficticio de regiao)
-    por_parceiro_vol: Dict[str, float] = defaultdict(float)
+    por_parceiro_vol: dict[str, float] = defaultdict(float)
     for c in coletas:
         nome = c.parceiro.nome if c.parceiro else "Sem parceiro"
         por_parceiro_vol[nome] += float(c.volume_estimado or 0)
@@ -516,7 +517,7 @@ def resumo_relatorios(
     }
 
 
-def parceiros_tabela(db: Session) -> List[Dict[str, Any]]:
+def parceiros_tabela(db: Session) -> list[dict[str, Any]]:
     contagem = dict(
         db.query(Coletor.parceiro_id, func.count(Coletor.id))
         .group_by(Coletor.parceiro_id)
@@ -534,7 +535,7 @@ def parceiros_tabela(db: Session) -> List[Dict[str, Any]]:
     ]
 
 
-def listar_parceiros_select(db: Session) -> List[Dict[str, Any]]:
+def listar_parceiros_select(db: Session) -> list[dict[str, Any]]:
     rows = (
         db.query(Parceiro)
         .filter(Parceiro.ativo.is_(True))
@@ -544,7 +545,7 @@ def listar_parceiros_select(db: Session) -> List[Dict[str, Any]]:
     return [{"id": p.id, "nome": p.nome} for p in rows]
 
 
-def texto_home_subtitulo(stats: Dict[str, Any], nomes_atencao: List[str]) -> str:
+def texto_home_subtitulo(stats: dict[str, Any], nomes_atencao: list[str]) -> str:
     total = stats["total_coletores"]
     alertas = stats["alertas_ativos"]
     if total == 0:
@@ -556,7 +557,7 @@ def texto_home_subtitulo(stats: Dict[str, Any], nomes_atencao: List[str]) -> str
             f"{stats['nivel_medio']}%."
         )
     amostra = ", ".join(nomes_atencao[:2])
-    extra = f" e outros" if len(nomes_atencao) > 2 else ""
+    extra = " e outros" if len(nomes_atencao) > 2 else ""
     return (
         f"{alertas} coletor(es) com nível ≥ {int(NIVEL_ATENCAO)}%: {amostra}{extra}. "
         f"Média geral {stats['nivel_medio']}% · {stats['coletas_hoje']} coleta(s) hoje."
@@ -579,7 +580,7 @@ _MESES_PT = (
 )
 
 
-def data_longa_pt(hoje: Optional[date] = None) -> str:
+def data_longa_pt(hoje: date | None = None) -> str:
     d = hoje or date.today()
     dias = (
         "Segunda-feira",
@@ -593,7 +594,7 @@ def data_longa_pt(hoje: Optional[date] = None) -> str:
     return f"{dias[d.weekday()]}, {d.day} de {_MESES_PT[d.month - 1]} de {d.year}"
 
 
-def nomes_coletores_atencao(coletores: Sequence[Coletor], limite: int = 4) -> List[str]:
+def nomes_coletores_atencao(coletores: Sequence[Coletor], limite: int = 4) -> list[str]:
     cands = [
         c
         for c in coletores

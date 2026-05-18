@@ -9,18 +9,21 @@ Executado via APScheduler 1x/dia.
 
 from __future__ import annotations
 
+import contextlib
 import json
 import logging
 import os
-from datetime import datetime, timedelta
-from math import radians, sin, cos, sqrt, atan2
-from typing import Any, Dict, List, Optional
+from math import atan2, cos, radians, sin, sqrt
+from typing import Any
 
 from sqlalchemy import func
 from sqlalchemy.orm import Session
 
 from banco_dados.modelos import (
-    Coleta, Coletor, PredicaoEnchimento, TronikScore,
+    Coleta,
+    Coletor,
+    PredicaoEnchimento,
+    TronikScore,
 )
 from banco_dados.utils import utc_now_naive
 
@@ -63,8 +66,8 @@ def _normalizar_0_100(valor: float, minimo: float, maximo: float) -> float:
 def _extrair_features(
     db: Session,
     coletor: Coletor,
-    todos_coletores: List[Coletor],
-) -> Dict[str, float]:
+    todos_coletores: list[Coletor],
+) -> dict[str, float]:
     """Extrai features para scoring de um coletor.
 
     Features:
@@ -76,7 +79,7 @@ def _extrair_features(
     6. coletores_proximos_acima_60 (cluster bonus)
     """
     agora = utc_now_naive()
-    features: Dict[str, float] = {}
+    features: dict[str, float] = {}
 
     # 1. Nível de preenchimento
     features['nivel'] = float(coletor.nivel_preenchimento or 0)
@@ -131,7 +134,7 @@ def _extrair_features(
     return features
 
 
-def _score_heuristica(features: Dict[str, float]) -> float:
+def _score_heuristica(features: dict[str, float]) -> float:
     """Calcula TRONIK Score via heurística ponderada.
 
     Score = soma ponderada de features normalizadas.
@@ -142,10 +145,8 @@ def _score_heuristica(features: Dict[str, float]) -> float:
     # Ler pesos customizados (se existirem como env var)
     pesos_env = os.getenv('TRONIK_SCORE_PESOS')
     if pesos_env:
-        try:
+        with contextlib.suppress(json.JSONDecodeError, TypeError):
             pesos.update(json.loads(pesos_env))
-        except (json.JSONDecodeError, TypeError):
-            pass
 
     scores_parciais = {}
 
@@ -186,9 +187,9 @@ def _score_heuristica(features: Dict[str, float]) -> float:
 
 
 def _score_xgboost(
-    features: Dict[str, float],
+    features: dict[str, float],
     model_path: str = 'banco_dados/ml_models/score_model.pkl',
-) -> Optional[float]:
+) -> float | None:
     """Calcula TRONIK Score via XGBoost (Fase 2).
 
     Retorna None se modelo não existir ou falhar.
@@ -220,8 +221,8 @@ def _score_xgboost(
 def calcular_score_coletor(
     db: Session,
     coletor: Coletor,
-    todos_coletores: List[Coletor],
-) -> Dict[str, Any]:
+    todos_coletores: list[Coletor],
+) -> dict[str, Any]:
     """Calcula TRONIK Score para um coletor."""
     features = _extrair_features(db, coletor, todos_coletores)
 
@@ -247,7 +248,7 @@ def calcular_score_coletor(
     }
 
 
-def recalcular_scores_todos(db: Session) -> Dict[str, Any]:
+def recalcular_scores_todos(db: Session) -> dict[str, Any]:
     """Recalcula TRONIK Score para todos os coletores.
 
     Chamado pelo APScheduler 1x/dia.
@@ -291,7 +292,7 @@ def recalcular_scores_todos(db: Session) -> Dict[str, Any]:
     return stats
 
 
-def obter_ranking(db: Session, limite: int = 50) -> List[Dict[str, Any]]:
+def obter_ranking(db: Session, limite: int = 50) -> list[dict[str, Any]]:
     """Retorna coletores ordenados por TRONIK Score (desc).
 
     Returns:

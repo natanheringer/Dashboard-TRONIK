@@ -16,8 +16,7 @@ from sqlalchemy import func
 from sqlalchemy.orm import Session
 
 from banco_dados.modelos import EmpresaCandidata, LocalCandidato
-from jobs.prospeccao import config
-from jobs.prospeccao import paths as pathutil
+from jobs.prospeccao import config, paths as pathutil
 
 logger = logging.getLogger(__name__)
 
@@ -283,7 +282,7 @@ def deduplicate_empresas(db: Session) -> dict[str, int]:
         .all()
     )
 
-    for cnpj, cnt in dupes:
+    for cnpj, _cnt in dupes:
         rows = (
             db.query(EmpresaCandidata)
             .filter_by(cnpj=cnpj)

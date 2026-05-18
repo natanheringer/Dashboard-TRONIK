@@ -13,11 +13,16 @@ import json
 import logging
 from dataclasses import asdict
 from pathlib import Path
-from typing import Any, Optional, Set
+from typing import Any
 
-from jobs.prospeccao import config
-from jobs.prospeccao import paths as pathutil
-from jobs.prospeccao.http_util import check_url, download_url_to_path, request_timeout, session, throttle
+from jobs.prospeccao import config, paths as pathutil
+from jobs.prospeccao.http_util import (
+    check_url,
+    download_url_to_path,
+    request_timeout,
+    session,
+    throttle,
+)
 
 logger = logging.getLogger(__name__)
 
@@ -26,7 +31,7 @@ def _action_url() -> str:
     return f"{config.CKAN_BASE_URL}/api/3/action/"
 
 
-def ckan_call(action: str, payload: Optional[dict[str, Any]] = None) -> Any:
+def ckan_call(action: str, payload: dict[str, Any] | None = None) -> Any:
     url = _action_url() + action
     throttle()
     logger.debug("CKAN action: %s payload=%s", action, payload or {})
@@ -47,7 +52,7 @@ def fetch_package_search(
     *,
     rows: int = 100,
     start: int = 0,
-    fq: Optional[str] = None,
+    fq: str | None = None,
     q: str = "",
 ) -> dict[str, Any]:
     rows = min(rows, config.CKAN_ROWS_PER_PAGE)
@@ -69,7 +74,7 @@ def fetch_package_show(name: str) -> dict[str, Any]:
 def sync_catalog_metadata(
     *,
     max_packages: int = 500,
-    fq_org: Optional[str] = None,
+    fq_org: str | None = None,
     out_name: str = "package_search_summary.jsonl",
 ) -> Path:
     """Pagina package_search e grava JSONL resumido."""
@@ -113,8 +118,8 @@ def sync_catalog_metadata(
 def validate_ckan_resource_links(
     *,
     max_packages: int = 200,
-    fq_org: Optional[str] = None,
-    max_links: Optional[int] = None,
+    fq_org: str | None = None,
+    max_links: int | None = None,
     out_name: str = "resource_link_quality.jsonl",
 ) -> dict[str, Any]:
     """Checks CKAN resource URLs and records link quality for harvest observability."""
@@ -128,7 +133,7 @@ def validate_ckan_resource_links(
     duplicates = 0
     ok_count = 0
     failed_count = 0
-    seen_urls: Set[str] = set()
+    seen_urls: set[str] = set()
     failures: list[dict[str, Any]] = []
 
     logger.info(
@@ -222,7 +227,7 @@ def validate_ckan_resource_links(
 def sync_package_show_details(
     *,
     max_packages: int = 80,
-    fq_org: Optional[str] = None,
+    fq_org: str | None = None,
 ) -> Path:
     """Grava um JSONL com package_show completo (mais pesado na API)."""
     dirs = pathutil.ensure_raw_layout()
@@ -264,7 +269,7 @@ def download_resources_for_org(
     *,
     max_packages: int = 40,
     max_resource_mb: int = 80,
-    extensions: Optional[set[str]] = None,
+    extensions: set[str] | None = None,
     paginate: bool = True,
 ) -> list[Path]:
     """Baixa recursos; com paginate=True percorre várias páginas de package_search."""
@@ -285,7 +290,7 @@ def download_resources_for_org(
     saved: list[Path] = []
     failures: list[dict[str, Any]] = []
     skipped_urls = 0
-    seen_urls: Set[str] = set()
+    seen_urls: set[str] = set()
     start = 0
     packages_seen = 0
     rows = config.CKAN_ROWS_PER_PAGE
@@ -401,7 +406,7 @@ def download_resources_for_org(
 
 def sync_default_ckan_orgs(
     *,
-    orgs: Optional[list[str]] = None,
+    orgs: list[str] | None = None,
     max_packages_per_org: int = 15,
     max_mb: int = 40,
 ) -> dict[str, list[Path]]:
