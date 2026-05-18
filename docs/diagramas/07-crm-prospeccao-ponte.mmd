@@ -9,7 +9,7 @@ flowchart LR
   CO --> CR[ContratoRecorrente]
   SP[ScoreProspeccao] -->|empresa_id| EC
   PL -.->|buscar_scores_para_pipeline| SP
-  API_CRM[/api/crm/pipeline/id/prospeccao] --> SP
-  API_POST[/api/prospeccao/candidatos/id/pipeline] --> PL
+  API_CRM["API CRM prospeccao"] --> SP
+  API_POST["POST candidato pipeline"] --> PL
   WIN[win_workflow] --> ACC
   WIN --> EC

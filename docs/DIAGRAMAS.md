@@ -1,185 +1,161 @@
 # Diagramas do sistema — Dashboard-TRONIK
 
-Índice consolidado de **todos os diagramas** discutidos e produzidos no desenvolvimento do projeto (arquitetura, prospecção REE, Nik agentic, CRM, fases 0–4). Cada diagrama existe como ficheiro **Mermaid** em [`diagramas/`](diagramas/) para versionamento, diff e renderização no GitHub / VS Code.
+Índice com **imagens exportadas** (SVG + PNG) e fontes Mermaid editáveis. Todos os diagramas produzidos no desenvolvimento do projeto (arquitetura, prospecção REE, Nik agentic, CRM, fases 0–4).
 
-**Relacionados:** [ARQUITETURA.md](ARQUITETURA.md) · [PLANO_ML_TRONIK.md](../PLANO_ML_TRONIK.md) · [nik_bot/spec_nik_agent.md](../nik_bot/spec_nik_agent.md) · [jobs/prospeccao/README.md](../jobs/prospeccao/README.md)
+**Relacionados:** [ARQUITETURA.md](ARQUITETURA.md) · [PLANO_ML_TRONIK.md](../PLANO_ML_TRONIK.md) · [nik_bot/spec_nik_agent.md](../nik_bot/spec_nik_agent.md)
 
 **Última consolidação:** maio/2026
 
 ---
 
-## Como visualizar
+## Imagens prontas (abrir no browser ou IDE)
 
-| Onde | Como |
-|------|------|
-| **GitHub** | Abrir este `.md` ou qualquer `.mmd` — Mermaid renderiza nos ficheiros |
-| **VS Code / Cursor** | Extensão “Markdown Preview Mermaid Support” ou preview de `.md` |
-| **CLI** | `npx @mermaid-js/mermaid-cli -i docs/diagramas/04-prospeccao-pipeline-v33.mmd -o out.svg` |
-| **Legado SVG** | [`diagrama_arquitetura_dashboard.svg`](../diagrama_arquitetura_dashboard.svg) (dashboard antigo) |
-| **Legado MMD** | [`arquitetura.mmd`](../arquitetura.mmd) (monólito pré-preview v2) |
+| Formato | Pasta |
+|---------|--------|
+| **SVG** (vetor, ideal para docs/figma) | [`docs/diagramas/svg/`](diagramas/svg/) |
+| **PNG** (bitmap, ideal para slides/WhatsApp) | [`docs/diagramas/png/`](diagramas/png/) |
+| **Fonte** (editar e re-exportar) | [`docs/diagramas/*.mmd`](diagramas/) |
+
+**Regenerar tudo:**
+
+```powershell
+.\scripts\render_diagramas.ps1        # só SVG
+.\scripts\render_diagramas.ps1 -Png   # SVG + PNG
+```
 
 ---
 
-## Índice por tema
+## Galeria — visão geral
 
-### Sistema e backend
+### 18 — Mapa mental (1 página)
 
-| # | Diagrama | Ficheiro | Origem |
-|---|----------|----------|--------|
-| 01 | Três camadas (mundo → app → Nik) | [01-sistema-tres-camadas.mmd](diagramas/01-sistema-tres-camadas.mmd) | ARQUITETURA + chat |
-| 02 | Blueprints Flask | [02-backend-blueprints.mmd](diagramas/02-backend-blueprints.mmd) | ARQUITETURA |
-| 03 | Sequência telemetria IoT | [03-telemetria-sequencia.mmd](diagramas/03-telemetria-sequencia.mmd) | ARQUITETURA |
-| 17 | Stack deploy (Gunicorn, PG, Redis, Sentry) | [17-deploy-stack.mmd](diagramas/17-deploy-stack.mmd) | ARQUITETURA + Fase 3 |
+![Mapa mental Dashboard-TRONIK](diagramas/svg/18-mapa-mental.svg)
 
-### Prospecção REE (ML)
+[SVG](diagramas/svg/18-mapa-mental.svg) · [PNG](diagramas/png/18-mapa-mental.png) · [Fonte](diagramas/18-mapa-mental.mmd)
 
-| # | Diagrama | Ficheiro | Origem |
-|---|----------|----------|--------|
-| 04 | Pipeline v3.3 (ingest → publish → consumo) | [04-prospeccao-pipeline-v33.mmd](diagramas/04-prospeccao-pipeline-v33.mmd) | Chat + `run_pipeline.ps1` |
-| 05 | Orquestração por camadas (ingest/ML/API/UI/Nik) | [05-prospeccao-orquestracao-fases.mmd](diagramas/05-prospeccao-orquestracao-fases.mmd) | Rodada subagents |
-| 09 | Labels internos (ops → build_features) | [09-labels-internos.mmd](diagramas/09-labels-internos.mmd) | Auditoria Loló |
-| 13 | ML coletores + pipeline REE agendado | [13-ml-coletores-legado.mmd](diagramas/13-ml-coletores-legado.mmd) | ARQUITETURA atualizado |
+### 01 — Três camadas (mundo → app → Nik)
 
-### Produto, CRM e dados
+![Três camadas](diagramas/svg/01-sistema-tres-camadas.svg)
 
-| # | Diagrama | Ficheiro | Origem |
-|---|----------|----------|--------|
-| 06 | Ciclo operacional Tronik (descobrir → vender → operar) | [06-tronik-ciclo-operacional.mmd](diagramas/06-tronik-ciclo-operacional.mmd) | Auditoria + Fases 1–1b |
-| 07 | Ponte CRM ↔ prospecção ↔ ContaComercial | [07-crm-prospeccao-ponte.mmd](diagramas/07-crm-prospeccao-ponte.mmd) | Auditoria + implementação |
-| 08 | Preview v2 vs legado (redirects 301) | [08-preview-v2-shell.mmd](diagramas/08-preview-v2-shell.mmd) | Auditoria UX + Fase 1b |
-| 14 | ER núcleo (Parceiro, Coletor, Sensor, Coleta) | [14-modelo-dados-nucleo.mmd](diagramas/14-modelo-dados-nucleo.mmd) | ARQUITETURA |
-| 15 | ER prospecção + CRM + conta | [15-modelo-dados-prospeccao-crm.mmd](diagramas/15-modelo-dados-prospeccao-crm.mmd) | Modelos maio/2026 |
+[SVG](diagramas/svg/01-sistema-tres-camadas.svg) · [PNG](diagramas/png/01-sistema-tres-camadas.png) · [Fonte](diagramas/01-sistema-tres-camadas.mmd)
 
-### Nik (agente IA)
+### 04 — Pipeline prospecção REE v3.3
 
-| # | Diagrama | Ficheiro | Origem |
-|---|----------|----------|--------|
-| 10 | Arquitetura Nik (API → serviços → NIM) | [10-nik-arquitetura.mmd](diagramas/10-nik-arquitetura.mmd) | spec_nik_agent.md |
-| 11 | Runtime agentic (loop / planner / memória) | [11-nik-agentic-runtime.mmd](diagramas/11-nik-agentic-runtime.mmd) | Fases 3–4 chat |
-| 12 | Catálogo de ferramentas Ops | [12-nik-ferramentas.mmd](diagramas/12-nik-ferramentas.mmd) | nik_tools.py |
+![Pipeline prospecção](diagramas/svg/04-prospeccao-pipeline-v33.svg)
 
-### Roadmap e governança
-
-| # | Diagrama | Ficheiro | Origem |
-|---|----------|----------|--------|
-| 16 | Fases 0 → 4 (confiança operacional) | [16-roadmap-fases.mmd](diagramas/16-roadmap-fases.mmd) | Plano aprovado no chat |
-
----
-
-## Diagramas embutidos (cópia rápida)
-
-### 04 — Pipeline prospecção v3.3
-
-```mermaid
-flowchart LR
-  subgraph ingest["Ingestão"]
-    R[Receita / Casa dos Dados]
-    H[harvest CKAN IBGE PNCP]
-    C[CNEFE geocode]
-    E[BrasilAPI ANEEL IBRAM IBAMA]
-  end
-  subgraph core["Core"]
-    N[normalize]
-    L[link-crm]
-    BE[build-enrichment]
-    F[build-features v3.3]
-    T[train-ranker]
-    S[score-candidates]
-    P[publish-scores]
-  end
-  subgraph out["Consumo"]
-    API[/api/prospeccao]
-    UI[/preview/prospeccao]
-    NIK[Nik tools REE]
-    CRM[CRM bridge]
-  end
-  ingest --> N --> L --> BE --> F --> T --> S --> P
-  P --> API
-  API --> UI
-  API --> NIK
-  API --> CRM
-```
-
-### 11 — Nik agentic runtime
-
-```mermaid
-flowchart LR
-  A[Mensagem usuario] --> B{NIK_AGENT_LOOP?}
-  B -->|true| C[Loop tool-calling OpenAI tools]
-  B -->|false| D{NIK_AGENT_PLANNER}
-  D -->|llm ou auto| E[planejar_ferramentas_llm JSON]
-  D -->|heuristic| F[_planejar_ferramentas regras]
-  E --> G[Executar ferramentas nik_tools]
-  F --> G
-  C --> G
-  G --> H[Contexto + historico_thread]
-  H --> K[Montar prompt LLM]
-  K --> L[Resposta + citacoes]
-```
+[SVG](diagramas/svg/04-prospeccao-pipeline-v33.svg) · [PNG](diagramas/png/04-prospeccao-pipeline-v33.png) · [Fonte](diagramas/04-prospeccao-pipeline-v33.mmd)
 
 ### 06 — Ciclo operacional Tronik
 
-```mermaid
-flowchart TB
-  subgraph discover["Descobrir"]
-    ING[Ingest Receita]
-    ML[Train/score]
-    Q[Fila REE]
-  end
-  subgraph sell["Vender"]
-    CRM[Pipeline CRM]
-    WIN[Win workflow]
-  end
-  subgraph operate["Operar"]
-    COL[Coletor + Coleta]
-    CONT[Contrato]
-  end
-  ING --> ML --> Q --> CRM --> WIN --> COL
-  WIN --> CONT
-```
+![Ciclo operacional](diagramas/svg/06-tronik-ciclo-operacional.svg)
+
+[SVG](diagramas/svg/06-tronik-ciclo-operacional.svg) · [PNG](diagramas/png/06-tronik-ciclo-operacional.png) · [Fonte](diagramas/06-tronik-ciclo-operacional.mmd)
+
+### 07 — Ponte CRM ↔ prospecção
+
+![CRM prospecção](diagramas/svg/07-crm-prospeccao-ponte.svg)
+
+[SVG](diagramas/svg/07-crm-prospeccao-ponte.svg) · [PNG](diagramas/png/07-crm-prospeccao-ponte.png) · [Fonte](diagramas/07-crm-prospeccao-ponte.mmd)
+
+### 11 — Nik agentic (runtime)
+
+![Nik agentic](diagramas/svg/11-nik-agentic-runtime.svg)
+
+[SVG](diagramas/svg/11-nik-agentic-runtime.svg) · [PNG](diagramas/png/11-nik-agentic-runtime.png) · [Fonte](diagramas/11-nik-agentic-runtime.mmd)
+
+### 16 — Roadmap fases 0–4
+
+![Roadmap fases](diagramas/svg/16-roadmap-fases.svg)
+
+[SVG](diagramas/svg/16-roadmap-fases.svg) · [PNG](diagramas/png/16-roadmap-fases.png) · [Fonte](diagramas/16-roadmap-fases.mmd)
 
 ---
 
-## Diagramas históricos (referência)
+## Galeria — todos os diagramas
 
-Estes ficheiros **não foram duplicados** em `diagramas/` porque estão desatualizados ou redundantes; mantêm-se no repo como arquivo.
+### Sistema e backend
+
+| # | Título | Imagem |
+|---|--------|--------|
+| 01 | Três camadas | ![01](diagramas/svg/01-sistema-tres-camadas.svg) |
+| 02 | Blueprints Flask | ![02](diagramas/svg/02-backend-blueprints.svg) |
+| 03 | Telemetria (sequência) | ![03](diagramas/svg/03-telemetria-sequencia.svg) |
+| 17 | Stack deploy | ![17](diagramas/svg/17-deploy-stack.svg) |
+
+Downloads: [01 SVG](diagramas/svg/01-sistema-tres-camadas.svg) · [02](diagramas/svg/02-backend-blueprints.svg) · [03](diagramas/svg/03-telemetria-sequencia.svg) · [17](diagramas/svg/17-deploy-stack.svg)
+
+### Prospecção REE
+
+| # | Título | Imagem |
+|---|--------|--------|
+| 04 | Pipeline v3.3 | ![04](diagramas/svg/04-prospeccao-pipeline-v33.svg) |
+| 05 | Orquestração por camadas | ![05](diagramas/svg/05-prospeccao-orquestracao-fases.svg) |
+| 09 | Labels internos | ![09](diagramas/svg/09-labels-internos.svg) |
+| 13 | ML coletores + REE | ![13](diagramas/svg/13-ml-coletores-legado.svg) |
+
+### Produto, CRM e dados
+
+| # | Título | Imagem |
+|---|--------|--------|
+| 06 | Ciclo operacional | ![06](diagramas/svg/06-tronik-ciclo-operacional.svg) |
+| 07 | CRM ↔ prospecção | ![07](diagramas/svg/07-crm-prospeccao-ponte.svg) |
+| 08 | Preview v2 shell | ![08](diagramas/svg/08-preview-v2-shell.svg) |
+| 14 | ER núcleo | ![14](diagramas/svg/14-modelo-dados-nucleo.svg) |
+| 15 | ER prospecção + CRM | ![15](diagramas/svg/15-modelo-dados-prospeccao-crm.svg) |
+
+### Nik
+
+| # | Título | Imagem |
+|---|--------|--------|
+| 10 | Arquitetura Nik | ![10](diagramas/svg/10-nik-arquitetura.svg) |
+| 11 | Runtime agentic | ![11](diagramas/svg/11-nik-agentic-runtime.svg) |
+| 12 | Ferramentas | ![12](diagramas/svg/12-nik-ferramentas.svg) |
+
+### Roadmap
+
+| # | Título | Imagem |
+|---|--------|--------|
+| 16 | Fases 0–4 | ![16](diagramas/svg/16-roadmap-fases.svg) |
+| 18 | Mapa mental | ![18](diagramas/svg/18-mapa-mental.svg) |
+
+---
+
+## Índice com ficheiros fonte (.mmd)
+
+| # | Diagrama | Mermaid | SVG |
+|---|----------|---------|-----|
+| 01 | Três camadas | [mmd](diagramas/01-sistema-tres-camadas.mmd) | [svg](diagramas/svg/01-sistema-tres-camadas.svg) |
+| 02 | Blueprints | [mmd](diagramas/02-backend-blueprints.mmd) | [svg](diagramas/svg/02-backend-blueprints.svg) |
+| 03 | Telemetria | [mmd](diagramas/03-telemetria-sequencia.mmd) | [svg](diagramas/svg/03-telemetria-sequencia.svg) |
+| 04 | Pipeline REE | [mmd](diagramas/04-prospeccao-pipeline-v33.mmd) | [svg](diagramas/svg/04-prospeccao-pipeline-v33.svg) |
+| 05 | Orquestração | [mmd](diagramas/05-prospeccao-orquestracao-fases.mmd) | [svg](diagramas/svg/05-prospeccao-orquestracao-fases.svg) |
+| 06 | Ciclo Tronik | [mmd](diagramas/06-tronik-ciclo-operacional.mmd) | [svg](diagramas/svg/06-tronik-ciclo-operacional.svg) |
+| 07 | CRM bridge | [mmd](diagramas/07-crm-prospeccao-ponte.mmd) | [svg](diagramas/svg/07-crm-prospeccao-ponte.svg) |
+| 08 | Preview v2 | [mmd](diagramas/08-preview-v2-shell.mmd) | [svg](diagramas/svg/08-preview-v2-shell.svg) |
+| 09 | Labels internos | [mmd](diagramas/09-labels-internos.mmd) | [svg](diagramas/svg/09-labels-internos.svg) |
+| 10 | Nik arquitetura | [mmd](diagramas/10-nik-arquitetura.mmd) | [svg](diagramas/svg/10-nik-arquitetura.svg) |
+| 11 | Nik runtime | [mmd](diagramas/11-nik-agentic-runtime.mmd) | [svg](diagramas/svg/11-nik-agentic-runtime.svg) |
+| 12 | Nik ferramentas | [mmd](diagramas/12-nik-ferramentas.mmd) | [svg](diagramas/svg/12-nik-ferramentas.svg) |
+| 13 | ML + REE | [mmd](diagramas/13-ml-coletores-legado.mmd) | [svg](diagramas/svg/13-ml-coletores-legado.svg) |
+| 14 | ER núcleo | [mmd](diagramas/14-modelo-dados-nucleo.mmd) | [svg](diagramas/svg/14-modelo-dados-nucleo.svg) |
+| 15 | ER prospecção | [mmd](diagramas/15-modelo-dados-prospeccao-crm.mmd) | [svg](diagramas/svg/15-modelo-dados-prospeccao-crm.svg) |
+| 16 | Roadmap | [mmd](diagramas/16-roadmap-fases.mmd) | [svg](diagramas/svg/16-roadmap-fases.svg) |
+| 17 | Deploy | [mmd](diagramas/17-deploy-stack.mmd) | [svg](diagramas/svg/17-deploy-stack.svg) |
+| 18 | Mapa mental | [mmd](diagramas/18-mapa-mental.mmd) | [svg](diagramas/svg/18-mapa-mental.svg) |
+
+---
+
+## Legado
 
 | Ficheiro | Nota |
 |----------|------|
-| [`arquitetura.mmd`](../arquitetura.mmd) | Dashboard legado (Lixeira, index.html) |
-| [`diagrama_arquitetura_dashboard.svg`](../diagrama_arquitetura_dashboard.svg) | Export SVG do legado |
-| [`db_tronik/MODELO_BANCO_DADOS.md`](../db_tronik/MODELO_BANCO_DADOS.md) | ER antigo; preferir 14 e 15 |
-| `nik_bot/spec_nik_agent.md` §1 | Diagrama ASCII Nik — substituído por [10-nik-arquitetura.mmd](diagramas/10-nik-arquitetura.mmd) |
-
-### Auditoria (estado na conversa — maio/2026)
-
-Diagramas de **maturidade** usados na revisão profissional (pipeline frágil vs ingest forte) estão **substituídos** pelos diagramas 04, 06 e 07 atualizados. Se precisar do snapshot “pré-correções”, ver histórico do chat ou commit `3fb59a5` anterior.
+| [`diagrama_arquitetura_dashboard.svg`](../diagrama_arquitetura_dashboard.svg) | Dashboard antigo (pré-preview v2) |
+| [`arquitetura.mmd`](../arquitetura.mmd) | Monólito legado |
 
 ---
 
 ## Manutenção
 
-1. **Novo diagrama:** criar `docs/diagramas/NN-nome.mmd` e acrescentar linha neste índice.
-2. **Código mudou:** atualizar o `.mmd` correspondente (não só o chat).
-3. **ARQUITETURA.md:** visão estável de alto nível; detalhe e histórico de evolução ficam aqui.
-4. **IDs Mermaid:** evitar espaços em IDs de nós; usar `subgraph id["Rótulo com espaços"]`.
-
----
-
-## Mapa mental (1 página)
-
-```mermaid
-flowchart TB
-  TRONIK[Dashboard-TRONIK]
-  TRONIK --> OPS[Operação IoT]
-  TRONIK --> REE[Prospecção REE ML]
-  TRONIK --> COM[CRM Comercial Contratos]
-  TRONIK --> NIK[Nik agentic]
-  TRONIK --> INFRA[CI Health Sentry Redis]
-  OPS --> TEL[Telemetria WebSocket]
-  REE --> PIPE[jobs/prospeccao]
-  REE --> FILA[/preview/prospeccao]
-  COM --> PREVIEW[/preview/crm ...]
-  NIK --> TOOLS[12+ ferramentas]
-  NIK --> LOOP[Agent loop opcional]
-```
+1. Editar `docs/diagramas/NN-nome.mmd` (não usar `[/rota/...]` em nós — usar `ID["rótulo"]`).
+2. Correr `.\scripts\render_diagramas.ps1 -Png`.
+3. Commitar `.mmd` + `svg/` + `png/` juntos.

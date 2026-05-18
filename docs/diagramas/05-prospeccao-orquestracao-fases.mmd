@@ -9,13 +9,13 @@ flowchart TB
     T[train / score / publish]
   end
   subgraph api["API"]
-    C[/api/prospeccao/candidatos]
-    M[/api/prospeccao/modelo-ativo]
-    H[/api/prospeccao/saude]
+    C["GET candidatos"]
+    M["GET modelo-ativo"]
+    H["GET saude"]
   end
   subgraph ui["Preview v2"]
-    P[/preview/prospeccao]
-    CRM_P[/preview/crm]
+    P["Preview prospeccao"]
+    CRM_P["Preview CRM"]
   end
   subgraph nik["Nik Ops"]
     T1[listar explicar comparar roteiro tarefa]

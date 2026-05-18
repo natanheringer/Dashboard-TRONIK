@@ -8,17 +8,17 @@ flowchart LR
     NIK[Nik chat]
     PROSP[Prospecção REE]
     GES[Gestão solicitações]
-    CRM[/preview/crm]
-    COM[/preview/comercial]
-    CTR[/preview/contratos]
+    CRM["Preview CRM"]
+    COM["Preview comercial"]
+    CTR["Preview contratos"]
   end
   subgraph legacy["Redirects 301"]
-    L_CRM[/crm legado]
-    L_COM[/comercial]
-    L_CTR[/contratos]
+    L_CRM["Legado /crm"]
+    L_COM["Legado /comercial"]
+    L_CTR["Legado /contratos"]
   end
   Login[Login] --> H
   L_CRM --> CRM
   L_COM --> COM
   L_CTR --> CTR
-  Parceiro[Usuario parceiro] --> PAR[/preview/parceiro]
+  Parceiro[Usuario parceiro] --> PAR["Preview parceiro"]
