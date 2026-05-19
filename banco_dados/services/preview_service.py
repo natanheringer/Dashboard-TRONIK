@@ -118,8 +118,8 @@ def resumo_prospeccao(db: Session) -> dict[str, Any]:
 
 
 def estatisticas_resumo(db: Session) -> dict[str, Any]:
-    coletores = db.query(Coletor).all()
-    sensores = db.query(Sensor).all()
+    total = db.query(func.count(Coletor.id)).scalar()
+    sensores_count = db.query(func.count(Sensor.id)).scalar()
     hoje = date.today()
     inicio_hoje = datetime.combine(hoje, datetime.min.time())
     fim_hoje = inicio_hoje + timedelta(days=1)
@@ -129,13 +129,21 @@ def estatisticas_resumo(db: Session) -> dict[str, Any]:
         .count()
     )
 
-    total = len(coletores)
-    alertas = sum(1 for c in coletores if c.nivel_preenchimento >= NIVEL_ATENCAO)
-    criticos = sum(1 for c in coletores if c.nivel_preenchimento >= NIVEL_CRITICO)
+    alertas = db.query(func.count(Coletor.id)).filter(
+        Coletor.nivel_preenchimento >= NIVEL_ATENCAO
+    ).scalar()
+    criticos = db.query(func.count(Coletor.id)).filter(
+        Coletor.nivel_preenchimento >= NIVEL_CRITICO
+    ).scalar()
+
+    # Para nível médio, ainda precisa carregar os valores
+    coletores = db.query(Coletor).all()
     nivel_medio = (
         round(sum(c.nivel_preenchimento for c in coletores) / total, 1) if total else 0.0
     )
-    bateria_baixa = sum(1 for s in sensores if s.bateria < BATERIA_BAIXA)
+    bateria_baixa = db.query(func.count(Sensor.id)).filter(
+        Sensor.bateria < BATERIA_BAIXA
+    ).scalar()
 
     return {
         "total_coletores": total,
@@ -470,12 +478,15 @@ def resumo_relatorios(
 
     # Top coletores por numero de coletas no periodo
     por_coletor: dict[int, int] = defaultdict(int)
+    coletas_by_id: dict[int, Coleta] = {}
     for c in coletas:
         por_coletor[c.coletor_id] += 1
+        if c.coletor_id not in coletas_by_id:
+            coletas_by_id[c.coletor_id] = c
     top_ids = sorted(por_coletor.keys(), key=lambda i: por_coletor[i], reverse=True)[:5]
     top_list = []
     for rank, cid in enumerate(top_ids, start=1):
-        col = next((x for x in coletas if x.coletor_id == cid), None)
+        col = coletas_by_id.get(cid)
         loc = col.coletor.localizacao if col and col.coletor else f"#{cid}"
         top_list.append(
             {

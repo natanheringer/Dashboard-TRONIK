@@ -14,8 +14,12 @@ import csv
 import logging
 import math
 import os
+import threading
 from pathlib import Path
 from typing import Any
+
+import numpy as np
+from sklearn.neighbors import BallTree
 
 from jobs.prospeccao.ranker_contract import FEATURE_NAMES, haversine_km
 
@@ -80,7 +84,10 @@ _cache: dict[str, Any] = {
     "inep": None,
     "cnes": None,
     "loaded": False,
+    "ball_trees": {},  # Cache for BallTree per points hash
 }
+
+_LOAD_LOCK = threading.Lock()
 
 
 def clear_proxy_caches() -> None:
@@ -89,6 +96,7 @@ def clear_proxy_caches() -> None:
     _cache["inep"] = None
     _cache["cnes"] = None
     _cache["loaded"] = False
+    _cache["ball_trees"] = {}
 
 
 def _norm_key(value: str | None) -> str:
@@ -153,12 +161,19 @@ def _path_from_env(name: str) -> Path | None:
 
 
 def _build_osm_index(rows: list[dict[str, Any]]) -> _OsmIndex | None:
+    if not rows:
+        return None
+
     points: list[tuple[float, float]] = []
+
+    # Detect column names once from first row to avoid O(N) recomputation per row
+    lat_col = _pick_col(rows[0], _LAT_COLS)
+    lon_col = _pick_col(rows[0], _LON_COLS)
+
+    if not lat_col or not lon_col:
+        return None
+
     for row in rows:
-        lat_col = _pick_col(row, _LAT_COLS)
-        lon_col = _pick_col(row, _LON_COLS)
-        if not lat_col or not lon_col:
-            continue
         lat = _float_val(row.get(lat_col))
         lon = _float_val(row.get(lon_col))
         if lat is None or lon is None:
@@ -168,16 +183,21 @@ def _build_osm_index(rows: list[dict[str, Any]]) -> _OsmIndex | None:
 
 
 def _build_aggregate_index(rows: list[dict[str, Any]]) -> _AggregateIndex | None:
+    if not rows:
+        return None
+
     by_ra: dict[str, float] = {}
     by_municipio: dict[str, float] = {}
     points: list[tuple[float, float]] = []
-    for row in rows:
-        ra_col = _pick_col(row, _RA_COLS)
-        mun_col = _pick_col(row, _MUN_COLS)
-        count_col = _pick_col(row, _COUNT_COLS)
-        lat_col = _pick_col(row, _LAT_COLS)
-        lon_col = _pick_col(row, _LON_COLS)
 
+    # Detect column names once from first row to avoid O(N) recomputation per row
+    ra_col = _pick_col(rows[0], _RA_COLS)
+    mun_col = _pick_col(rows[0], _MUN_COLS)
+    count_col = _pick_col(rows[0], _COUNT_COLS)
+    lat_col = _pick_col(rows[0], _LAT_COLS)
+    lon_col = _pick_col(rows[0], _LON_COLS)
+
+    for row in rows:
         if lat_col and lon_col:
             lat = _float_val(row.get(lat_col))
             lon = _float_val(row.get(lon_col))
@@ -205,30 +225,36 @@ def _build_aggregate_index(rows: list[dict[str, Any]]) -> _AggregateIndex | None
 
 
 def _ensure_loaded() -> None:
+    # Double-checked locking for thread-safe initialization
     if _cache["loaded"]:
         return
-    _cache["loaded"] = True
 
-    osm_path = _path_from_env(_ENV_OSM)
-    if osm_path:
-        rows = _load_rows(osm_path)
-        _cache["osm"] = _build_osm_index(rows)
-        if _cache["osm"] is None:
-            logger.info("OSM enrichment: nenhum ponto válido em %s", osm_path)
+    with _LOAD_LOCK:
+        # Re-check after acquiring lock
+        if _cache["loaded"]:
+            return
+        _cache["loaded"] = True
 
-    inep_path = _path_from_env(_ENV_INEP)
-    if inep_path:
-        rows = _load_rows(inep_path)
-        _cache["inep"] = _build_aggregate_index(rows)
-        if _cache["inep"] is None:
-            logger.info("INEP enrichment: nenhuma linha utilizável em %s", inep_path)
+        osm_path = _path_from_env(_ENV_OSM)
+        if osm_path:
+            rows = _load_rows(osm_path)
+            _cache["osm"] = _build_osm_index(rows)
+            if _cache["osm"] is None:
+                logger.info("OSM enrichment: nenhum ponto válido em %s", osm_path)
 
-    cnes_path = _path_from_env(_ENV_CNES)
-    if cnes_path:
-        rows = _load_rows(cnes_path)
-        _cache["cnes"] = _build_aggregate_index(rows)
-        if _cache["cnes"] is None:
-            logger.info("CNES enrichment: nenhuma linha utilizável em %s", cnes_path)
+        inep_path = _path_from_env(_ENV_INEP)
+        if inep_path:
+            rows = _load_rows(inep_path)
+            _cache["inep"] = _build_aggregate_index(rows)
+            if _cache["inep"] is None:
+                logger.info("INEP enrichment: nenhuma linha utilizável em %s", inep_path)
+
+        cnes_path = _path_from_env(_ENV_CNES)
+        if cnes_path:
+            rows = _load_rows(cnes_path)
+            _cache["cnes"] = _build_aggregate_index(rows)
+            if _cache["cnes"] is None:
+                logger.info("CNES enrichment: nenhuma linha utilizável em %s", cnes_path)
 
 
 def _count_within_radius(
@@ -237,11 +263,34 @@ def _count_within_radius(
     points: list[tuple[float, float]],
     radius_km: float,
 ) -> int:
-    count = 0
-    for plat, plon in points:
-        if haversine_km(lat, lon, plat, plon) <= radius_km:
-            count += 1
-    return count
+    """Count POIs within radius_km using BallTree spatial index."""
+    if not points:
+        return 0
+
+    # Compute hash for caching BallTree
+    points_hash = hash(tuple(points))
+
+    # Lazy-build BallTree on first use with double-checked locking
+    ball_trees = _cache.get("ball_trees", {})
+    if points_hash not in ball_trees:
+        with _LOAD_LOCK:
+            # Re-read from cache after acquiring lock (double-checked locking correct)
+            ball_trees = _cache.get("ball_trees", {})
+            if points_hash not in ball_trees:
+                # Convert lat/lon to radians for Haversine metric
+                pts_rad = np.radians(np.asarray(points, dtype=float))
+                ball_trees = dict(ball_trees)  # Do not mutate cache dict directly
+                ball_trees[points_hash] = BallTree(pts_rad, metric="haversine")
+                _cache["ball_trees"] = ball_trees
+
+    tree = _cache.get("ball_trees", {})[points_hash]
+    # Query radius in radians: radius_km / Earth radius (6371 km)
+    radius_rad = radius_km / 6371.0
+    query_pt = np.radians(np.array([[lat, lon]], dtype=float))
+
+    # count_only=True returns array of counts
+    counts = tree.query_radius(query_pt, r=radius_rad, count_only=True)
+    return int(counts[0])
 
 
 def _aggregate_lookup(

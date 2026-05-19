@@ -24,7 +24,7 @@ from __future__ import annotations
 import json
 import math
 import os
-from datetime import datetime
+from datetime import datetime, timezone
 from typing import Any
 
 FEATURE_NAMES = [
@@ -44,12 +44,13 @@ FEATURE_NAMES = [
     "neighborhood_candidate_density",
     "neighborhood_ree_ratio",
     "has_geocode",
+    "data_tier",
     "osm_poi_ree_density",
     "inep_institution_proxy",
     "cnes_health_proxy",
 ]
 
-FEATURE_SCHEMA_VERSION = "prospeccao-ree-v3.3"
+FEATURE_SCHEMA_VERSION = "prospeccao-ree-v3.4"
 
 # Monotonic constraints for XGBRanker (index-aligned with FEATURE_NAMES).
 # 1 = increasing is always better; 0 = let the tree decide.
@@ -70,6 +71,7 @@ MONOTONIC_CONSTRAINTS = (
     0,   # neighborhood_candidate_density — saturation effects
     0,   # neighborhood_ree_ratio — not always monotonic
     1,   # has_geocode — better to have confirmed coordinates
+    1,   # data_tier — more complete data = better candidate quality
     1,   # osm_poi_ree_density — more REE-relevant POIs nearby
     0,   # inep_institution_proxy — context-dependent
     0,   # cnes_health_proxy — context-dependent
@@ -121,6 +123,7 @@ FEATURE_REASON_LABELS: dict[str, str] = {
     "osm_poi_ree_density": "OSM POI density for electronics/REE activity nearby",
     "inep_institution_proxy": "INEP school/institution density proxy for the area",
     "cnes_health_proxy": "CNES health establishment density proxy for the area",
+    "data_tier": "Data quality tier (higher tier = more complete company information)",
 }
 
 _miss_reason = set(FEATURE_NAMES) - set(FEATURE_REASON_LABELS)
@@ -268,6 +271,25 @@ def address_quality(local: Any | None, empresa: Any | None = None) -> float:
     return score / total
 
 
+def data_tier(empresa: Any, local: Any | None) -> float:
+    """Data quality tier: 1.0=rich, 0.5=partial, 0.1=sparse.
+
+    Ensures the ranker can differentiate companies with rich geocoded data
+    from sparse candidates without location or CNAE information.
+    """
+    has_coords = bool(local and getattr(local, "latitude", None) and getattr(local, "longitude", None))
+    has_cnae = bool(getattr(empresa, "cnae_principal", None))
+    has_ra = bool(local and (getattr(local, "ra", None) or getattr(local, "bairro", None)))
+    has_address = bool(getattr(local, "endereco", None) if local else False) or bool(getattr(empresa, "endereco_normalizado", None))
+
+    if has_coords and has_cnae and has_ra:
+        return 1.0
+    elif has_coords or (has_cnae and has_ra) or (has_address and has_ra):
+        return 0.5
+    else:
+        return 0.1
+
+
 def haversine_km(lat1: float, lon1: float, lat2: float, lon2: float) -> float:
     radius_km = 6371.0
     dlat = math.radians(lat2 - lat1)
@@ -304,7 +326,7 @@ def age_years_log(data_abertura: datetime | None) -> float:
     """log(1 + years) — continuous signal for tree-based models."""
     if not data_abertura:
         return 0.0
-    years = max(0.0, (datetime.utcnow() - data_abertura).days / 365.25)
+    years = max(0.0, (datetime.now(timezone.utc) - data_abertura).days / 365.25)
     return round(math.log1p(years), 4)
 
 
@@ -351,12 +373,14 @@ def neighborhood_features(qid_total: int, qid_ree_compatible: int) -> tuple[floa
 NeighborhoodContext = dict[str, int]
 
 
+_EXPECTED_FEATURES = frozenset(FEATURE_NAMES)
+
+
 def validate_feature_contract(features: dict[str, float]) -> None:
     """Ensure feature dict keys match FEATURE_NAMES (catches OSM/INEP/CNES drift)."""
-    keys = set(features.keys())
-    expected = set(FEATURE_NAMES)
-    extra = keys - expected
-    missing = expected - keys
+    keys = features.keys()
+    extra = keys - _EXPECTED_FEATURES
+    missing = _EXPECTED_FEATURES - keys
     if extra or missing:
         raise ValueError(
             f"Feature contract mismatch: extra={sorted(extra)} missing={sorted(missing)}"
@@ -410,6 +434,7 @@ def build_feature_vector(
         "neighborhood_candidate_density": neigh_density,
         "neighborhood_ree_ratio": neigh_ree,
         "has_geocode": 1.0 if has_coords else 0.0,
+        "data_tier": data_tier(empresa, local),
     }
     proxies = enrichment_proxies or {}
     vector["osm_poi_ree_density"] = float(proxies.get("osm_poi_ree_density", 0.0))
@@ -542,7 +567,7 @@ def listwise_training_qid(empresa: Any, local: Any | None) -> str:
     if cep3:
         return f"df:cep3:{uf.lower()}:{cep3}"
 
-    return _hash_bucket_qid(empresa)
+    return "unlocated"
 
 
 # ---------------------------------------------------------------------------
@@ -569,6 +594,7 @@ def heuristic_relevance_continuous(features: dict[str, float]) -> float:
         + features.get("neighborhood_ree_ratio", 0) * 0.03
         + features.get("neighborhood_candidate_density", 0) * 0.02
         + features.get("has_geocode", 0) * 0.02
+        + features.get("data_tier", 0) * 0.03
         + features.get("osm_poi_ree_density", 0) * 0.02
         + features.get("inep_institution_proxy", 0) * 0.015
         + features.get("cnes_health_proxy", 0) * 0.015

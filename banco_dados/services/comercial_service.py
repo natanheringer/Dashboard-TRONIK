@@ -377,12 +377,6 @@ class ComercialService:
 
             from sqlalchemy.orm import joinedload
 
-            parceiros = db.query(Parceiro).options(
-                joinedload(Parceiro.coletas)
-            ).all()
-
-            analise = []
-
             # Se todos_periodos=True, não filtrar por data
             if todos_periodos:
                 data_inicio = None
@@ -416,8 +410,15 @@ class ComercialService:
                     else:
                         data_fim = datetime(ano, mes + 1, 1) - timedelta(seconds=1)
 
+            parceiros = db.query(Parceiro).options(
+                joinedload(Parceiro.coletas)
+            ).all()
+
+            analise = []
+
             for parceiro in parceiros:
                 # Filtrar coletas pelo período calculado (ou todas se todos_periodos=True)
+                # Aplicar filtros em Python já que coletas estão carregadas com joinedload
                 if todos_periodos:
                     coletas_parceiro = [
                         c for c in parceiro.coletas
@@ -426,7 +427,7 @@ class ComercialService:
                 else:
                     coletas_parceiro = [
                         c for c in parceiro.coletas
-                        if data_inicio <= c.data_hora <= data_fim
+                        if c.data_hora and data_inicio <= c.data_hora <= data_fim
                         and c.volume_estimado and c.volume_estimado > 0
                     ]
 

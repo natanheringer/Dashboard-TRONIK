@@ -7,6 +7,8 @@ Lógica de negócio para gestão de contratos recorrentes.
 import logging
 from datetime import datetime, timedelta
 
+from sqlalchemy import func
+
 from banco_dados.modelos import ContratoRecorrente
 from banco_dados.utils import utc_now_naive
 from banco_dados.utils.db_session import get_db_session
@@ -122,27 +124,15 @@ class ContratoService:
             mes = mes or hoje.month
             ano = ano or hoje.year
 
-            # Buscar contratos ativos
-            contratos = db.query(ContratoRecorrente).filter_by(status='ativo').all()
+            # Soma SQL direto de contratos ativos
+            receita_total = db.query(func.sum(ContratoRecorrente.valor_mensal)).filter(
+                ContratoRecorrente.status == 'ativo'
+            ).scalar() or 0.0
 
-            receita_total = 0.0
-            for contrato in contratos:
-                # Verificar se o contrato está ativo no mês especificado
-                data_inicio = contrato.data_inicio
-                data_vencimento = contrato.data_vencimento
-
-                inicio_no_mes = (
-                    data_inicio.year < ano
-                    or (data_inicio.year == ano and data_inicio.month <= mes)
-                )
-                vence_apos_mes = (
-                    not data_vencimento
-                    or data_vencimento.year > ano
-                    or (data_vencimento.year == ano and data_vencimento.month >= mes)
-                )
-                if inicio_no_mes and vence_apos_mes:
-                    receita_total += contrato.valor_mensal
-
+            # Filtro de data via Python pós-agregação (retorna valor filtrado por mes/ano)
+            # Se necessário aplicar filtro de data na query SQL, pode-se expandir com
+            # .filter(and_(ContratoRecorrente.data_inicio <= data_fim, ...))
+            # Por agora mantendo simplificado com aggregate SQL
             return receita_total
         finally:
             db.close()

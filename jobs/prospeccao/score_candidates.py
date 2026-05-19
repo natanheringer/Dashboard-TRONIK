@@ -5,8 +5,9 @@ from __future__ import annotations
 import json
 import logging
 from collections import Counter, defaultdict
-from datetime import datetime
+from datetime import datetime, timezone
 from pathlib import Path
+from statistics import mean
 from typing import Any
 
 from sqlalchemy.orm import Session
@@ -69,34 +70,53 @@ def _predict_and_explain(
     return [heuristic_score(row) for row in feature_rows], None
 
 
-def _priority(rank: int, group_size: int, score: float) -> str:
-    """Assign priority tier based on absolute score thresholds with rank-based fallback.
+def _summarize_distribution(values: list[float]) -> dict[str, float]:
+    """Return compact telemetry for score distributions."""
+    if not values:
+        return {}
+    sorted_vals = sorted(float(v) for v in values)
+    n = len(sorted_vals)
 
-    Scores are on a heuristic 0–100 scale (from heuristic_score) or 0–1 for XGBoost models.
-    Absolute thresholds take precedence to prevent low-quality candidates from ranking high.
+    def _percentile(p: float) -> float:
+        if n == 1:
+            return sorted_vals[0]
+        pos = (n - 1) * p
+        lo = int(pos)
+        hi = min(lo + 1, n - 1)
+        frac = pos - lo
+        return sorted_vals[lo] + (sorted_vals[hi] - sorted_vals[lo]) * frac
 
-    Args:
-        rank: Position in sorted group (1-indexed, lower is better)
-        group_size: Total candidates in the qid group
-        score: Absolute score value (0–100 heuristic or 0–1 XGBoost)
+    return {
+        "count": float(n),
+        "min": round(sorted_vals[0], 6),
+        "p10": round(_percentile(0.10), 6),
+        "p50": round(_percentile(0.50), 6),
+        "p90": round(_percentile(0.90), 6),
+        "max": round(sorted_vals[-1], 6),
+        "mean": round(mean(sorted_vals), 6),
+    }
 
-    Returns:
-        Priority tier: 'alta', 'media', or 'baixa'
-    """
-    # Normalize XGBoost scores (0–1) to 0–100 scale for consistent thresholds
-    # XGBoost produces floats ~0.1–0.9; heuristic already 0–100
-    normalized_score = score if score > 10 else score * 100
 
-    # Absolute score thresholds (primary filter)
-    if normalized_score >= 70:
+def _priority(rank: int, group_size: int, score: float, *, uses_absolute_scale: bool) -> str:
+    """Assign priority primarily by relative rank with safe fallbacks."""
+    percentile_top = 1.0 if group_size <= 1 else 1.0 - ((rank - 1) / (group_size - 1))
+
+    # Preserve compatibility for heuristic mode (scores already on 0-100).
+    if uses_absolute_scale:
+        if score >= 70:
+            return "alta"
+        if score <= 20:
+            return "baixa"
+
+    if percentile_top >= 0.90:
         return "alta"
-    if normalized_score <= 20:
-        return "baixa"
+    if percentile_top >= 0.60:
+        return "media"
 
-    # Relative rank within group (tiebreaker for middle scores 20–70)
+    # Conservative fallback for tiny groups.
     if rank <= 5:
         return "alta"
-    if rank <= 20 or rank <= max(1, int(group_size * 0.20)):
+    if rank <= max(1, int(group_size * 0.40)):
         return "media"
     return "baixa"
 
@@ -132,27 +152,35 @@ def score_candidates(
     updated = 0
     processed = 0
     scores_by_prioridade: Counter[str] = Counter()
+    raw_scores_all: list[float] = []
+    relative_scores_all: list[float] = []
     batch_size = 2000
+
+    # Pre-load all existing ScoreProspeccao records for this model to avoid N+1 queries
+    existing_scores = {
+        (r.snapshot_id, r.modelo_id): r
+        for r in db.query(ScoreProspeccao)
+        .filter(ScoreProspeccao.modelo_id == model.id)
+        .all()
+    }
 
     for qid, rows in grouped.items():
         feature_rows = [json.loads(row.features_json) for row in rows]
         predictions, shap_maps = _predict_and_explain(model, feature_rows)
+        raw_scores_all.extend(float(v) for v in predictions)
         explanations = shap_maps or [None] * len(rows)
         ranked = sorted(
             zip(rows, feature_rows, predictions, explanations, strict=False),
             key=lambda item: item[2],
             reverse=True,
         )
+        group_size = len(ranked)
+        uses_absolute_scale = model.algoritmo != "xgboost_ranker"
 
         for rank, (snapshot, features, score, shap_vals) in enumerate(ranked, start=1):
-            score_row = (
-                db.query(ScoreProspeccao)
-                .filter(
-                    ScoreProspeccao.snapshot_id == snapshot.id,
-                    ScoreProspeccao.modelo_id == model.id,
-                )
-                .first()
-            )
+            percentile_top = 1.0 if group_size <= 1 else 1.0 - ((rank - 1) / (group_size - 1))
+            relative_scores_all.append(percentile_top * 100.0)
+            score_row = existing_scores.get((snapshot.id, model.id))
             if not score_row:
                 score_row = ScoreProspeccao(snapshot_id=snapshot.id, modelo_id=model.id)
                 db.add(score_row)
@@ -165,7 +193,12 @@ def score_candidates(
             score_row.qid = qid
             score_row.score = round(float(score), 6)
             score_row.ranking_contexto = rank
-            score_row.prioridade = _priority(rank, len(ranked), float(score))
+            score_row.prioridade = _priority(
+                rank,
+                group_size,
+                float(score),
+                uses_absolute_scale=uses_absolute_scale,
+            )
             scores_by_prioridade[score_row.prioridade] += 1
             score_row.pipeline_version = pipeline_version
             # Build enriched motivos with SHAP context and human-readable labels
@@ -176,7 +209,7 @@ def score_candidates(
                 min_fallback_value=None if shap_vals else 0.1,
             )
             score_row.motivos_json = _json(enriched_motivos)
-            score_row.calculado_em = datetime.utcnow()
+            score_row.calculado_em = datetime.now(timezone.utc)
 
             processed += 1
             if processed % batch_size == 0:
@@ -193,6 +226,13 @@ def score_candidates(
     ).all()
     prioridade_dist = Counter(s.prioridade for s in all_scores)
     logger.info("Distribuicao de prioridades: %s", dict(prioridade_dist))
+    logger.info(
+        "Score telemetry | modelo=%s algoritmo=%s raw=%s relative_0_100=%s",
+        model.versao,
+        model.algoritmo,
+        _json(_summarize_distribution(raw_scores_all)),
+        _json(_summarize_distribution(relative_scores_all)),
+    )
 
     return {
         "modelo": model.versao,

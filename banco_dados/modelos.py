@@ -20,7 +20,7 @@ import contextlib
 from datetime import datetime
 
 from flask_login import UserMixin
-from sqlalchemy import Boolean, Column, DateTime, Float, ForeignKey, Index, Integer, String, Text
+from sqlalchemy import Boolean, Column, DateTime, Float, ForeignKey, Index, Integer, String, Text, UniqueConstraint
 from sqlalchemy.orm import declarative_base, relationship
 from werkzeug.security import check_password_hash, generate_password_hash
 
@@ -85,10 +85,14 @@ class PreferenciaLayout(Base):
 
     def to_dict(self):
         import json
+        try:
+            ordem = json.loads(self.ordem_containers) if self.ordem_containers else []
+        except (json.JSONDecodeError, TypeError):
+            ordem = []
         return {
             'id': self.id,
             'usuario_id': self.usuario_id,
-            'ordem_containers': json.loads(self.ordem_containers) if self.ordem_containers else [],
+            'ordem_containers': ordem,
             'atualizado_em': self.atualizado_em.isoformat() if self.atualizado_em else None
         }
 
@@ -274,8 +278,8 @@ class Coletor(Base):
     # Relacionamentos
     parceiro = relationship("Parceiro", back_populates="coletores")
     tipo_material = relationship("TipoMaterial", back_populates="coletores")
-    sensores = relationship("Sensor", back_populates="coletor", cascade="all, delete-orphan")
-    coletas = relationship("Coleta", back_populates="coletor", cascade="all, delete-orphan")
+    sensores = relationship("Sensor", back_populates="coletor", cascade="all")
+    coletas = relationship("Coleta", back_populates="coletor", cascade="all")
 
     def __repr__(self):
         return f"<Coletor(id={self.id}, local='{self.localizacao}', nivel={self.nivel_preenchimento}%)>"
@@ -309,6 +313,9 @@ class Sensor(Base):
 # ----------------------------------------------------------
 class Coleta(Base):
     __tablename__ = "coletas"
+    __table_args__ = (
+        Index('idx_coleta_data_coletor_parceiro', 'data_hora', 'coletor_id', 'parceiro_id'),
+    )
 
     id = Column(Integer, primary_key=True, autoincrement=True)
     coletor_id = Column(Integer, ForeignKey("coletores.id"), nullable=False, index=True)
@@ -802,7 +809,7 @@ class PredicaoEnchimento(Base):
     )
 
     id = Column(Integer, primary_key=True, autoincrement=True)
-    coletor_id = Column(Integer, ForeignKey("coletores.id"), nullable=False, unique=True, index=True)
+    coletor_id = Column(Integer, ForeignKey("coletores.id"), nullable=False, index=True)
     predicted_full_at = Column(DateTime)             # quando atinge 90%
     horas_restantes = Column(Float)                  # horas até encher
     confianca_lower = Column(DateTime)               # intervalo inferior
@@ -852,7 +859,7 @@ class TronikScore(Base):
     )
 
     id = Column(Integer, primary_key=True, autoincrement=True)
-    coletor_id = Column(Integer, ForeignKey("coletores.id"), nullable=False, unique=True, index=True)
+    coletor_id = Column(Integer, ForeignKey("coletores.id"), nullable=False, index=True)
     score = Column(Float, nullable=False)             # 0-100
     features_json = Column(String(2000))              # JSON com features usadas
     modelo_usado = Column(String(50))                 # 'heuristica', 'xgboost'
@@ -1093,7 +1100,7 @@ class LocalCandidato(Base):
 
     id = Column(Integer, primary_key=True, autoincrement=True)
     # CONSTRAINT: empresa_id obrigatório para evitar locais órfãos que causam crashes
-    empresa_id = Column(Integer, ForeignKey("empresa_candidata.id"), nullable=False, index=True)
+    empresa_id = Column(Integer, ForeignKey("empresa_candidata.id", ondelete="CASCADE"), nullable=False, index=True)
     endereco = Column(String(500))
     latitude = Column(Float)
     longitude = Column(Float)
@@ -1164,6 +1171,8 @@ class FeatureSnapshotProspeccao(Base):
         Index('idx_feature_snapshot_local', 'local_id'),
         Index('idx_feature_snapshot_qid', 'qid'),
         Index('idx_feature_snapshot_pipeline', 'pipeline_version'),
+        Index('idx_feature_snapshot_pipeline_qid_id', 'pipeline_version', 'qid', 'id'),
+        UniqueConstraint('empresa_id', 'local_id', 'pipeline_version', name='uq_feature_snapshot_empresa_local_pipeline'),
     )
 
     id = Column(Integer, primary_key=True, autoincrement=True)
@@ -1241,13 +1250,14 @@ class ScoreProspeccao(Base):
         Index('idx_score_prospeccao_modelo', 'modelo_id'),
         Index('idx_score_prospeccao_qid_rank', 'qid', 'ranking_contexto'),
         Index('idx_score_prospeccao_prioridade', 'prioridade'),
+        Index('idx_score_prospeccao_modelo_pipeline', 'modelo_id', 'pipeline_version'),
     )
 
     id = Column(Integer, primary_key=True, autoincrement=True)
     snapshot_id = Column(Integer, ForeignKey("feature_snapshot_prospeccao.id"), nullable=False, index=True)
     modelo_id = Column(Integer, ForeignKey("modelo_prospeccao.id"), nullable=False, index=True)
-    empresa_id = Column(Integer, ForeignKey("empresa_candidata.id"), nullable=True, index=True)
-    local_id = Column(Integer, ForeignKey("local_candidato.id"), nullable=True, index=True)
+    empresa_id = Column(Integer, ForeignKey("empresa_candidata.id", ondelete="CASCADE"), nullable=True, index=True)
+    local_id = Column(Integer, ForeignKey("local_candidato.id", ondelete="CASCADE"), nullable=True, index=True)
     qid = Column(String(160), nullable=False, index=True)
     score = Column(Float, nullable=False)
     ranking_contexto = Column(Integer, nullable=False)

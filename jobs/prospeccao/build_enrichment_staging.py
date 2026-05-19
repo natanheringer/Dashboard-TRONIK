@@ -152,7 +152,9 @@ def _write_parquet(records: list[dict[str, Any]], path: Path) -> bool:
         logger.warning("pandas ausente — não foi possível gravar %s", path)
         return False
     path.parent.mkdir(parents=True, exist_ok=True)
-    pd.DataFrame(records).to_parquet(path, index=False)
+    _tmp = path.with_suffix(".tmp.parquet")
+    pd.DataFrame(records).to_parquet(_tmp, index=False)
+    _tmp.replace(path)
     return True
 
 

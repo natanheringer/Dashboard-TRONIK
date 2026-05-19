@@ -60,6 +60,7 @@ _CRM_PERSISTED_LINK_BOOST = 15.0
 _CNPJ_RE = re.compile(
     r"\d{2}\.?\d{3}\.?\d{3}/?\d{4}-?\d{2}|\b\d{14}\b",
 )
+_CNPJ_FLEX_RE = re.compile(r"(?<!\d)(\d[\d\.\-\/\s]{12,24}\d)(?!\d)")
 
 
 @dataclass
@@ -115,12 +116,47 @@ def extract_cnpjs_from_text(text: str | None) -> set[str]:
     """Find valid 14-digit CNPJs embedded in free text (notes / observacoes)."""
     if not text:
         return set()
+    raw = str(text)
     found: set[str] = set()
-    for match in _CNPJ_RE.finditer(str(text)):
+    for match in _CNPJ_RE.finditer(raw):
         cnpj = normalize_cnpj(match.group(0))
         if cnpj:
             found.add(cnpj)
+    for match in _CNPJ_FLEX_RE.finditer(raw):
+        cnpj = normalize_cnpj(match.group(1))
+        if cnpj:
+            found.add(cnpj)
+    digits = _digits_only(raw)
+    if len(digits) == 14:
+        cnpj = normalize_cnpj(digits)
+        if cnpj:
+            found.add(cnpj)
     return found
+
+
+def _normalize_status_text(value: str | None) -> str:
+    if not value:
+        return ""
+    text = unicodedata.normalize("NFKD", str(value))
+    text = "".join(ch for ch in text if not unicodedata.combining(ch))
+    text = text.lower().strip()
+    text = re.sub(r"[^a-z0-9]+", "_", text)
+    text = re.sub(r"_+", "_", text).strip("_")
+    return text
+
+
+def _is_pipeline_won_status(value: str | None) -> bool:
+    status = _normalize_status_text(value)
+    if not status:
+        return False
+    if status in _PIPELINE_WON_STATUSES:
+        return True
+    # Tolerate common free-text variants while keeping old exact matches.
+    if ("fechado" in status and "ganho" in status) or ("closed" in status and "won" in status):
+        return True
+    if status.endswith("_won") or status.startswith("won_"):
+        return True
+    return False
 
 
 def _digits_only(text: str | None) -> str:
@@ -180,10 +216,30 @@ def build_internal_label_index(db: Session, cutoff_date: datetime | None = None)
     by_pipeline_won: dict[str, InternalSiteSignals] = {}
     localizacao_digit_blobs: list[tuple[str, InternalSiteSignals]] = []
     now = datetime.now(timezone.utc)
+    diagnostics: dict[str, int] = {
+        "register_by_norm_name": 0,
+        "register_by_norm_localizacao": 0,
+        "register_by_cnpj": 0,
+        "register_by_pipeline_won": 0,
+        "empty_norm_name": 0,
+        "empty_norm_localizacao": 0,
+        "empty_pipeline_won_key": 0,
+        "coletor_notes_with_cnpj": 0,
+        "coletor_notes_without_cnpj": 0,
+        "coletor_localizacao_with_cnpj": 0,
+        "coletor_localizacao_without_cnpj": 0,
+        "pipeline_observacoes_with_cnpj": 0,
+        "pipeline_observacoes_without_cnpj": 0,
+        "pipeline_rows_total": 0,
+        "pipeline_rows_won": 0,
+        "pipeline_rows_not_won": 0,
+    }
 
     parceiros = {p.id: p for p in db.query(Parceiro).all()}
     for parceiro in parceiros.values():
         key = normalize_org_name(parceiro.nome)
+        if not key:
+            diagnostics["empty_norm_name"] += 1
         _register(
             by_norm_name,
             key,
@@ -192,6 +248,8 @@ def build_internal_label_index(db: Session, cutoff_date: datetime | None = None)
                 parceiro_ativo=bool(parceiro.ativo),
             ),
         )
+        if key:
+            diagnostics["register_by_norm_name"] += 1
 
     coleta_query = db.query(
         Coleta.coletor_id.label("coletor_id"),
@@ -217,11 +275,13 @@ def build_internal_label_index(db: Session, cutoff_date: datetime | None = None)
     fechado_pipeline_ids: set[int] = set()
     pipeline_won_rows = 0
     for pipe in db.query(Pipeline).all():
-        status = (pipe.status or "").strip().lower()
-        if status not in _PIPELINE_WON_STATUSES:
+        diagnostics["pipeline_rows_total"] += 1
+        if not _is_pipeline_won_status(pipe.status):
+            diagnostics["pipeline_rows_not_won"] += 1
             continue
         fechado_pipeline_ids.add(pipe.id)
         pipeline_won_rows += 1
+        diagnostics["pipeline_rows_won"] += 1
         if pipe.coletor_id and pipe.observacoes:
             pipeline_obs_by_coletor.setdefault(pipe.coletor_id, []).append(str(pipe.observacoes))
 
@@ -246,23 +306,44 @@ def build_internal_label_index(db: Session, cutoff_date: datetime | None = None)
 
         loc_key = normalize_org_name(coletor.localizacao)
         _register(by_norm_localizacao, loc_key, signals)
+        if loc_key:
+            diagnostics["register_by_norm_localizacao"] += 1
+        else:
+            diagnostics["empty_norm_localizacao"] += 1
         if parceiro:
-            _register(by_norm_name, normalize_org_name(parceiro.nome), signals)
+            parceiro_key = normalize_org_name(parceiro.nome)
+            _register(by_norm_name, parceiro_key, signals)
+            if parceiro_key:
+                diagnostics["register_by_norm_name"] += 1
+            else:
+                diagnostics["empty_norm_name"] += 1
 
         loc_digits = _digits_only(coletor.localizacao)
         if loc_digits:
             localizacao_digit_blobs.append((loc_digits, signals))
 
         notes = _coletor_notes_text(coletor, pipeline_obs_by_coletor)
-        for cnpj in extract_cnpjs_from_text(notes):
+        note_cnpjs = extract_cnpjs_from_text(notes)
+        if note_cnpjs:
+            diagnostics["coletor_notes_with_cnpj"] += 1
+        else:
+            diagnostics["coletor_notes_without_cnpj"] += 1
+        for cnpj in note_cnpjs:
             cnpj_from_notes += 1
             _register(by_cnpj, cnpj, signals)
-        for cnpj in extract_cnpjs_from_text(coletor.localizacao):
+            diagnostics["register_by_cnpj"] += 1
+
+        loc_cnpjs = extract_cnpjs_from_text(coletor.localizacao)
+        if loc_cnpjs:
+            diagnostics["coletor_localizacao_with_cnpj"] += 1
+        else:
+            diagnostics["coletor_localizacao_without_cnpj"] += 1
+        for cnpj in loc_cnpjs:
             _register(by_cnpj, cnpj, signals)
+            diagnostics["register_by_cnpj"] += 1
 
     for pipe in db.query(Pipeline).all():
-        status = (pipe.status or "").strip().lower()
-        if status not in _PIPELINE_WON_STATUSES:
+        if not _is_pipeline_won_status(pipe.status):
             continue
         coletor = coletor_by_id.get(pipe.coletor_id) if pipe.coletor_id else None
         base = InternalSiteSignals(
@@ -285,11 +366,27 @@ def build_internal_label_index(db: Session, cutoff_date: datetime | None = None)
                 contract_valor_mensal=float(contrato.valor_mensal) if contrato else 0.0,
                 pipeline_won=True,
             )
-            _register(by_pipeline_won, normalize_org_name(coletor.localizacao), base)
+            coletor_loc_key = normalize_org_name(coletor.localizacao)
+            _register(by_pipeline_won, coletor_loc_key, base)
+            if coletor_loc_key:
+                diagnostics["register_by_pipeline_won"] += 1
+            else:
+                diagnostics["empty_pipeline_won_key"] += 1
         if pipe.observacoes:
-            _register(by_pipeline_won, normalize_org_name(pipe.observacoes), base)
-        for cnpj in extract_cnpjs_from_text(pipe.observacoes):
+            obs_key = normalize_org_name(pipe.observacoes)
+            _register(by_pipeline_won, obs_key, base)
+            if obs_key:
+                diagnostics["register_by_pipeline_won"] += 1
+            else:
+                diagnostics["empty_pipeline_won_key"] += 1
+        pipe_obs_cnpjs = extract_cnpjs_from_text(pipe.observacoes)
+        if pipe_obs_cnpjs:
+            diagnostics["pipeline_observacoes_with_cnpj"] += 1
+        else:
+            diagnostics["pipeline_observacoes_without_cnpj"] += 1
+        for cnpj in pipe_obs_cnpjs:
             _register(by_cnpj, cnpj, base)
+            diagnostics["register_by_cnpj"] += 1
 
     stats = {
         "parceiros": len(parceiros),
@@ -304,6 +401,7 @@ def build_internal_label_index(db: Session, cutoff_date: datetime | None = None)
         "cnpj_note_registrations": cnpj_from_notes,
         "coletas_agg_rows": len(coleta_by_coletor),
         "contratos_ativos_coletores": len(contrato_by_coletor),
+        "diagnostics": diagnostics,
         "built_at": now.isoformat(),
     }
     logger.info("labels_internal: index built %s", stats)

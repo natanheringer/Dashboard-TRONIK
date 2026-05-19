@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+from sqlalchemy import func
 from sqlalchemy.orm import Session
 
 from banco_dados.modelos import ContaComercial
@@ -10,10 +11,9 @@ from jobs.prospeccao.labels_internal import normalize_cnpj
 
 
 def _find_by_cnpj_digits(db: Session, cnpj_digits: str) -> ContaComercial | None:
-    for row in db.query(ContaComercial).filter(ContaComercial.cnpj.isnot(None)).all():
-        if normalize_cnpj(row.cnpj) == cnpj_digits:
-            return row
-    return None
+    return db.query(ContaComercial).filter(
+        func.replace(func.replace(ContaComercial.cnpj, '.', ''), '-', '') == cnpj_digits
+    ).first()
 
 
 def _apply_optional_fields(

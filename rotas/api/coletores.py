@@ -134,7 +134,10 @@ def criar_coletor_endpoint():
         except Exception as e:
             logger.warning(f"Erro ao emitir atualização WebSocket: {e}")
 
-        # Geocodificação automática se não tiver coordenadas
+        # Commit inicial do registro antes da geocodificação
+        db.commit()
+
+        # Geocodificação automática se não tiver coordenadas (APÓS commit)
         if not novo_coletor.latitude or not novo_coletor.longitude:
             try:
                 from banco_dados.geocodificacao import geocodificar_endereco
@@ -199,7 +202,10 @@ def atualizar_coletor_endpoint(coletor_id):
         except Exception as e:
             logger.warning(f"Erro ao emitir atualização WebSocket: {e}")
 
-        # Geocodificação automática se necessário
+        # Commit inicial do registro antes da geocodificação
+        db.commit()
+
+        # Geocodificação automática se necessário (APÓS commit)
         if not coordenadas_fornecidas and (localizacao_mudou or not coletor.latitude or not coletor.longitude):
             try:
                 from banco_dados.geocodificacao import geocodificar_endereco

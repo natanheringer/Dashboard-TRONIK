@@ -80,7 +80,7 @@ def _run_powershell_pipeline(
         args.extend(["-BuildLimit", str(build_limit)])
 
     logger.info("[Prospeccao pipeline] invoking %s", " ".join(args))
-    proc = subprocess.run(args, cwd=str(_REPO_ROOT), capture_output=True, text=True)
+    proc = subprocess.run(args, cwd=str(_REPO_ROOT), capture_output=True, text=True, timeout=1800)
     return {
         "mode": "run_pipeline.ps1",
         "ok": proc.returncode == 0,

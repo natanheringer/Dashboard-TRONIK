@@ -4,12 +4,13 @@ from __future__ import annotations
 
 import json
 import logging
+import time
 from collections import Counter, defaultdict
-from datetime import datetime
+from datetime import datetime, timezone
 from statistics import median
 from typing import Any
 
-from sqlalchemy.orm import Session
+from sqlalchemy.orm import Session, joinedload
 
 from banco_dados.modelos import EmpresaCandidata, FeatureSnapshotProspeccao, LocalCandidato
 from jobs.prospeccao.enrichment_proxies import lookup_proxies
@@ -137,17 +138,21 @@ def _compute_feature_statistics(
     bucket: list[tuple],
     feature_names: list[str],
 ) -> dict[str, dict[str, float]]:
-    """Compute mean, nonzero_pct, and max for each feature from sample."""
+    """Compute mean, nonzero_pct, and max for each feature from sample (single-pass)."""
     sample_size = min(10_000, len(bucket))
     sample_idxs = list(range(0, len(bucket), max(1, len(bucket) // sample_size)))[:sample_size]
 
+    # Single-pass: accumulate all features in one loop
+    acc: dict[str, list[float]] = {f: [] for f in feature_names}
+    for idx in sample_idxs:
+        _, _, _, features, _, _ = bucket[idx]
+        for f in feature_names:
+            acc[f].append(features.get(f, 0.0))
+
+    # Compute stats from accumulated values
     feature_stats = {}
     for feat_name in feature_names:
-        vals = []
-        for idx in sample_idxs:
-            _, _, _, features, _, _ = bucket[idx]
-            vals.append(features.get(feat_name, 0.0))
-
+        vals = acc[feat_name]
         nonzero_count = sum(1 for v in vals if v != 0)
         feature_stats[feat_name] = {
             "mean": round(sum(vals) / len(vals) if vals else 0, 4),
@@ -170,18 +175,18 @@ def _check_feature_quality_alerts(
         if stats["nonzero_pct"] < 5.0:
             warnings.append(
                 f"Feature '{feat_name}' is sparse (nonzero_pct={stats['nonzero_pct']}%) "
-                "— probably empty/useless"
+                "-- probably empty/useless"
             )
         if stats["mean"] == 0.0:
             warnings.append(
                 f"Feature '{feat_name}' is constant (mean=0.0) "
-                "— no discriminative power"
+                "-- no discriminative power"
             )
 
     # Check QID coverage for LTR viability
     if unique_qids < 10:
         warnings.append(
-            f"Only {unique_qids} unique QIDs detected — LTR training will be compromised"
+            f"Only {unique_qids} unique QIDs detected  --  LTR training will be compromised"
         )
 
     return warnings
@@ -198,13 +203,17 @@ def build_feature_snapshots(
     if seed_demo:
         seed_demo_candidates(db)
 
-    q = db.query(EmpresaCandidata).order_by(EmpresaCandidata.id.asc())
+    q = (
+        db.query(EmpresaCandidata)
+        .options(joinedload(EmpresaCandidata.locais))
+        .order_by(EmpresaCandidata.id.asc())
+    )
     if limit is not None and limit > 0:
         q = q.limit(limit)
     empresas = q.all()
     total = len(empresas)
     logger.info(
-        "build-features: carregadas %s empresas (limit=%s); montando qid_stats…",
+        "build-features: carregadas %s empresas (limit=%s); montando qid_stats--¦",
         total,
         limit,
     )
@@ -218,29 +227,44 @@ def build_feature_snapshots(
         "use_internal_labels": use_internal_labels,
     }
 
+    # Import fora do loop  --  lookup em sys.modules por iteraÃ§Ã£o Ã© desnecessÃ¡rio
+    from jobs.prospeccao.labels_internal import build_internal_label_index, lookup_internal_score
+
     internal_index = None
     if use_internal_labels:
-        from jobs.prospeccao.labels_internal import build_internal_label_index
-
+        logger.info("build-features: [1/5] carregando labels internas--¦")
+        _t = time.perf_counter()
         internal_index = build_internal_label_index(db)
         stats["internal_label_index"] = internal_index.stats
         internal_matched = 0
         internal_match_by_source: Counter[str] = Counter()
+        logger.info("build-features: labels internas prontas (%.1fs)", time.perf_counter() - _t)
 
     # Pre-compute neighborhood context per qid for spatial density features
+    # Count only ATIVA (active) companies to avoid bloating neighborhood density with inactive records
+    logger.info("build-features: [2/5] qid_stats  --  %s empresas--¦", total)
+    _t = time.perf_counter()
     qid_stats: dict[str, dict[str, int]] = defaultdict(
         lambda: {"qid_total": 0, "qid_ree_compatible": 0},
     )
+    # Cache qid por (empresa_id, local_id)  --  evita recalcular no feature loop
+    qid_cache: dict[tuple[int, int | None], str] = {}
     for i, empresa in enumerate(empresas, start=1):
+        if getattr(empresa, "situacao_cadastral", None) != "ATIVA":
+            continue
         for local in (empresa.locais or [None]):
+            local_id = local.id if local else None
             qid = listwise_training_qid(empresa, local)
+            qid_cache[(empresa.id, local_id)] = qid
             qid_stats[qid]["qid_total"] += 1
             if cnae_ree_fit(getattr(empresa, "cnae_principal", None)) > 0:
                 qid_stats[qid]["qid_ree_compatible"] += 1
-        if i % 10_000 == 0 or i == total:
-            logger.info("build-features: qid_stats %s/%s empresas", i, total)
+        if i % 5_000 == 0 or i == total:
+            logger.info("build-features: qid_stats %s/%s (%.1fs)", i, total, time.perf_counter() - _t)
 
     # Uma leitura em lote evita ~1 SELECT por candidato no loop principal (SQLite ficava horas).
+    logger.info("build-features: [3/5] carregando snapshots existentes--¦")
+    _t = time.perf_counter()
     snapshot_by_key: dict[tuple[int, int | None], FeatureSnapshotProspeccao] = {}
     for snap in (
         db.query(FeatureSnapshotProspeccao)
@@ -249,11 +273,13 @@ def build_feature_snapshots(
     ):
         snapshot_by_key[(snap.empresa_id, snap.local_id)] = snap
     logger.info(
-        "build-features: %s snapshots já existentes para %s; atualizando/inserindo…",
+        "build-features: %s snapshots existentes carregados (%.1fs); iniciando feature loop--¦",
         len(snapshot_by_key),
-        pipeline_version,
+        time.perf_counter() - _t,
     )
 
+    logger.info("build-features: [4/5] feature loop  --  %s empresas--¦", total)
+    _t = time.perf_counter()
     n_label_bins = 8
     bucket: list[
         tuple[EmpresaCandidata, LocalCandidato | None, str, dict[str, float], float, int | None]
@@ -262,7 +288,8 @@ def build_feature_snapshots(
     for i, empresa in enumerate(empresas, start=1):
         locais = empresa.locais or [None]
         for local in locais:
-            qid = listwise_training_qid(empresa, local)
+            local_id = local.id if local else None
+            qid = qid_cache.get((empresa.id, local_id)) or listwise_training_qid(empresa, local)
             lat = getattr(local, "latitude", None) if local else None
             lon = getattr(local, "longitude", None) if local else None
             ra = getattr(local, "ra", None) if local else None
@@ -276,14 +303,11 @@ def build_feature_snapshots(
             )
             raw = heuristic_relevance_continuous(features)
             if internal_index is not None:
-                from jobs.prospeccao.labels_internal import lookup_internal_score
-
                 internal_raw, meta = lookup_internal_score(empresa, local, internal_index)
                 if internal_raw is not None:
                     raw = internal_raw
                     internal_matched += 1
                     internal_match_by_source[meta.get("match_source") or "unknown"] += 1
-            local_id = local.id if local else None
             key = (empresa.id, local_id)
             snapshot = snapshot_by_key.get(key)
             if not snapshot:
@@ -298,12 +322,13 @@ def build_feature_snapshots(
             bucket.append((empresa, local, qid, features, raw, local_id))
             processed_rows += 1
 
-        if i % 10_000 == 0 or i == total:
+        if i % 2_000 == 0 or i == total:
+            elapsed = time.perf_counter() - _t
+            rate = i / elapsed if elapsed > 0 else 0
+            eta = (total - i) / rate if rate > 0 else 0
             logger.info(
-                "build-features: buffer %s/%s empresas (%s linhas)",
-                i,
-                total,
-                processed_rows,
+                "build-features: %s/%s empresas | %s linhas | %.0f emp/s | ETA ~%.0fs",
+                i, total, processed_rows, rate, eta,
             )
 
     if use_internal_labels and internal_index is not None:
@@ -364,8 +389,10 @@ def build_feature_snapshots(
     stats["label_bins"] = n_label_bins
     stats["unique_qids"] = len(qid_stats)
 
+    logger.info("build-features: feature loop concluÃ­do  --  %s linhas (%.1fs)", len(bucket), time.perf_counter() - _t)
+
     # Compute feature statistics on sample (up to 10k rows for memory efficiency)
-    logger.info("build-features: calculando estatísticas por feature na amostra…")
+    logger.info("build-features: calculando estatÃ­sticas por feature na amostra--¦")
     feature_stats = _compute_feature_statistics(bucket, FEATURE_NAMES)
     stats["feature_stats"] = feature_stats
 
@@ -381,10 +408,19 @@ def build_feature_snapshots(
     else:
         logger.info("build-features: sem alertas de qualidade detectados")
 
+    BATCH_SIZE = 50_000
+    logger.info("build-features: [5/5] commit em batches de %s--¦", BATCH_SIZE)
+    _t = time.perf_counter()
+    # Release empresa/local ORM refs  --  only empresa_id needed from here on.
+    # Keeps snapshot_by_key objects in the session (not expunged) so future batches can flush them.
+    bucket = [
+        (e.id, None, qid, features, raw, lid)
+        for e, _, qid, features, raw, lid in bucket
+    ]
+
     # Update snapshots with features and commit in batches to avoid long-running transactions
-    BATCH_SIZE = 5000
     logger.info(
-        "build-features: atualizando %s snapshots em batches de %s (libera locks intermediários)…",
+        "build-features: atualizando %s snapshots em batches de %s (libera locks intermediÃ¡rios)--¦",
         len(bucket),
         BATCH_SIZE,
     )
@@ -392,23 +428,23 @@ def build_feature_snapshots(
     for batch_start in range(0, len(bucket), BATCH_SIZE):
         batch_end = min(batch_start + BATCH_SIZE, len(bucket))
         for idx in range(batch_start, batch_end):
-            empresa, _local, qid, features, raw, local_id = bucket[idx]
-            key = (empresa.id, local_id)
+            empresa_id, _local, qid, features, raw, local_id = bucket[idx]
+            key = (empresa_id, local_id)
             snapshot = snapshot_by_key[key]
             snapshot.qid = qid
             snapshot.label_ordinal = ordinals[idx]
             snapshot.features_json = _json(features)
             snapshot.feature_schema_json = schema_json
-            snapshot.criado_em = datetime.utcnow()
+            snapshot.criado_em = datetime.now(timezone.utc)
 
-        # Flush and commit each batch to release locks and prevent transaction lock-ups
         db.flush()
         db.commit()
         logger.info(
-            "build-features: batch %s/%s snapshots commitado (liberado locks para outras transações)",
+            "build-features: batch %s/%s commitado (%.1fs acumulado)",
             min(batch_end, len(bucket)),
             len(bucket),
+            time.perf_counter() - _t,
         )
 
-    logger.info("Feature snapshots concluído: %s", stats)
+    logger.info("Feature snapshots concluÃ­do: %s", stats)
     return stats

@@ -12,7 +12,7 @@ from pathlib import Path
 from typing import Any
 
 from sqlalchemy import func
-from sqlalchemy.orm import Session
+from sqlalchemy.orm import Session, joinedload
 
 from banco_dados.modelos import EmpresaCandidata, LocalCandidato
 from jobs.prospeccao import paths as pathutil
@@ -52,7 +52,7 @@ def geocode_candidates(db: Session, cnefe_dir: Path | None = None) -> dict[str, 
     stats["already_had_coords"] = already_had
     locais = db.query(LocalCandidato).filter(
         LocalCandidato.latitude.is_(None) | LocalCandidato.longitude.is_(None),
-    ).all()
+    ).options(joinedload(LocalCandidato.empresa)).all()
 
     for local in locais:
         empresa = local.empresa
@@ -94,20 +94,26 @@ def _extract_numero(endereco: str | None) -> str | None:
 # RA point-in-polygon assignment
 # ---------------------------------------------------------------------------
 
-def _load_ra_polygons(geojson_path: Path) -> list[tuple[str, Any]]:
+def _load_ra_polygons(geojson_path: Path) -> tuple[list[tuple[str, Any]], str | None]:
     """Load RA polygons from the geoportal GeoJSON.
 
-    Returns list of (ra_name, shapely_geometry).
+    Returns tuple: (list of (ra_name, shapely_geometry), skip_reason).
     """
     try:
         from shapely.geometry import shape
-    except ImportError:
-        logger.warning("shapely not installed — RA assignment will be skipped")
-        return []
+    except ImportError as exc:
+        logger.warning(
+            "RA assignment skipped: shapely not installed",
+            extra={"event": "ra_assign_skipped", "reason": "missing_shapely", "error": str(exc)},
+        )
+        return [], "missing_shapely"
 
     if not geojson_path.exists():
-        logger.warning("RA GeoJSON not found: %s", geojson_path)
-        return []
+        logger.warning(
+            "RA assignment skipped: GeoJSON not found",
+            extra={"event": "ra_assign_skipped", "reason": "missing_geojson", "path": str(geojson_path)},
+        )
+        return [], "missing_geojson"
 
     with open(geojson_path, encoding="utf-8") as f:
         fc = json.load(f)
@@ -133,12 +139,14 @@ def _load_ra_polygons(geojson_path: Path) -> list[tuple[str, Any]]:
             logger.debug("Could not parse geometry for RA %s", ra_name)
 
     logger.info("Loaded %d RA polygons", len(polygons))
-    return polygons
-
+    return polygons, None
 
 def _point_in_ra(lat: float, lon: float, polygons: list[tuple[str, Any]]) -> str | None:
     """Return the RA name that contains the point, or None."""
-    from shapely.geometry import Point
+    try:
+        from shapely.geometry import Point
+    except ImportError:
+        return None
 
     pt = Point(lon, lat)
     for ra_name, geom in polygons:
@@ -157,11 +165,17 @@ def assign_ra(db: Session, geojson_path: Path | None = None) -> dict[str, int]:
     if geojson_path is None:
         geojson_path = dirs["geoportal"] / "regioes_administrativas.geojson"
 
-    polygons = _load_ra_polygons(geojson_path)
+    polygons, skip_reason = _load_ra_polygons(geojson_path)
     if not polygons:
-        return {"assigned": 0, "no_coords": 0, "outside_df": 0}
+        return {
+            "assigned": 0,
+            "no_coords": 0,
+            "outside_df": 0,
+            "skipped": 1,
+            "skip_reason": skip_reason or "no_polygons",
+        }
 
-    stats = {"assigned": 0, "no_coords": 0, "outside_df": 0}
+    stats = {"assigned": 0, "no_coords": 0, "outside_df": 0, "skipped": 0}
     locais = db.query(LocalCandidato).filter(
         LocalCandidato.ra.is_(None),
         LocalCandidato.latitude.isnot(None),
@@ -194,7 +208,7 @@ def assign_qid(db: Session) -> dict[str, int]:
     across municipalities.
     """
     stats = {"assigned": 0, "orphan": 0}
-    locais = db.query(LocalCandidato).filter(LocalCandidato.qid.is_(None)).all()
+    locais = db.query(LocalCandidato).filter(LocalCandidato.qid.is_(None)).options(joinedload(LocalCandidato.empresa)).all()
 
     for local in locais:
         empresa = local.empresa
@@ -250,15 +264,21 @@ def deduplicate_empresas(db: Session) -> dict[str, int]:
             .all()
         )
         keeper = rows[0]
-        for dup in rows[1:]:
-            reassigned = (
-                db.query(LocalCandidato)
-                .filter_by(empresa_id=dup.id)
-                .update({"empresa_id": keeper.id})
-            )
-            stats["locais_reassigned"] += reassigned
-            db.delete(dup)
-            stats["duplicates_removed"] += 1
+        dup_ids = [dup.id for dup in rows[1:]]
+        if dup_ids:
+            # Reassign locais from all duplicates to keeper
+            for dup_id in dup_ids:
+                reassigned = (
+                    db.query(LocalCandidato)
+                    .filter_by(empresa_id=dup_id)
+                    .update({"empresa_id": keeper.id})
+                )
+                stats["locais_reassigned"] += reassigned
+            # Bulk delete all duplicates
+            db.query(EmpresaCandidata).filter(
+                EmpresaCandidata.id.in_(dup_ids)
+            ).delete(synchronize_session="fetch")
+            stats["duplicates_removed"] += len(dup_ids)
 
     db.flush()
     logger.info("Deduplication: %s", stats)
@@ -371,3 +391,4 @@ def normalize_all(
 
     logger.info("Normalization complete: %s", results)
     return results
+

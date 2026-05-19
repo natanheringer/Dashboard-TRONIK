@@ -46,6 +46,7 @@ $ErrorActionPreference = "Continue"
 $root             = Split-Path -Parent $MyInvocation.MyCommand.Path
 $logDir           = Join-Path $root "data\raw\prospeccao\_reports"
 $checkpointPath   = Join-Path $logDir "pipeline_checkpoint.json"
+$RFB_DUMP_DIR     = if ($env:RFB_DUMP_DIR) { $env:RFB_DUMP_DIR } else { "data/raw/rfb_estabelecimentos" }
 
 if (-not (Test-Path $logDir)) { New-Item -ItemType Directory -Path $logDir -Force | Out-Null }
 
@@ -65,6 +66,7 @@ $allSteps = @(
     "ibram",
     "ibama-ctf",
     "link-crm",
+    "rfb-enrich",
     "build-features",
     "train-ranker",
     "score-candidates"
@@ -116,12 +118,14 @@ function Run-Step {
     }
 
     $logFile = Join-Path $logDir "step_$($Name -replace '[^a-z0-9]','_').log"
-    Write-Host "  -> $Name" -NoNewline -ForegroundColor DarkGray
+    Write-Host "  -> $Name" -ForegroundColor DarkGray
     $sw = [System.Diagnostics.Stopwatch]::StartNew()
 
-    $output = cmd /c "$Cmd 2>&1"
-    $exit   = $LASTEXITCODE
+    # Stream output to console and log file simultaneously
+    cmd /c "$Cmd 2>&1" | Tee-Object -FilePath $logFile
+    $exit = $LASTEXITCODE
     $sw.Stop()
+    $output = Get-Content $logFile -Raw -ErrorAction SilentlyContinue
     $secs   = [math]::Round($sw.Elapsed.TotalSeconds)
 
     $output | Out-File -FilePath $logFile -Encoding utf8
@@ -444,9 +448,17 @@ if ($parallelSteps.Count -gt 0) {
 # FASE 4 - ML Pipeline
 # ---------------------------------------------------------------------------
 
-Write-Phase "FASE 4/4 - ML: link-crm + build-features + train + score"
+Write-Phase "FASE 4/4 - ML: link-crm + rfb-enrich + build-features + train + score"
 
 Run-Step "link-crm" "python -m jobs.prospeccao link-crm"
+
+if (Test-Path $RFB_DUMP_DIR) {
+    Run-Step "rfb-enrich" "python -m jobs.prospeccao rfb-enrich --dump-dir `"$RFB_DUMP_DIR`""
+} else {
+    Write-Host "  -> rfb-enrich" -NoNewline -ForegroundColor DarkGray
+    Write-Host "  PULADO (diretório nao encontrado)" -ForegroundColor DarkGray
+    $stepResults["rfb-enrich"] = @{ ok = $true; secs = 0; skipped = $true }
+}
 
 $buildCmd = "python -m jobs.prospeccao build-features --version $Version"
 if ($DemoOnly)            { $buildCmd += " --seed-demo" }

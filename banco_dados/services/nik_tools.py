@@ -757,7 +757,9 @@ def ferramenta_busca_unificada(
         return {"consulta": "", "itens": [], "resumo": "Consulta vazia."}
 
     tokens = _tokens_busca(consulta or "")
-    like = f"%{termo}%"
+    # Escape special characters for LIKE pattern
+    escaped = termo.replace('\\', '\\\\').replace('%', '\\%').replace('_', '\\_')
+    like = f"%{escaped}%"
     max_itens = max(1, min(int(limite or 8), 30))
     candidatos: list[dict[str, Any]] = []
 
@@ -770,9 +772,9 @@ def ferramenta_busca_unificada(
     if parceiro_id:
         q_coletas = q_coletas.filter(Coleta.parceiro_id == parceiro_id)
     q_coletas = q_coletas.filter(
-        (func.lower(Coletor.localizacao).like(like))
-        | (func.lower(func.coalesce(Parceiro.nome, "")).like(like))
-        | (func.lower(func.coalesce(Coleta.tipo_operacao, "")).like(like))
+        (func.lower(Coletor.localizacao).like(like, escape='\\'))
+        | (func.lower(func.coalesce(Parceiro.nome, "")).like(like, escape='\\'))
+        | (func.lower(func.coalesce(Coleta.tipo_operacao, "")).like(like, escape='\\'))
     )
     for coleta, coletor, parceiro in q_coletas.order_by(Coleta.data_hora.desc()).limit(max_itens * 3).all():
         texto_ref = _normalizar_texto(
@@ -803,11 +805,11 @@ def ferramenta_busca_unificada(
         db.query(Pipeline, Coletor)
         .outerjoin(Coletor, Pipeline.coletor_id == Coletor.id)
         .filter(
-            (func.lower(func.coalesce(Pipeline.status, "")).like(like))
-            | (func.lower(func.coalesce(Pipeline.tipo_servico, "")).like(like))
-            | (func.lower(func.coalesce(Pipeline.origem, "")).like(like))
-            | (func.lower(func.coalesce(Pipeline.observacoes, "")).like(like))
-            | (func.lower(func.coalesce(Coletor.localizacao, "")).like(like))
+            (func.lower(func.coalesce(Pipeline.status, "")).like(like, escape='\\'))
+            | (func.lower(func.coalesce(Pipeline.tipo_servico, "")).like(like, escape='\\'))
+            | (func.lower(func.coalesce(Pipeline.origem, "")).like(like, escape='\\'))
+            | (func.lower(func.coalesce(Pipeline.observacoes, "")).like(like, escape='\\'))
+            | (func.lower(func.coalesce(Coletor.localizacao, "")).like(like, escape='\\'))
         )
         .order_by(Pipeline.atualizado_em.desc())
         .limit(max_itens)
@@ -844,11 +846,11 @@ def ferramenta_busca_unificada(
         .outerjoin(Coletor, ContratoRecorrente.coletor_id == Coletor.id)
         .outerjoin(Parceiro, ContratoRecorrente.parceiro_id == Parceiro.id)
         .filter(
-            (func.lower(func.coalesce(ContratoRecorrente.titulo, "")).like(like))
-            | (func.lower(func.coalesce(ContratoRecorrente.descricao, "")).like(like))
-            | (func.lower(func.coalesce(ContratoRecorrente.status, "")).like(like))
-            | (func.lower(func.coalesce(Parceiro.nome, "")).like(like))
-            | (func.lower(func.coalesce(Coletor.localizacao, "")).like(like))
+            (func.lower(func.coalesce(ContratoRecorrente.titulo, "")).like(like, escape='\\'))
+            | (func.lower(func.coalesce(ContratoRecorrente.descricao, "")).like(like, escape='\\'))
+            | (func.lower(func.coalesce(ContratoRecorrente.status, "")).like(like, escape='\\'))
+            | (func.lower(func.coalesce(Parceiro.nome, "")).like(like, escape='\\'))
+            | (func.lower(func.coalesce(Coletor.localizacao, "")).like(like, escape='\\'))
         )
         .order_by(ContratoRecorrente.atualizado_em.desc())
         .limit(max_itens)

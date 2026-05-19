@@ -46,6 +46,16 @@ SEDE_LNG = float(os.getenv('TRONIK_SEDE_LNG', '-47.8822'))
 # Limiar mínimo de coletas para usar XGBoost
 MIN_COLETAS_XGBOOST = 200
 
+# Ordem explícita de features para XGBoost (schema verificável)
+_XGBOOST_FEATURE_NAMES = [
+    "nivel",
+    "velocidade",
+    "km_sede",
+    "dias_sem_coleta",
+    "lucro_medio",
+    "coletores_proximos",
+]
+
 
 def haversine(lat1: float, lon1: float, lat2: float, lon2: float) -> float:
     """Calcula distância em km entre dois pontos (haversine)."""
@@ -199,14 +209,8 @@ def _score_xgboost(
         import numpy as np
 
         model = joblib.load(model_path)
-        X = np.array([[
-            features['nivel'],
-            features['velocidade'],
-            features['km_sede'],
-            features['dias_sem_coleta'],
-            features['lucro_medio'],
-            features['coletores_proximos'],
-        ]])
+        # Build feature array using explicit schema (raises KeyError if feature missing)
+        X = np.array([[features[f] for f in _XGBOOST_FEATURE_NAMES]])
         score = float(model.predict(X)[0])
         return round(max(0, min(100, score)), 1)
 

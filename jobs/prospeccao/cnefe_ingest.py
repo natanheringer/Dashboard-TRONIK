@@ -44,6 +44,26 @@ def _normalize_logradouro(raw: str) -> str:
     return s
 
 
+def _extract_numero_from_text(raw: str | None) -> str:
+    """Extract a street number token from free-text address."""
+    if not raw:
+        return ""
+    m = re.search(r"(?:,\s*|\s)(\d{1,6})(?:\s|,|$)", raw)
+    return m.group(1) if m else ""
+
+
+def _split_logradouro_numero(logradouro: str | None, numero: str | None) -> tuple[str, str]:
+    """Normalize composed address fields into (logradouro_norm, numero)."""
+    logr_raw = (logradouro or "").strip()
+    num = (numero or "").strip()
+    if not num:
+        num = _extract_numero_from_text(logr_raw)
+    logr_no_num = logr_raw
+    if num:
+        logr_no_num = re.sub(rf"(?:,\s*|\s){re.escape(num)}(?:\s|,|$).*", "", logr_raw).strip(" ,")
+    return _normalize_logradouro(logr_no_num), num
+
+
 def _find_col(headers_lower: list[str], candidates: set[str]) -> int | None:
     for i, h in enumerate(headers_lower):
         if h in candidates:
@@ -157,14 +177,19 @@ def parse_cnefe_zip(
             cep = row[cep_i].strip() if cep_i is not None and len(row) > cep_i else ""
             # Normalize CEP: remove hyphens, spaces, and other non-digits
             cep = "".join(c for c in cep if c.isdigit())
-            logr = _normalize_logradouro(row[logr_i]) if logr_i is not None and len(row) > logr_i else ""
-            num = row[num_i].strip() if num_i is not None and len(row) > num_i else ""
+            logr_raw = row[logr_i] if logr_i is not None and len(row) > logr_i else ""
+            num_raw = row[num_i].strip() if num_i is not None and len(row) > num_i else ""
+            logr, num = _split_logradouro_numero(logr_raw, num_raw)
 
             if not cep and not logr:
                 continue
 
             key = (cep, logr, num)
             lookup[key] = (lat, lon, 1.0)
+            if cep and logr:
+                lookup.setdefault((cep, logr, ""), (lat, lon, 0.8))
+            if cep:
+                lookup.setdefault((cep, "", ""), (lat, lon, 0.5))
             kept += 1
 
         logger.info("CNEFE %s: %d rows scanned, %d kept", zip_path.name, total, kept)
@@ -215,8 +240,7 @@ def geocode_address(
     cep = (cep or "").strip()
     # Normalize CEP: remove hyphens, spaces, and other non-digits
     cep = "".join(c for c in cep if c.isdigit())
-    logr = _normalize_logradouro(logradouro) if logradouro else ""
-    num = (numero or "").strip()
+    logr, num = _split_logradouro_numero(logradouro, numero)
 
     if cep and logr and num:
         hit = lookup.get((cep, logr, num))

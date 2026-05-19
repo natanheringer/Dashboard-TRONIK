@@ -13,7 +13,7 @@ import logging
 import random
 import sys
 from collections import defaultdict
-from datetime import datetime
+from datetime import datetime, timezone
 from typing import Any
 
 from sqlalchemy.orm import Session
@@ -121,6 +121,8 @@ def _load_training_rows(
     return (
         db.query(FeatureSnapshotProspeccao)
         .filter(FeatureSnapshotProspeccao.pipeline_version == pipeline_version)
+        .filter(FeatureSnapshotProspeccao.qid != "unlocated")
+        .filter(FeatureSnapshotProspeccao.qid != "df")
         .order_by(FeatureSnapshotProspeccao.qid.asc(), FeatureSnapshotProspeccao.id.asc())
         .all()
     )
@@ -248,23 +250,21 @@ def _stratified_qid_split(
 ) -> tuple[dict[str, list[FeatureSnapshotProspeccao]], dict[str, list[FeatureSnapshotProspeccao]]]:
     """Hold out entire qid groups so validation measures cross-group generalization.
 
-    TODO: Replace random stratification with temporal split using criado_em field.
-    Current approach uses random.Random(seed=42) which ignores snapshot creation dates.
-    Should instead:
-    1. Sort qids by earliest criado_em timestamp in each group
-    2. Hold out last ~20% (chronologically) for validation
-    3. Use earlier 80% for training
+    Uses temporal split based on snapshot ID (proxy for creation time):
+    - Sort qids by max snapshot ID in each group (most recent)
+    - Hold out last ~20% (chronologically most recent) for validation
+    - Use earlier 80% for training
     This prevents data leakage when snapshots are ordered chronologically.
     """
     qids = [qid for qid, items in grouped.items() if len(items) >= 2]
     if len(qids) < 2:
         return grouped, {}
 
-    rng = random.Random(seed)
-    shuffled = qids[:]
-    rng.shuffle(shuffled)
-    holdout_count = max(1, int(round(len(shuffled) * validation_ratio)))
-    holdout = set(shuffled[:holdout_count])
+    # Sort qids by max ID in each group (proxy for temporal order)
+    qids_sorted = sorted(qids, key=lambda qid: max(item.id for item in grouped[qid]))
+
+    holdout_count = max(1, int(round(len(qids_sorted) * validation_ratio)))
+    holdout = set(qids_sorted[-holdout_count:])  # Hold out most recent qids
 
     # ASSERTION: warn if validation set is suspiciously small (< 5 qids)
     if len(holdout) < 5:
@@ -283,6 +283,8 @@ def _stratified_qid_split(
             train_grouped[qid] = items
     if not val_grouped:
         return grouped, {}
+
+    logger.info("Temporal split: %d train qids, %d val qids", len(train_grouped), len(val_grouped))
     return train_grouped, val_grouped
 
 
@@ -370,7 +372,7 @@ def train_ranker(
     allow_baseline: bool = True,
 ) -> dict[str, Any]:
     rows = _load_training_rows(db, pipeline_version)
-    model_version = model_version or f"{pipeline_version}-{datetime.utcnow().strftime('%Y%m%d%H%M%S')}"
+    model_version = model_version or f"{pipeline_version}-{datetime.now(timezone.utc).strftime('%Y%m%d%H%M%S')}"
     schema_json = rows[0].feature_schema_json if rows else _json(
         [{"name": name, "type": "float", "version": pipeline_version} for name in FEATURE_NAMES]
     )
@@ -382,6 +384,28 @@ def train_ranker(
     grouped = _ensure_multi_item_qids(grouped)
     metrics["groups_after_ltr_preprocess"] = len(grouped)
 
+    # --- Pre-training quality gate: check QID diversity and label monolith ---
+    multi_qids = [q for q, items in grouped.items() if len(items) >= 2]
+    total_snaps = sum(len(v) for v in grouped.values())
+    largest_frac = max(len(v) for v in grouped.values()) / max(total_snaps, 1) if grouped else 0.0
+
+    if len(multi_qids) < 8:
+        raise ValueError(
+            f"Pre-training abort: only {len(multi_qids)} QIDs with size >= 2 "
+            f"(min 8 required for listwise ranking). Insufficient QID diversity."
+        )
+
+    if largest_frac > 0.50:
+        raise ValueError(
+            f"Pre-training abort: largest QID is {largest_frac:.1%} of training set "
+            f"(max 50% allowed). Risk of label collapse."
+        )
+
+    logger.info(
+        "pre-train quality gate OK: %d multi-qids, largest QID %.1f%% of training set",
+        len(multi_qids), largest_frac * 100,
+    )
+
     x, y, group_sizes = _matrix(grouped)
     metrics.update(
         {
@@ -389,6 +413,13 @@ def train_ranker(
             "groups": len(group_sizes),
             "label_distribution": {str(label): y.count(label) for label in sorted(set(y))},
         }
+    )
+
+    # --- Pre-training diagnostic log ---
+    logger.info(
+        "Training data: %d snapshots, %d qids (%d multi-item), "
+        "excluded: unlocated+df",
+        len(rows), len(grouped), len(multi_qids),
     )
 
     enough_for_ranker = (
@@ -629,7 +660,7 @@ def train_ranker(
         metricas_json=_json(metrics),
         artefato_path=artifact_path,
         ativo=should_activate,
-        treinado_em=datetime.utcnow(),
+        treinado_em=datetime.now(timezone.utc),
     )
     db.add(model)
     db.flush()

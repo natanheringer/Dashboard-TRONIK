@@ -189,6 +189,12 @@ def main(argv: list[str] | None = None) -> int:
     )
     s_cdd.add_argument("--max-pages", type=int, default=None, help="Max pages per query (default 200)")
 
+    s_rfb = sub.add_parser("rfb-enrich", help="Enriquece EmpresaCandidata com CNAE+endereço do dump Estabelecimentos da Receita Federal")
+    s_rfb.add_argument("--dump-dir", type=str, required=True, help="Diretório com arquivos Estabelecimentos*.csv")
+    s_rfb.add_argument("--uf", type=str, default="DF", help="UF para filtrar (padrão: DF)")
+    s_rfb.add_argument("--batch-size", type=int, default=5000)
+    s_rfb.add_argument("--dry-run", action="store_true")
+
     args = p.parse_args(argv)
     if args.verbose:
         logging.getLogger().setLevel(logging.DEBUG)
@@ -404,6 +410,23 @@ def main(argv: list[str] | None = None) -> int:
         with session_scope() as db:
             result = fetch_targeted(db, tiers=args.tiers, max_pages_per_query=args.max_pages)
         print(json.dumps(result, ensure_ascii=False, indent=2, default=str))
+        return 0
+
+    if args.cmd == "rfb-enrich":
+        from pathlib import Path
+        from jobs.prospeccao.rfb_estabelecimentos_enrich import enrich_from_rfb_dump
+        from jobs.prospeccao.db import session_scope
+
+        with session_scope() as db:
+            stats = enrich_from_rfb_dump(
+                db,
+                dump_dir=Path(args.dump_dir),
+                uf_filter=args.uf,
+                batch_size=args.batch_size,
+                dry_run=args.dry_run,
+            )
+            db.commit()
+        print(json.dumps(stats, ensure_ascii=False, indent=2, default=str))
         return 0
 
     if args.cmd == "receita-parse":

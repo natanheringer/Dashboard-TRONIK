@@ -79,6 +79,9 @@ class CRMService:
             logger.info(f"Pipeline criado: ID {pipeline.id}, Status: {pipeline.status}")
             db.expunge(pipeline)
             return pipeline
+        except Exception:
+            db.rollback()
+            raise
         finally:
             db.close()
 
@@ -113,6 +116,9 @@ class CRMService:
             logger.info(f"Pipeline {pipeline_id} atualizado para status: {novo_status}")
             db.expunge(pipeline)
             return pipeline
+        except Exception:
+            db.rollback()
+            raise
         finally:
             db.close()
 
@@ -141,6 +147,9 @@ class CRMService:
             logger.info(f"Interação registrada: Pipeline {pipeline_id}, Tipo: {tipo}")
             db.expunge(interacao)
             return interacao
+        except Exception:
+            db.rollback()
+            raise
         finally:
             db.close()
 
@@ -338,6 +347,9 @@ class CRMService:
             logger.info(f"Tarefa criada: ID {tarefa.id}, Título: {tarefa.titulo}")
             db.expunge(tarefa)
             return tarefa
+        except Exception:
+            db.rollback()
+            raise
         finally:
             db.close()
 
@@ -362,6 +374,9 @@ class CRMService:
             logger.info(f"Tarefa {tarefa_id} concluída")
             db.expunge(tarefa)
             return tarefa
+        except Exception:
+            db.rollback()
+            raise
         finally:
             db.close()
 

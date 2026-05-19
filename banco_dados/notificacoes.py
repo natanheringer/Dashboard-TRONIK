@@ -39,23 +39,32 @@ def verificar_alertas_lixeiras(db: Session) -> list[dict]:
     alertas = []
 
     try:
+        from datetime import timedelta
+        limite_tempo = utc_now_naive() - timedelta(hours=24)
+
         coletores = db.query(Coletor).filter(
             Coletor.nivel_preenchimento > NIVEL_ALERTA_LIXEIRA,
             Coletor.status != "QUEBRADA"
         ).all()
 
+        # Pré-carregar todas as notificações recentes para os coletores (evita N+1)
+        coletor_ids = [c.id for c in coletores]
+        notificacoes_recentes = db.query(Notificacao).filter(
+            Notificacao.coletor_id.in_(coletor_ids),
+            Notificacao.tipo == 'lixeira_cheia',
+            Notificacao.criada_em >= limite_tempo
+        ).all()
+
+        # Criar dicionário {coletor_id: [notificacoes]} para lookup O(1)
+        notificacoes_por_coletor = {}
+        for notif in notificacoes_recentes:
+            if notif.coletor_id not in notificacoes_por_coletor:
+                notificacoes_por_coletor[notif.coletor_id] = []
+            notificacoes_por_coletor[notif.coletor_id].append(notif)
+
         for coletor in coletores:
             # Verificar se já existe notificação recente (últimas 24h)
-            from datetime import timedelta
-            limite_tempo = utc_now_naive() - timedelta(hours=24)
-
-            notificacao_recente = db.query(Notificacao).filter(
-                Notificacao.coletor_id == coletor.id,
-                Notificacao.tipo == 'lixeira_cheia',
-                Notificacao.criada_em >= limite_tempo
-            ).first()
-
-            if not notificacao_recente:
+            if coletor.id not in notificacoes_por_coletor:
                 alertas.append({
                     'coletor_id': coletor.id,
                     'localizacao': coletor.localizacao,
@@ -79,23 +88,39 @@ def verificar_alertas_sensores(db: Session) -> list[dict]:
     alertas = []
 
     try:
+        from datetime import timedelta
+        limite_tempo = utc_now_naive() - timedelta(hours=24)
+
         sensores = db.query(Sensor).filter(
             Sensor.bateria < NIVEL_ALERTA_BATERIA
         ).all()
 
+        # Pré-carregar todas as notificações recentes para os sensores (evita N+1)
+        sensor_ids = [s.id for s in sensores]
+        notificacoes_recentes = db.query(Notificacao).filter(
+            Notificacao.sensor_id.in_(sensor_ids),
+            Notificacao.tipo == 'bateria_baixa',
+            Notificacao.criada_em >= limite_tempo
+        ).all()
+
+        # Criar dicionário {sensor_id: [notificacoes]} para lookup O(1)
+        notificacoes_por_sensor = {}
+        for notif in notificacoes_recentes:
+            if notif.sensor_id not in notificacoes_por_sensor:
+                notificacoes_por_sensor[notif.sensor_id] = []
+            notificacoes_por_sensor[notif.sensor_id].append(notif)
+
+        # Pré-carregar todos os coletores relevantes (evita N+1)
+        coletor_ids = list(set(s.coletor_id for s in sensores))
+        coletores = db.query(Coletor).filter(Coletor.id.in_(coletor_ids)).all()
+
+        # Criar dicionário {coletor_id: coletor} para lookup O(1)
+        coletores_por_id = {c.id: c for c in coletores}
+
         for sensor in sensores:
             # Verificar se já existe notificação recente (últimas 24h)
-            from datetime import timedelta
-            limite_tempo = utc_now_naive() - timedelta(hours=24)
-
-            notificacao_recente = db.query(Notificacao).filter(
-                Notificacao.sensor_id == sensor.id,
-                Notificacao.tipo == 'bateria_baixa',
-                Notificacao.criada_em >= limite_tempo
-            ).first()
-
-            if not notificacao_recente:
-                coletor = db.query(Coletor).filter(Coletor.id == sensor.coletor_id).first()
+            if sensor.id not in notificacoes_por_sensor:
+                coletor = coletores_por_id.get(sensor.coletor_id)
                 alertas.append({
                     'sensor_id': sensor.id,
                     'coletor_id': sensor.coletor_id,
@@ -243,6 +268,13 @@ def processar_alertas(db: Session) -> dict[str, int]:
     }
 
     try:
+        # Pré-carregar todos os admins uma vez (evita N+1)
+        admins = db.query(Usuario).filter(
+            Usuario.admin,
+            Usuario.ativo
+        ).all()
+        emails_admins = [admin.email for admin in admins if admin.email]
+
         # Verificar alertas de coletores
         alertas_lixeiras = verificar_alertas_lixeiras(db)
         for alerta in alertas_lixeiras:
@@ -256,35 +288,26 @@ def processar_alertas(db: Session) -> dict[str, int]:
                     coletor_id=alerta['coletor_id']
                 )
 
-                # Obter emails de admins
-                admins = db.query(Usuario).filter(
-                    Usuario.admin,
-                    Usuario.ativo
-                ).all()
+                if emails_admins:
+                    corpo_html = f"""
+                    <html>
+                    <body style="font-family: Arial, sans-serif; line-height: 1.6; color: #333;">
+                        <h2 style="color: #27ae60;">⚠️ Alerta: Coletor com Nível Alto</h2>
+                        <p><strong>Coletor:</strong> #{alerta['coletor_id']} - {alerta['localizacao']}</p>
+                        <p><strong>Nível de Preenchimento:</strong> {alerta['nivel']:.1f}%</p>
+                        <p><strong>Status:</strong> {alerta['status']}</p>
+                        <p style="margin-top: 20px; color: #666; font-size: 12px;">
+                            Dashboard-TRONIK - Sistema de Monitoramento
+                        </p>
+                    </body>
+                    </html>
+                    """
 
-                if admins:
-                    emails = [admin.email for admin in admins if admin.email]
-
-                    if emails:
-                        corpo_html = f"""
-                        <html>
-                        <body style="font-family: Arial, sans-serif; line-height: 1.6; color: #333;">
-                            <h2 style="color: #27ae60;">⚠️ Alerta: Coletor com Nível Alto</h2>
-                            <p><strong>Coletor:</strong> #{alerta['coletor_id']} - {alerta['localizacao']}</p>
-                            <p><strong>Nível de Preenchimento:</strong> {alerta['nivel']:.1f}%</p>
-                            <p><strong>Status:</strong> {alerta['status']}</p>
-                            <p style="margin-top: 20px; color: #666; font-size: 12px;">
-                                Dashboard-TRONIK - Sistema de Monitoramento
-                            </p>
-                        </body>
-                        </html>
-                        """
-
-                        if enviar_email_com_retry(emails, notificacao.titulo, corpo_html):
-                            notificacao.enviada = True
-                            notificacao.enviada_em = utc_now_naive()
-                            db.commit()
-                            stats['emails_enviados'] += len(emails)
+                    if enviar_email_com_retry(emails_admins, notificacao.titulo, corpo_html):
+                        notificacao.enviada = True
+                        notificacao.enviada_em = utc_now_naive()
+                        db.commit()
+                        stats['emails_enviados'] += len(emails_admins)
 
                 stats['lixeiras_alertadas'] += 1
             except Exception as e:
@@ -305,35 +328,26 @@ def processar_alertas(db: Session) -> dict[str, int]:
                     coletor_id=alerta['coletor_id']
                 )
 
-                # Obter emails de admins
-                admins = db.query(Usuario).filter(
-                    Usuario.admin,
-                    Usuario.ativo
-                ).all()
+                if emails_admins:
+                    corpo_html = f"""
+                    <html>
+                    <body style="font-family: Arial, sans-serif; line-height: 1.6; color: #333;">
+                        <h2 style="color: #f39c12;">🔋 Alerta: Bateria Baixa</h2>
+                        <p><strong>Sensor:</strong> #{alerta['sensor_id']}</p>
+                        <p><strong>Coletor:</strong> #{alerta['coletor_id']} - {alerta['localizacao']}</p>
+                        <p><strong>Nível de Bateria:</strong> {alerta['bateria']:.1f}%</p>
+                        <p style="margin-top: 20px; color: #666; font-size: 12px;">
+                            Dashboard-TRONIK - Sistema de Monitoramento
+                        </p>
+                    </body>
+                    </html>
+                    """
 
-                if admins:
-                    emails = [admin.email for admin in admins if admin.email]
-
-                    if emails:
-                        corpo_html = f"""
-                        <html>
-                        <body style="font-family: Arial, sans-serif; line-height: 1.6; color: #333;">
-                            <h2 style="color: #f39c12;">🔋 Alerta: Bateria Baixa</h2>
-                            <p><strong>Sensor:</strong> #{alerta['sensor_id']}</p>
-                            <p><strong>Coletor:</strong> #{alerta['coletor_id']} - {alerta['localizacao']}</p>
-                            <p><strong>Nível de Bateria:</strong> {alerta['bateria']:.1f}%</p>
-                            <p style="margin-top: 20px; color: #666; font-size: 12px;">
-                                Dashboard-TRONIK - Sistema de Monitoramento
-                            </p>
-                        </body>
-                        </html>
-                        """
-
-                        if enviar_email_com_retry(emails, notificacao.titulo, corpo_html):
-                            notificacao.enviada = True
-                            notificacao.enviada_em = utc_now_naive()
-                            db.commit()
-                            stats['emails_enviados'] += len(emails)
+                    if enviar_email_com_retry(emails_admins, notificacao.titulo, corpo_html):
+                        notificacao.enviada = True
+                        notificacao.enviada_em = utc_now_naive()
+                        db.commit()
+                        stats['emails_enviados'] += len(emails_admins)
 
                 stats['sensores_alertados'] += 1
             except Exception as e:

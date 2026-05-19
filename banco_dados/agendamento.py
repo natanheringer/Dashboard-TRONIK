@@ -166,29 +166,10 @@ def processar_alertas_job():
     try:
         logger.info("🔄 Iniciando processamento automático de alertas...")
 
-        # Conectar ao banco de dados
-        database_url = os.getenv('DATABASE_URL', 'sqlite:///tronik.db')
+        # Criar sessão usando o singleton de utils
+        from banco_dados.utils.db_session import get_db_session
 
-        # Apply SQLite WAL configuration if using SQLite
-        if database_url.startswith('sqlite'):
-            engine = create_engine(
-                database_url,
-                echo=False,
-                connect_args={
-                    "timeout": 60,
-                    "check_same_thread": False,
-                },
-            )
-            with engine.begin() as conn:
-                conn.execute("PRAGMA journal_mode=WAL")
-                conn.execute("PRAGMA synchronous=NORMAL")
-        else:
-            engine = create_engine(database_url, echo=False)
-
-        SessionLocal = sessionmaker(bind=engine)
-
-        # Criar sessão
-        db = SessionLocal()
+        db = get_db_session()
 
         try:
             # Processar alertas
