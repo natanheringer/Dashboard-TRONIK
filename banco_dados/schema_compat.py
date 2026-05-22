@@ -138,3 +138,11 @@ def aplicar_compat_schema(engine) -> None:
         )
     else:
         _add_column_if_missing("pipeline", "conta_comercial_id", "INTEGER")
+
+    # Performance: composite index for priority-tier queries on score_prospeccao (1M+ rows)
+    if "score_prospeccao" in insp.get_table_names():
+        with engine.begin() as conn:
+            conn.execute(text(
+                "CREATE INDEX IF NOT EXISTS idx_score_prospeccao_modelo_prio_score "
+                "ON score_prospeccao (modelo_id, prioridade, score DESC)"
+            ))

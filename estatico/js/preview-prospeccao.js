@@ -121,24 +121,24 @@
     }
   }
 
-  function mapLink(local) {
+  function mapLink(local, item) {
     if (!local) return "—";
     var lat = local.latitude;
     var lon = local.longitude;
     if (lat == null || lon == null) return "—";
+    var empresa = (item && item.empresa) || {};
+    var label = empresa.razao_social || empresa.nome_fantasia || "Candidato REE";
     var url =
-      "https://www.openstreetmap.org/?mlat=" +
+      "/preview/mapa?prosp_lat=" +
       encodeURIComponent(lat) +
-      "&mlon=" +
+      "&prosp_lon=" +
       encodeURIComponent(lon) +
-      "#map=17/" +
-      encodeURIComponent(lat) +
-      "/" +
-      encodeURIComponent(lon);
+      "&prosp_label=" +
+      encodeURIComponent(label);
     return (
       '<a class="prosp-map-link" href="' +
       esc(url) +
-      '" target="_blank" rel="noopener noreferrer">Ver mapa</a>'
+      '">Ver mapa</a>'
     );
   }
 
@@ -208,7 +208,7 @@
           topMotivos(item.motivos) +
           "</td>" +
           "<td>" +
-          mapLink(item.local) +
+          mapLink(item.local, item) +
           "</td>" +
           "<td>" +
           crmActionCell(item) +
@@ -277,7 +277,7 @@
       var controller = new AbortController();
       var timeout = setTimeout(function () {
         controller.abort();
-      }, 30000); // 30 segundo timeout
+      }, 90000); // 90 segundo timeout (query pesada em SQLite com 1M+ rows)
 
       var resp = await fetch(url, {
         credentials: "same-origin",

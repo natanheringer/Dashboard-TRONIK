@@ -96,6 +96,12 @@ def obter_lixeira(coletor_id):
         if not coletor:
             raise ErroNaoEncontrado("Coletor", coletor_id)
 
+        # [SEGURANÇA] Verificar se o usuário tem acesso ao coletor deste parceiro
+        from flask_login import current_user
+        parceiro_id = escopo_parceiro_id()
+        if parceiro_id is not None and coletor.parceiro_id != parceiro_id:
+            return jsonify({"erro": "Acesso negado"}), 403
+
         return jsonify(coletor_para_dict(coletor))
     except Exception as e:
         return tratar_erro_api(e)
@@ -173,6 +179,11 @@ def atualizar_coletor_endpoint(coletor_id):
         coletor = db.query(Coletor).filter(Coletor.id == coletor_id).first()
         if not coletor:
             raise ErroNaoEncontrado("Coletor", coletor_id)
+
+        # [SEGURANÇA] Verificar se o usuário tem acesso ao coletor deste parceiro
+        parceiro_id = escopo_parceiro_id()
+        if parceiro_id is not None and coletor.parceiro_id != parceiro_id:
+            return jsonify({"erro": "Acesso negado"}), 403
 
         from banco_dados.utils.validacao import sanitizar_dados_entrada, validar_dados_requisicao
 
@@ -261,6 +272,11 @@ def geocodificar_lixeira(coletor_id):
         coletor = db.query(Coletor).filter(Coletor.id == coletor_id).first()
         if not coletor:
             raise ErroNaoEncontrado("Coletor", coletor_id)
+
+        # [SEGURANÇA] Verificar se o usuário tem acesso ao coletor deste parceiro
+        parceiro_id = escopo_parceiro_id()
+        if parceiro_id is not None and coletor.parceiro_id != parceiro_id:
+            return jsonify({"erro": "Acesso negado"}), 403
 
         from banco_dados.geocodificacao import geocodificar_coletor
         sucesso, mensagem = geocodificar_coletor(db, coletor_id)

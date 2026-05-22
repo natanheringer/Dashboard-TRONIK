@@ -96,7 +96,8 @@ def login():
             logger.info(f"Login bem-sucedido: {usuario.username}")
 
             if request.is_json:
-                return jsonify({
+                from flask import make_response
+                resposta = make_response(jsonify({
                     "mensagem": "Login realizado com sucesso",
                     "usuario": {
                         "id": usuario.id,
@@ -104,7 +105,12 @@ def login():
                         "email": usuario.email,
                         "admin": usuario.admin
                     }
-                }), 200
+                }), 200)
+                # [SEGURANÇA] Evitar cache de dados sensíveis de autenticação
+                resposta.headers['Cache-Control'] = 'no-store, no-cache, must-revalidate, max-age=0'
+                resposta.headers['Pragma'] = 'no-cache'
+                resposta.headers['Expires'] = '0'
+                return resposta
 
             # Redirecionar para página solicitada ou dashboard
             next_page = request.args.get('next')
@@ -131,7 +137,13 @@ def logout():
         logger.info(f"Logout realizado: {username}")
 
         if request.is_json:
-            return jsonify({"mensagem": "Logout realizado com sucesso"}), 200
+            from flask import make_response
+            resposta = make_response(jsonify({"mensagem": "Logout realizado com sucesso"}), 200)
+            # [SEGURANÇA] Evitar cache de dados sensíveis de autenticação
+            resposta.headers['Cache-Control'] = 'no-store, no-cache, must-revalidate, max-age=0'
+            resposta.headers['Pragma'] = 'no-cache'
+            resposta.headers['Expires'] = '0'
+            return resposta
 
         flash("Logout realizado com sucesso", "success")
         return redirect(url_for('auth.login'))
@@ -167,12 +179,21 @@ def registro():
 @login_required
 def usuario_atual():
     """Retorna informações do usuário atual"""
-    return jsonify({
+    from flask import make_response
+
+    resposta = make_response(jsonify({
         "id": current_user.id,
         "username": current_user.username,
         "email": current_user.email,
         "nome_completo": current_user.nome_completo,
         "admin": current_user.admin,
         "ativo": current_user.ativo
-    }), 200
+    }), 200)
+
+    # [SEGURANÇA] Evitar cache de dados sensíveis de autenticação
+    resposta.headers['Cache-Control'] = 'no-store, no-cache, must-revalidate, max-age=0'
+    resposta.headers['Pragma'] = 'no-cache'
+    resposta.headers['Expires'] = '0'
+
+    return resposta
 

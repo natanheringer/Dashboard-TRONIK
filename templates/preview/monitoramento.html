@@ -12,11 +12,11 @@
         </div>
         <div class="page-actions">
           <a class="btn" href="{{ url_for('preview.monitoramento', q=filtro_q, nivel=filtro_nivel) }}">
-            <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15"/></svg>
+            <i data-lucide="refresh-cw" class="icon"></i>
             Atualizar
           </a>
           <a class="btn btn-primary" href="{{ url_for('preview.gestao') }}">
-            <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M12 4v16m8-8H4"/></svg>
+            <i data-lucide="plus" class="icon"></i>
             Gestão de coletores
           </a>
         </div>
@@ -80,7 +80,7 @@
                 <span class="badge {{ c.classe }}">{{ c.badge }}</span>
               </div>
               <div class="coletor-meta">
-                <svg fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2"><path stroke-linecap="round" stroke-linejoin="round" d="M17.657 16.657L13.414 20.9a1.998 1.998 0 01-2.827 0l-4.244-4.243a8 8 0 1111.314 0z"/></svg>
+                <i data-lucide="map-pin" class="icon" style="width: 16px; height: 16px;"></i>
                 {{ c.parceiro }} · {{ c.tipo_material }}
               </div>
               <div class="coletor-level">
@@ -99,13 +99,13 @@
               <div class="coletor-ml">
                 {% if c.ml_predicao %}
                 <span class="ml-tag ml-tag--predicao" title="Previsão ML: enche em ~{{ c.ml_predicao.horas_restantes }}h">
-                  <svg width="10" height="10" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="10"/><polyline points="12 6 12 12 16 14"/></svg>
+                  <i data-lucide="clock" class="icon" style="width: 10px; height: 10px;"></i>
                   {% if c.ml_predicao.horas_restantes %}~{{ c.ml_predicao.horas_restantes }}h{% else %}estável{% endif %}
                 </span>
                 {% endif %}
                 {% if c.ml_score is defined and c.ml_score is not none %}
                 <span class="ml-tag ml-tag--score" title="TRONIK Score">
-                  <svg width="10" height="10" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M13 2L3 14h9l-1 8 10-12h-9l1-8z"/></svg>
+                  <i data-lucide="zap" class="icon" style="width: 10px; height: 10px;"></i>
                   {{ c.ml_score|round(0)|int }}
                 </span>
                 {% endif %}
@@ -188,7 +188,7 @@
         <div class="pagination-controls">
           {% if paginacao.tem_anterior %}
           <a class="btn pagination-btn" href="{{ url_for('preview.monitoramento', q=filtro_q, nivel=filtro_nivel, page=paginacao.pagina_atual-1) }}">
-            <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polyline points="15 18 9 12 15 6"></polyline></svg>
+            <i data-lucide="chevron-left" class="icon"></i>
             Anterior
           </a>
           {% endif %}
@@ -206,7 +206,7 @@
           {% if paginacao.tem_proxima %}
           <a class="btn pagination-btn" href="{{ url_for('preview.monitoramento', q=filtro_q, nivel=filtro_nivel, page=paginacao.pagina_atual+1) }}">
             Próxima
-            <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polyline points="9 18 15 12 9 6"></polyline></svg>
+            <i data-lucide="chevron-right" class="icon"></i>
           </a>
           {% endif %}
         </div>

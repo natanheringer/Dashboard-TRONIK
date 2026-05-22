@@ -55,11 +55,11 @@ def predicao_coletor(coletor_id: int):
             "erros": [],
         })
     except Exception as e:
-        logger.error(f"Erro na predição do coletor {coletor_id}: {e}")
+        logger.error(f"Erro na predição do coletor {coletor_id}: {e}", exc_info=True)
         return jsonify({
             "ok": False,
             "dados": None,
-            "erros": [{"codigo": "ERRO_ML", "mensagem": str(e)}],
+            "erros": [{"codigo": "ERRO_ML", "mensagem": "Erro interno do servidor"}],
         }), 500
     finally:
         db.close()
@@ -79,11 +79,11 @@ def recalcular_predicoes():
         stats = recalcular_predicoes_todos(db)
         return jsonify({"ok": True, "dados": stats, "erros": []})
     except Exception as e:
-        logger.error(f"Erro ao recalcular predições: {e}")
+        logger.error(f"Erro ao recalcular predições: {e}", exc_info=True)
         return jsonify({
             "ok": False,
             "dados": None,
-            "erros": [{"codigo": "ERRO_ML", "mensagem": str(e)}],
+            "erros": [{"codigo": "ERRO_ML", "mensagem": "Erro interno do servidor"}],
         }), 500
     finally:
         db.close()
@@ -110,11 +110,11 @@ def ranking_coletores():
         ranking = obter_ranking(db, limite=limite)
         return jsonify({"ok": True, "dados": ranking, "erros": []})
     except Exception as e:
-        logger.error(f"Erro ao obter ranking: {e}")
+        logger.error(f"Erro ao obter ranking: {e}", exc_info=True)
         return jsonify({
             "ok": False,
             "dados": None,
-            "erros": [{"codigo": "ERRO_ML", "mensagem": str(e)}],
+            "erros": [{"codigo": "ERRO_ML", "mensagem": "Erro interno do servidor"}],
         }), 500
     finally:
         db.close()
@@ -134,11 +134,11 @@ def recalcular_scores():
         stats = recalcular_scores_todos(db)
         return jsonify({"ok": True, "dados": stats, "erros": []})
     except Exception as e:
-        logger.error(f"Erro ao recalcular scores: {e}")
+        logger.error(f"Erro ao recalcular scores: {e}", exc_info=True)
         return jsonify({
             "ok": False,
             "dados": None,
-            "erros": [{"codigo": "ERRO_ML", "mensagem": str(e)}],
+            "erros": [{"codigo": "ERRO_ML", "mensagem": "Erro interno do servidor"}],
         }), 500
     finally:
         db.close()
@@ -186,11 +186,11 @@ def narrativa_parceiro(parceiro_id: int):
 
         return jsonify({"ok": True, "dados": resultado, "erros": []})
     except Exception as e:
-        logger.error(f"Erro na narrativa do parceiro {parceiro_id}: {e}")
+        logger.error(f"Erro na narrativa do parceiro {parceiro_id}: {e}", exc_info=True)
         return jsonify({
             "ok": False,
             "dados": None,
-            "erros": [{"codigo": "ERRO_ML", "mensagem": str(e)}],
+            "erros": [{"codigo": "ERRO_ML", "mensagem": "Erro interno do servidor"}],
         }), 500
     finally:
         db.close()
@@ -222,11 +222,11 @@ def retreinar_modelos():
         logger.info("✅ Todos os modelos retreinados")
         return jsonify({"ok": True, "dados": resultados, "erros": []})
     except Exception as e:
-        logger.error(f"Erro ao retreinar modelos: {e}")
+        logger.error(f"Erro ao retreinar modelos: {e}", exc_info=True)
         return jsonify({
             "ok": False,
             "dados": None,
-            "erros": [{"codigo": "ERRO_ML", "mensagem": str(e)}],
+            "erros": [{"codigo": "ERRO_ML", "mensagem": "Erro interno do servidor"}],
         }), 500
     finally:
         db.close()

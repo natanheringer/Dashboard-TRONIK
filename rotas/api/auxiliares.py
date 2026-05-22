@@ -102,6 +102,7 @@ def obter_estatisticas():
 
 
 @auxiliares_bp.route('/configuracoes', methods=['GET'])
+@login_required
 def obter_configuracoes():
     """Endpoint para obter as configurações do sistema"""
     configuracoes = {

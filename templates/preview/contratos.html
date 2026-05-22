@@ -2,10 +2,6 @@
 {% set current = 'contratos' %}
 {% block title %}Contratos Recorrentes · Tronik{% endblock %}
 
-{% block head_extra %}
-<link rel="stylesheet" href="{{ url_for('static', filename='css/contratos.css') }}">
-{% endblock %}
-
 {% block conteudo %}
 <div class="page-header">
   <div class="page-title-group">
@@ -13,129 +9,130 @@
     <p>Recorrência e receita mensal prevista</p>
   </div>
   <div class="page-actions">
-    <button class="btn btn-secundario" onclick="atualizarContratos()" id="btn-atualizar-contratos">
-      <img src="{{ url_for('static', filename='icons/refresh_icon.png') }}" alt="Atualizar" class="btn-icon"> Atualizar
+    <button class="btn" onclick="atualizarContratos()" id="btn-atualizar-contratos">
+      <i data-lucide="refresh-cw" class="icon"></i>
+      Atualizar
     </button>
-    <button class="btn btn-primario" onclick="abrirModalNovoContrato()">+ Novo Contrato</button>
+    <button class="btn btn-primary" onclick="abrirModalNovoContrato()">
+      <i data-lucide="plus" class="icon"></i>
+      Novo Contrato
+    </button>
   </div>
 </div>
 
-<div class="contratos-container">
-    <!-- Header -->
-        <!-- KPIs -->
-    <div class="kpis-grid">
-        <div class="kpi-card">
-            <h3>Receita Mensal</h3>
-            <p class="kpi-valor" id="kpi-receita-mensal">R$ 0,00</p>
-            <p class="kpi-descricao">Contratos ativos</p>
+<div class="contratos-container" style="max-width: 1400px; margin: 0 auto; padding: var(--space-8); background: var(--paper-page);">
+    <!-- KPIs -->
+    <div class="kpi-row" style="gap: var(--space-6); margin-bottom: var(--space-12);">
+        <div class="kpi">
+          <div class="kpi-label">Receita Mensal</div>
+          <div class="kpi-value" id="kpi-receita-mensal">R$ 0,00</div>
+          <div class="kpi-delta"><strong>Contratos ativos</strong></div>
         </div>
-        <div class="kpi-card">
-            <h3>Total de Contratos</h3>
-            <p class="kpi-valor" id="kpi-total-contratos">0</p>
-            <p class="kpi-descricao" id="kpi-total-desc">Contratos cadastrados</p>
+        <div class="kpi">
+          <div class="kpi-label">Total de Contratos</div>
+          <div class="kpi-value" id="kpi-total-contratos">0</div>
+          <div class="kpi-delta" id="kpi-total-desc"><strong>Cadastrados</strong></div>
         </div>
-        <div class="kpi-card">
-            <h3>Contratos Vencendo</h3>
-            <p class="kpi-valor" id="kpi-vencendo">0</p>
-            <p class="kpi-descricao">Próximos 30 dias</p>
+        <div class="kpi">
+          <div class="kpi-label">Contratos Vencendo</div>
+          <div class="kpi-value" id="kpi-vencendo">0</div>
+          <div class="kpi-delta"><strong>Próximos 30 dias</strong></div>
         </div>
     </div>
 
     <!-- Filtros -->
-    <div class="filtros-section">
-        <div class="card">
-            <div class="card-header">
-                <h3>Filtros</h3>
+    <article class="card" style="margin-bottom: var(--space-12);">
+        <div style="padding: var(--space-6); border-bottom: 1px solid var(--line-subtle);">
+            <h2 style="color: var(--ink-strong); font-size: var(--text-md); margin: 0; font-weight: 600;">Filtros</h2>
+        </div>
+        <div style="padding: var(--space-6); display: grid; grid-template-columns: 1fr 1fr; gap: var(--space-6);">
+            <div>
+                <label style="display: block; color: var(--ink-secondary); font-size: var(--text-sm); margin-bottom: var(--space-2); font-weight: 500;">Status</label>
+                <select id="filtro-status-contrato" style="width: 100%; padding: var(--space-3) var(--space-4); border: 1px solid var(--line-default); border-radius: var(--radius-md); background: var(--paper-card); color: var(--ink-primary); font-size: var(--text-base);" onchange="filtrarContratos()">
+                    <option value="">Todos</option>
+                    <option value="ativo">Ativo</option>
+                    <option value="pausado">Pausado</option>
+                    <option value="cancelado">Cancelado</option>
+                    <option value="vencido">Vencido</option>
+                </select>
             </div>
-            <div class="card-body">
-                <div class="filtros-grid">
-                    <div class="filter-group">
-                        <label for="filtro-status-contrato">Status</label>
-                        <select id="filtro-status-contrato" onchange="filtrarContratos()">
-                            <option value="">Todos</option>
-                            <option value="ativo">Ativo</option>
-                            <option value="pausado">Pausado</option>
-                            <option value="cancelado">Cancelado</option>
-                            <option value="vencido">Vencido</option>
-                        </select>
-                    </div>
-                    <div class="filter-group">
-                        <label for="filtro-coletor-contrato">Coletor/Cliente</label>
-                        <input type="number" id="filtro-coletor-contrato" placeholder="ID da coletor" onchange="filtrarContratos()">
-                    </div>
-                </div>
+            <div>
+                <label style="display: block; color: var(--ink-secondary); font-size: var(--text-sm); margin-bottom: var(--space-2); font-weight: 500;">Coletor/Cliente</label>
+                <input type="number" id="filtro-coletor-contrato" style="width: 100%; padding: var(--space-3) var(--space-4); border: 1px solid var(--line-default); border-radius: var(--radius-md); background: var(--paper-card); color: var(--ink-primary); font-size: var(--text-base);" placeholder="ID da coletor" onchange="filtrarContratos()">
             </div>
         </div>
-    </div>
+    </article>
 
     <!-- Lista de Contratos -->
-    <div class="contratos-section">
-        <div class="card">
-            <div class="card-header">
-                <h3><img src="{{ url_for('static', filename='icons/contract_icon.png') }}" alt="Lista" class="section-icon"> Lista de Contratos</h3>
-            </div>
-            <div class="card-body">
-                <div id="contratos-container">
-                    <p style="text-align: center; color: #64748b; padding: 2rem;">Carregando...</p>
-                </div>
+    <article class="card">
+        <div style="padding: var(--space-6); border-bottom: 1px solid var(--line-subtle);">
+            <h2 style="color: var(--ink-strong); font-size: var(--text-md); margin: 0; font-weight: 600;">Lista de Contratos</h2>
+        </div>
+        <div style="padding: var(--space-6);">
+            <div id="contratos-container">
+                <p style="text-align: center; color: var(--ink-tertiary); padding: var(--space-8);">Carregando...</p>
             </div>
         </div>
-    </div>
+    </article>
 </div>
 
 <!-- Modal Novo Contrato -->
-<div class="modal" id="modal-novo-contrato">
-    <div class="modal-content">
-        <div class="modal-header">
-            <h2>Novo Contrato Recorrente</h2>
-            <button class="modal-close" onclick="fecharModalNovoContrato()">×</button>
+<div style="position: fixed; inset: 0; background: rgba(28, 24, 16, 0.4); display: none; align-items: center; justify-content: center; z-index: 999;" id="modal-novo-contrato">
+    <article class="card" style="width: 90%; max-width: 600px; max-height: 90vh; overflow-y: auto;">
+        <div style="display: flex; justify-content: space-between; align-items: center; padding: var(--space-6); border-bottom: 1px solid var(--line-subtle);">
+            <h2 style="color: var(--ink-strong); margin: 0;">Novo Contrato Recorrente</h2>
+            <button style="background: none; border: none; cursor: pointer; color: var(--ink-tertiary); font-size: 1.5rem;" onclick="fecharModalNovoContrato()">×</button>
         </div>
-        <form id="form-novo-contrato" onsubmit="criarContrato(event)">
-            <div class="form-group">
-                <label for="coletor-id-contrato">Coletor/Cliente *</label>
-                <select id="coletor-id-contrato" name="coletor_id" required>
+        <form id="form-novo-contrato" onsubmit="criarContrato(event)" style="padding: var(--space-6); display: flex; flex-direction: column; gap: var(--space-4);">
+            <div>
+                <label style="display: block; color: var(--ink-secondary); font-size: var(--text-sm); margin-bottom: var(--space-2); font-weight: 500;">Coletor/Cliente <span style="color: var(--signal-critical);">*</span></label>
+                <select id="coletor-id-contrato" name="coletor_id" style="width: 100%; padding: var(--space-3) var(--space-4); border: 1px solid var(--line-default); border-radius: var(--radius-md); background: var(--paper-card); color: var(--ink-primary); font-size: var(--text-base);" required>
                     <option value="">Selecione um coletor...</option>
                 </select>
             </div>
-            <div class="form-group">
-                <label for="titulo-contrato">Título *</label>
-                <input type="text" id="titulo-contrato" name="titulo" required>
+            <div>
+                <label style="display: block; color: var(--ink-secondary); font-size: var(--text-sm); margin-bottom: var(--space-2); font-weight: 500;">Título <span style="color: var(--signal-critical);">*</span></label>
+                <input type="text" id="titulo-contrato" name="titulo" style="width: 100%; padding: var(--space-3) var(--space-4); border: 1px solid var(--line-default); border-radius: var(--radius-md); background: var(--paper-card); color: var(--ink-primary); font-size: var(--text-base);" required>
             </div>
-            <div class="form-group">
-                <label for="valor-mensal-contrato">Valor Mensal (R$) *</label>
-                <input type="number" id="valor-mensal-contrato" name="valor_mensal" step="0.01" min="0" required>
+            <div>
+                <label style="display: block; color: var(--ink-secondary); font-size: var(--text-sm); margin-bottom: var(--space-2); font-weight: 500;">Valor Mensal (R$) <span style="color: var(--signal-critical);">*</span></label>
+                <input type="number" id="valor-mensal-contrato" name="valor_mensal" style="width: 100%; padding: var(--space-3) var(--space-4); border: 1px solid var(--line-default); border-radius: var(--radius-md); background: var(--paper-card); color: var(--ink-primary); font-size: var(--text-base);" step="0.01" min="0" required>
             </div>
-            <div class="form-group">
-                <label for="frequencia-contrato">Frequência de Coleta</label>
-                <select id="frequencia-contrato" name="frequencia_coleta">
-                    <option value="semanal">Semanal</option>
-                    <option value="quinzenal">Quinzenal</option>
-                    <option value="mensal" selected>Mensal</option>
-                    <option value="bimestral">Bimestral</option>
-                </select>
+            <div style="display: grid; grid-template-columns: 1fr 1fr; gap: var(--space-4);">
+                <div>
+                    <label style="display: block; color: var(--ink-secondary); font-size: var(--text-sm); margin-bottom: var(--space-2); font-weight: 500;">Frequência</label>
+                    <select id="frequencia-contrato" name="frequencia_coleta" style="width: 100%; padding: var(--space-3) var(--space-4); border: 1px solid var(--line-default); border-radius: var(--radius-md); background: var(--paper-card); color: var(--ink-primary); font-size: var(--text-base);">
+                        <option value="semanal">Semanal</option>
+                        <option value="quinzenal">Quinzenal</option>
+                        <option value="mensal" selected>Mensal</option>
+                        <option value="bimestral">Bimestral</option>
+                    </select>
+                </div>
+                <div>
+                    <label style="display: block; color: var(--ink-secondary); font-size: var(--text-sm); margin-bottom: var(--space-2); font-weight: 500;">Dia da Coleta</label>
+                    <input type="number" id="dia-coleta-contrato" name="dia_coleta" style="width: 100%; padding: var(--space-3) var(--space-4); border: 1px solid var(--line-default); border-radius: var(--radius-md); background: var(--paper-card); color: var(--ink-primary); font-size: var(--text-base);" min="1" max="31" placeholder="1-31">
+                </div>
             </div>
-            <div class="form-group">
-                <label for="dia-coleta-contrato">Dia da Coleta</label>
-                <input type="number" id="dia-coleta-contrato" name="dia_coleta" min="1" max="31" placeholder="Dia do mês (1-31)">
+            <div style="display: grid; grid-template-columns: 1fr 1fr; gap: var(--space-4);">
+                <div>
+                    <label style="display: block; color: var(--ink-secondary); font-size: var(--text-sm); margin-bottom: var(--space-2); font-weight: 500;">Data de Início <span style="color: var(--signal-critical);">*</span></label>
+                    <input type="date" id="data-inicio-contrato" name="data_inicio" style="width: 100%; padding: var(--space-3) var(--space-4); border: 1px solid var(--line-default); border-radius: var(--radius-md); background: var(--paper-card); color: var(--ink-primary); font-size: var(--text-base);" required>
+                </div>
+                <div>
+                    <label style="display: block; color: var(--ink-secondary); font-size: var(--text-sm); margin-bottom: var(--space-2); font-weight: 500;">Data de Vencimento</label>
+                    <input type="date" id="data-vencimento-contrato" name="data_vencimento" style="width: 100%; padding: var(--space-3) var(--space-4); border: 1px solid var(--line-default); border-radius: var(--radius-md); background: var(--paper-card); color: var(--ink-primary); font-size: var(--text-base);">
+                </div>
             </div>
-            <div class="form-group">
-                <label for="data-inicio-contrato">Data de Início *</label>
-                <input type="date" id="data-inicio-contrato" name="data_inicio" required>
+            <div>
+                <label style="display: block; color: var(--ink-secondary); font-size: var(--text-sm); margin-bottom: var(--space-2); font-weight: 500;">Observações</label>
+                <textarea id="observacoes-contrato" name="observacoes" style="width: 100%; padding: var(--space-3) var(--space-4); border: 1px solid var(--line-default); border-radius: var(--radius-md); background: var(--paper-card); color: var(--ink-primary); font-size: var(--text-base); font-family: inherit; resize: vertical;" rows="3"></textarea>
             </div>
-            <div class="form-group">
-                <label for="data-vencimento-contrato">Data de Vencimento (opcional)</label>
-                <input type="date" id="data-vencimento-contrato" name="data_vencimento">
-            </div>
-            <div class="form-group">
-                <label for="observacoes-contrato">Observações</label>
-                <textarea id="observacoes-contrato" name="observacoes" rows="3"></textarea>
-            </div>
-            <div class="form-actions">
-                <button type="button" class="btn btn-secundario" onclick="fecharModalNovoContrato()">Cancelar</button>
-                <button type="submit" class="btn btn-primario">Criar</button>
+            <div style="display: flex; gap: var(--space-4); justify-content: flex-end; padding-top: var(--space-4); border-top: 1px solid var(--line-subtle);">
+                <button type="button" class="btn" onclick="fecharModalNovoContrato()">Cancelar</button>
+                <button type="submit" class="btn btn-primary">Criar</button>
             </div>
         </form>
-    </div>
+    </article>
 </div>
 {% endblock %}
 

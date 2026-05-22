@@ -15,9 +15,9 @@ from banco_dados.modelos import Coletor, Parceiro, TipoMaterial, Usuario
 class TestConfiguracoes:
     """Testes do endpoint de configurações"""
 
-    def test_obter_configuracoes(self, client):
+    def test_obter_configuracoes(self, auth_client):
         """Testa obter configurações do sistema"""
-        response = client.get('/api/configuracoes')
+        response = auth_client.get('/api/configuracoes')
         assert response.status_code == 200
         data = response.get_json()
         assert 'nivel_alerta' in data

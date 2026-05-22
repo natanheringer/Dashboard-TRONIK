@@ -412,6 +412,30 @@
   border-radius: var(--radius-sm);
 }
 
+/* Badge styles for relatório fonte */
+.nik-badge {
+  display: inline-block;
+  font-size: 10px;
+  font-family: var(--font-mono);
+  font-weight: 600;
+  text-transform: uppercase;
+  letter-spacing: 0.05em;
+  padding: 2px 8px;
+  border-radius: 3px;
+  background: var(--tronik-soft);
+  color: var(--tronik);
+}
+
+.nik-badge--fallback {
+  background: rgba(255, 193, 7, 0.2);
+  color: #ff9800;
+}
+
+.nik-badge--ia {
+  background: rgba(46, 125, 50, 0.2);
+  color: #2e7d32;
+}
+
 @media (max-width: 768px) {
   .rel-layout {
     grid-template-columns: 1fr;

@@ -38,12 +38,12 @@ PROTECTED_GET_PATHS = [
     "/api/tipos/material",
     "/api/tipos/sensor",
     "/api/tipos/coletor",
+    "/api/configuracoes",
 ]
 
-# GETs auxiliares que permanecem públicos (health probe / config estática)
+# GETs auxiliares que permanecem públicos (health probe)
 PUBLIC_AUX_GET_PATHS = [
     "/api/health",
-    "/api/configuracoes",
 ]
 
 

@@ -59,6 +59,21 @@ def db_session(test_db):
         Parceiro,
         Sensor,
         Usuario,
+        # 14 Tabelas ML
+        ScoreProspeccao,
+        FeatureSnapshotProspeccao,
+        ModeloProspeccao,
+        LeituraSensor,
+        PredicaoEnchimento,
+        TronikScore,
+        NarrativaGerada,
+        NikConversa,
+        NikRelatorioGerado,
+        EmpresaCandidata,
+        LocalCandidato,
+        FontePublicaRegistro,
+        ContaComercial,
+        SolicitacaoColetor,
     )
 
     Session = sessionmaker(bind=test_db)
@@ -66,6 +81,41 @@ def db_session(test_db):
 
     try:
         # Limpar dados (manter tipos que são populados no seed)
+        # Ordem de limpeza: filhos antes dos pais (respeitando ForeignKeys)
+
+        # Tier 1: Scores (dependem de FeatureSnapshotProspeccao e ModeloProspeccao)
+        session.query(ScoreProspeccao).delete()
+
+        # Tier 2: Snapshots de Features (dependem de Empresa e Local)
+        session.query(FeatureSnapshotProspeccao).delete()
+
+        # Tier 3: Modelos de Prospecção
+        session.query(ModeloProspeccao).delete()
+
+        # Tier 4: Locais Candidatos (dependem de Empresa, tem ondelete=CASCADE)
+        session.query(LocalCandidato).delete()
+
+        # Tier 5: Conta Comercial (depende de Empresa)
+        session.query(ContaComercial).delete()
+
+        # Tier 6: Empresas Candidatas, Fonte Pública (não têm dependentes além de LocalCandidato e ContaComercial)
+        session.query(EmpresaCandidata).delete()
+        session.query(FontePublicaRegistro).delete()
+
+        # Tier 7: Leitura Sensor, Predições e Scores TRONIK (dependem de Coletor/Sensor)
+        session.query(LeituraSensor).delete()
+        session.query(PredicaoEnchimento).delete()
+        session.query(TronikScore).delete()
+
+        # Tier 8: Narrativas, Nik Reports, Nik Conversas (dependem de Parceiro/Usuario)
+        session.query(NarrativaGerada).delete()
+        session.query(NikRelatorioGerado).delete()
+        session.query(NikConversa).delete()
+
+        # Tier 9: Solicitação Coletor
+        session.query(SolicitacaoColetor).delete()
+
+        # Limpeza das tabelas originais (não-ML)
         session.query(Coleta).delete()
         session.query(Sensor).delete()
         session.query(Coletor).delete()

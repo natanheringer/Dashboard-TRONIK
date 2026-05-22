@@ -187,6 +187,8 @@
     <script src="{{ url_for('static', filename='js/mapa/exportacao.js') }}?v={{ cache_version }}"></script>
     <!-- Socket.IO para WebSocket -->
     <script src="https://cdn.socket.io/4.5.4/socket.io.min.js" crossorigin="anonymous"></script>
+    <!-- Lucide Icons -->
+    <script src="https://unpkg.com/lucide@0.468.0/dist/umd/lucide.min.js"></script>
     <!-- Utilitários (devem ser carregados antes de api.js) -->
     <script src="{{ url_for('static', filename='js/utils/logger.js') }}?v={{ cache_version }}"></script>
     <script src="{{ url_for('static', filename='js/utils/retry.js') }}?v={{ cache_version }}"></script>
@@ -204,6 +206,10 @@
         document.addEventListener('DOMContentLoaded', function() {
             if (window.WebSocketClient) {
                 window.WebSocketClient.conectar();
+            }
+            // Inicializar Lucide Icons
+            if (window.lucide) {
+                lucide.createIcons();
             }
         });
     </script>

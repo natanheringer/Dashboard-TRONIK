@@ -51,17 +51,47 @@ def ops_alerta():
 @nik_bp.route("/ops/relatorio")
 @login_required
 def ops_relatorio():
-    inicio = request.args.get("inicio")
-    fim = request.args.get("fim")
+    # [SEGURANÇA] Validação de parâmetros de entrada
+    MAX_PARAM = 1_000
+
+    inicio = request.args.get("inicio", "").strip()
+    fim = request.args.get("fim", "").strip()
     parceiro_id = request.args.get("parceiro_id", type=int)
+
+    # Validar tamanho dos parâmetros de data
+    if len(inicio) > MAX_PARAM or len(fim) > MAX_PARAM:
+        return jsonify({"erro": f"Parâmetros excedem limite de {MAX_PARAM} caracteres"}), 413
+
     db = get_db()
     try:
-        return jsonify(nik.narrativa_relatorio(db, inicio, fim, parceiro_id))
+        return jsonify(nik.narrativa_relatorio(db, inicio if inicio else None, fim if fim else None, parceiro_id))
     finally:
         db.close()
 
 
 _DATA_URL_B64 = re.compile(r"^data:image/[\w+.-]+;base64,", re.IGNORECASE)
+
+
+def _validar_magic_bytes_imagem(image_bytes: bytes) -> bool:
+    """Valida os magic bytes reais do arquivo de imagem."""
+    if not image_bytes or len(image_bytes) < 3:
+        return False
+
+    # Magic bytes para formatos suportados
+    # JPEG: FF D8 FF
+    if image_bytes[:3] == b'\xFF\xD8\xFF':
+        return True
+    # PNG: 89 50 4E 47
+    if image_bytes[:4] == b'\x89PNG':
+        return True
+    # GIF: 47 49 46 38 (GIF8)
+    if image_bytes[:6].startswith(b'GIF8'):
+        return True
+    # WebP: RIFF ... WEBP
+    if len(image_bytes) >= 12 and image_bytes[:4] == b'RIFF' and image_bytes[8:12] == b'WEBP':
+        return True
+
+    return False
 
 
 def _decodificar_base64_imagem(raw: str) -> bytes:
@@ -110,6 +140,10 @@ def ops_analisar_imagem():
     if len(image_bytes) > NIK_IMAGEM_MAX_BYTES:
         return jsonify({"erro": "Imagem excede o limite de 4 MB"}), 413
 
+    # [SEGURANÇA] Validar magic bytes reais do arquivo, não confiar no mimetype declarado
+    if not _validar_magic_bytes_imagem(image_bytes):
+        return jsonify({"erro": "Arquivo não é uma imagem válida (JPEG, PNG, GIF ou WebP)"}), 400
+
     db = get_db()
     try:
         resultado = nik.analisar_imagem_coletor(
@@ -127,8 +161,20 @@ def ops_analisar_imagem():
 @nik_bp.route("/ops/conversa", methods=["POST"])
 @login_required
 def ops_conversa():
+    # [SEGURANÇA] Validação de tamanho de mensagem
+    MAX_MENSAGEM = 50_000
+
     payload = request.get_json(silent=True) or {}
-    mensagem = payload.get("mensagem", "")
+    mensagem = payload.get("mensagem", "").strip() if isinstance(payload.get("mensagem"), str) else ""
+
+    # Validar mensagem vazia
+    if not mensagem:
+        return jsonify({"erro": "Mensagem é obrigatória"}), 400
+
+    # Validar tamanho máximo
+    if len(mensagem) > MAX_MENSAGEM:
+        return jsonify({"erro": f"Mensagem excede limite de {MAX_MENSAGEM} caracteres"}), 413
+
     thread_id = payload.get("thread_id") or request.args.get("thread_id") or "main"
     db = get_db()
     try:

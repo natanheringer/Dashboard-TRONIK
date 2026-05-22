@@ -1251,6 +1251,7 @@ class ScoreProspeccao(Base):
         Index('idx_score_prospeccao_qid_rank', 'qid', 'ranking_contexto'),
         Index('idx_score_prospeccao_prioridade', 'prioridade'),
         Index('idx_score_prospeccao_modelo_pipeline', 'modelo_id', 'pipeline_version'),
+        Index('idx_score_prospeccao_modelo_prio_score', 'modelo_id', 'prioridade', 'score'),
     )
 
     id = Column(Integer, primary_key=True, autoincrement=True)

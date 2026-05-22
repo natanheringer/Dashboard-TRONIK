@@ -254,6 +254,14 @@ def mapa():
         sel_id = request.args.get("coletor_id", type=int)
         detalhe = pv.detalhe_coletor_mapa(db, sel_id) if sel_id else None
 
+        # Candidato de prospecção focado (vindo de /preview/prospeccao via "Ver mapa")
+        prosp_lat = request.args.get("prosp_lat", type=float)
+        prosp_lon = request.args.get("prosp_lon", type=float)
+        prosp_label = (request.args.get("prosp_label") or "").strip()[:120]
+        prosp_pin = None
+        if prosp_lat is not None and prosp_lon is not None:
+            prosp_pin = {"lat": prosp_lat, "lon": prosp_lon, "label": prosp_label or "Candidato REE"}
+
         ctx = {
             "current": "mapa",
             "total_coletores": stats["total_coletores"],
@@ -267,6 +275,7 @@ def mapa():
             "sede_mapa": sede,
             "detalhe": detalhe,
             "coletor_selecionado_id": detalhe["id"] if detalhe else None,
+            "prosp_pin": prosp_pin,
         }
         return render_template("preview/mapa.html", **ctx)
     finally:

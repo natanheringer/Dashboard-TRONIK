@@ -1836,7 +1836,7 @@ def _fallback_relatorio_maiara(contexto: dict[str, Any], formato: str) -> dict[s
             f"No período analisado, a operação registrou {resumo.get('total_coletas', 0)} coleta(s), "
             f"{resumo.get('volume_kg', 0)} kg movimentados e {resumo.get('km_total', 0)} km percorridos. "
             f"O principal coletor foi {top_coletor.get('nome', 'N/D')} e o maior volume por parceiro ficou com "
-            f"{top_parceiro.get('nome', 'N/D')}. A leitura abaixo é um fallback estruturado para apoiar a Maiara mesmo quando a geração avançada não estiver disponível."
+            f"{top_parceiro.get('nome', 'N/D')}. Este é um relatório estruturado baseado em dados consolidados."
         ),
         "riscos": [
             "Oscilação de volume entre parceiros pode mascarar gargalos operacionais.",
@@ -1910,6 +1910,11 @@ def gerar_relatorio_maiara(
         else None
     )
     if not relatorio:
+        motivo = "Resposta do modelo falhou" if not resposta.sucesso else "Validação JSON falhou"
+        logger.warning(
+            f"Fallback relatorio_maiara acionado ({motivo}): "
+            f"sucesso={resposta.sucesso}, erro={resposta.erro}, modelo={resposta.modelo_usado}"
+        )
         relatorio = _fallback_relatorio_maiara(contexto, formato)
     else:
         relatorio["visao"] = formato

@@ -169,8 +169,13 @@
                         shell.style.display = "";
                         document.getElementById("maiara-inline-title").textContent = conteudo.titulo || "Relatório executivo";
                         document.getElementById("maiara-inline-summary").textContent = conteudo.resumo_executivo || "";
-                        document.getElementById("maiara-inline-fonte").textContent = data.fonte || "modelo";
+                        document.getElementById("maiara-inline-fonte").textContent = data.fonte === "fallback" ? "Fallback" : "Gerado por IA";
                         document.getElementById("maiara-inline-visao").textContent = data.visao || "executivo";
+                        var badge = document.getElementById("maiara-badge");
+                        if (badge) {
+                          badge.textContent = data.fonte === "fallback" ? "Fallback" : "IA";
+                          badge.className = data.fonte === "fallback" ? "nik-badge nik-badge--fallback" : "nik-badge nik-badge--ia";
+                        }
                         fillList("maiara-inline-riscos", conteudo.riscos || []);
                         fillList("maiara-inline-oportunidades", conteudo.oportunidades || []);
                         fillList("maiara-inline-recomendacoes", conteudo.recomendacoes || []);
@@ -193,7 +198,7 @@
             <div id="maiara-inline-shell" class="nik-container" style="display:none;">
               <section class="nik-card nik-card-landing">
                 <div class="nik-card-head">
-                  <span class="nik-badge">Maiara</span>
+                  <span class="nik-badge" id="maiara-badge">Relatório</span>
                   <span id="maiara-inline-visao" class="nik-status"></span>
                   <span id="maiara-inline-fonte" class="nik-status"></span>
                 </div>
@@ -341,8 +346,13 @@
         shell.style.display = "";
         document.getElementById("maiara-inline-title").textContent = conteudo.titulo || "Relatório executivo";
         document.getElementById("maiara-inline-summary").textContent = conteudo.resumo_executivo || "";
-        document.getElementById("maiara-inline-fonte").textContent = data.fonte || "modelo";
+        document.getElementById("maiara-inline-fonte").textContent = data.fonte === "fallback" ? "Fallback" : "Gerado por IA";
         document.getElementById("maiara-inline-visao").textContent = data.visao || formato;
+        var badge = document.getElementById("maiara-badge");
+        if (badge) {
+          badge.textContent = data.fonte === "fallback" ? "Fallback" : "IA";
+          badge.className = data.fonte === "fallback" ? "nik-badge nik-badge--fallback" : "nik-badge nik-badge--ia";
+        }
         renderSimpleList("maiara-inline-riscos", conteudo.riscos || []);
         renderSimpleList("maiara-inline-oportunidades", conteudo.oportunidades || []);
         renderSimpleList("maiara-inline-recomendacoes", conteudo.recomendacoes || []);

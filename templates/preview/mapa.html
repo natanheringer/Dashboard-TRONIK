@@ -104,6 +104,7 @@
   window.__PREVIEW_MAP__ = {{ marcadores|tojson }};
   window.__PREVIEW_SELECTED__ = {{ coletor_selecionado_id or 'null' }};
   window.__PREVIEW_SEDE__ = {{ sede_mapa|tojson }};
+  window.__PROSPECCAO_PIN__ = {{ prosp_pin|tojson if prosp_pin else 'null' }};
 </script>
 <script src="https://cdn.jsdelivr.net/npm/leaflet@1.9.4/dist/leaflet.js"
         integrity="sha256-20nQCchB9co0qIjJZRGuk2/Z9VM+kNiyxNV1lvTlZBo="
