@@ -29,16 +29,26 @@ def listar_candidatos():
     """
     db = get_db()
     try:
+        limite = request.args.get("limite", 50, type=int)
+        qid = request.args.get("qid") or None
+        prioridade = request.args.get("prioridade") or None
+        model_version = request.args.get("model_version") or None
+
+        logger.debug("Buscando candidatos: limite=%d, qid=%s, prioridade=%s, model_version=%s",
+                     limite, qid, prioridade, model_version)
+
         candidatos = prospeccao_xgb_service.buscar_candidatos_prospeccao(
             db,
-            limite=request.args.get("limite", 50, type=int),
-            qid=request.args.get("qid") or None,
-            prioridade=request.args.get("prioridade") or None,
-            model_version=request.args.get("model_version") or None,
+            limite=limite,
+            qid=qid,
+            prioridade=prioridade,
+            model_version=model_version,
         )
+
+        logger.debug("Retornando %d candidatos", len(candidatos) if candidatos else 0)
         return jsonify({"ok": True, "dados": candidatos, "erros": []})
     except Exception as e:
-        logger.error("Erro ao listar candidatos de prospecção: %s", e)
+        logger.error("Erro ao listar candidatos de prospecção: %s", e, exc_info=True)
         return jsonify({
             "ok": False,
             "dados": None,

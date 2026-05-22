@@ -113,12 +113,19 @@ def list_published_scores(
     if prioridade:
         query = query.filter(ScoreProspeccao.prioridade == prioridade)
 
-    rows = []
-    percentile_cache: dict[str, dict[int, float]] = {}
+    # Fetch results and collect unique QIDs for batch percentile computation
+    result_rows = query.limit(limite).all()
+    if not result_rows:
+        return []
 
-    for score, empresa, local in query.limit(limite).all():
-        if score.qid not in percentile_cache:
-            percentile_cache[score.qid] = percentile_map_for_qid(db, model.id, score.qid)
+    # Collect unique QIDs from results to pre-compute percentiles in bulk
+    unique_qids = set(score.qid for score, _, _ in result_rows)
+    percentile_cache: dict[str, dict[int, float]] = {}
+    for q in unique_qids:
+        percentile_cache[q] = percentile_map_for_qid(db, model.id, q)
+
+    rows = []
+    for score, empresa, local in result_rows:
         pct_map = percentile_cache[score.qid]
         payload = serialize_published_score_row(
             score,

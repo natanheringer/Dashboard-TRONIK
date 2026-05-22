@@ -180,7 +180,7 @@
     var tbody = $("prosp-tbody");
     if (!tbody) return;
 
-    if (!candidatos.length) {
+    if (!candidatos || !Array.isArray(candidatos) || !candidatos.length) {
       tbody.innerHTML =
         '<tr><td colspan="' +
         COLSPAN +
@@ -223,7 +223,7 @@
     var countEl = $("prosp-count");
     var heroEl = $("prosp-hero-text");
     var updatedEl = $("prosp-updated");
-    var n = candidatos.length;
+    var n = candidatos && Array.isArray(candidatos) ? candidatos.length : 0;
 
     if (countEl) {
       countEl.textContent =
@@ -274,7 +274,16 @@
     try {
       var qs = buildQuery();
       var url = API_URL + (qs ? "?" + qs : "");
-      var resp = await fetch(url, { credentials: "same-origin" });
+      var controller = new AbortController();
+      var timeout = setTimeout(function () {
+        controller.abort();
+      }, 30000); // 30 segundo timeout
+
+      var resp = await fetch(url, {
+        credentials: "same-origin",
+        signal: controller.signal
+      });
+      clearTimeout(timeout);
       var body = await resp.json();
 
       if (!resp.ok || !body.ok) {
@@ -288,6 +297,10 @@
       renderRows(candidatos);
       updateMeta(candidatos);
     } catch (err) {
+      var heroEl = $("prosp-hero-text");
+      if (heroEl) {
+        heroEl.textContent = "Erro ao carregar: " + (err.message || "Erro desconhecido");
+      }
       if (tbody) {
         tbody.innerHTML =
           '<tr><td colspan="' + COLSPAN + '" class="prosp-empty">' +
@@ -339,9 +352,16 @@
   async function carregarModelo() {
     var el = $("prosp-modelo");
     try {
+      var controller = new AbortController();
+      var timeout = setTimeout(function () {
+        controller.abort();
+      }, 10000); // 10 segundo timeout para modelo
+
       var resp = await fetch("/api/prospeccao/modelo-ativo", {
         credentials: "same-origin",
+        signal: controller.signal
       });
+      clearTimeout(timeout);
       var body = await resp.json();
       if (!resp.ok || !body.ok || !body.dados) {
         if (el) {
