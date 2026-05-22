@@ -42,8 +42,8 @@
 
 .nikpub-hero {
   position: relative;
-  padding: clamp(20px, 4vh, 48px) clamp(24px, 5vw, 82px) clamp(48px, 7vh, 80px);
-  background: var(--paper-page);
+  padding: clamp(20px, 4vh, 48px) clamp(24px, 5vw, 82px) clamp(64px, 10vh, 120px);
+  background: linear-gradient(135deg, var(--paper-page) 0%, var(--paper-card) 100%);
   overflow: hidden;
 }
 
@@ -52,8 +52,8 @@
   position: absolute;
   inset: 0;
   background:
-    radial-gradient(ellipse 70% 50% at 75% 30%, rgba(26, 93, 58, 0.08) 0%, transparent 55%),
-    radial-gradient(ellipse 45% 40% at 10% 80%, rgba(26, 93, 58, 0.05) 0%, transparent 60%);
+    radial-gradient(ellipse 70% 50% at 75% 30%, rgba(26, 93, 58, 0.12) 0%, transparent 55%),
+    radial-gradient(ellipse 45% 40% at 10% 80%, rgba(26, 93, 58, 0.08) 0%, transparent 60%);
   pointer-events: none;
 }
 
@@ -139,53 +139,58 @@
 
 .nikpub-hero h1 {
   font-family: var(--font-display);
-  font-size: clamp(28px, 4vw, 44px);
+  font-size: clamp(36px, 5.2vw, 52px);
   font-weight: 600;
-  letter-spacing: -0.03em;
-  line-height: 1.15;
-  margin: 16px 0 18px;
+  letter-spacing: -0.035em;
+  line-height: 1.2;
+  margin: 20px 0 24px;
   color: var(--ink-primary);
 }
 
 .nikpub-hero h1 span {
   color: var(--tronik);
-  font-weight: 600;
+  font-weight: 700;
+  display: inline-block;
 }
 
 .nikpub-hero-lead {
   margin: 0;
-  font-size: clamp(15px, 1.5vw, 17px);
-  line-height: 1.7;
+  font-size: clamp(15px, 1.55vw, 18px);
+  line-height: 1.75;
   color: var(--ink-secondary);
-  max-width: 640px;
+  max-width: 580px;
+  font-weight: 400;
 }
 
 .nikpub-section {
-  padding: clamp(56px, 8vh, 96px) clamp(24px, 5vw, 82px);
+  padding: clamp(72px, 10vh, 128px) clamp(24px, 5vw, 82px);
 }
 
 .nikpub-section--dark {
   background: var(--paper-sunk);
   border-top: 1px solid var(--line-subtle);
+  border-bottom: 1px solid var(--line-subtle);
 }
 
 .nikpub-section--elevated {
   background: var(--paper-card);
   border-top: 1px solid var(--line-subtle);
+  border-bottom: 1px solid var(--line-subtle);
 }
 
 .nikpub-section-head {
-  max-width: 720px;
-  margin-bottom: 36px;
+  max-width: 760px;
+  margin-bottom: 48px;
 }
 
 .nikpub-section-head h2 {
   font-family: var(--font-display);
-  font-size: clamp(24px, 3vw, 34px);
+  font-size: clamp(28px, 3.5vw, 42px);
   font-weight: 600;
-  margin: 12px 0 0;
-  letter-spacing: -0.02em;
+  margin: 14px 0 0;
+  letter-spacing: -0.025em;
   color: var(--ink-primary);
+  line-height: 1.2;
 }
 
 .nikpub-section-head p {
@@ -216,24 +221,26 @@
 .nikpub-op-intro-copy .lp-label {
   letter-spacing: 0.14em;
   color: var(--accent-clay);
+  font-weight: 600;
 }
 
 .nikpub-op-intro-copy h2 {
   font-family: var(--font-display);
-  font-size: clamp(26px, 3.2vw, 38px);
+  font-size: clamp(28px, 3.4vw, 40px);
   font-weight: 600;
-  letter-spacing: -0.025em;
-  line-height: 1.14;
-  margin: 14px 0 0;
+  letter-spacing: -0.03em;
+  line-height: 1.18;
+  margin: 16px 0 0;
   color: var(--ink-primary);
 }
 
 .nikpub-op-lead {
-  margin: 18px 0 0;
-  font-size: clamp(16px, 1.45vw, 18px);
-  line-height: 1.72;
+  margin: 20px 0 0;
+  font-size: clamp(16px, 1.5vw, 18px);
+  line-height: 1.75;
   color: var(--ink-secondary);
   max-width: 34em;
+  font-weight: 400;
 }
 
 .nikpub-op-brand {
@@ -266,6 +273,7 @@
 
 .nikpub-op-response {
   min-width: 0;
+  position: relative;
 }
 
 .nikpub-op-stream {
@@ -274,6 +282,7 @@
   background: var(--paper-page);
   overflow: hidden;
   box-shadow: var(--shadow-md);
+  transition: border-color 0.25s ease, box-shadow 0.25s ease;
 }
 
 .nikpub-op-stream-bar {
@@ -295,13 +304,13 @@
 }
 
 .nikpub-op-stream-body h3 {
-  margin: 0 0 18px;
-  font-size: clamp(17px, 1.65vw, 21px);
+  margin: 0 0 20px;
+  font-size: clamp(18px, 1.75vw, 22px);
   font-weight: 600;
   color: var(--ink-primary);
   font-family: var(--font-display);
   letter-spacing: -0.02em;
-  line-height: 1.28;
+  line-height: 1.3;
 }
 
 .nikpub-op-stream-content {
@@ -338,9 +347,9 @@
 .nikpub-op-li-title {
   display: block;
   font-size: 16px;
-  font-weight: 600;
+  font-weight: 700;
   color: var(--ink-primary);
-  margin-bottom: 8px;
+  margin-bottom: 10px;
   font-family: var(--font-display);
   letter-spacing: -0.015em;
 }
@@ -348,7 +357,7 @@
 .nikpub-op-li-desc {
   display: block;
   font-size: 15px;
-  line-height: 1.68;
+  line-height: 1.75;
   color: var(--ink-secondary);
   font-weight: 400;
 }
@@ -400,7 +409,14 @@
   border-radius: 10px;
   border: 1px solid var(--line-default);
   background: var(--paper-card);
-  box-shadow: none;
+  box-shadow: var(--shadow-sm);
+  transition: border-color 0.25s ease, box-shadow 0.25s ease, transform 0.25s ease;
+}
+
+.nikpub-cap-card:hover {
+  border-color: var(--line-strong);
+  box-shadow: var(--shadow-md);
+  transform: translateY(-1px);
 }
 
 .nikpub-cap-card h3 {
@@ -421,7 +437,7 @@
 .nikpub-stream-grid {
   display: grid;
   grid-template-columns: minmax(0, 1fr);
-  gap: 28px;
+  gap: 32px;
   max-width: 1120px;
   margin: 0 auto;
 }
@@ -454,6 +470,7 @@
   background: var(--paper-page);
   overflow: hidden;
   box-shadow: var(--shadow-md);
+  transition: border-color 0.25s ease, box-shadow 0.25s ease;
 }
 
 .nikpub-terminal-bar {
@@ -526,7 +543,7 @@
 .nikpub-faq-chips {
   display: flex;
   flex-wrap: wrap;
-  gap: 10px;
+  gap: 12px;
 }
 
 .nikpub-chip {
@@ -538,9 +555,10 @@
   font-size: 11px;
   letter-spacing: 0.05em;
   text-transform: uppercase;
-  padding: 10px 14px;
-  border-radius: 6px;
-  transition: border-color 0.2s, background 0.2s;
+  padding: 11px 16px;
+  border-radius: 8px;
+  transition: border-color 0.2s, background 0.2s, box-shadow 0.2s;
+  font-weight: 500;
 }
 
 .nikpub-chip:hover,
@@ -548,12 +566,14 @@
   outline: none;
   border-color: var(--line-strong);
   background: var(--paper-elevated);
+  box-shadow: var(--shadow-sm);
 }
 
 .nikpub-chip.is-active {
   border-color: var(--tronik);
   background: var(--tronik-soft);
   color: var(--tronik);
+  font-weight: 600;
 }
 
 .nikpub-faq-panel {
@@ -562,6 +582,7 @@
   border: 1px solid var(--line-default);
   background: var(--paper-page);
   min-height: 120px;
+  transition: border-color 0.25s ease, box-shadow 0.25s ease;
 }
 
 .nikpub-faq-panel--stream {
@@ -598,18 +619,21 @@
 }
 
 .nikpub-faq-panel h3 {
-  margin: 0 0 12px;
-  font-size: 17px;
+  margin: 0 0 14px;
+  font-size: clamp(16px, 1.7vw, 19px);
   font-weight: 600;
   color: var(--ink-primary);
   font-family: var(--font-display);
+  letter-spacing: -0.015em;
+  line-height: 1.3;
 }
 
 .nikpub-faq-panel .nikpub-faq-body {
   margin: 0;
   font-size: 15px;
-  line-height: 1.65;
+  line-height: 1.75;
   color: var(--ink-secondary);
+  font-weight: 400;
 }
 
 .nikpub-faq-panel .nikpub-faq-body p + p {
@@ -662,7 +686,7 @@
 .nikpub-blocos-grid {
   display: flex;
   flex-direction: column;
-  gap: 20px;
+  gap: 28px;
   max-width: 1120px;
   margin: 0 auto;
 }
@@ -718,31 +742,42 @@
 }
 
 .nikpub-blocos-grid .nik-card {
-  border-radius: 10px;
+  border-radius: 12px;
   border: 1px solid var(--line-default);
-  padding: 22px 22px 24px;
+  padding: 26px 28px 28px;
   background: var(--paper-card);
+  box-shadow: var(--shadow-sm);
+  transition: border-color 0.25s ease, box-shadow 0.25s ease, transform 0.25s ease;
+}
+
+.nikpub-blocos-grid .nik-card:hover {
+  border-color: var(--line-strong);
+  box-shadow: var(--shadow-md);
+  transform: translateY(-2px);
 }
 
 .nikpub-blocos-grid .nik-card h3 {
-  margin: 0 0 10px;
-  font-size: 18px;
+  margin: 0 0 12px;
+  font-size: clamp(17px, 1.8vw, 20px);
   font-weight: 600;
   color: var(--ink-primary);
   font-family: var(--font-display);
+  letter-spacing: -0.015em;
 }
 
 .nikpub-blocos-grid .nik-card p {
   margin: 0;
-  font-size: 14px;
-  line-height: 1.65;
+  font-size: 15px;
+  line-height: 1.7;
   color: var(--ink-secondary);
+  font-weight: 400;
 }
 
 .nikpub-blocos-grid .nik-card-subtle {
-  margin-top: 10px;
+  margin-top: 12px;
   font-size: 13px;
   color: var(--ink-tertiary);
+  font-weight: 400;
 }
 
 .nikpub-blocos-grid .nik-card blockquote {
@@ -754,11 +789,12 @@
 }
 
 .nikpub-blocos-grid .nik-metric {
-  font-size: 28px;
-  font-weight: 600;
+  font-size: 32px;
+  font-weight: 700;
   color: var(--tronik);
-  margin: 8px 0;
+  margin: 12px 0;
   font-family: var(--font-display);
+  line-height: 1.1;
 }
 
 @media (max-width: 768px) {
