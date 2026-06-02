@@ -1,0 +1,26 @@
+%% Modelo de dados — núcleo operação
+erDiagram
+  PARCEIRO ||--o{ COLETOR : possui
+  COLETOR ||--o{ SENSOR : tem
+  COLETOR ||--o{ COLETA : registra
+  PARCEIRO {
+    int id PK
+    string nome
+    string cnpj
+  }
+  COLETOR {
+    int id PK
+    string localizacao
+    float nivel_preenchimento
+    int parceiro_id FK
+  }
+  SENSOR {
+    int id PK
+    int coletor_id FK
+    string api_token
+  }
+  COLETA {
+    int id PK
+    int coletor_id FK
+    datetime data_hora
+  }

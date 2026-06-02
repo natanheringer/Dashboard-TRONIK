@@ -16,11 +16,25 @@ Modelos implementados:
 - Coleta: Histórico de coletas realizadas
 """
 
-from sqlalchemy import Column, Integer, String, Float, DateTime, ForeignKey, Boolean, Index
-from sqlalchemy.orm import relationship, declarative_base
+import contextlib
 from datetime import datetime
-from werkzeug.security import generate_password_hash, check_password_hash
+
 from flask_login import UserMixin
+from sqlalchemy import (
+    Boolean,
+    Column,
+    DateTime,
+    Float,
+    ForeignKey,
+    Index,
+    Integer,
+    String,
+    Text,
+    UniqueConstraint,
+)
+from sqlalchemy.orm import declarative_base, relationship
+from werkzeug.security import check_password_hash, generate_password_hash
+
 from banco_dados.utils import utc_now_naive
 
 # Base do SQLAlchemy (todas as tabelas herdam dela)
@@ -39,8 +53,12 @@ class Usuario(Base, UserMixin):
     nome_completo = Column(String(150))
     ativo = Column(Boolean, default=True)
     admin = Column(Boolean, default=False)
+    parceiro_id = Column(Integer, ForeignKey("parceiros.id"), nullable=True, index=True)
     criado_em = Column(DateTime, default=utc_now_naive)
     ultimo_login = Column(DateTime)
+
+    # Relacionamento
+    parceiro = relationship("Parceiro", backref="usuarios")
 
     def set_senha(self, senha):
         """Define a senha do usuário usando hash seguro"""
@@ -66,25 +84,29 @@ class PreferenciaLayout(Base):
 
     id = Column(Integer, primary_key=True, autoincrement=True)
     usuario_id = Column(Integer, ForeignKey("usuarios.id"), nullable=False, unique=True, index=True)
-    
+
     # Ordem dos containers (JSON string com array de IDs)
     ordem_containers = Column(String(2000))  # JSON: ["kpi-meta", "resumo-financeiro", ...]
-    
+
     criado_em = Column(DateTime, default=utc_now_naive)
     atualizado_em = Column(DateTime, default=utc_now_naive, onupdate=utc_now_naive)
-    
+
     # Relacionamento
     usuario = relationship("Usuario", backref="preferencia_layout")
-    
+
     def to_dict(self):
         import json
+        try:
+            ordem = json.loads(self.ordem_containers) if self.ordem_containers else []
+        except (json.JSONDecodeError, TypeError):
+            ordem = []
         return {
             'id': self.id,
             'usuario_id': self.usuario_id,
-            'ordem_containers': json.loads(self.ordem_containers) if self.ordem_containers else [],
+            'ordem_containers': ordem,
             'atualizado_em': self.atualizado_em.isoformat() if self.atualizado_em else None
         }
-    
+
     def __repr__(self):
         return f"<PreferenciaLayout(id={self.id}, usuario_id={self.usuario_id})>"
 
@@ -97,6 +119,7 @@ class Parceiro(Base):
 
     id = Column(Integer, primary_key=True, autoincrement=True)
     nome = Column(String(150), unique=True, nullable=False, index=True)
+    cnpj = Column(String(18), unique=True, nullable=True, index=True)
     ativo = Column(Boolean, default=True)
     criado_em = Column(DateTime, default=utc_now_naive)
 
@@ -104,8 +127,91 @@ class Parceiro(Base):
     coletores = relationship("Coletor", back_populates="parceiro")
     coletas = relationship("Coleta", back_populates="parceiro")
 
+    def to_dict(self):
+        return {
+            'id': self.id,
+            'nome': self.nome,
+            'cnpj': self.cnpj,
+            'ativo': self.ativo,
+            'criado_em': self.criado_em.isoformat() if self.criado_em else None,
+        }
+
     def __repr__(self):
         return f"<Parceiro(id={self.id}, nome='{self.nome}', ativo={self.ativo})>"
+
+
+# ----------------------------------------------------------
+# TABELA: Conta comercial (Loló Account)
+# ----------------------------------------------------------
+class ContaComercial(Base):
+    """Conta comercial unificada (CNPJ, prospecção, parceiro operacional)."""
+    __tablename__ = "conta_comercial"
+    __table_args__ = (
+        Index('idx_conta_comercial_cnpj', 'cnpj'),
+        Index('idx_conta_comercial_parceiro', 'parceiro_id'),
+        Index('idx_conta_comercial_empresa', 'empresa_candidata_id'),
+    )
+
+    id = Column(Integer, primary_key=True, autoincrement=True)
+    cnpj = Column(String(18), unique=True, nullable=True, index=True)
+    razao_social = Column(String(255))
+    nome_fantasia = Column(String(255))
+    parceiro_id = Column(Integer, ForeignKey("parceiros.id"), nullable=True, index=True)
+    empresa_candidata_id = Column(
+        Integer, ForeignKey("empresa_candidata.id"), nullable=True, index=True
+    )
+    criado_em = Column(DateTime, default=utc_now_naive)
+    atualizado_em = Column(DateTime, default=utc_now_naive, onupdate=utc_now_naive)
+
+    parceiro = relationship("Parceiro", backref="contas_comerciais")
+    empresa_candidata = relationship("EmpresaCandidata", backref="conta_comercial")
+
+    def to_dict(self):
+        return {
+            'id': self.id,
+            'cnpj': self.cnpj,
+            'razao_social': self.razao_social,
+            'nome_fantasia': self.nome_fantasia,
+            'parceiro_id': self.parceiro_id,
+            'empresa_candidata_id': self.empresa_candidata_id,
+            'criado_em': self.criado_em.isoformat() if self.criado_em else None,
+            'atualizado_em': self.atualizado_em.isoformat() if self.atualizado_em else None,
+        }
+
+    def __repr__(self):
+        return f"<ContaComercial(id={self.id}, cnpj='{self.cnpj}')>"
+
+
+# ----------------------------------------------------------
+# TABELA: Solicitação de Coletor (Landing)
+# ----------------------------------------------------------
+class SolicitacaoColetor(Base):
+    """Solicitações públicas de interesse em ter um coletor (vindas da landing page)."""
+    __tablename__ = "solicitacoes_coletor"
+
+    id = Column(Integer, primary_key=True, autoincrement=True)
+    nome = Column(String(120), nullable=False)
+    email = Column(String(120), nullable=False)
+    empresa = Column(String(120))
+    localizacao = Column(String(200), nullable=False)
+    mensagem = Column(String(1000))
+    status = Column(String(20), default="pendente", index=True)  # pendente, aprovado, recusado
+    criado_em = Column(DateTime, default=utc_now_naive)
+
+    def to_dict(self):
+        return {
+            'id': self.id,
+            'nome': self.nome,
+            'email': self.email,
+            'empresa': self.empresa,
+            'localizacao': self.localizacao,
+            'mensagem': self.mensagem,
+            'status': self.status,
+            'criado_em': self.criado_em.isoformat() if self.criado_em else None
+        }
+
+    def __repr__(self):
+        return f"<Solicitacao(id={self.id}, nome='{self.nome}', status='{self.status}')>"
 
 
 # ----------------------------------------------------------
@@ -173,7 +279,7 @@ class Coletor(Base):
     nivel_preenchimento = Column(Float, default=0.0)
     status = Column(String(20), default="OK")  # OK, CHEIA, QUEBRADA, etc.
     ultima_coleta = Column(DateTime, default=utc_now_naive)
-    
+
     # NOVOS CAMPOS (substituem coordenadas string e tipo string)
     latitude = Column(Float)  # Coordenada latitude
     longitude = Column(Float)  # Coordenada longitude
@@ -183,8 +289,8 @@ class Coletor(Base):
     # Relacionamentos
     parceiro = relationship("Parceiro", back_populates="coletores")
     tipo_material = relationship("TipoMaterial", back_populates="coletores")
-    sensores = relationship("Sensor", back_populates="coletor", cascade="all, delete-orphan")
-    coletas = relationship("Coleta", back_populates="coletor", cascade="all, delete-orphan")
+    sensores = relationship("Sensor", back_populates="coletor", cascade="all")
+    coletas = relationship("Coleta", back_populates="coletor", cascade="all")
 
     def __repr__(self):
         return f"<Coletor(id={self.id}, local='{self.localizacao}', nivel={self.nivel_preenchimento}%)>"
@@ -218,12 +324,15 @@ class Sensor(Base):
 # ----------------------------------------------------------
 class Coleta(Base):
     __tablename__ = "coletas"
+    __table_args__ = (
+        Index('idx_coleta_data_coletor_parceiro', 'data_hora', 'coletor_id', 'parceiro_id'),
+    )
 
     id = Column(Integer, primary_key=True, autoincrement=True)
     coletor_id = Column(Integer, ForeignKey("coletores.id"), nullable=False, index=True)
     data_hora = Column(DateTime, default=utc_now_naive, index=True)
     volume_estimado = Column(Float)  # Mantido para compatibilidade
-    
+
     # NOVOS CAMPOS (do CSV)
     tipo_operacao = Column(String(50))  # "Avulsa" ou "Campanha"
     km_percorrido = Column(Float)  # Distância percorrida em km
@@ -348,34 +457,37 @@ class Pipeline(Base):
     coletor_id = Column(Integer, ForeignKey("coletores.id"), nullable=True, index=True)  # Nullable para leads sem coletor
     status = Column(String(50), nullable=False, default='lead', index=True)
     # Status: 'lead', 'contato_inicial', 'proposta_enviada', 'negociacao', 'fechado', 'perdido'
-    
+
     valor_estimado = Column(Float, default=0.0)
     probabilidade = Column(Integer, default=10)  # 0-100%
-    
+
     proxima_acao = Column(String(200))
     data_proxima_acao = Column(DateTime, index=True)
     responsavel_id = Column(Integer, ForeignKey("usuarios.id"), nullable=True, index=True)
-    
+    conta_comercial_id = Column(
+        Integer, ForeignKey("conta_comercial.id"), nullable=True, index=True
+    )
+
     origem = Column(String(100))  # 'indicacao', 'site', 'rede_social', 'evento', etc
     tipo_servico = Column(String(100))  # 'coleta', 'palestra', 'oficina', 'contrato'
-    
+
     observacoes = Column(String(1000))
     motivo_perda = Column(String(200))  # Preenchido se status='perdido'
-    
+
     criado_em = Column(DateTime, default=utc_now_naive)
     atualizado_em = Column(DateTime, default=utc_now_naive, onupdate=utc_now_naive)
     fechado_em = Column(DateTime)
-    
+
     # Relacionamentos
     coletor = relationship("Coletor", backref="pipeline_items")
     responsavel = relationship("Usuario", backref="pipeline_responsavel")
+    conta_comercial = relationship("ContaComercial", backref="pipelines")
     interacoes = relationship("Interacao", back_populates="pipeline", cascade="all, delete-orphan", lazy="dynamic")
     tarefas = relationship("Tarefa", back_populates="pipeline", cascade="all, delete-orphan")
-    
+
     def to_dict(self):
-        from datetime import datetime
         from banco_dados.serializers import coletor_para_dict
-        
+
         # Tentar obter coletor serializado (com tratamento para objetos detached)
         coletor_dict = None
         if self.coletor_id:
@@ -383,7 +495,7 @@ class Pipeline(Base):
                 # Verificar se o objeto está anexado à sessão
                 from sqlalchemy.orm import object_session
                 session = object_session(self)
-                
+
                 if session and hasattr(self, 'coletor') and self.coletor is not None:
                     # Objeto está na sessão, pode serializar
                     try:
@@ -397,10 +509,10 @@ class Pipeline(Base):
                 else:
                     # Objeto não está na sessão ou não foi carregado, usar apenas ID
                     coletor_dict = {'id': self.coletor_id}
-            except Exception as e:
+            except Exception:
                 # Fallback final: apenas ID
                 coletor_dict = {'id': self.coletor_id}
-        
+
         # Tentar obter última interação
         ultima_interacao = None
         try:
@@ -410,7 +522,7 @@ class Pipeline(Base):
                     ultima_interacao = ultima.to_dict()
         except Exception:
             pass  # Ignorar erro ao acessar interações
-        
+
         return {
             'id': self.id,
             'coletor': coletor_dict,
@@ -422,6 +534,7 @@ class Pipeline(Base):
             'data_proxima_acao': self.data_proxima_acao.isoformat() if self.data_proxima_acao else None,
             'responsavel': self.responsavel.nome_completo if self.responsavel else None,
             'responsavel_id': self.responsavel_id,
+            'conta_comercial_id': self.conta_comercial_id,
             'origem': self.origem,
             'tipo_servico': self.tipo_servico,
             'observacoes': self.observacoes,
@@ -453,24 +566,24 @@ class Interacao(Base):
     pipeline_id = Column(Integer, ForeignKey("pipeline.id"), nullable=False, index=True)
     tipo = Column(String(50), nullable=False, index=True)
     # Tipo: 'ligacao', 'email', 'whatsapp', 'reuniao', 'visita', 'proposta', 'outro'
-    
+
     descricao = Column(String(1000), nullable=False)
     resultado = Column(String(100))  # 'positivo', 'neutro', 'negativo'
-    
+
     data = Column(DateTime, default=utc_now_naive, index=True)
     duracao_minutos = Column(Integer)
-    
+
     usuario_id = Column(Integer, ForeignKey("usuarios.id"), nullable=True)
     usuario = relationship("Usuario", backref="interacoes")
-    
+
     # Anexos podem ser armazenados como JSON (lista de URLs)
     anexos = Column(String(500))  # JSON string com lista de URLs
-    
+
     criado_em = Column(DateTime, default=utc_now_naive)
-    
+
     # Relacionamentos
     pipeline = relationship("Pipeline", back_populates="interacoes")
-    
+
     def to_dict(self):
         return {
             'id': self.id,
@@ -506,28 +619,27 @@ class Tarefa(Base):
     id = Column(Integer, primary_key=True, autoincrement=True)
     titulo = Column(String(200), nullable=False)
     descricao = Column(String(1000))
-    
+
     pipeline_id = Column(Integer, ForeignKey("pipeline.id"), nullable=True)
     usuario_id = Column(Integer, ForeignKey("usuarios.id"), nullable=False, index=True)
-    
+
     status = Column(String(20), default='pendente', index=True)  # 'pendente', 'concluida', 'cancelada'
     prioridade = Column(String(20), default='media', index=True)  # 'baixa', 'media', 'alta', 'urgente'
-    
+
     data_vencimento = Column(DateTime, index=True)
     concluida_em = Column(DateTime)
-    
+
     criado_em = Column(DateTime, default=utc_now_naive)
     atualizado_em = Column(DateTime, default=utc_now_naive, onupdate=utc_now_naive)
-    
+
     # Relacionamentos
     pipeline = relationship("Pipeline", back_populates="tarefas")
     usuario = relationship("Usuario", backref="tarefas")
-    
+
     def to_dict(self):
-        from datetime import datetime
         from sqlalchemy.orm import object_session
         hoje = datetime.now()
-        
+
         # Obter cliente de forma segura (tratando objetos detached)
         cliente = None
         if self.pipeline_id:
@@ -542,20 +654,17 @@ class Tarefa(Base):
                         pass
             except Exception:
                 pass
-        
+
         # Obter usuário de forma segura
         usuario_nome = None
         try:
             session = object_session(self)
             if session and hasattr(self, 'usuario') and self.usuario:
-                try:
+                with contextlib.suppress(Exception):
                     usuario_nome = self.usuario.nome_completo
-                except Exception:
-                    # Objeto detached
-                    pass
         except Exception:
             pass
-        
+
         return {
             'id': self.id,
             'titulo': self.titulo,
@@ -591,29 +700,29 @@ class ContratoRecorrente(Base):
     id = Column(Integer, primary_key=True, autoincrement=True)
     coletor_id = Column(Integer, ForeignKey("coletores.id"), nullable=False, index=True)
     parceiro_id = Column(Integer, ForeignKey("parceiros.id"), nullable=True)
-    
+
     titulo = Column(String(200), nullable=False)
     descricao = Column(String(1000))
-    
+
     valor_mensal = Column(Float, nullable=False)
     frequencia_coleta = Column(String(50), default='mensal')  # 'semanal', 'quinzenal', 'mensal', 'bimestral'
     dia_coleta = Column(Integer)  # Dia do mês (1-31) ou dia da semana (1-7) dependendo da frequência
-    
+
     data_inicio = Column(DateTime, nullable=False)
     data_vencimento = Column(DateTime)
     status = Column(String(20), default='ativo', index=True)  # 'ativo', 'pausado', 'cancelado', 'vencido'
-    
+
     observacoes = Column(String(1000))
     criado_em = Column(DateTime, default=utc_now_naive)
     atualizado_em = Column(DateTime, default=utc_now_naive, onupdate=utc_now_naive)
-    
+
     # Relacionamentos
     coletor = relationship("Coletor", backref="contratos")
     parceiro = relationship("Parceiro", backref="contratos")
-    
+
     def to_dict(self):
         from banco_dados.serializers import coletor_para_dict
-        
+
         # Tentar obter coletor serializado
         coletor_dict = None
         if self.coletor:
@@ -625,7 +734,7 @@ class ContratoRecorrente(Base):
                     'id': self.coletor.id,
                     'localizacao': self.coletor.localizacao
                 }
-        
+
         return {
             'id': self.id,
             'coletor': coletor_dict,
@@ -647,3 +756,547 @@ class ContratoRecorrente(Base):
 
     def __repr__(self):
         return f"<ContratoRecorrente(id={self.id}, coletor_id={self.coletor_id}, valor=R${self.valor_mensal:.2f}/mês, status='{self.status}')>"
+
+
+# ==============================================================
+# MODELOS DE MACHINE LEARNING
+# ==============================================================
+
+
+# ----------------------------------------------------------
+# TABELA: Leituras do Sensor (série temporal para ML)
+# ----------------------------------------------------------
+class LeituraSensor(Base):
+    """Série temporal de leituras dos sensores (alimentada pelo ESP32).
+
+    Cada registro representa uma leitura a cada ~15 min.
+    Usado pelo Módulo 1 (predição de enchimento) como input.
+    """
+    __tablename__ = "leituras_sensor"
+    __table_args__ = (
+        Index('idx_leitura_sensor_ts', 'sensor_id', 'timestamp'),
+        Index('idx_leitura_coletor_ts', 'coletor_id', 'timestamp'),
+    )
+
+    id = Column(Integer, primary_key=True, autoincrement=True)
+    sensor_id = Column(Integer, ForeignKey("sensores.id"), nullable=False, index=True)
+    coletor_id = Column(Integer, ForeignKey("coletores.id"), nullable=False, index=True)
+    nivel = Column(Float, nullable=False)          # 0.0 a 100.0
+    bateria = Column(Float)
+    temperatura = Column(Float)                     # MPU6050 pode fornecer
+    timestamp = Column(DateTime, default=utc_now_naive, index=True)
+
+    # Relacionamentos
+    sensor = relationship("Sensor", backref="leituras")
+    coletor = relationship("Coletor", backref="leituras_sensor")
+
+    def to_dict(self):
+        return {
+            'id': self.id,
+            'sensor_id': self.sensor_id,
+            'coletor_id': self.coletor_id,
+            'nivel': self.nivel,
+            'bateria': self.bateria,
+            'temperatura': self.temperatura,
+            'timestamp': self.timestamp.isoformat() if self.timestamp else None,
+        }
+
+    def __repr__(self):
+        return f"<LeituraSensor(id={self.id}, coletor={self.coletor_id}, nivel={self.nivel}%, ts={self.timestamp})>"
+
+
+# ----------------------------------------------------------
+# TABELA: Predição de enchimento (output Módulo 1)
+# ----------------------------------------------------------
+class PredicaoEnchimento(Base):
+    """Previsão de quando cada coletor atingirá nível crítico.
+
+    Gerado pelo Módulo 1 (séries temporais) via APScheduler 2x/dia.
+    Algoritmo: statsforecast AutoETS (leve, sem compilação C++).
+    """
+    __tablename__ = "predicoes_enchimento"
+    __table_args__ = (
+        Index('idx_predicao_coletor', 'coletor_id'),
+    )
+
+    id = Column(Integer, primary_key=True, autoincrement=True)
+    coletor_id = Column(Integer, ForeignKey("coletores.id"), nullable=False, index=True)
+    predicted_full_at = Column(DateTime)             # quando atinge 90%
+    horas_restantes = Column(Float)                  # horas até encher
+    confianca_lower = Column(DateTime)               # intervalo inferior
+    confianca_upper = Column(DateTime)               # intervalo superior
+    velocidade_enchimento = Column(Float)             # %/hora (derivada)
+    modelo_usado = Column(String(50))                # 'autoets', 'linear', 'arima'
+    erro_medio = Column(Float)                       # MAPE do modelo
+    dados_suficientes = Column(Boolean, default=True)
+    calculado_em = Column(DateTime, default=utc_now_naive)
+
+    # Relacionamento
+    coletor = relationship("Coletor", backref="predicao_enchimento")
+
+    def to_dict(self):
+        return {
+            'id': self.id,
+            'coletor_id': self.coletor_id,
+            'predicted_full_at': self.predicted_full_at.isoformat() if self.predicted_full_at else None,
+            'horas_restantes': self.horas_restantes,
+            'confianca_lower': self.confianca_lower.isoformat() if self.confianca_lower else None,
+            'confianca_upper': self.confianca_upper.isoformat() if self.confianca_upper else None,
+            'velocidade_enchimento': self.velocidade_enchimento,
+            'modelo_usado': self.modelo_usado,
+            'erro_medio': self.erro_medio,
+            'dados_suficientes': self.dados_suficientes,
+            'calculado_em': self.calculado_em.isoformat() if self.calculado_em else None,
+        }
+
+    def __repr__(self):
+        return f"<PredicaoEnchimento(coletor={self.coletor_id}, full_at={self.predicted_full_at}, modelo={self.modelo_usado})>"
+
+
+# ----------------------------------------------------------
+# TABELA: TRONIK Score (output Módulo 2)
+# ----------------------------------------------------------
+class TronikScore(Base):
+    """Score de prioridade 0-100 por coletor (urgência × viabilidade × valor).
+
+    Fase 1: heurística ponderada (domain expertise).
+    Fase 2: XGBoost quando count(coletas) >= 200.
+    Gerado via APScheduler 1x/dia.
+    """
+    __tablename__ = "tronik_scores"
+    __table_args__ = (
+        Index('idx_score_coletor', 'coletor_id'),
+        Index('idx_score_valor', 'score'),
+    )
+
+    id = Column(Integer, primary_key=True, autoincrement=True)
+    coletor_id = Column(Integer, ForeignKey("coletores.id"), nullable=False, index=True)
+    score = Column(Float, nullable=False)             # 0-100
+    features_json = Column(String(2000))              # JSON com features usadas
+    modelo_usado = Column(String(50))                 # 'heuristica', 'xgboost'
+    calculado_em = Column(DateTime, default=utc_now_naive)
+
+    # Relacionamento
+    coletor = relationship("Coletor", backref="tronik_score")
+
+    def to_dict(self):
+        import json
+        return {
+            'id': self.id,
+            'coletor_id': self.coletor_id,
+            'score': self.score,
+            'features': json.loads(self.features_json) if self.features_json else {},
+            'modelo_usado': self.modelo_usado,
+            'calculado_em': self.calculado_em.isoformat() if self.calculado_em else None,
+        }
+
+    def __repr__(self):
+        return f"<TronikScore(coletor={self.coletor_id}, score={self.score:.1f}, modelo={self.modelo_usado})>"
+
+
+# ----------------------------------------------------------
+# TABELA: Narrativa Gerada (output Módulo 3)
+# ----------------------------------------------------------
+class NarrativaGerada(Base):
+    """Texto narrativo de impacto ESG gerado por IA.
+
+    Chain de LLM: Groq (primário) → Ollama (fallback) → Gemini (fallback 2).
+    Gerado via APScheduler 1x/mês ou sob demanda.
+    """
+    __tablename__ = "narrativas_geradas"
+    __table_args__ = (
+        Index('idx_narrativa_parceiro', 'parceiro_id'),
+        Index('idx_narrativa_periodo', 'periodo_inicio', 'periodo_fim'),
+    )
+
+    id = Column(Integer, primary_key=True, autoincrement=True)
+    parceiro_id = Column(Integer, ForeignKey("parceiros.id"), nullable=False, index=True)
+    periodo_inicio = Column(DateTime, nullable=False)
+    periodo_fim = Column(DateTime, nullable=False)
+    texto = Column(String(5000), nullable=False)
+    dados_input_json = Column(String(2000))           # dados usados para gerar
+    modelo_usado = Column(String(100))                # 'groq/llama-3.1-70b', 'ollama/deepseek-r1:8b', etc.
+    provider_usado = Column(String(50))               # 'groq', 'ollama', 'gemini'
+    tempo_geracao_ms = Column(Integer)                 # latência
+    validacao_ok = Column(Boolean, default=True)       # números batem com input?
+    gerado_em = Column(DateTime, default=utc_now_naive)
+
+    # Relacionamento
+    parceiro = relationship("Parceiro", backref="narrativas")
+
+    def to_dict(self):
+        import json
+        return {
+            'id': self.id,
+            'parceiro_id': self.parceiro_id,
+            'periodo_inicio': self.periodo_inicio.isoformat() if self.periodo_inicio else None,
+            'periodo_fim': self.periodo_fim.isoformat() if self.periodo_fim else None,
+            'texto': self.texto,
+            'dados_input': json.loads(self.dados_input_json) if self.dados_input_json else {},
+            'modelo_usado': self.modelo_usado,
+            'provider_usado': self.provider_usado,
+            'tempo_geracao_ms': self.tempo_geracao_ms,
+            'validacao_ok': self.validacao_ok,
+            'gerado_em': self.gerado_em.isoformat() if self.gerado_em else None,
+        }
+
+    def __repr__(self):
+        preview = self.texto[:60] + '...' if self.texto and len(self.texto) > 60 else self.texto
+        return f"<NarrativaGerada(parceiro={self.parceiro_id}, provider={self.provider_usado}, texto='{preview}')>"
+
+
+# ----------------------------------------------------------
+# TABELA: Conversas da Nik
+# ----------------------------------------------------------
+class NikConversa(Base):
+    """Histórico persistido das interações da Nik por usuário."""
+    __tablename__ = "nik_conversas"
+    __table_args__ = (
+        Index('idx_nik_conversa_usuario', 'usuario_id'),
+        Index('idx_nik_conversa_thread', 'thread_id'),
+        Index('idx_nik_conversa_criado_em', 'criado_em'),
+    )
+
+    id = Column(Integer, primary_key=True, autoincrement=True)
+    usuario_id = Column(Integer, ForeignKey("usuarios.id"), nullable=True, index=True)
+    thread_id = Column(String(80), default='main', index=True)
+    pergunta = Column(String(4000), nullable=False)
+    resposta = Column(String(8000), nullable=False)
+    contexto_modo = Column(String(20), default='real')
+    modelo_usado = Column(String(120))
+    fonte = Column(String(20), default='modelo')
+    resumo_thread = Column(Text, nullable=True)
+    criado_em = Column(DateTime, default=utc_now_naive, index=True)
+
+    usuario = relationship("Usuario", backref="nik_conversas")
+
+    def to_dict(self):
+        return {
+            'id': self.id,
+            'usuario_id': self.usuario_id,
+            'thread_id': self.thread_id,
+            'pergunta': self.pergunta,
+            'resposta': self.resposta,
+            'contexto_modo': self.contexto_modo,
+            'modelo_usado': self.modelo_usado,
+            'fonte': self.fonte,
+            'resumo_thread': self.resumo_thread,
+            'criado_em': self.criado_em.isoformat() if self.criado_em else None,
+        }
+
+
+# ----------------------------------------------------------
+# TABELA: Relatórios executivos da Nik
+# ----------------------------------------------------------
+class NikRelatorioGerado(Base):
+    """Relatórios executivos estruturados gerados pela Nik para uso interno."""
+    __tablename__ = "nik_relatorios_gerados"
+    __table_args__ = (
+        Index('idx_nik_rel_usuario', 'usuario_id'),
+        Index('idx_nik_rel_periodo', 'periodo_inicio', 'periodo_fim'),
+    )
+
+    id = Column(Integer, primary_key=True, autoincrement=True)
+    usuario_id = Column(Integer, ForeignKey("usuarios.id"), nullable=True, index=True)
+    parceiro_id = Column(Integer, ForeignKey("parceiros.id"), nullable=True, index=True)
+    periodo_inicio = Column(DateTime, nullable=False)
+    periodo_fim = Column(DateTime, nullable=False)
+    formato = Column(String(20), default='json')
+    titulo = Column(String(200), nullable=False)
+    conteudo_json = Column(String(12000), nullable=False)
+    conteudo_markdown = Column(String(12000))
+    modelo_usado = Column(String(120))
+    fonte = Column(String(20), default='modelo')
+    criado_em = Column(DateTime, default=utc_now_naive, index=True)
+
+    usuario = relationship("Usuario", backref="nik_relatorios")
+    parceiro = relationship("Parceiro", backref="nik_relatorios")
+
+    def to_dict(self):
+        import json
+        return {
+            'id': self.id,
+            'usuario_id': self.usuario_id,
+            'parceiro_id': self.parceiro_id,
+            'periodo_inicio': self.periodo_inicio.isoformat() if self.periodo_inicio else None,
+            'periodo_fim': self.periodo_fim.isoformat() if self.periodo_fim else None,
+            'formato': self.formato,
+            'titulo': self.titulo,
+            'conteudo': json.loads(self.conteudo_json) if self.conteudo_json else {},
+            'conteudo_markdown': self.conteudo_markdown,
+            'modelo_usado': self.modelo_usado,
+            'fonte': self.fonte,
+            'criado_em': self.criado_em.isoformat() if self.criado_em else None,
+        }
+
+
+# ----------------------------------------------------------
+# TABELAS: Prospecção REE com Learning-to-Rank
+# ----------------------------------------------------------
+class EmpresaCandidata(Base):
+    """Empresa elegível para prospecção de REE/e-waste.
+
+    CNPJ fica como texto para compatibilidade com o formato alfanumérico previsto.
+    """
+    __tablename__ = "empresa_candidata"
+    __table_args__ = (
+        Index('idx_empresa_candidata_cnpj', 'cnpj'),
+        Index('idx_empresa_candidata_cnae', 'cnae_principal'),
+        Index('idx_empresa_candidata_situacao', 'situacao_cadastral'),
+        Index('idx_empresa_candidata_origem', 'origem'),
+        Index('idx_empresa_candidata_pipeline', 'pipeline_id'),
+    )
+
+    id = Column(Integer, primary_key=True, autoincrement=True)
+    cnpj = Column(String(32), unique=True, nullable=False)
+    razao_social = Column(String(255), nullable=False)
+    nome_fantasia = Column(String(255))
+    cnae_principal = Column(String(16), index=True)
+    cnae_secundarios_json = Column(Text)
+    porte = Column(String(80))
+    natureza_juridica = Column(String(120))
+    situacao_cadastral = Column(String(80), default='ATIVA', index=True)
+    data_abertura = Column(DateTime)
+    endereco_normalizado = Column(String(500))
+    bairro = Column(String(120), index=True)
+    cep = Column(String(20), index=True)
+    municipio = Column(String(120), default='Brasília')
+    uf = Column(String(2), default='DF', index=True)
+    telefone = Column(String(80))
+    email = Column(String(180))
+    origem = Column(String(80), default='manual')
+    pipeline_id = Column(Integer, ForeignKey("pipeline.id"), nullable=True, index=True)
+    criado_em = Column(DateTime, default=utc_now_naive)
+    atualizado_em = Column(DateTime, default=utc_now_naive, onupdate=utc_now_naive)
+
+    locais = relationship("LocalCandidato", back_populates="empresa")
+    feature_snapshots = relationship("FeatureSnapshotProspeccao", back_populates="empresa")
+    pipeline = relationship("Pipeline", backref="empresas_candidatas")
+
+    def to_dict(self):
+        import json
+        return {
+            'id': self.id,
+            'cnpj': self.cnpj,
+            'razao_social': self.razao_social,
+            'nome_fantasia': self.nome_fantasia,
+            'cnae_principal': self.cnae_principal,
+            'cnae_secundarios': json.loads(self.cnae_secundarios_json) if self.cnae_secundarios_json else [],
+            'porte': self.porte,
+            'natureza_juridica': self.natureza_juridica,
+            'situacao_cadastral': self.situacao_cadastral,
+            'endereco_normalizado': self.endereco_normalizado,
+            'bairro': self.bairro,
+            'cep': self.cep,
+            'municipio': self.municipio,
+            'uf': self.uf,
+            'telefone': self.telefone,
+            'email': self.email,
+            'origem': self.origem,
+            'pipeline_id': self.pipeline_id,
+            'criado_em': self.criado_em.isoformat() if self.criado_em else None,
+            'atualizado_em': self.atualizado_em.isoformat() if self.atualizado_em else None,
+        }
+
+
+class LocalCandidato(Base):
+    """Local físico associado a uma empresa candidata."""
+    __tablename__ = "local_candidato"
+    __table_args__ = (
+        Index('idx_local_empresa', 'empresa_id'),
+        Index('idx_local_ra', 'ra'),
+        Index('idx_local_qid', 'qid'),
+        Index('idx_local_lat_lon', 'latitude', 'longitude'),
+    )
+
+    id = Column(Integer, primary_key=True, autoincrement=True)
+    # CONSTRAINT: empresa_id obrigatório para evitar locais órfãos que causam crashes
+    empresa_id = Column(Integer, ForeignKey("empresa_candidata.id", ondelete="CASCADE"), nullable=False, index=True)
+    endereco = Column(String(500))
+    latitude = Column(Float)
+    longitude = Column(Float)
+    ra = Column(String(120), index=True)
+    bairro = Column(String(120), index=True)
+    cep = Column(String(20), index=True)
+    geocode_quality = Column(Float, default=0.0)
+    categoria_operacional = Column(String(120))
+    qid = Column(String(160), index=True)
+    origem = Column(String(80), default='manual')
+    criado_em = Column(DateTime, default=utc_now_naive)
+    atualizado_em = Column(DateTime, default=utc_now_naive, onupdate=utc_now_naive)
+
+    empresa = relationship("EmpresaCandidata", back_populates="locais")
+    feature_snapshots = relationship("FeatureSnapshotProspeccao", back_populates="local")
+
+    def to_dict(self):
+        return {
+            'id': self.id,
+            'empresa_id': self.empresa_id,
+            'endereco': self.endereco,
+            'latitude': self.latitude,
+            'longitude': self.longitude,
+            'ra': self.ra,
+            'bairro': self.bairro,
+            'cep': self.cep,
+            'geocode_quality': self.geocode_quality,
+            'categoria_operacional': self.categoria_operacional,
+            'qid': self.qid,
+            'origem': self.origem,
+            'criado_em': self.criado_em.isoformat() if self.criado_em else None,
+            'atualizado_em': self.atualizado_em.isoformat() if self.atualizado_em else None,
+        }
+
+
+class FontePublicaRegistro(Base):
+    """Registro bruto rastreável vindo de fonte pública."""
+    __tablename__ = "fonte_publica_registro"
+    __table_args__ = (
+        Index('idx_fonte_publica_origem', 'origem'),
+        Index('idx_fonte_publica_hash', 'registro_hash'),
+    )
+
+    id = Column(Integer, primary_key=True, autoincrement=True)
+    origem = Column(String(80), nullable=False, index=True)
+    origem_id = Column(String(200))
+    registro_hash = Column(String(80), unique=True, nullable=False)
+    payload_json = Column(Text, nullable=False)
+    ingerido_em = Column(DateTime, default=utc_now_naive, index=True)
+
+    def to_dict(self):
+        import json
+        return {
+            'id': self.id,
+            'origem': self.origem,
+            'origem_id': self.origem_id,
+            'registro_hash': self.registro_hash,
+            'payload': json.loads(self.payload_json) if self.payload_json else {},
+            'ingerido_em': self.ingerido_em.isoformat() if self.ingerido_em else None,
+        }
+
+
+class FeatureSnapshotProspeccao(Base):
+    """Features versionadas para treino e scoring do ranker de prospecção."""
+    __tablename__ = "feature_snapshot_prospeccao"
+    __table_args__ = (
+        Index('idx_feature_snapshot_empresa', 'empresa_id'),
+        Index('idx_feature_snapshot_local', 'local_id'),
+        Index('idx_feature_snapshot_qid', 'qid'),
+        Index('idx_feature_snapshot_pipeline', 'pipeline_version'),
+        Index('idx_feature_snapshot_pipeline_qid_id', 'pipeline_version', 'qid', 'id'),
+        UniqueConstraint('empresa_id', 'local_id', 'pipeline_version', name='uq_feature_snapshot_empresa_local_pipeline'),
+    )
+
+    id = Column(Integer, primary_key=True, autoincrement=True)
+    empresa_id = Column(Integer, ForeignKey("empresa_candidata.id"), nullable=True, index=True)
+    local_id = Column(Integer, ForeignKey("local_candidato.id"), nullable=True, index=True)
+    pipeline_version = Column(String(80), nullable=False, index=True)
+    qid = Column(String(160), nullable=False, index=True)
+    label_ordinal = Column(Integer, default=0)
+    features_json = Column(Text, nullable=False)
+    feature_schema_json = Column(Text, nullable=False)
+    criado_em = Column(DateTime, default=utc_now_naive, index=True)
+
+    empresa = relationship("EmpresaCandidata", back_populates="feature_snapshots")
+    local = relationship("LocalCandidato", back_populates="feature_snapshots")
+    scores = relationship("ScoreProspeccao", back_populates="snapshot")
+
+    def to_dict(self):
+        import json
+        return {
+            'id': self.id,
+            'empresa_id': self.empresa_id,
+            'local_id': self.local_id,
+            'pipeline_version': self.pipeline_version,
+            'qid': self.qid,
+            'label_ordinal': self.label_ordinal,
+            'features': json.loads(self.features_json) if self.features_json else {},
+            'feature_schema': json.loads(self.feature_schema_json) if self.feature_schema_json else [],
+            'criado_em': self.criado_em.isoformat() if self.criado_em else None,
+        }
+
+
+class ModeloProspeccao(Base):
+    """Artefato versionado do ranker de prospecção."""
+    __tablename__ = "modelo_prospeccao"
+    __table_args__ = (
+        Index('idx_modelo_prospeccao_versao', 'versao'),
+        Index('idx_modelo_prospeccao_ativo', 'ativo'),
+    )
+
+    id = Column(Integer, primary_key=True, autoincrement=True)
+    versao = Column(String(120), unique=True, nullable=False)
+    algoritmo = Column(String(80), nullable=False)
+    objetivo = Column(String(80), default='rank:ndcg')
+    pipeline_version = Column(String(80), nullable=False)
+    feature_schema_json = Column(Text, nullable=False)
+    hiperparametros_json = Column(Text)
+    metricas_json = Column(Text)
+    artefato_path = Column(String(500))
+    ativo = Column(Boolean, default=False, index=True)
+    treinado_em = Column(DateTime, default=utc_now_naive, index=True)
+
+    scores = relationship("ScoreProspeccao", back_populates="modelo")
+
+    def to_dict(self):
+        import json
+        return {
+            'id': self.id,
+            'versao': self.versao,
+            'algoritmo': self.algoritmo,
+            'objetivo': self.objetivo,
+            'pipeline_version': self.pipeline_version,
+            'feature_schema': json.loads(self.feature_schema_json) if self.feature_schema_json else [],
+            'hiperparametros': json.loads(self.hiperparametros_json) if self.hiperparametros_json else {},
+            'metricas': json.loads(self.metricas_json) if self.metricas_json else {},
+            'artefato_path': self.artefato_path,
+            'ativo': self.ativo,
+            'treinado_em': self.treinado_em.isoformat() if self.treinado_em else None,
+        }
+
+
+class ScoreProspeccao(Base):
+    """Score e ranking publicados para consumo da dashboard e da Nik."""
+    __tablename__ = "score_prospeccao"
+    __table_args__ = (
+        Index('idx_score_prospeccao_modelo', 'modelo_id'),
+        Index('idx_score_prospeccao_qid_rank', 'qid', 'ranking_contexto'),
+        Index('idx_score_prospeccao_prioridade', 'prioridade'),
+        Index('idx_score_prospeccao_modelo_pipeline', 'modelo_id', 'pipeline_version'),
+        Index('idx_score_prospeccao_modelo_prio_score', 'modelo_id', 'prioridade', 'score'),
+    )
+
+    id = Column(Integer, primary_key=True, autoincrement=True)
+    snapshot_id = Column(Integer, ForeignKey("feature_snapshot_prospeccao.id"), nullable=False, index=True)
+    modelo_id = Column(Integer, ForeignKey("modelo_prospeccao.id"), nullable=False, index=True)
+    empresa_id = Column(Integer, ForeignKey("empresa_candidata.id", ondelete="CASCADE"), nullable=True, index=True)
+    local_id = Column(Integer, ForeignKey("local_candidato.id", ondelete="CASCADE"), nullable=True, index=True)
+    qid = Column(String(160), nullable=False, index=True)
+    score = Column(Float, nullable=False)
+    ranking_contexto = Column(Integer, nullable=False)
+    prioridade = Column(String(20), default='media', index=True)
+    # RASTREABILIDADE: versão do pipeline que gerou as features usadas neste score
+    pipeline_version = Column(String(80), nullable=True, index=True)
+    motivos_json = Column(Text)
+    calculado_em = Column(DateTime, default=utc_now_naive, index=True)
+
+    snapshot = relationship("FeatureSnapshotProspeccao", back_populates="scores")
+    modelo = relationship("ModeloProspeccao", back_populates="scores")
+    empresa = relationship("EmpresaCandidata")
+    local = relationship("LocalCandidato")
+
+    def to_dict(self):
+        import json
+        return {
+            'id': self.id,
+            'snapshot_id': self.snapshot_id,
+            'modelo_id': self.modelo_id,
+            'empresa_id': self.empresa_id,
+            'local_id': self.local_id,
+            'qid': self.qid,
+            'score': self.score,
+            'ranking_contexto': self.ranking_contexto,
+            'prioridade': self.prioridade,
+            'pipeline_version': self.pipeline_version,
+            'motivos': json.loads(self.motivos_json) if self.motivos_json else [],
+            'calculado_em': self.calculado_em.isoformat() if self.calculado_em else None,
+        }

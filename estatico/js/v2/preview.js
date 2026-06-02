@@ -113,6 +113,32 @@
     }
   };
 
+  window.previewSetRelPreset = function (preset) {
+    const fim = document.getElementById("rel-fim");
+    const ini = document.getElementById("rel-inicio");
+    if (!fim || !ini) return;
+    const hoje = new Date();
+    const f = new Date(hoje);
+    const i = new Date(hoje);
+
+    if (preset === "ytd") {
+      i.setMonth(0, 1);
+    } else if (preset === "month") {
+      i.setDate(1);
+    } else {
+      return;
+    }
+
+    fim.value = f.toISOString().slice(0, 10);
+    ini.value = i.toISOString().slice(0, 10);
+    const form = document.getElementById("form-rel");
+    if (form && window.htmx) {
+      htmx.trigger(form, "submit");
+    } else if (form) {
+      form.submit();
+    }
+  };
+
   document.addEventListener("DOMContentLoaded", function () {
     animarBarras(document);
   });
@@ -159,7 +185,8 @@
           reconnectionDelay: 1000,
           reconnectionDelayMax: 5000,
           reconnectionAttempts: 5,
-          transports: ["websocket", "polling"],
+          transports: ["polling"],
+          upgrade: false,
         });
 
         this.attachHandlers();

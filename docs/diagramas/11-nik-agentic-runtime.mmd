@@ -1,0 +1,17 @@
+%% Runtime agentic Nik Ops (Fase 3–4)
+flowchart LR
+  A[Mensagem usuario] --> B{NIK_AGENT_LOOP?}
+  B -->|true| C[Loop tool-calling OpenAI tools]
+  B -->|false| D{NIK_AGENT_PLANNER}
+  D -->|llm ou auto| E[planejar_ferramentas_llm JSON]
+  D -->|heuristic| F[_planejar_ferramentas regras]
+  E --> G[Executar ferramentas nik_tools]
+  F --> G
+  C --> G
+  G --> H[Contexto + historico_thread]
+  H --> I{thread maior 12 msgs?}
+  I -->|sim| J[resumo_thread NIK_MODELO_RESUMO]
+  I -->|nao| K[Montar prompt]
+  J --> K
+  K --> L[LLM resposta + citacoes]
+  L --> M[Salvar NikConversa]

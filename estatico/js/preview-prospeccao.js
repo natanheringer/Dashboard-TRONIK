@@ -1,0 +1,425 @@
+/**
+ * Preview v2 — fila de prospecção REE
+ * GET /api/prospeccao/candidatos
+ */
+(function () {
+  "use strict";
+
+  var API_URL = "/api/prospeccao/candidatos";
+  var CRM_PREVIEW_URL = "/preview/crm";
+  var TOP_MOTIVOS = 3;
+  var COLSPAN = 7;
+
+  function $(id) {
+    return document.getElementById(id);
+  }
+
+  function esc(value) {
+    var div = document.createElement("div");
+    div.textContent = value == null ? "" : String(value);
+    return div.innerHTML;
+  }
+
+  function prioridadeBadge(prioridade) {
+    var p = (prioridade || "media").toLowerCase();
+    var cls = "neutral";
+    if (p === "alta") cls = "crit";
+    else if (p === "media") cls = "warn";
+    var label = p.charAt(0).toUpperCase() + p.slice(1);
+    return '<span class="badge ' + cls + '">' + esc(label) + "</span>";
+  }
+
+  function formatScore(score) {
+    if (score == null || Number.isNaN(Number(score))) return "—";
+    return Number(score).toFixed(4);
+  }
+
+  function topMotivos(motivos) {
+    if (!Array.isArray(motivos) || !motivos.length) {
+      return '<span class="prosp-empty" style="padding:0;">—</span>';
+    }
+    var items = motivos.slice(0, TOP_MOTIVOS).map(function (m) {
+      var texto = typeof m === "string" ? m : (m.reason || m.feature || "");
+      return "<li>" + esc(texto) + "</li>";
+    });
+    return '<ul class="prosp-motivos">' + items.join("") + "</ul>";
+  }
+
+  function resolveEmpresaId(item) {
+    if (item.empresa_id != null) return item.empresa_id;
+    var empresa = item.empresa;
+    return empresa && empresa.id != null ? empresa.id : null;
+  }
+
+  function pipelineApiUrl(empresaId) {
+    return "/api/prospeccao/candidatos/" + encodeURIComponent(empresaId) + "/pipeline";
+  }
+
+  function crmActionCell(item) {
+    var empresaId = resolveEmpresaId(item);
+    if (empresaId == null) {
+      return '<span class="prosp-empty" style="padding:0;">—</span>';
+    }
+    return (
+      '<button type="button" class="btn btn-primary prosp-crm-btn" ' +
+      'data-empresa-id="' +
+      esc(String(empresaId)) +
+      '">Criar lead CRM</button>'
+    );
+  }
+
+  async function criarLeadCrm(empresaId, button) {
+    if (!empresaId) return;
+    if (button) {
+      button.disabled = true;
+      button.textContent = "Criando…";
+    }
+    try {
+      var resp = await fetch(pipelineApiUrl(empresaId), {
+        method: "POST",
+        credentials: "same-origin",
+        headers: { "Content-Type": "application/json" },
+        body: "{}",
+      });
+      var body = await resp.json();
+      if (!resp.ok || !body.ok) {
+        var msg =
+          (body.erros && body.erros[0] && body.erros[0].mensagem) ||
+          "Não foi possível criar o lead no CRM.";
+        throw new Error(msg);
+      }
+      var dados = body.dados || {};
+      var pipelineId = dados.pipeline_id;
+      var msgOk =
+        "Lead CRM #" +
+        pipelineId +
+        " criado." +
+        (dados.ja_vinculado ? " (já estava vinculado)" : "");
+      if (window.previewToast) {
+        window.previewToast(msgOk, "ok");
+      } else {
+        alert(msgOk);
+      }
+      if (button && button.parentElement) {
+        button.parentElement.innerHTML =
+          '<span class="prosp-empty" style="padding:0;">Lead #' +
+          esc(String(pipelineId)) +
+          '</span><a class="prosp-crm-link" href="' +
+          esc(CRM_PREVIEW_URL) +
+          '">Abrir CRM</a>';
+      }
+    } catch (err) {
+      if (window.previewToast) {
+        window.previewToast(err.message || "Erro ao criar lead CRM.", "warn");
+      } else {
+        alert(err.message || "Erro ao criar lead CRM.");
+      }
+      if (button) {
+        button.disabled = false;
+        button.textContent = "Criar lead CRM";
+      }
+    }
+  }
+
+  function mapLink(local, item) {
+    if (!local) return "—";
+    var lat = local.latitude;
+    var lon = local.longitude;
+    if (lat == null || lon == null) return "—";
+    var empresa = (item && item.empresa) || {};
+    var label = empresa.razao_social || empresa.nome_fantasia || "Candidato REE";
+    var url =
+      "/preview/mapa?prosp_lat=" +
+      encodeURIComponent(lat) +
+      "&prosp_lon=" +
+      encodeURIComponent(lon) +
+      "&prosp_label=" +
+      encodeURIComponent(label);
+    return (
+      '<a class="prosp-map-link" href="' +
+      esc(url) +
+      '">Ver mapa</a>'
+    );
+  }
+
+  function empresaCell(item) {
+    var empresa = item.empresa || {};
+    var nome = empresa.razao_social || empresa.nome_fantasia || "—";
+    var sub = [];
+    if (empresa.cnpj) sub.push(empresa.cnpj);
+    if (empresa.bairro) sub.push(empresa.bairro);
+    var subHtml = sub.length ? "<span>" + esc(sub.join(" · ")) + "</span>" : "";
+    return (
+      '<div class="prosp-empresa"><strong>' +
+      esc(nome) +
+      "</strong>" +
+      subHtml +
+      "</div>"
+    );
+  }
+
+  function scoreCell(item) {
+    var pct =
+      item.score_percentil != null
+        ? '<span class="prosp-score-pct">P' + esc(String(item.score_percentil)) + "</span>"
+        : "";
+    return (
+      '<span class="prosp-score">' +
+      esc(formatScore(item.score)) +
+      "</span>" +
+      pct
+    );
+  }
+
+  function setLoading(loading) {
+    var spin = $("prosp-spin");
+    if (spin) spin.style.display = loading ? "block" : "none";
+  }
+
+  function renderRows(candidatos) {
+    var tbody = $("prosp-tbody");
+    if (!tbody) return;
+
+    if (!candidatos || !Array.isArray(candidatos) || !candidatos.length) {
+      tbody.innerHTML =
+        '<tr><td colspan="' +
+        COLSPAN +
+        '" class="prosp-empty">Nenhum candidato na fila com os filtros atuais.</td></tr>';
+      return;
+    }
+
+    tbody.innerHTML = candidatos
+      .map(function (item) {
+        return (
+          "<tr>" +
+          "<td>" +
+          empresaCell(item) +
+          "</td>" +
+          "<td>" +
+          scoreCell(item) +
+          "</td>" +
+          "<td>" +
+          prioridadeBadge(item.prioridade) +
+          "</td>" +
+          '<td class="prosp-qid">' +
+          esc(item.qid || "—") +
+          "</td>" +
+          "<td>" +
+          topMotivos(item.motivos) +
+          "</td>" +
+          "<td>" +
+          mapLink(item.local, item) +
+          "</td>" +
+          "<td>" +
+          crmActionCell(item) +
+          "</td>" +
+          "</tr>"
+        );
+      })
+      .join("");
+  }
+
+  function updateMeta(candidatos) {
+    var countEl = $("prosp-count");
+    var heroEl = $("prosp-hero-text");
+    var updatedEl = $("prosp-updated");
+    var n = candidatos && Array.isArray(candidatos) ? candidatos.length : 0;
+
+    if (countEl) {
+      countEl.textContent =
+        n === 1 ? "1 candidato na fila" : n + " candidatos na fila";
+    }
+
+    if (heroEl) {
+      if (!n) {
+        heroEl.textContent =
+          "Nenhum candidato publicado ainda. Execute o pipeline de scoring ou ajuste os filtros.";
+      } else {
+        var alta = candidatos.filter(function (c) {
+          return (c.prioridade || "").toLowerCase() === "alta";
+        }).length;
+        heroEl.innerHTML =
+          "Exibindo <strong>" +
+          n +
+          "</strong> candidato(s)" +
+          (alta ? ", sendo <strong>" + alta + "</strong> com prioridade alta." : ".");
+      }
+    }
+
+    if (updatedEl) {
+      var now = new Date();
+      updatedEl.textContent =
+        "Atualizado às " +
+        now.toLocaleTimeString("pt-BR", { hour: "2-digit", minute: "2-digit" });
+    }
+  }
+
+  function buildQuery() {
+    var form = $("form-prosp-filtros");
+    if (!form) return "";
+    var params = new URLSearchParams(new FormData(form));
+    var prioridade = params.get("prioridade");
+    if (!prioridade) params.delete("prioridade");
+    return params.toString();
+  }
+
+  async function carregarFila() {
+    setLoading(true);
+    var tbody = $("prosp-tbody");
+    if (tbody) {
+      tbody.innerHTML =
+        '<tr><td colspan="' + COLSPAN + '" class="prosp-empty">Carregando…</td></tr>';
+    }
+
+    try {
+      var qs = buildQuery();
+      var url = API_URL + (qs ? "?" + qs : "");
+      var controller = new AbortController();
+      var timeout = setTimeout(function () {
+        controller.abort();
+      }, 90000); // 90 segundo timeout (query pesada em SQLite com 1M+ rows)
+
+      var resp = await fetch(url, {
+        credentials: "same-origin",
+        signal: controller.signal
+      });
+      clearTimeout(timeout);
+      var body = await resp.json();
+
+      if (!resp.ok || !body.ok) {
+        var msg =
+          (body.erros && body.erros[0] && body.erros[0].mensagem) ||
+          "Não foi possível carregar a fila.";
+        throw new Error(msg);
+      }
+
+      var candidatos = body.dados || [];
+      renderRows(candidatos);
+      updateMeta(candidatos);
+    } catch (err) {
+      var heroEl = $("prosp-hero-text");
+      if (heroEl) {
+        heroEl.textContent = "Erro ao carregar: " + (err.message || "Erro desconhecido");
+      }
+      if (tbody) {
+        tbody.innerHTML =
+          '<tr><td colspan="' + COLSPAN + '" class="prosp-empty">' +
+          esc(err.message || "Erro ao carregar candidatos.") +
+          "</td></tr>";
+      }
+      if (window.previewToast) {
+        window.previewToast(err.message || "Erro ao carregar prospecção.", "warn");
+      }
+    } finally {
+      setLoading(false);
+    }
+  }
+
+  function setBootstrapBanner(visible) {
+    var banner = $("prosp-bootstrap-banner");
+    if (!banner) return;
+    banner.classList.toggle("is-visible", !!visible);
+  }
+
+  function algoritmoLabel(algoritmo) {
+    if (algoritmo === "xgboost_ranker") return "XGBoost ranker";
+    if (algoritmo === "heuristic_bootstrap") return "Heurístico (bootstrap)";
+    return algoritmo || "—";
+  }
+
+  function renderAlgoritmoBadge(algoritmo) {
+    var badge = $("prosp-algoritmo-badge");
+    var subtitle = $("prosp-subtitle");
+    if (!badge) return;
+    if (!algoritmo) {
+      badge.hidden = true;
+      if (subtitle) subtitle.textContent = "Fila ranqueada de candidatos · sem modelo ativo";
+      return;
+    }
+    var isBootstrap = algoritmo === "heuristic_bootstrap";
+    badge.hidden = false;
+    badge.textContent = algoritmoLabel(algoritmo);
+    badge.className =
+      "ml-tag prosp-algo-badge " +
+      (isBootstrap ? "prosp-algo-badge--heuristic" : "prosp-algo-badge--xgb");
+    if (subtitle) {
+      subtitle.textContent = isBootstrap
+        ? "Fila ranqueada por regras heurísticas (bootstrap) até treino listwise"
+        : "Fila ranqueada por modelo XGBoost listwise treinado";
+    }
+  }
+
+  async function carregarModelo() {
+    var el = $("prosp-modelo");
+    try {
+      var controller = new AbortController();
+      var timeout = setTimeout(function () {
+        controller.abort();
+      }, 10000); // 10 segundo timeout para modelo
+
+      var resp = await fetch("/api/prospeccao/modelo-ativo", {
+        credentials: "same-origin",
+        signal: controller.signal
+      });
+      clearTimeout(timeout);
+      var body = await resp.json();
+      if (!resp.ok || !body.ok || !body.dados) {
+        if (el) {
+          el.textContent = "Sem modelo ativo";
+          el.classList.remove("prosp-modelo--warn");
+        }
+        renderAlgoritmoBadge("");
+        setBootstrapBanner(false);
+        return;
+      }
+      var d = body.dados;
+      var m = d.metricas || {};
+      var ndcg = m.validation_ndcg_mean;
+      var algoritmo = d.algoritmo || "";
+      var isBootstrap = algoritmo === "heuristic_bootstrap";
+      renderAlgoritmoBadge(algoritmo);
+      setBootstrapBanner(isBootstrap);
+      if (el) {
+        el.classList.toggle("prosp-modelo--warn", isBootstrap);
+        var meta = [d.versao || "—"];
+        if (ndcg != null) meta.push("NDCG " + ndcg);
+        if (isBootstrap) meta.push("scores indicativos");
+        el.textContent = meta.filter(Boolean).join(" · ");
+        el.classList.add("prosp-model-meta");
+      }
+    } catch (_e) {
+      if (el) {
+        el.textContent = "";
+        el.classList.remove("prosp-modelo--warn");
+      }
+      renderAlgoritmoBadge("");
+      setBootstrapBanner(false);
+    }
+  }
+
+  function init() {
+    var form = $("form-prosp-filtros");
+    if (form) {
+      form.addEventListener("submit", function (e) {
+        e.preventDefault();
+        carregarFila();
+      });
+    }
+    var tbody = $("prosp-tbody");
+    if (tbody) {
+      tbody.addEventListener("click", function (e) {
+        var btn = e.target.closest("[data-empresa-id]");
+        if (!btn || btn.disabled) return;
+        criarLeadCrm(btn.getAttribute("data-empresa-id"), btn);
+      });
+    }
+    carregarModelo();
+    carregarFila();
+  }
+
+  if (document.readyState === "loading") {
+    document.addEventListener("DOMContentLoaded", init, { once: true });
+  } else {
+    init();
+  }
+})();

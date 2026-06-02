@@ -15,10 +15,10 @@ Agora delegamos direto ao singleton, que ja existe no momento do import.
 
 from __future__ import annotations
 
+from collections.abc import Callable
 from functools import wraps
-from typing import Callable
 
-from flask import current_app, jsonify
+from flask import abort, current_app, jsonify
 from flask_login import current_user, login_required
 
 from rotas.api._limiter import limiter as _limiter
@@ -38,6 +38,29 @@ def admin_required(f: Callable) -> Callable:
         return f(*args, **kwargs)
 
     return decorated_function
+
+
+def admin_page_required(f: Callable) -> Callable:
+    """Exige admin para paginas HTML (responde 403 em vez de JSON)."""
+
+    @wraps(f)
+    @login_required
+    def decorated_function(*args, **kwargs):
+        if not current_user.is_authenticated or not current_user.admin:
+            abort(403)
+        return f(*args, **kwargs)
+
+    return decorated_function
+
+
+def escopo_parceiro_id(solicitado: int | None = None) -> int | None:
+    """Força parceiro_id do usuario quando vinculado a um parceiro (nao-admin)."""
+    if not current_user.is_authenticated or current_user.admin:
+        return solicitado
+    pid = getattr(current_user, "parceiro_id", None)
+    if pid is not None:
+        return pid
+    return solicitado
 
 
 def get_db():

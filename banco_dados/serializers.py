@@ -5,11 +5,10 @@ Converte modelos SQLAlchemy para dicionários JSON.
 Centraliza toda a lógica de serialização.
 """
 
-from typing import Dict, Optional
-from banco_dados.modelos import Coletor, Coleta, Sensor, Notificacao
+from banco_dados.modelos import Coleta, Coletor, Notificacao, Sensor
 
 
-def coletor_para_dict(coletor: Coletor) -> Dict:
+def coletor_para_dict(coletor: Coletor) -> dict:
     """Converte um objeto Coletor para dicionário"""
     return {
         "id": coletor.id,
@@ -30,7 +29,7 @@ def coletor_para_dict(coletor: Coletor) -> Dict:
     }
 
 
-def coleta_para_dict(coleta: Coleta) -> Dict:
+def coleta_para_dict(coleta: Coleta) -> dict:
     """Converte um objeto Coleta para dicionário"""
     return {
         "id": coleta.id,
@@ -57,7 +56,7 @@ def coleta_para_dict(coleta: Coleta) -> Dict:
     }
 
 
-def sensor_para_dict(sensor: Sensor) -> Dict:
+def sensor_para_dict(sensor: Sensor) -> dict:
     """Converte um objeto Sensor para dicionário"""
     return {
         "id": sensor.id,
@@ -75,7 +74,7 @@ def sensor_para_dict(sensor: Sensor) -> Dict:
     }
 
 
-def notificacao_para_dict(notificacao: Notificacao) -> Dict:
+def notificacao_para_dict(notificacao: Notificacao) -> dict:
     """Converte um objeto Notificacao para dicionário"""
     return {
         "id": notificacao.id,

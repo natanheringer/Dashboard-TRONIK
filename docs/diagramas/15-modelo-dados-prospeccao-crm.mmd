@@ -1,0 +1,32 @@
+%% Modelo de dados — prospecção + CRM + conta
+erDiagram
+  EMPRESA_CANDIDATA ||--o{ LOCAL_CANDIDATO : tem
+  EMPRESA_CANDIDATA ||--o| PIPELINE : pipeline_id
+  EMPRESA_CANDIDATA ||--o| CONTA_COMERCIAL : conta
+  SCORE_PROSPECCAO }o--|| EMPRESA_CANDIDATA : empresa_id
+  SCORE_PROSPECCAO }o--|| MODELO_PROSPECCAO : modelo_id
+  PIPELINE ||--o| CONTA_COMERCIAL : conta_comercial_id
+  PIPELINE ||--o| COLETOR : coletor_id
+  CONTA_COMERCIAL ||--o| PARCEIRO : parceiro_id
+  EMPRESA_CANDIDATA {
+    int id PK
+    string cnpj
+    string razao_social
+    int pipeline_id FK
+  }
+  SCORE_PROSPECCAO {
+    int id PK
+    float score
+    string qid
+    string prioridade
+  }
+  PIPELINE {
+    int id PK
+    string status
+    int conta_comercial_id FK
+  }
+  CONTA_COMERCIAL {
+    int id PK
+    string cnpj UK
+    int parceiro_id FK
+  }

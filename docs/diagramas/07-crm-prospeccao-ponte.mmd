@@ -1,0 +1,15 @@
+%% Ponte CRM ↔ prospecção ↔ operações (estado implementado)
+flowchart LR
+  EC[EmpresaCandidata] -->|pipeline_id| PL[Pipeline CRM]
+  EC -->|conta_comercial_id| ACC[ContaComercial]
+  PL -->|conta_comercial_id| ACC
+  PL -->|coletor_id opcional| CO[Coletor]
+  CO --> PA[Parceiro]
+  CO --> CL[Coleta]
+  CO --> CR[ContratoRecorrente]
+  SP[ScoreProspeccao] -->|empresa_id| EC
+  PL -.->|buscar_scores_para_pipeline| SP
+  API_CRM["API CRM prospeccao"] --> SP
+  API_POST["POST candidato pipeline"] --> PL
+  WIN[win_workflow] --> ACC
+  WIN --> EC

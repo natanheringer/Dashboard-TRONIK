@@ -6,17 +6,23 @@ Rotas para as páginas web do dashboard.
 Gerencia a navegação e renderização das páginas.
 """
 
-from flask import Blueprint, render_template
+from flask import Blueprint, redirect, render_template, url_for
 from flask_login import login_required
 
 # Criar blueprint das páginas
 paginas_bp = Blueprint('paginas', __name__)
 
 @paginas_bp.route('/')
-@login_required
 def index():
-    """Renderiza a página principal do dashboard"""
-    return render_template('index.html')
+    """Primeira página do site: landing de preview (marketing v2)."""
+    return redirect(url_for('preview.landing_preview'))
+
+
+@paginas_bp.route('/dashboard')
+@login_required
+def dashboard():
+    """Redireciona para o hub operacional preview v2 (legado index.html descontinuado)."""
+    return redirect(url_for('preview.dashboard_home'))
 
 @paginas_bp.route('/relatorios')
 @login_required
@@ -41,6 +47,17 @@ def sobre():
     """Renderiza a página sobre o projeto (pública)"""
     return render_template('sobre.html')
 
+@paginas_bp.route('/nik-public')
+def nik_public():
+    """Nik Pública — blocos educativos gerados (antes /landing)."""
+    return render_template('landing/landing.html')
+
+
+@paginas_bp.route('/landing')
+def landing_redirect():
+    """Compatibilidade: antiga URL da Nik pública."""
+    return redirect(url_for('paginas.nik_public'), code=301)
+
 @paginas_bp.route('/notificacoes')
 @login_required
 def notificacoes():
@@ -48,19 +65,16 @@ def notificacoes():
     return render_template('notificacoes.html')
 
 @paginas_bp.route('/comercial')
-@login_required
 def comercial():
-    """Renderiza a página do dashboard comercial"""
-    return render_template('comercial.html')
+    """Redireciona para o dashboard comercial no preview v2."""
+    return redirect(url_for('preview.comercial'), code=301)
 
 @paginas_bp.route('/crm')
-@login_required
 def crm():
-    """Renderiza a página do CRM"""
-    return render_template('crm.html')
+    """Redireciona para o CRM no preview v2."""
+    return redirect(url_for('preview.crm'), code=301)
 
 @paginas_bp.route('/contratos')
-@login_required
 def contratos():
-    """Renderiza a página de contratos"""
-    return render_template('contratos.html')
+    """Redireciona para contratos no preview v2."""
+    return redirect(url_for('preview.contratos'), code=301)

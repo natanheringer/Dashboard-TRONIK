@@ -1,0 +1,26 @@
+%% ML em produção nos coletores (agendamento) + prospecção batch
+flowchart TB
+  subgraph sched["APScheduler"]
+    A1[Alertas 60min]
+    A2[ML predicao enchimento 12h]
+    A3[ML score coletores 24h]
+    A4[Nik pre-geracao 60min]
+    A5[Pipeline prospeccao semanal opcional]
+  end
+  subgraph ml_ops["ML operacional"]
+    M1[ml_predicao]
+    M2[ml_score ranking]
+    M3[ml_narrativa cache]
+  end
+  subgraph ml_ree["ML prospecção REE"]
+    ING[jobs/prospeccao pipeline_ops]
+    XGB[XGBRanker v3.3]
+    TBL[(score_prospeccao modelo_prospeccao)]
+  end
+  A2 --> M1
+  A3 --> M2
+  A4 --> M3
+  A5 --> ING --> XGB --> TBL
+  API_ML["API ML"] --> M1
+  API_ML --> M2
+  API_PROSP["API prospeccao"] --> TBL

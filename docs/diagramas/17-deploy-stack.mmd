@@ -1,0 +1,30 @@
+%% Stack e deploy
+flowchart LR
+  subgraph front["Frontend"]
+    H[HTML Jinja2]
+    J[JS CSS preview v2]
+    L[Leaflet Chart.js]
+  end
+  subgraph back["Backend"]
+    PY[Python 3.11+ Flask]
+    SA[SQLAlchemy Pydantic]
+  end
+  subgraph data["Dados"]
+    PG[(PostgreSQL producao)]
+    SQ[(SQLite dev)]
+    REDIS[(Redis rate limit opcional)]
+  end
+  subgraph run["Execução"]
+    GU[Gunicorn]
+    RA[Railway Render]
+    SEN[Sentry opcional]
+  end
+  H --> PY
+  J --> PY
+  PY --> SA
+  SA --> PG
+  SA --> SQ
+  PY --> REDIS
+  GU --> PY
+  RA --> GU
+  PY --> SEN

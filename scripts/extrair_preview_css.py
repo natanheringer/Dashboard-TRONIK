@@ -83,7 +83,7 @@ for name, block in views_out.items():
     dest = views_dir / f"_{name}_raw.html"
     dest.write_text("\n".join(block) + "\n", encoding="utf-8")
 
-print(f"[ok] extraido:")
+print("[ok] extraido:")
 print(f"  estatico/css/v2/tokens.css   ({len(tokens_only)} bytes)")
 print(f"  estatico/css/v2/preview.css  ({len(css_full)} bytes)")
 if m_script:

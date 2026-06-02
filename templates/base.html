@@ -5,6 +5,13 @@
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <link rel="icon" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'><text y='.9em' font-size='90'>♻️</text></svg>">
     <title>{% block title %}Dashboard-TRONIK{% endblock %}</title>
+    <!-- Google Fonts: Montserrat, Roboto, Roboto Mono -->
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Montserrat:ital,wght@0,400;0,500;0,600;0,700;1,400&family=Roboto+Mono:wght@400;500&family=Roboto:wght@300;400;500;700&display=swap" rel="stylesheet">
+    <!-- Design System V2 Tokens -->
+    <link rel="stylesheet" href="{{ url_for('static', filename='css/v2/tokens.css') }}?v={{ cache_version }}">
+    <!-- Legacy Styles (será alinhado aos tokens) -->
     <link rel="stylesheet" href="{{ url_for('static', filename='css/estilo.css') }}">
     <link rel="stylesheet" href="{{ url_for('static', filename='css/menu-mobile.css') }}">
     {% if current_user.is_authenticated and preview_demo_banner_enabled %}
@@ -36,13 +43,13 @@
                     <span></span>
                 </button>
                 <div class="logo"></div>
-                <a href="{{ url_for('paginas.index') }}" class="logo-link">
+                <a href="{{ url_for('paginas.dashboard') }}" class="logo-link">
                     <h1 class="logo-text">Dashboard-TRONIK</h1>
                 </a>
             </div>
             <!-- Menu Principal (sempre visível) -->
             <nav class="nav-links nav-main" role="navigation" aria-label="Menu principal">
-                <a href="{{ url_for('paginas.index') }}" class="nav-link" aria-label="Ir para o dashboard">Dashboard</a>
+                <a href="{{ url_for('paginas.dashboard') }}" class="nav-link" aria-label="Ir para o dashboard">Dashboard</a>
                 <a href="{{ url_for('paginas.mapa') }}" class="nav-link" aria-label="Ir para o mapa de coletores">Mapa</a>
                 <a href="{{ url_for('paginas.relatorios') }}" class="nav-link" aria-label="Ir para os relatórios">Relatórios</a>
                 <a href="{{ url_for('paginas.comercial') }}" class="nav-link" aria-label="Ir para o dashboard comercial">Comercial</a>
@@ -180,6 +187,8 @@
     <script src="{{ url_for('static', filename='js/mapa/exportacao.js') }}?v={{ cache_version }}"></script>
     <!-- Socket.IO para WebSocket -->
     <script src="https://cdn.socket.io/4.5.4/socket.io.min.js" crossorigin="anonymous"></script>
+    <!-- Lucide Icons -->
+    <script src="https://unpkg.com/lucide@0.468.0/dist/umd/lucide.min.js"></script>
     <!-- Utilitários (devem ser carregados antes de api.js) -->
     <script src="{{ url_for('static', filename='js/utils/logger.js') }}?v={{ cache_version }}"></script>
     <script src="{{ url_for('static', filename='js/utils/retry.js') }}?v={{ cache_version }}"></script>
@@ -197,6 +206,10 @@
         document.addEventListener('DOMContentLoaded', function() {
             if (window.WebSocketClient) {
                 window.WebSocketClient.conectar();
+            }
+            // Inicializar Lucide Icons
+            if (window.lucide) {
+                lucide.createIcons();
             }
         });
     </script>

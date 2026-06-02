@@ -558,8 +558,9 @@ window.verDetalhesPipeline = async function(id) {
             tarefasRelacionadas = tarefasData.filter(t => t.pipeline_id === id);
         }
         
-        // Exibir modal com detalhes
+        // Exibir modal com detalhes (prospecção carrega em paralelo)
         mostrarModalDetalhesPipeline(pipeline, interacoes, tarefasRelacionadas);
+        carregarProspeccaoPipeline(id, pipeline);
         
         mostrarLoading(false);
     } catch (erro) {
@@ -768,6 +769,203 @@ function mostrarModalDetalhesPipeline(pipeline, interacoes, tarefas) {
     `;
     
     modalEl.style.display = 'flex';
+    injetarSecaoProspeccao(modalContent);
+}
+
+function injetarSecaoProspeccao(modalBody) {
+    if (!modalBody || modalBody.querySelector('#crm-prospeccao-card')) return;
+
+    const section = document.createElement('div');
+    section.className = 'detalhes-section';
+    section.innerHTML =
+        '<h3>Prospecção REE</h3>' +
+        '<div id="crm-prospeccao-card" class="crm-prosp-card crm-prosp-loading">' +
+        '<span class="crm-prosp-muted">Buscando candidato ranqueado…</span>' +
+        '</div>';
+
+    const sections = modalBody.querySelectorAll('.detalhes-section');
+    let anchor = null;
+    sections.forEach((el) => {
+        const h3 = el.querySelector('h3');
+        if (h3 && h3.textContent.trim() === 'Cliente') anchor = el;
+    });
+    if (anchor && anchor.nextSibling) {
+        anchor.parentNode.insertBefore(section, anchor.nextSibling);
+    } else if (sections.length > 0) {
+        sections[0].parentNode.insertBefore(section, sections[0].nextSibling);
+    } else {
+        modalBody.prepend(section);
+    }
+}
+
+function tokensBuscaProspeccao(pipeline) {
+    const textos = [];
+    if (pipeline.coletor) {
+        textos.push(pipeline.coletor.localizacao);
+        if (pipeline.coletor.parceiro) textos.push(pipeline.coletor.parceiro.nome);
+    }
+    textos.push(pipeline.observacoes, pipeline.proxima_acao);
+    const norm = textos
+        .filter(Boolean)
+        .join(' ')
+        .normalize('NFD')
+        .replace(/[\u0300-\u036f]/g, '')
+        .toLowerCase();
+    const tokens = norm.match(/[a-z0-9]{3,}/g) || [];
+    const qidHint = pipeline.coletor?.localizacao
+        ? pipeline.coletor.localizacao.toLowerCase().replace(/[^a-z0-9]+/g, '')
+        : '';
+    return { tokens: new Set(tokens), qidHint: qidHint.length >= 4 ? qidHint : '' };
+}
+
+function relevanciaCandidato(candidato, needles) {
+    const empresa = candidato.empresa || {};
+    const local = candidato.local || {};
+    const haystack = [
+        empresa.razao_social,
+        empresa.nome_fantasia,
+        empresa.bairro,
+        local.bairro,
+        local.endereco,
+        candidato.qid,
+    ]
+        .filter(Boolean)
+        .join(' ')
+        .toLowerCase();
+    if (!needles.size) return candidato.score || 0;
+    let hits = 0;
+    needles.forEach((t) => {
+        if (haystack.includes(t)) hits += 1;
+    });
+    if (!hits) return 0;
+    return hits * 100 + (candidato.score || 0);
+}
+
+function resumoCandidatoFallback(c) {
+    const empresa = c.empresa || {};
+    return {
+        score_id: c.id,
+        score: c.score,
+        score_percentil: c.score_percentil,
+        prioridade: c.prioridade,
+        qid: c.qid,
+        empresa_nome: empresa.razao_social || empresa.nome_fantasia || 'Candidato REE',
+        empresa_cnpj: empresa.cnpj,
+        bairro: empresa.bairro || (c.local || {}).bairro,
+    };
+}
+
+function escolherMelhorCandidato(candidatos, pipeline) {
+    const { tokens, qidHint } = tokensBuscaProspeccao(pipeline);
+    let lista = candidatos || [];
+    if (qidHint) {
+        const filtrados = lista.filter((c) => (c.qid || '').toLowerCase().includes(qidHint));
+        if (filtrados.length) lista = filtrados;
+    }
+    if (!lista.length) return null;
+    let melhor = lista.reduce((a, b) =>
+        relevanciaCandidato(a, tokens) >= relevanciaCandidato(b, tokens) ? a : b
+    );
+    if (tokens.size && relevanciaCandidato(melhor, tokens) <= 0) {
+        melhor = lista.reduce((a, b) => ((a.score || 0) >= (b.score || 0) ? a : b));
+    }
+    return resumoCandidatoFallback(melhor);
+}
+
+async function fetchProspeccaoPipelineFallback(pipeline) {
+    const { qidHint } = tokensBuscaProspeccao(pipeline);
+    const params = new URLSearchParams({ limite: '120' });
+    if (qidHint) params.set('qid', qidHint);
+    const resp = await fetch('/api/prospeccao/candidatos?' + params.toString());
+    if (!resp.ok) return null;
+    const body = await resp.json();
+    if (!body.ok) return null;
+    return escolherMelhorCandidato(body.dados, pipeline);
+}
+
+async function carregarProspeccaoPipeline(pipelineId, pipeline) {
+    const card = document.getElementById('crm-prospeccao-card');
+    if (!card) return;
+
+    let candidato = null;
+    try {
+        const resp = await fetch('/api/crm/pipeline/' + pipelineId + '/prospeccao');
+        if (resp.ok) {
+            const body = await resp.json();
+            candidato = body.dados?.candidato ?? body.candidato ?? null;
+        } else if (resp.status === 404) {
+            candidato = await fetchProspeccaoPipelineFallback(pipeline);
+        } else {
+            candidato = await fetchProspeccaoPipelineFallback(pipeline);
+        }
+    } catch (e) {
+        console.warn('Prospecção CRM:', e);
+        try {
+            candidato = await fetchProspeccaoPipelineFallback(pipeline);
+        } catch (_) {
+            /* ignore */
+        }
+    }
+    renderizarCardProspeccao(card, candidato);
+}
+
+function prioridadeBadgeCrm(prioridade) {
+    const p = (prioridade || 'media').toLowerCase();
+    let cls = 'crm-prosp-badge-neutral';
+    if (p === 'alta') cls = 'crm-prosp-badge-crit';
+    else if (p === 'media') cls = 'crm-prosp-badge-warn';
+    const label = p.charAt(0).toUpperCase() + p.slice(1);
+    return '<span class="crm-prosp-badge ' + cls + '">' + label + '</span>';
+}
+
+function formatarScoreRee(score) {
+    if (score == null || Number.isNaN(Number(score))) return '—';
+    return Number(score).toFixed(4);
+}
+
+function renderizarCardProspeccao(card, candidato) {
+    card.classList.remove('crm-prosp-loading');
+    const linkBase = '/preview/prospeccao';
+    const linkHref = candidato?.prioridade
+        ? linkBase + '?prioridade=' + encodeURIComponent(candidato.prioridade)
+        : linkBase;
+
+    if (!candidato) {
+        card.innerHTML =
+            '<p class="crm-prosp-muted">Nenhum candidato REE correspondente na fila publicada.</p>' +
+            '<a class="crm-prosp-link" href="' +
+            linkBase +
+            '">Abrir fila de prospecção</a>';
+        return;
+    }
+
+    const pct =
+        candidato.score_percentil != null
+            ? '<span class="crm-prosp-pct">P' + candidato.score_percentil + '</span>'
+            : '';
+    const sub = [candidato.empresa_cnpj, candidato.bairro, candidato.qid]
+        .filter(Boolean)
+        .join(' · ');
+
+    card.innerHTML =
+        '<div class="crm-prosp-row">' +
+        '<div class="crm-prosp-main">' +
+        '<strong class="crm-prosp-nome">' +
+        (candidato.empresa_nome || 'Candidato REE') +
+        '</strong>' +
+        (sub ? '<span class="crm-prosp-sub">' + sub + '</span>' : '') +
+        '</div>' +
+        '<div class="crm-prosp-metrics">' +
+        '<span class="crm-prosp-score">' +
+        formatarScoreRee(candidato.score) +
+        '</span>' +
+        pct +
+        prioridadeBadgeCrm(candidato.prioridade) +
+        '</div>' +
+        '</div>' +
+        '<a class="crm-prosp-link" href="' +
+        linkHref +
+        '">Ver na fila REE</a>';
 }
 
 // Criar modal de detalhes se não existir

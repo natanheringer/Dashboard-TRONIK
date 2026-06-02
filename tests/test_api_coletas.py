@@ -4,19 +4,19 @@ Testes da API de Coletas - Dashboard-TRONIK
 Testa endpoints de coletas (listar, criar, histórico).
 """
 
-import pytest
-import sys
 import os
-from datetime import datetime, timedelta
+import sys
+from datetime import datetime
+
 sys.path.insert(0, os.path.abspath(os.path.join(os.path.dirname(__file__), '..')))
 
-from banco_dados.modelos import Coleta, Coletor, Parceiro, TipoMaterial, TipoColetor, Usuario
+from banco_dados.modelos import Coleta, Coletor, Parceiro, TipoColetor, TipoMaterial, Usuario
 from banco_dados.utils import utc_now_naive
 
 
 class TestListarColetas:
     """Testes de listagem de coletas"""
-    
+
     def test_listar_coletas_empty(self, auth_client, db_session):
         """Testa listar coletas quando não há nenhuma"""
         response = auth_client.get('/api/coletas')
@@ -29,7 +29,7 @@ class TestListarColetas:
         else:
             assert isinstance(data, list)
             assert len(data) == 0
-    
+
     def test_listar_coletas_with_data(self, auth_client, db_session):
         """Testa listar coletas com dados"""
         # Criar coletor, parceiro e tipo coletor
@@ -38,11 +38,11 @@ class TestListarColetas:
             tipo_material = TipoMaterial(nome='Material Teste')
             db_session.add(tipo_material)
             db_session.flush()
-        
+
         parceiro = Parceiro(nome='Parceiro Teste')
         db_session.add(parceiro)
         db_session.flush()
-        
+
         coletor = Coletor(
             localizacao='Teste Localização',
             nivel_preenchimento=50.0,
@@ -54,13 +54,13 @@ class TestListarColetas:
         )
         db_session.add(coletor)
         db_session.flush()
-        
+
         tipo_coletor = db_session.query(TipoColetor).first()
         if not tipo_coletor:
             tipo_coletor = TipoColetor(nome='Coletor Teste')
             db_session.add(tipo_coletor)
             db_session.flush()
-        
+
         # Criar coleta
         coleta = Coleta(
             coletor_id=coletor.id,
@@ -75,7 +75,7 @@ class TestListarColetas:
         )
         db_session.add(coleta)
         db_session.commit()
-        
+
         # Listar coletas
         response = auth_client.get('/api/coletas')
         assert response.status_code == 200
@@ -88,7 +88,7 @@ class TestListarColetas:
         assert len(coletas) == 1
         assert coletas[0]['volume_estimado'] == 100.0
         assert coletas[0]['tipo_operacao'] == 'Avulsa'
-    
+
     def test_listar_coletas_filter_by_lixeira(self, auth_client, db_session):
         """Testa filtrar coletas por coletor"""
         # Criar duas coletores
@@ -96,7 +96,7 @@ class TestListarColetas:
         parceiro = Parceiro(nome='Parceiro Teste')
         db_session.add(parceiro)
         db_session.flush()
-        
+
         lixeira1 = Coletor(
             localizacao='Coletor 1',
             nivel_preenchimento=50.0,
@@ -106,7 +106,7 @@ class TestListarColetas:
         )
         db_session.add(lixeira1)
         db_session.flush()
-        
+
         lixeira2 = Coletor(
             localizacao='Coletor 2',
             nivel_preenchimento=60.0,
@@ -116,9 +116,9 @@ class TestListarColetas:
         )
         db_session.add(lixeira2)
         db_session.flush()
-        
+
         tipo_coletor = db_session.query(TipoColetor).first()
-        
+
         # Criar coletas para cada coletor
         coleta1 = Coleta(
             coletor_id=lixeira1.id,
@@ -127,7 +127,7 @@ class TestListarColetas:
             tipo_coletor_id=tipo_coletor.id if tipo_coletor else None
         )
         db_session.add(coleta1)
-        
+
         coleta2 = Coleta(
             coletor_id=lixeira2.id,
             data_hora=utc_now_naive(),
@@ -136,7 +136,7 @@ class TestListarColetas:
         )
         db_session.add(coleta2)
         db_session.commit()
-        
+
         # Filtrar por coletor 1
         response = auth_client.get(f'/api/coletas?coletor_id={lixeira1.id}')
         assert response.status_code == 200
@@ -148,7 +148,7 @@ class TestListarColetas:
             coletas = data
         assert len(coletas) == 1
         assert coletas[0]['coletor_id'] == lixeira1.id
-    
+
     def test_listar_coletas_filter_by_date(self, auth_client, db_session):
         """Testa filtrar coletas por data"""
         # Criar coletor
@@ -156,7 +156,7 @@ class TestListarColetas:
         parceiro = Parceiro(nome='Parceiro Teste')
         db_session.add(parceiro)
         db_session.flush()
-        
+
         coletor = Coletor(
             localizacao='Teste',
             nivel_preenchimento=50.0,
@@ -166,9 +166,9 @@ class TestListarColetas:
         )
         db_session.add(coletor)
         db_session.flush()
-        
+
         tipo_coletor = db_session.query(TipoColetor).first()
-        
+
         # Criar coleta com data específica
         data_especifica = datetime(2025, 11, 20, 10, 0, 0)
         coleta = Coleta(
@@ -179,7 +179,7 @@ class TestListarColetas:
         )
         db_session.add(coleta)
         db_session.commit()
-        
+
         # Filtrar por data
         response = auth_client.get('/api/coletas?data_inicio=2025-11-20&data_fim=2025-11-20')
         assert response.status_code == 200
@@ -189,12 +189,12 @@ class TestListarColetas:
 
 class TestCriarColeta:
     """Testes de criação de coletas"""
-    
+
     def test_criar_coleta_requires_auth(self, client):
         """Testa que criar coleta requer autenticação"""
         response = client.post('/api/coleta', json={})
         assert response.status_code == 401 or response.status_code == 302
-    
+
     def test_criar_coleta_success(self, client, db_session):
         """Testa criação bem-sucedida de coleta"""
         # Fazer login
@@ -207,18 +207,18 @@ class TestCriarColeta:
         usuario.set_senha('TestPass123!')
         db_session.add(usuario)
         db_session.commit()
-        
+
         client.post('/auth/login', json={
             'username': 'testuser',
             'senha': 'TestPass123!'
         })
-        
+
         # Criar coletor, parceiro e tipo coletor
         tipo_material = db_session.query(TipoMaterial).first()
         parceiro = Parceiro(nome='Parceiro Teste')
         db_session.add(parceiro)
         db_session.flush()
-        
+
         coletor = Coletor(
             localizacao='Teste Localização',
             nivel_preenchimento=50.0,
@@ -228,9 +228,9 @@ class TestCriarColeta:
         )
         db_session.add(coletor)
         db_session.flush()
-        
+
         tipo_coletor = db_session.query(TipoColetor).first()
-        
+
         # Criar coleta (data_hora é obrigatório na validação)
         dados_coleta = {
             'coletor_id': coletor.id,
@@ -243,7 +243,7 @@ class TestCriarColeta:
             'parceiro_id': parceiro.id,
             'tipo_coletor_id': tipo_coletor.id if tipo_coletor else None
         }
-        
+
         response = client.post('/api/coleta', json=dados_coleta)
         if response.status_code != 201:
             # Se falhou, verificar o erro
@@ -254,7 +254,7 @@ class TestCriarColeta:
         # A resposta retorna diretamente os dados da coleta
         assert 'id' in data
         assert data['volume_estimado'] == 100.0
-    
+
     def test_criar_coleta_missing_lixeira_id(self, client, db_session):
         """Testa criação de coleta sem coletor_id"""
         # Fazer login
@@ -267,12 +267,12 @@ class TestCriarColeta:
         usuario.set_senha('TestPass123!')
         db_session.add(usuario)
         db_session.commit()
-        
+
         client.post('/auth/login', json={
             'username': 'testuser2',
             'senha': 'TestPass123!'
         })
-        
+
         # Tentar criar sem coletor_id
         response = client.post('/api/coleta', json={
             'volume_estimado': 100.0
@@ -280,7 +280,7 @@ class TestCriarColeta:
         assert response.status_code == 400
         data = response.get_json()
         assert 'erro' in data
-    
+
     def test_criar_coleta_invalid_lixeira_id(self, client, db_session):
         """Testa criação de coleta com coletor_id inexistente"""
         # Fazer login
@@ -293,12 +293,12 @@ class TestCriarColeta:
         usuario.set_senha('TestPass123!')
         db_session.add(usuario)
         db_session.commit()
-        
+
         client.post('/auth/login', json={
             'username': 'testuser3',
             'senha': 'TestPass123!'
         })
-        
+
         # Tentar criar com coletor_id inexistente (validação retorna 400, não 404)
         response = client.post('/api/coleta', json={
             'coletor_id': 99999,
@@ -313,7 +313,7 @@ class TestCriarColeta:
 
 class TestHistorico:
     """Testes de histórico de coletas"""
-    
+
     def test_obter_historico_empty(self, auth_client, db_session):
         """Testa obter histórico quando não há coletas"""
         response = auth_client.get('/api/historico')
@@ -326,7 +326,7 @@ class TestHistorico:
         else:
             assert isinstance(data, list)
             assert len(data) == 0
-    
+
     def test_obter_historico_with_data(self, auth_client, db_session):
         """Testa obter histórico com dados"""
         # Criar coletor e coleta
@@ -334,7 +334,7 @@ class TestHistorico:
         parceiro = Parceiro(nome='Parceiro Teste')
         db_session.add(parceiro)
         db_session.flush()
-        
+
         coletor = Coletor(
             localizacao='Teste',
             nivel_preenchimento=50.0,
@@ -344,9 +344,9 @@ class TestHistorico:
         )
         db_session.add(coletor)
         db_session.flush()
-        
+
         tipo_coletor = db_session.query(TipoColetor).first()
-        
+
         coleta = Coleta(
             coletor_id=coletor.id,
             data_hora=utc_now_naive(),
@@ -355,13 +355,13 @@ class TestHistorico:
         )
         db_session.add(coleta)
         db_session.commit()
-        
+
         # Obter histórico
         response = auth_client.get('/api/historico')
         assert response.status_code == 200
         data = response.get_json()
         assert len(data) >= 1
-    
+
     def test_obter_historico_filter_by_date(self, auth_client, db_session):
         """Testa filtrar histórico por data"""
         # Criar coletor
@@ -369,7 +369,7 @@ class TestHistorico:
         parceiro = Parceiro(nome='Parceiro Teste')
         db_session.add(parceiro)
         db_session.flush()
-        
+
         coletor = Coletor(
             localizacao='Teste',
             nivel_preenchimento=50.0,
@@ -379,9 +379,9 @@ class TestHistorico:
         )
         db_session.add(coletor)
         db_session.flush()
-        
+
         tipo_coletor = db_session.query(TipoColetor).first()
-        
+
         # Criar coleta com data específica
         data_especifica = datetime(2025, 11, 20, 10, 0, 0)
         coleta = Coleta(
@@ -392,7 +392,7 @@ class TestHistorico:
         )
         db_session.add(coleta)
         db_session.commit()
-        
+
         # Filtrar por data
         response = auth_client.get('/api/historico?data=2025-11-20')
         assert response.status_code == 200

@@ -4,7 +4,6 @@ Utilitários de Precificação - Dashboard-TRONIK
 Funções auxiliares para cálculos de precificação de serviços.
 """
 
-from typing import Dict, Optional
 import logging
 
 logger = logging.getLogger(__name__)
@@ -31,11 +30,11 @@ LUCRO_BRUTO_POR_KG = 1.0
 def calcular_preco_coleta(distancia_km: float, preco_combustivel: float = 5.50) -> float:
     """
     Calcula preço de uma coleta baseado na distância.
-    
+
     Args:
         distancia_km: Distância em quilômetros
         preco_combustivel: Preço do combustível por litro (padrão: R$ 5,50)
-        
+
     Returns:
         Preço sugerido para a coleta
     """
@@ -49,12 +48,12 @@ def calcular_preco_coleta(distancia_km: float, preco_combustivel: float = 5.50) 
         # Adicionar R$ 10 por km adicional acima de 60km
         km_extra = distancia_km - 60
         preco_base += km_extra * 10
-    
+
     # Ajustar baseado no preço do combustível (se muito alto, aumentar preço)
     if preco_combustivel > 6.0:
         ajuste_combustivel = (preco_combustivel - 5.50) * 10  # R$ 10 por R$ 0,10 de aumento
         preco_base += ajuste_combustivel
-    
+
     return round(preco_base, 2)
 
 
@@ -62,31 +61,31 @@ def calcular_lucro_estimado_coleta(
     volume_kg: float,
     distancia_km: float,
     preco_combustivel: float = 5.50
-) -> Dict[str, float]:
+) -> dict[str, float]:
     """
     Calcula lucro estimado de uma coleta.
-    
+
     Args:
         volume_kg: Volume coletado em kg
         distancia_km: Distância percorrida em km
         preco_combustivel: Preço do combustível por litro
-        
+
     Returns:
         Dicionário com receita, custos e lucro
     """
     # Receita bruta
     receita_bruta = volume_kg * LUCRO_BRUTO_POR_KG
-    
+
     # Custo de combustível
     litros_consumidos = distancia_km / CONSUMO_KM_POR_LITRO
     custo_combustivel = litros_consumidos * preco_combustivel
-    
+
     # Outros custos (estimativa: 10% da receita)
     outros_custos = receita_bruta * 0.10
-    
+
     # Lucro líquido
     lucro_liquido = receita_bruta - custo_combustivel - outros_custos
-    
+
     return {
         'receita_bruta': round(receita_bruta, 2),
         'custo_combustivel': round(custo_combustivel, 2),
@@ -98,35 +97,35 @@ def calcular_lucro_estimado_coleta(
 
 def sugerir_preco_servico(
     tipo_servico: str,
-    parametros: Optional[Dict] = None
+    parametros: dict | None = None
 ) -> float:
     """
     Sugere preço para um tipo de serviço.
-    
+
     Args:
         tipo_servico: Tipo do serviço ('coleta', 'palestra', 'oficina', etc.)
         parametros: Parâmetros adicionais (ex: {'distancia_km': 35})
-        
+
     Returns:
         Preço sugerido
     """
     parametros = parametros or {}
-    
+
     if tipo_servico == 'coleta':
         distancia = parametros.get('distancia_km', 0)
         preco_combustivel = parametros.get('preco_combustivel', 5.50)
         return calcular_preco_coleta(distancia, preco_combustivel)
-    
+
     # Outros serviços usam preços fixos
     chave_preco = tipo_servico.lower()
     if chave_preco in PRECOS_SERVICOS:
         return PRECOS_SERVICOS[chave_preco]
-    
+
     logger.warning(f"Tipo de serviço '{tipo_servico}' não encontrado. Usando preço padrão.")
     return PRECOS_SERVICOS.get('coleta_0_40km', 800.0)
 
 
-def obter_precos_servicos() -> Dict[str, float]:
+def obter_precos_servicos() -> dict[str, float]:
     """Retorna dicionário com todos os preços de serviços"""
     return PRECOS_SERVICOS.copy()
 

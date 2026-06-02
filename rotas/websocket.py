@@ -4,13 +4,15 @@ WebSocket Routes - Dashboard-TRONIK
 Rotas WebSocket para atualizações em tempo real.
 """
 
+import contextlib
 import os
+import re
 
 from flask import Blueprint
-from flask_socketio import SocketIO, emit, join_room, leave_room
 from flask_login import current_user
+from flask_socketio import SocketIO, emit, join_room, leave_room
+
 from banco_dados.utils.logger import obter_logger
-import re
 
 logger = obter_logger(__name__)
 
@@ -39,22 +41,26 @@ def inicializar_websocket(app):
     Deve ser chamado no app.py após criar a app.
     """
     global socketio
-    from flask_socketio import SocketIO
-    
+
     try:
+        # Em async_mode=threading com Werkzeug (dev), upgrade para WebSocket
+        # costuma gerar erros intermitentes. Mantemos polling estável no dev.
+        is_dev = os.getenv("FLASK_ENV", "development").strip().lower() == "development"
         socketio = SocketIO(
             app,
             cors_allowed_origins=_origens_socket_io(),
             async_mode='threading',
+            manage_session=False,
             logger=False,  # Desabilitar logger para evitar problemas
             engineio_logger=False,  # Desabilitar engineio logger
             ping_timeout=60,
-            ping_interval=25
+            ping_interval=25,
+            allow_upgrades=not is_dev,
         )
-        
+
         # Registrar handlers após inicializar socketio
         registrar_handlers()
-        
+
         logger.info("WebSocket inicializado com sucesso")
         return socketio
     except Exception as e:
@@ -67,24 +73,24 @@ def registrar_handlers():
     """Registra todos os handlers WebSocket"""
     if not socketio:
         return
-    
+
     @socketio.on('connect')
     def handle_connect(auth=None):
         """
         Manipula conexão WebSocket com autenticação obrigatória.
-        
+
         Args:
             auth: Dicionário opcional com token de autenticação (para futuro)
         """
         try:
             # Verificar autenticação de forma segura
-            from flask_login import current_user
             from flask import request
-            
+            from flask_login import current_user
+
             # Tentar obter usuário autenticado
             is_authenticated = False
             username = 'unknown'
-            
+
             try:
                 # Verificar se há sessão Flask-Login ativa
                 if hasattr(current_user, 'is_authenticated'):
@@ -94,19 +100,19 @@ def registrar_handlers():
             except Exception as auth_error:
                 logger.debug(f"Erro ao verificar autenticação: {auth_error}")
                 is_authenticated = False
-            
+
             # Se não autenticado, verificar token na query string (fallback)
             if not is_authenticated and auth and isinstance(auth, dict):
                 # Futuro: validar token JWT aqui
                 logger.debug("Autenticação via token não implementada ainda")
-            
+
             # Exigir autenticação para conexão
             if not is_authenticated:
                 logger.warning(f"Tentativa de conexão WebSocket não autenticada de {request.remote_addr}")
                 # Rejeitar conexão não autenticada
                 emit('error', {'message': 'Autenticação necessária'})
                 return False
-            
+
             # Conexão autenticada - permitir
             logger.info(f"Cliente WebSocket conectado: {username} ({request.remote_addr})")
             try:
@@ -116,18 +122,16 @@ def registrar_handlers():
                 })
             except Exception as emit_error:
                 logger.error(f"Erro ao emitir mensagem de conexão: {emit_error}")
-            
+
             return True
-            
+
         except Exception as e:
             logger.error(f"Erro ao processar conexão WebSocket: {e}", exc_info=True)
             # Em caso de erro, rejeitar conexão por segurança
-            try:
+            with contextlib.suppress(BaseException):
                 emit('error', {'message': 'Erro ao conectar'})
-            except:
-                pass
             return False
-    
+
     @socketio.on('disconnect')
     def handle_disconnect():
         """Manipula desconexão WebSocket"""
@@ -138,12 +142,12 @@ def registrar_handlers():
                 logger.info(f"Cliente WebSocket desconectado: {username}")
         except Exception as e:
             logger.debug(f"Erro ao processar desconexão: {e}")
-    
+
     @socketio.on('join_room')
     def handle_join_room(data):
         """
         Permite que cliente entre em uma sala (room) com validação de segurança.
-        
+
         Args:
             data: Dicionário com 'room' (nome da sala)
         """
@@ -153,17 +157,17 @@ def registrar_handlers():
                 logger.warning("Tentativa de join_room sem autenticação")
                 emit('error', {'message': 'Autenticação necessária'})
                 return False
-            
+
             # Validar e sanitizar nome da sala
             if not data or not isinstance(data, dict):
                 emit('error', {'message': 'Dados inválidos'})
                 return False
-            
+
             room = data.get('room', 'default')
             if not room or not isinstance(room, str):
                 emit('error', {'message': 'Nome de sala inválido'})
                 return False
-            
+
             # Sanitizar nome da sala (apenas alfanuméricos, underscore, hífen)
             from banco_dados.seguranca import sanitizar_string
             room = sanitizar_string(room, max_length=50)
@@ -171,61 +175,61 @@ def registrar_handlers():
                 logger.warning(f"Nome de sala inválido tentado: {room}")
                 emit('error', {'message': 'Nome de sala inválido'})
                 return False
-            
+
             # Permitir apenas salas conhecidas (whitelist)
             salas_permitidas = ['coletores', 'sensores', 'notificacoes', 'coletas', 'estatisticas', 'default']
             if room not in salas_permitidas:
                 logger.warning(f"Tentativa de entrar em sala não permitida: {room}")
                 emit('error', {'message': 'Sala não permitida'})
                 return False
-            
+
             join_room(room)
             logger.info(f"Usuário {current_user.username} entrou na sala: {room}")
             emit('joined_room', {'room': room})
             return True
-            
+
         except Exception as e:
             logger.error(f"Erro ao processar join_room: {e}", exc_info=True)
             emit('error', {'message': 'Erro ao entrar na sala'})
             return False
-    
+
     @socketio.on('leave_room')
     def handle_leave_room(data):
         """Permite que cliente saia de uma sala"""
         if not current_user.is_authenticated:
             return False
-        
+
         room = data.get('room', 'default')
         leave_room(room)
         logger.info(f"Usuário {current_user.username} saiu da sala: {room}")
         emit('left_room', {'room': room})
-    
+
     @socketio.on('subscribe_lixeiras')
     def handle_subscribe_lixeiras():
         """Cliente se inscreve para atualizações de coletores"""
         if not current_user.is_authenticated:
             return False
-        
+
         join_room('coletores')
         logger.info(f"Usuário {current_user.username} inscrito em atualizações de coletores")
         emit('subscribed', {'topic': 'coletores'})
-    
+
     @socketio.on('subscribe_sensores')
     def handle_subscribe_sensores():
         """Cliente se inscreve para atualizações de sensores"""
         if not current_user.is_authenticated:
             return False
-        
+
         join_room('sensores')
         logger.info(f"Usuário {current_user.username} inscrito em atualizações de sensores")
         emit('subscribed', {'topic': 'sensores'})
-    
+
     @socketio.on('subscribe_notificacoes')
     def handle_subscribe_notificacoes():
         """Cliente se inscreve para atualizações de notificações"""
         if not current_user.is_authenticated:
             return False
-        
+
         join_room('notificacoes')
         logger.info(f"Usuário {current_user.username} inscrito em atualizações de notificações")
         emit('subscribed', {'topic': 'notificacoes'})
@@ -235,7 +239,7 @@ def registrar_handlers():
 def emitir_atualizacao_coletor(coletor_data, evento='coletor_atualizado'):
     """
     Emite atualização de coletor para todos os clientes inscritos.
-    
+
     Args:
         coletor_data: Dicionário com dados da coletor
         evento: Nome do evento (padrão: 'lixeira_atualizada')
@@ -248,7 +252,7 @@ def emitir_atualizacao_coletor(coletor_data, evento='coletor_atualizado'):
 def emitir_atualizacao_sensor(sensor_data, evento='sensor_atualizado'):
     """
     Emite atualização de sensor para todos os clientes inscritos.
-    
+
     Args:
         sensor_data: Dicionário com dados do sensor
         evento: Nome do evento (padrão: 'sensor_atualizado')
@@ -261,7 +265,7 @@ def emitir_atualizacao_sensor(sensor_data, evento='sensor_atualizado'):
 def emitir_nova_notificacao(notificacao_data):
     """
     Emite nova notificação para todos os clientes inscritos.
-    
+
     Args:
         notificacao_data: Dicionário com dados da notificação
     """
@@ -273,7 +277,7 @@ def emitir_nova_notificacao(notificacao_data):
 def emitir_atualizacao_estatisticas(estatisticas_data):
     """
     Emite atualização de estatísticas para todos os clientes.
-    
+
     Args:
         estatisticas_data: Dicionário com estatísticas
     """
@@ -285,7 +289,7 @@ def emitir_atualizacao_estatisticas(estatisticas_data):
 def emitir_atualizacao_coleta(coleta_data):
     """
     Emite atualização de coleta para todos os clientes.
-    
+
     Args:
         coleta_data: Dicionário com dados da coleta
     """

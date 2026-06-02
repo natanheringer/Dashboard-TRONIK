@@ -12,19 +12,19 @@ Baseado no mockup principal.
     box-sizing: border-box;
 }
 
-/* Variáveis CSS - Identidade Visual Tronik (Verde) */
+/* Variáveis CSS - Alinhadas ao Design System V2 */
 :root {
-    --color-primary: #27ae60;        /* Verde Tronik principal */
-    --color-primary-dark: #229954;   /* Verde Tronik escuro (hover) */
-    --color-primary-light: #2ecc71; /* Verde Tronik claro */
-    --color-success: #27ae60;
-    --color-warning: #f39c12;
-    --color-danger: #e74c3c;
-    --color-bg: #f0f2f5;
-    --color-text: #1a1a1a;
-    --color-text-secondary: #7f8c8d;
-    --color-border: #e0e0e0;
-    --font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Oxygen, Ubuntu, sans-serif;
+    --color-primary: var(--tronik, #1a5d3a);        /* Verde Tronik revisado */
+    --color-primary-dark: var(--tronik-hover, #134428);   /* Verde Tronik escuro (hover) */
+    --color-primary-light: var(--tronik-soft, #d8e6d8); /* Verde Tronik claro */
+    --color-success: var(--signal-ok, #1a5d3a);
+    --color-warning: var(--signal-warn, #b0661e);
+    --color-danger: var(--signal-critical, #9b2a1f);
+    --color-bg: var(--paper-page, #f4efe3);
+    --color-text: var(--ink-primary, #1c1810);
+    --color-text-secondary: var(--ink-tertiary, #87796a);
+    --color-border: var(--line-default, #d8cdb2);
+    --font-family: var(--font-body, "Roboto", system-ui, sans-serif);
 }
 
 /* Estilos gerais */
@@ -89,7 +89,7 @@ body {
 }
 
 .menu-toggle:hover span {
-    background: #27ae60;
+    background: var(--color-primary);
 }
 
 .nav-links {
@@ -113,11 +113,11 @@ body {
 }
 
 .nav-link:hover {
-    background: #f0f2f5;
+    background: var(--paper-bg, #f4efe3);
 }
 
 .nav-link.active {
-    color: #27ae60;
+    color: var(--color-primary);
     font-weight: 600;
 }
 
@@ -147,7 +147,7 @@ body {
 .logo {
     width: 32px;
     height: 32px;
-    background: linear-gradient(135deg, #27ae60 0%, #229954 100%);
+    background: linear-gradient(135deg, var(--tronik) 0%, var(--tronik-hover) 100%);
     border-radius: 6px;
 }
 

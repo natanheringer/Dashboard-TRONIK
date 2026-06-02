@@ -44,8 +44,17 @@ function setupTabs() {
 
             btn.classList.add('active');
             document.getElementById(`tab-${target}`).classList.add('active');
+
+            if (target === 'solicitacoes') {
+                carregarSolicitacoes();
+            }
         });
     });
+
+    const tabSolicitacoes = document.querySelector('.gestao-tab[data-tab="solicitacoes"]');
+    if (tabSolicitacoes && tabSolicitacoes.classList.contains('active')) {
+        carregarSolicitacoes();
+    }
 }
 
 /**

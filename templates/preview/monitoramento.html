@@ -12,15 +12,11 @@
         </div>
         <div class="page-actions">
           <a class="btn" href="{{ url_for('preview.monitoramento', q=filtro_q, nivel=filtro_nivel) }}">
-            <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15"/></svg>
-            Atualizar página
+            <i data-lucide="refresh-cw" class="icon"></i>
+            Atualizar
           </a>
-          <a class="btn" href="{{ url_for('paginas.relatorios') }}">
-            <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M12 10v6m0 0l-3-3m3 3l3-3M3 17V7a2 2 0 012-2h6l2 2h6a2 2 0 012 2v8a2 2 0 01-2 2H5a2 2 0 01-2-2z"/></svg>
-            Relatórios (legado)
-          </a>
-          <a class="btn btn-primary" href="{{ url_for('paginas.configuracoes') }}">
-            <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M12 4v16m8-8H4"/></svg>
+          <a class="btn btn-primary" href="{{ url_for('preview.gestao') }}">
+            <i data-lucide="plus" class="icon"></i>
             Gestão de coletores
           </a>
         </div>
@@ -34,7 +30,7 @@
         </div>
         <div class="kpi">
           <div class="kpi-label">Nível médio</div>
-          <div class="kpi-value">{{ stats.nivel_medio }}<span style="font-size:0.5em;color:var(--ink-tertiary);font-weight:400;">%</span></div>
+          <div class="kpi-value">{{ stats.nivel_medio }}<span class="kpi-value-suffix">%</span></div>
           <div class="kpi-delta warn"><strong>{{ stats.alertas_ativos }}</strong> ≥ 80% preenchimento</div>
         </div>
         <div class="kpi">
@@ -84,7 +80,7 @@
                 <span class="badge {{ c.classe }}">{{ c.badge }}</span>
               </div>
               <div class="coletor-meta">
-                <svg fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2"><path stroke-linecap="round" stroke-linejoin="round" d="M17.657 16.657L13.414 20.9a1.998 1.998 0 01-2.827 0l-4.244-4.243a8 8 0 1111.314 0z"/></svg>
+                <i data-lucide="map-pin" class="icon" style="width: 16px; height: 16px;"></i>
                 {{ c.parceiro }} · {{ c.tipo_material }}
               </div>
               <div class="coletor-level">
@@ -95,14 +91,30 @@
                 <div class="level-bar"><div class="level-fill" data-pct="{% if c.nivel > 100 %}100{% else %}{{ c.nivel }}{% endif %}"></div></div>
               </div>
               {% if c.bateria is not none %}
-              <div class="coletor-meta" style="margin-top:var(--space-2);font-size:var(--text-xs);">
+              <div class="coletor-meta coletor-meta-sub">
                 Bateria média sensores: <strong>{{ c.bateria }}%</strong> · Última coleta: {{ c.ultima_coleta_fmt }}
+              </div>
+              {% endif %}
+              {% if c.ml_predicao or c.ml_score is defined and c.ml_score is not none %}
+              <div class="coletor-ml">
+                {% if c.ml_predicao %}
+                <span class="ml-tag ml-tag--predicao" title="Previsão ML: enche em ~{{ c.ml_predicao.horas_restantes }}h">
+                  <i data-lucide="clock" class="icon" style="width: 10px; height: 10px;"></i>
+                  {% if c.ml_predicao.horas_restantes %}~{{ c.ml_predicao.horas_restantes }}h{% else %}estável{% endif %}
+                </span>
+                {% endif %}
+                {% if c.ml_score is defined and c.ml_score is not none %}
+                <span class="ml-tag ml-tag--score" title="TRONIK Score">
+                  <i data-lucide="zap" class="icon" style="width: 10px; height: 10px;"></i>
+                  {{ c.ml_score|round(0)|int }}
+                </span>
+                {% endif %}
               </div>
               {% endif %}
             </article>
             </a>
             {% else %}
-            <p class="home-subtitle" style="grid-column:1/-1;">Nenhum coletor corresponde aos filtros. <a href="{{ url_for('preview.monitoramento') }}">Limpar busca</a>.</p>
+            <p class="monitor-empty-text home-subtitle-full">Nenhum coletor corresponde aos filtros. <a href="{{ url_for('preview.monitoramento') }}">Limpar busca</a>.</p>
             {% endfor %}
           </div>
         </section>
@@ -122,6 +134,7 @@
               <button type="button" class="btn btn-primary" onclick="previewToast('Use a gestão de coletores para registrar a rota ou coleta.', 'ok')">O que faço?</button>
               <a class="btn" href="{{ url_for('preview.mapa', coletor_id=alerta_destaque.id) }}">Ver no mapa</a>
             </div>
+            <div id="nik-ops-alerta" class="nik-container"></div>
           </div>
           {% endif %}
 
@@ -137,12 +150,31 @@
                 <strong>{{ row.parceiro }}</strong>
                 <span>{{ row.meta }} · {{ row.data_fmt }}</span>
               </div>
-              <div class="historico-value">{% if row.volume is number %}{{ row.volume }}<em style="font-style:normal;color:var(--ink-tertiary)">kg</em>{% else %}—{% endif %}</div>
+              <div class="historico-value">{% if row.volume is number %}{{ row.volume }}<em class="historico-unit">kg</em>{% else %}—{% endif %}</div>
             </div>
             {% else %}
-            <p style="padding:var(--space-4);color:var(--ink-tertiary);font-size:var(--text-sm);">Nenhuma coleta registrada ainda.</p>
+            <p class="panel-empty-text">Nenhuma coleta registrada ainda.</p>
             {% endfor %}
           </div>
+
+          {% if ranking_ml %}
+          <div class="panel-card panel-card-spaced">
+            <div class="panel-head">
+              <h3>TRONIK Score <span class="ml-tag ml-tag--score ml-tag-inline">ML</span></h3>
+              <span>Top prioridade</span>
+            </div>
+            {% for r in ranking_ml %}
+            <div class="historico-row">
+              <span class="historico-id historico-id-rank">#{{ r.rank }}</span>
+              <div class="historico-info">
+                <strong>{{ r.nome[:25] }}</strong>
+                <span>{{ r.parceiro }} · {{ r.nivel }}%</span>
+              </div>
+              <div class="historico-value"><strong>{{ r.score|round(0)|int }}</strong><em class="historico-unit historico-unit-xs">pts</em></div>
+            </div>
+            {% endfor %}
+          </div>
+          {% endif %}
         </aside>
       </div>
 
@@ -156,7 +188,7 @@
         <div class="pagination-controls">
           {% if paginacao.tem_anterior %}
           <a class="btn pagination-btn" href="{{ url_for('preview.monitoramento', q=filtro_q, nivel=filtro_nivel, page=paginacao.pagina_atual-1) }}">
-            <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polyline points="15 18 9 12 15 6"></polyline></svg>
+            <i data-lucide="chevron-left" class="icon"></i>
             Anterior
           </a>
           {% endif %}
@@ -174,11 +206,22 @@
           {% if paginacao.tem_proxima %}
           <a class="btn pagination-btn" href="{{ url_for('preview.monitoramento', q=filtro_q, nivel=filtro_nivel, page=paginacao.pagina_atual+1) }}">
             Próxima
-            <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polyline points="9 18 15 12 9 6"></polyline></svg>
+            <i data-lucide="chevron-right" class="icon"></i>
           </a>
           {% endif %}
         </div>
       </div>
       {% endif %}
 </div>
+{% endblock %}
+{% block scripts_extra %}
+{% if alerta_destaque %}
+<script>
+  document.addEventListener("DOMContentLoaded", function () {
+    if (window.NikLoader) {
+      window.NikLoader.carregarNikOps("/ops/alerta", "nik-ops-alerta");
+    }
+  });
+</script>
+{% endif %}
 {% endblock %}

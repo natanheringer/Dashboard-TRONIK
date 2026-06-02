@@ -894,6 +894,113 @@ form {
     padding: 1rem;
 }
 
+/* Prospecção REE (preview v2–aligned compact card) */
+.crm-prosp-card {
+    display: flex;
+    flex-direction: column;
+    gap: 0.75rem;
+    padding: 1rem 1.125rem;
+    background: linear-gradient(135deg, #f8fafc 0%, #f1f5f9 100%);
+    border: 1px solid #e2e8f0;
+    border-radius: 10px;
+    border-left: 3px solid #3b82f6;
+}
+
+.crm-prosp-card.crm-prosp-loading {
+    border-left-color: #94a3b8;
+}
+
+.crm-prosp-row {
+    display: flex;
+    flex-wrap: wrap;
+    align-items: flex-start;
+    justify-content: space-between;
+    gap: 0.75rem 1rem;
+}
+
+.crm-prosp-main {
+    flex: 1;
+    min-width: 140px;
+}
+
+.crm-prosp-nome {
+    display: block;
+    font-size: 0.95rem;
+    color: #1e293b;
+    margin-bottom: 0.25rem;
+}
+
+.crm-prosp-sub {
+    display: block;
+    font-size: 0.75rem;
+    color: #64748b;
+    font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, monospace;
+    word-break: break-all;
+}
+
+.crm-prosp-metrics {
+    display: flex;
+    flex-wrap: wrap;
+    align-items: center;
+    gap: 0.5rem 0.75rem;
+}
+
+.crm-prosp-score {
+    font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, monospace;
+    font-size: 1rem;
+    font-weight: 700;
+    color: #2563eb;
+}
+
+.crm-prosp-pct {
+    font-size: 0.7rem;
+    color: #64748b;
+    font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, monospace;
+}
+
+.crm-prosp-badge {
+    display: inline-block;
+    padding: 0.2rem 0.55rem;
+    border-radius: 999px;
+    font-size: 0.7rem;
+    font-weight: 600;
+    text-transform: capitalize;
+}
+
+.crm-prosp-badge-crit {
+    background: #fee2e2;
+    color: #dc2626;
+}
+
+.crm-prosp-badge-warn {
+    background: #fef3c7;
+    color: #d97706;
+}
+
+.crm-prosp-badge-neutral {
+    background: #f1f5f9;
+    color: #64748b;
+}
+
+.crm-prosp-muted {
+    color: #94a3b8;
+    font-size: 0.875rem;
+    margin: 0;
+}
+
+.crm-prosp-link {
+    font-size: 0.8125rem;
+    font-weight: 600;
+    color: #3b82f6;
+    text-decoration: none;
+    align-self: flex-start;
+}
+
+.crm-prosp-link:hover {
+    text-decoration: underline;
+    color: #2563eb;
+}
+
 .modal-detalhes-footer {
     padding: 1.5rem;
     border-top: 1px solid #e2e8f0;

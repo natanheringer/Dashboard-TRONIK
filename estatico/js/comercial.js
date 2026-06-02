@@ -286,6 +286,16 @@ let parceiroSelecionadoTabela = '';
 let graficoEvolucao = null;
 let graficoParceiros = null;
 
+function refreshLucideIcons(retries = 6) {
+    if (window.lucide && typeof window.lucide.createIcons === 'function') {
+        window.lucide.createIcons();
+        return;
+    }
+    if (retries > 0) {
+        setTimeout(() => refreshLucideIcons(retries - 1), 120);
+    }
+}
+
 // Carregar dados do dashboard
 async function carregarDashboard(mes = null, ano = null, meses = null, todos = false) {
     try {
@@ -338,6 +348,7 @@ async function carregarDashboard(mes = null, ano = null, meses = null, todos = f
         }
         
         mostrarLoading(false);
+        refreshLucideIcons();
     } catch (erro) {
         console.error('Erro ao carregar dashboard:', erro);
         mostrarErro(`Erro ao carregar dados do dashboard: ${erro.message}`);
@@ -413,49 +424,66 @@ function filtrarParceiroTabela() {
 
 // Renderizar KPIs
 function renderizarKPIs() {
-    const { meta, faturamento_atual, percentual_meta, falta_para_meta, valor_agendado_semana, projecao_fim_mes } = dashboardData;
+    const {
+        meta = {},
+        faturamento_atual = 0,
+        percentual_meta = 0,
+        falta_para_meta = 0,
+        valor_agendado_semana = 0,
+        projecao_fim_mes = 0
+    } = dashboardData;
+
+    const setText = (id, value) => {
+        const el = document.getElementById(id);
+        if (el) el.textContent = value;
+    };
     
     // Meta circular
     const percentual = Math.min(100, Math.max(0, percentual_meta));
     const circunferencia = 2 * Math.PI * 54; // raio = 54
     const offset = circunferencia - (percentual / 100) * circunferencia;
     
-    document.getElementById('circle-progress').setAttribute('stroke-dashoffset', offset);
-    document.getElementById('percentual-text').textContent = `${percentual.toFixed(1)}%`;
-    document.getElementById('meta-valor').textContent = formatarMoeda(faturamento_atual);
-    document.getElementById('meta-total').textContent = `de ${formatarMoeda(meta.valor_meta)}`;
+    const circleProgress = document.getElementById('circle-progress');
+    if (circleProgress) {
+        circleProgress.setAttribute('stroke-dashoffset', offset);
+    }
+    setText('percentual-text', `${percentual.toFixed(1)}%`);
+    setText('meta-valor', formatarMoeda(faturamento_atual));
+    setText('meta-total', `de ${formatarMoeda(meta.valor_meta || 0)}`);
     
     // Status badge
     const statusBadge = document.getElementById('status-badge');
-    const statusIcon = meta.status === 'atingida' ? '<img src="/static/icons/check_icon.png" alt="Atingida" class="status-icon">' : 
-                       meta.status === 'nao_atingida' ? '<img src="/static/icons/alert_icon.png" alt="Não Atingida" class="status-icon">' : 
-                       '<img src="/static/icons/refresh_icon.png" alt="Em Andamento" class="status-icon">';
-    statusBadge.innerHTML = meta.status === 'atingida' ? statusIcon + ' Atingida' : 
-                              meta.status === 'nao_atingida' ? statusIcon + ' Não Atingida' : 
-                              statusIcon + ' Em Andamento';
-    statusBadge.className = `status-badge ${meta.status === 'atingida' ? 'sucesso' : 
-                                                      meta.status === 'nao_atingida' ? 'erro' : 
-                                                      'atencao'}`;
+    const statusIcon = meta.status === 'atingida' ? '<i data-lucide="circle-check" class="icon status-icon"></i>' :
+                       meta.status === 'nao_atingida' ? '<i data-lucide="triangle-alert" class="icon status-icon"></i>' :
+                       '<i data-lucide="clock-3" class="icon status-icon"></i>';
+    if (statusBadge) {
+        statusBadge.innerHTML = meta.status === 'atingida' ? statusIcon + ' Atingida' :
+                                  meta.status === 'nao_atingida' ? statusIcon + ' Não Atingida' :
+                                  statusIcon + ' Em Andamento';
+        statusBadge.className = `status-badge ${meta.status === 'atingida' ? 'sucesso' :
+                                                          meta.status === 'nao_atingida' ? 'erro' :
+                                                          'atencao'}`;
+        refreshLucideIcons();
+    }
     
     // Outros KPIs
-    document.getElementById('kpi-faturamento').textContent = formatarMoeda(faturamento_atual);
-    document.getElementById('kpi-faturamento-desc').textContent = `Este mês (${percentual.toFixed(1)}% da meta)`;
-    
-    document.getElementById('kpi-falta').textContent = formatarMoeda(falta_para_meta);
-    document.getElementById('kpi-falta-desc').textContent = falta_para_meta > 0 ? 'Restante' : 'Meta atingida!';
-    
-    document.getElementById('kpi-agendado').textContent = formatarMoeda(valor_agendado_semana);
-    
-    document.getElementById('kpi-projecao').textContent = formatarMoeda(projecao_fim_mes);
-    const projecaoPercentual = (projecao_fim_mes / meta.valor_meta * 100).toFixed(1);
-    document.getElementById('kpi-projecao-desc').textContent = `${projecaoPercentual}% da meta`;
+    setText('kpi-faturamento', formatarMoeda(faturamento_atual));
+    setText('kpi-faturamento-desc', `Este mês (${percentual.toFixed(1)}% da meta)`);
+    setText('kpi-falta', formatarMoeda(falta_para_meta));
+    setText('kpi-falta-desc', falta_para_meta > 0 ? 'Restante' : 'Meta atingida!');
+    setText('kpi-agendado', formatarMoeda(valor_agendado_semana));
+
+    const valorMeta = Number(meta.valor_meta) || 0;
+    const projecaoPercentual = valorMeta > 0 ? ((projecao_fim_mes / valorMeta) * 100).toFixed(1) : '0.0';
+    setText('kpi-projecao', formatarMoeda(projecao_fim_mes));
+    setText('kpi-projecao-desc', `${projecaoPercentual}% da meta`);
     
     // Novos KPIs
     const metricas = dashboardData.metricas_financeiras || {};
-    document.getElementById('kpi-lucro-medio').textContent = formatarMoeda(metricas.lucro_medio_coleta || 0);
-    document.getElementById('kpi-rentabilidade').textContent = `${(metricas.rentabilidade || 0).toFixed(1)}%`;
-    document.getElementById('kpi-rentabilidade-desc').textContent = `Margem de ${(metricas.margem_lucro || 0).toFixed(1)}%`;
-    document.getElementById('kpi-ticket-medio').textContent = formatarMoeda(metricas.ticket_medio || 0);
+    setText('kpi-lucro-medio', formatarMoeda(metricas.lucro_medio_coleta || 0));
+    setText('kpi-rentabilidade', `${(metricas.rentabilidade || 0).toFixed(1)}%`);
+    setText('kpi-rentabilidade-desc', `Margem de ${(metricas.margem_lucro || 0).toFixed(1)}%`);
+    setText('kpi-ticket-medio', formatarMoeda(metricas.ticket_medio || 0));
 }
 
 // Renderizar resumo financeiro
@@ -603,13 +631,14 @@ function renderizarSugestoes() {
     
     container.innerHTML = sugestoes.map(sugestao => `
         <div class="sugestao-item">
-            <div class="sugestao-tipo">${sugestao.tipo === 'coletas' ? '<img src="/static/icons/refresh_icon.png" alt="Coletas" class="sugestao-icon">' : sugestao.tipo === 'palestras' ? '<img src="/static/icons/people_icon.png" alt="Palestras" class="sugestao-icon">' : '<img src="/static/icons/sugestao_icon.png" alt="Outros" class="sugestao-icon">'}</div>
+            <div class="sugestao-tipo">${sugestao.tipo === 'coletas' ? '<i data-lucide="refresh-cw" class="icon sugestao-icon"></i>' : sugestao.tipo === 'palestras' ? '<i data-lucide="users" class="icon sugestao-icon"></i>' : '<i data-lucide="lightbulb" class="icon sugestao-icon"></i>'}</div>
             <div class="sugestao-descricao">
                 <strong>${sugestao.quantidade}x ${sugestao.tipo}</strong>
                 <p>${sugestao.descricao}</p>
             </div>
         </div>
     `).join('');
+    refreshLucideIcons();
 }
 
 // Renderizar alertas
@@ -630,7 +659,7 @@ function renderizarAlertas() {
     if (percentual_meta < 30 && dias_uteis_restantes < 10) {
         alertas.push({
             tipo: 'erro',
-            mensagem: `<img src="/static/icons/alert_icon.png" alt="Alerta" class="alert-icon-inline"> Apenas ${dias_uteis_restantes} dias úteis restantes e meta em ${percentual_meta.toFixed(0)}%!`,
+            mensagem: `<i data-lucide="triangle-alert" class="icon alert-icon-inline"></i> Apenas ${dias_uteis_restantes} dias úteis restantes e meta em ${percentual_meta.toFixed(0)}%!`,
             acao: 'Agendar urgente'
         });
     }
@@ -684,7 +713,7 @@ function renderizarAlertas() {
     if (alertas.length === 0 && percentual_meta > 70) {
         alertas.push({
             tipo: 'sucesso',
-            mensagem: '<img src="/static/icons/check_icon.png" alt="Sucesso" class="alert-icon-inline"> Ótimo ritmo! Continue assim!',
+            mensagem: '<i data-lucide="circle-check" class="icon alert-icon-inline"></i> Ótimo ritmo! Continue assim!',
             acao: null
         });
     }
@@ -700,6 +729,7 @@ function renderizarAlertas() {
             ${alerta.acao ? `<button class="btn btn-xs">${alerta.acao}</button>` : ''}
         </div>
     `).join('');
+    refreshLucideIcons();
 }
 
 // Renderizar gráfico de lucro por parceiro
@@ -1125,9 +1155,10 @@ function mostrarLoading(mostrar) {
     if (btn) {
         btn.disabled = mostrar;
         if (mostrar) {
-            btn.innerHTML = '<img src="/static/icons/refresh_icon.png" alt="Carregando" class="btn-icon-small"> Carregando...';
+            btn.innerHTML = 'Carregando...';
         } else {
-            btn.innerHTML = '<img src="/static/icons/refresh_icon.png" alt="Atualizar" class="btn-icon-small"> Atualizar';
+            btn.innerHTML = '<i data-lucide="refresh-cw" class="icon"></i> Atualizar';
+            refreshLucideIcons();
         }
     }
 }

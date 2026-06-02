@@ -33,7 +33,7 @@ Uso tipico no endpoint:
 from __future__ import annotations
 
 from datetime import datetime
-from typing import Any, Optional, Type, TypeVar
+from typing import Any, TypeVar
 
 from pydantic import BaseModel, ConfigDict, Field, ValidationError, field_validator
 
@@ -60,16 +60,16 @@ class TelemetriaIn(BaseModel):
     coletor_id: int = Field(..., ge=1, description="ID do Coletor associado")
     nivel_preenchimento: float = Field(..., ge=0, le=100, description="% preenchimento (0-100)")
     bateria: float = Field(..., ge=0, le=100, description="% bateria (0-100)")
-    leituras_tof: Optional[list[float]] = Field(
+    leituras_tof: list[float] | None = Field(
         default=None,
         description="Leituras cruas do ToF (cm) para debug; ignoradas pelo server",
     )
-    api_key: Optional[str] = Field(
+    api_key: str | None = Field(
         default=None,
         description="Token do device (Sensor.api_token ou secret global TELEMETRY_SHARED_SECRET)",
     )
-    firmware_version: Optional[str] = Field(default=None, max_length=32)
-    timestamp: Optional[datetime] = Field(
+    firmware_version: str | None = Field(default=None, max_length=32)
+    timestamp: datetime | None = Field(
         default=None,
         description="Momento da leitura no device; server usa utc_now se ausente",
     )
@@ -108,13 +108,13 @@ class ColetorOut(BaseModel):
 
     id: int
     localizacao: str
-    nivel_preenchimento: Optional[float] = None
-    status: Optional[str] = None
-    ultima_coleta: Optional[datetime] = None
-    latitude: Optional[float] = None
-    longitude: Optional[float] = None
-    parceiro: Optional[ParceiroResumo] = None
-    tipo_material: Optional[TipoResumo] = None
+    nivel_preenchimento: float | None = None
+    status: str | None = None
+    ultima_coleta: datetime | None = None
+    latitude: float | None = None
+    longitude: float | None = None
+    parceiro: ParceiroResumo | None = None
+    tipo_material: TipoResumo | None = None
 
 
 class SensorOut(BaseModel):
@@ -122,9 +122,9 @@ class SensorOut(BaseModel):
 
     id: int
     coletor_id: int
-    bateria: Optional[float] = None
-    ultimo_ping: Optional[datetime] = None
-    tipo_sensor: Optional[TipoResumo] = None
+    bateria: float | None = None
+    ultimo_ping: datetime | None = None
+    tipo_sensor: TipoResumo | None = None
 
 
 # ---------------------------------------------------------------------------
@@ -134,51 +134,51 @@ class CriarColetorIn(BaseModel):
     model_config = ConfigDict(extra="ignore", str_strip_whitespace=True)
 
     localizacao: str = Field(..., min_length=1, max_length=150)
-    nivel_preenchimento: Optional[float] = Field(default=0.0, ge=0, le=100)
-    status: Optional[str] = Field(default="OK", max_length=20)
-    latitude: Optional[float] = Field(default=None, ge=-90, le=90)
-    longitude: Optional[float] = Field(default=None, ge=-180, le=180)
-    parceiro_id: Optional[int] = Field(default=None, ge=1)
-    tipo_material_id: Optional[int] = Field(default=None, ge=1)
+    nivel_preenchimento: float | None = Field(default=0.0, ge=0, le=100)
+    status: str | None = Field(default="OK", max_length=20)
+    latitude: float | None = Field(default=None, ge=-90, le=90)
+    longitude: float | None = Field(default=None, ge=-180, le=180)
+    parceiro_id: int | None = Field(default=None, ge=1)
+    tipo_material_id: int | None = Field(default=None, ge=1)
 
 
 class AtualizarColetorIn(BaseModel):
     model_config = ConfigDict(extra="ignore", str_strip_whitespace=True)
 
-    localizacao: Optional[str] = Field(default=None, min_length=1, max_length=150)
-    nivel_preenchimento: Optional[float] = Field(default=None, ge=0, le=100)
-    status: Optional[str] = Field(default=None, max_length=20)
-    latitude: Optional[float] = Field(default=None, ge=-90, le=90)
-    longitude: Optional[float] = Field(default=None, ge=-180, le=180)
-    parceiro_id: Optional[int] = Field(default=None, ge=1)
-    tipo_material_id: Optional[int] = Field(default=None, ge=1)
+    localizacao: str | None = Field(default=None, min_length=1, max_length=150)
+    nivel_preenchimento: float | None = Field(default=None, ge=0, le=100)
+    status: str | None = Field(default=None, max_length=20)
+    latitude: float | None = Field(default=None, ge=-90, le=90)
+    longitude: float | None = Field(default=None, ge=-180, le=180)
+    parceiro_id: int | None = Field(default=None, ge=1)
+    tipo_material_id: int | None = Field(default=None, ge=1)
 
 
 class CriarSensorIn(BaseModel):
     model_config = ConfigDict(extra="ignore")
 
     coletor_id: int = Field(..., ge=1)
-    tipo_sensor_id: Optional[int] = Field(default=None, ge=1)
-    bateria: Optional[float] = Field(default=100.0, ge=0, le=100)
+    tipo_sensor_id: int | None = Field(default=None, ge=1)
+    bateria: float | None = Field(default=100.0, ge=0, le=100)
 
 
 class CriarColetaIn(BaseModel):
     model_config = ConfigDict(extra="ignore", str_strip_whitespace=True)
 
     coletor_id: int = Field(..., ge=1)
-    data_hora: Optional[datetime] = None
-    volume_estimado: Optional[float] = Field(default=None, ge=0)
-    tipo_operacao: Optional[str] = Field(default=None, max_length=50)
-    km_percorrido: Optional[float] = Field(default=None, ge=0)
-    preco_combustivel: Optional[float] = Field(default=None, ge=0)
-    lucro_por_kg: Optional[float] = Field(default=None)
+    data_hora: datetime | None = None
+    volume_estimado: float | None = Field(default=None, ge=0)
+    tipo_operacao: str | None = Field(default=None, max_length=50)
+    km_percorrido: float | None = Field(default=None, ge=0)
+    preco_combustivel: float | None = Field(default=None, ge=0)
+    lucro_por_kg: float | None = Field(default=None)
     emissao_mtr: bool = False
-    tipo_coletor_id: Optional[int] = Field(default=None, ge=1)
-    parceiro_id: Optional[int] = Field(default=None, ge=1)
+    tipo_coletor_id: int | None = Field(default=None, ge=1)
+    parceiro_id: int | None = Field(default=None, ge=1)
 
     @field_validator("tipo_operacao")
     @classmethod
-    def tipo_operacao_permitido(cls, v: Optional[str]) -> Optional[str]:
+    def tipo_operacao_permitido(cls, v: str | None) -> str | None:
         if v is None:
             return v
         permitidos = {"Avulsa", "Campanha"}
@@ -190,7 +190,7 @@ class CriarColetaIn(BaseModel):
 # ---------------------------------------------------------------------------
 # Helpers
 # ---------------------------------------------------------------------------
-def parse_ou_erro(schema: Type[T], payload: Any) -> T:
+def parse_ou_erro(schema: type[T], payload: Any) -> T:
     """Valida `payload` contra `schema` ou levanta `ErroValidacao`.
 
     Traduz `pydantic.ValidationError` em erro 400 com `detalhes` legiveis,

@@ -1,0 +1,12 @@
+%% Fluxo de telemetria IoT
+sequenceDiagram
+  participant S as Sensor ESP32
+  participant API as POST /api/sensor/telemetria
+  participant DB as Base de dados
+  participant WS as WebSocket
+  participant UI as Browser preview
+  S->>API: JSON nivel sensor_id api_key
+  API->>DB: LeituraSensor + atualiza Coletor
+  API-->>S: 200 OK
+  DB-->>WS: emissao salas
+  WS-->>UI: atualizacao nivel
