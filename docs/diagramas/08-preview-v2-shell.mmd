@@ -1,0 +1,24 @@
+%% Shell preview v2 vs legado (maio/2026 — CRM no preview)
+flowchart LR
+  subgraph v2["Preview v2 base_v2.html"]
+    H[Hub operacional]
+    MON[Monitoramento]
+    MAP[Mapa]
+    REL[Relatórios]
+    NIK[Nik chat]
+    PROSP[Prospecção REE]
+    GES[Gestão solicitações]
+    CRM["Preview CRM"]
+    COM["Preview comercial"]
+    CTR["Preview contratos"]
+  end
+  subgraph legacy["Redirects 301"]
+    L_CRM["Legado /crm"]
+    L_COM["Legado /comercial"]
+    L_CTR["Legado /contratos"]
+  end
+  Login[Login] --> H
+  L_CRM --> CRM
+  L_COM --> COM
+  L_CTR --> CTR
+  Parceiro[Usuario parceiro] --> PAR["Preview parceiro"]

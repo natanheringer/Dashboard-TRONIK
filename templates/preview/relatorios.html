@@ -1,6 +1,9 @@
 {% extends 'preview/base_v2.html' %}
 {% set current = 'relatorios' %}
 {% block title %}Relatórios · Tronik{% endblock %}
+{% block head_extra %}
+<link rel="stylesheet" href="{{ url_for('static', filename='css/v2/preview-relatorios.css') }}?v={{ cache_version }}">
+{% endblock %}
 {% block conteudo %}
 <div id="preview-swap-relatorios-block">
       <div class="page-header">
@@ -8,22 +11,22 @@
           <h1>Relatórios</h1>
           <p>Período {{ periodo.inicio.strftime('%d/%m/%Y') }} — {{ periodo.fim.strftime('%d/%m/%Y') }} · dados reais de coletas</p>
         </div>
-        <div class="page-actions">
-          <button type="button" class="btn" data-href="{{ url_for('paginas.relatorios') }}" onclick="previewToast('Abrindo módulo legado de exportação…', 'ok'); window.location.href=this.dataset.href">
-            <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M12 10v6m0 0l-3-3m3 3l3-3M3 17V7a2 2 0 012-2h6l2 2h6a2 2 0 012 2v8a2 2 0 01-2 2H5a2 2 0 01-2-2z"/></svg>
-            Exportar (legado)
-          </button>
-        </div>
+        <div class="page-actions"></div>
       </div>
 
       <div class="rel-layout">
         <aside class="rel-filters">
           <h3>Filtros</h3>
-          <p style="font-size:var(--text-xs);color:var(--ink-tertiary);margin-bottom:var(--space-3);">Atalhos ajustam as datas e atualizam filtros + painel.</p>
-          <div class="rel-period-chips" style="margin-bottom:var(--space-4);">
+          <p class="rel-filter-help">Atalhos ajustam as datas e atualizam filtros + painel.</p>
+          <div class="rel-period-chips rel-period-chips-spaced">
             <button type="button" class="rel-period-chip" onclick="previewSetRelRange(7)">7d</button>
             <button type="button" class="rel-period-chip" onclick="previewSetRelRange(30)">30d</button>
             <button type="button" class="rel-period-chip" onclick="previewSetRelRange(90)">90d</button>
+            <button type="button" class="rel-period-chip" onclick="previewSetRelRange(180)">180d</button>
+          </div>
+          <div class="rel-period-chips rel-period-chips-spaced">
+            <button type="button" class="rel-period-chip" onclick="previewSetRelPreset('ytd')">Ano atual</button>
+            <button type="button" class="rel-period-chip" onclick="previewSetRelPreset('month')">Mês atual</button>
           </div>
 
           <div id="rel-spin" class="preview-htmx-spinner" aria-hidden="true">Atualizando…</div>
@@ -56,8 +59,18 @@
                 {% endfor %}
               </select>
             </div>
-            <button type="submit" class="btn btn-primary" style="width:100%; margin-top:var(--space-4); justify-content:center;">Aplicar filtros</button>
+            <button type="submit" class="btn btn-primary rel-apply-btn">Aplicar filtros</button>
           </form>
+
+          <div class="rel-side-actions">
+            <button type="button" class="btn btn-primary rel-side-btn" data-maiara-format="executivo">Gerar visão executiva</button>
+            <button type="button" class="btn rel-side-btn" data-maiara-format="comercial">Gerar visão comercial</button>
+            <button type="button" class="btn rel-side-btn" data-maiara-format="stakeholders">Gerar visão stakeholders</button>
+          </div>
+          <div id="maiara-export-actions-rel" class="nik-chat-actions" style="margin-top:12px; display:none;">
+            <a id="maiara-export-json-rel" class="btn" href="#">Exportar JSON</a>
+            <a id="maiara-export-md-rel" class="btn" href="#">Exportar Markdown</a>
+          </div>
         </aside>
 
         <div class="rel-main">
@@ -99,23 +112,139 @@
               </div>
             </div>
 
+            <div id="nik-ops-relatorio" class="nik-container"></div>
+            <script>
+              (function () {
+                function carregarNikRelatorio() {
+                  if (!window.NikLoader) return;
+                  var params = new URLSearchParams(window.location.search);
+                  var endpoint = "/ops/relatorio";
+                  var suffix = params.toString();
+                  if (suffix) endpoint += "?" + suffix;
+                  window.NikLoader.carregarNikOps(endpoint, "nik-ops-relatorio");
+                }
+
+                if (document.readyState === "loading") {
+                  document.addEventListener("DOMContentLoaded", carregarNikRelatorio, { once: true });
+                } else {
+                  carregarNikRelatorio();
+                }
+              })();
+            </script>
+            <script>
+              (function () {
+                document.querySelectorAll("[data-maiara-format]").forEach(function (btn) {
+                  btn.onclick = function () {
+                    var params = new URLSearchParams(new FormData(document.getElementById("form-rel")));
+                    params.set("formato", btn.getAttribute("data-maiara-format") || "executivo");
+                    var shell = document.getElementById("maiara-inline-shell");
+                    var spin = document.getElementById("rel-spin");
+                    if (spin) spin.style.display = "block";
+                    fetch("/api/nik/maiara/relatorio?" + params.toString(), { credentials: "same-origin" })
+                      .then(function (resp) { return resp.json(); })
+                      .then(function (data) {
+                        var conteudo = data.conteudo || {};
+                        function fillList(id, items) {
+                          var host = document.getElementById(id);
+                          if (!host) return;
+                          host.innerHTML = "";
+                          (items || []).forEach(function (item, idx) {
+                            var row = document.createElement("div");
+                            row.className = "rel-top-item";
+                            row.innerHTML = '<div class="rel-top-rank">' + String(idx + 1).padStart(2, "0") + '</div><div class="rel-top-body"><strong>' + item + '</strong></div>';
+                            host.appendChild(row);
+                          });
+                        }
+                        function fillMetrics(id, items) {
+                          var host = document.getElementById(id);
+                          if (!host) return;
+                          host.innerHTML = "";
+                          (items || []).forEach(function (item, idx) {
+                            var row = document.createElement("div");
+                            row.className = "rel-top-item";
+                            row.innerHTML = '<div class="rel-top-rank">' + String(idx + 1).padStart(2, "0") + '</div><div class="rel-top-body"><strong>' + item.nome + ' · ' + item.valor + '</strong><span>' + (item.insight || '') + '</span></div>';
+                            host.appendChild(row);
+                          });
+                        }
+                        shell.style.display = "";
+                        document.getElementById("maiara-inline-title").textContent = conteudo.titulo || "Relatório executivo";
+                        document.getElementById("maiara-inline-summary").textContent = conteudo.resumo_executivo || "";
+                        document.getElementById("maiara-inline-fonte").textContent = data.fonte === "fallback" ? "Fallback" : "Gerado por IA";
+                        document.getElementById("maiara-inline-visao").textContent = data.visao || "executivo";
+                        var badge = document.getElementById("maiara-badge");
+                        if (badge) {
+                          badge.textContent = data.fonte === "fallback" ? "Fallback" : "IA";
+                          badge.className = data.fonte === "fallback" ? "nik-badge nik-badge--fallback" : "nik-badge nik-badge--ia";
+                        }
+                        fillList("maiara-inline-riscos", conteudo.riscos || []);
+                        fillList("maiara-inline-oportunidades", conteudo.oportunidades || []);
+                        fillList("maiara-inline-recomendacoes", conteudo.recomendacoes || []);
+                        fillMetrics("maiara-inline-metricas", conteudo.metricas_chave || []);
+                        document.getElementById("maiara-export-actions-rel").style.display = "flex";
+                        document.getElementById("maiara-export-json-rel").href = "/api/nik/maiara/relatorio/" + data.id + "/export?formato=json";
+                        document.getElementById("maiara-export-md-rel").href = "/api/nik/maiara/relatorio/" + data.id + "/export?formato=md";
+                      })
+                      .catch(function () {
+                        if (window.previewToast) window.previewToast("Não foi possível gerar a visão da Maiara agora.", "warn");
+                      })
+                      .finally(function () {
+                        if (spin) spin.style.display = "";
+                      });
+                  };
+                });
+              })();
+            </script>
+
+            <div id="maiara-inline-shell" class="nik-container" style="display:none;">
+              <section class="nik-card nik-card-landing">
+                <div class="nik-card-head">
+                  <span class="nik-badge" id="maiara-badge">Relatório</span>
+                  <span id="maiara-inline-visao" class="nik-status"></span>
+                  <span id="maiara-inline-fonte" class="nik-status"></span>
+                </div>
+                <h3 id="maiara-inline-title"></h3>
+                <p id="maiara-inline-summary" class="nik-card-text"></p>
+              </section>
+
+              <div class="rel-charts">
+                <div class="rel-chart-card">
+                  <div class="rel-chart-head"><h3>Riscos</h3></div>
+                  <div id="maiara-inline-riscos" class="rel-top-list"></div>
+                </div>
+                <div class="rel-chart-card">
+                  <div class="rel-chart-head"><h3>Oportunidades</h3></div>
+                  <div id="maiara-inline-oportunidades" class="rel-top-list"></div>
+                </div>
+              </div>
+
+              <div class="rel-chart-card">
+                <div class="rel-chart-head"><h3>Recomendações</h3></div>
+                <div id="maiara-inline-recomendacoes" class="rel-top-list"></div>
+              </div>
+
+              <div class="rel-chart-card">
+                <div class="rel-chart-head"><h3>Métricas-chave</h3></div>
+                <div id="maiara-inline-metricas" class="rel-top-list"></div>
+              </div>
+            </div>
+
             <div class="rel-charts">
               <div class="rel-chart-card">
                 <div class="rel-chart-head">
                   <h3>Coletas por dia</h3>
                   <span>máx. {{ resumo.serie_max_coletas }} no período</span>
                 </div>
-                <div style="display:flex;flex-direction:column;gap:var(--space-2);padding:var(--space-3) 0;">
+                <div class="rel-bars-stack">
                   {% for p in resumo.serie_diaria[-20:] %}
-                  <div style="display:flex;align-items:center;gap:var(--space-3);font-size:var(--text-sm);">
-                    <span style="width:88px;color:var(--ink-tertiary);font-family:var(--font-mono);">{{ p.data[8:10]}}/{{ p.data[5:7] }}</span>
-                    <div style="flex:1;height:10px;background:var(--paper-sunk);border-radius:99px;overflow:hidden;">
-                      <div class="preview-databar" style="background:var(--tronik);min-width:4px;border-radius:99px;" data-pct="{{ (p.count / resumo.serie_max_coletas * 100)|round(1) }}"></div>
+                  <div class="rel-bar-row">
+                    <span class="rel-bar-date">{{ p.data[8:10]}}/{{ p.data[5:7] }}</span>
+                    <div class="rel-bar-track">
+                      <div class="preview-databar rel-bar-fill" data-pct="{{ (p.count / resumo.serie_max_coletas * 100)|round(1) }}"></div>
                     </div>
-                    <span style="width:28px;text-align:right;font-weight:600;">{{ p.count }}</span>
+                    <span class="rel-bar-value">{{ p.count }}</span>
                   </div>
                   {% else %}
-                  <p style="color:var(--ink-tertiary);font-size:var(--text-sm);">Sem série diária (nenhuma coleta).</p>
+                  <p class="rel-empty-text">Sem série diária (nenhuma coleta).</p>
                   {% endfor %}
                 </div>
               </div>
@@ -136,7 +265,7 @@
                     <div class="rel-top-value">{{ item.coletas }} coleta(s)</div>
                   </div>
                   {% else %}
-                  <p style="padding:var(--space-4);color:var(--ink-tertiary);font-size:var(--text-sm);">Sem dados.</p>
+                  <p class="rel-empty-text rel-empty-text-padded">Sem dados.</p>
                   {% endfor %}
                 </div>
               </div>
@@ -147,23 +276,102 @@
                 <h3>Volume por parceiro (top)</h3>
                 <span>kg no período</span>
               </div>
-              <div style="padding:var(--space-3) 0;display:flex;flex-direction:column;gap:var(--space-3);">
+              <div class="rel-bars-stack rel-bars-stack-wide">
                 {% for row in resumo.volume_por_parceiro %}
                 <div>
-                  <div style="display:flex;justify-content:space-between;font-size:var(--text-sm);margin-bottom:var(--space-1);">
+                  <div class="rel-row-between">
                     <span>{{ row.nome }}</span>
                     <strong>{{ row.kg }} kg</strong>
                   </div>
-                  <div style="height:12px;background:var(--paper-sunk);border-radius:var(--radius-sm);overflow:hidden;">
-                    <div class="preview-databar" style="background:var(--accent-indigo);opacity:0.85;border-radius:var(--radius-sm);" data-pct="{{ (row.kg / resumo.volume_parceiro_max_kg * 100)|round(1) }}"></div>
+                  <div class="rel-volume-track">
+                    <div class="preview-databar rel-volume-fill" data-pct="{{ (row.kg / resumo.volume_parceiro_max_kg * 100)|round(1) }}"></div>
                   </div>
                 </div>
                 {% else %}
-                <p style="color:var(--ink-tertiary);font-size:var(--text-sm);">Sem volume agregado por parceiro.</p>
+                <p class="rel-empty-text">Sem volume agregado por parceiro.</p>
                 {% endfor %}
               </div>
             </div>
         </div>
       </div>
 </div>
+{% endblock %}
+{% block scripts_extra %}
+<script>
+  (function () {
+    function esc(value) {
+      var div = document.createElement("div");
+      div.textContent = String(value || "");
+      return div.innerHTML;
+    }
+
+    function renderSimpleList(containerId, items) {
+      var host = document.getElementById(containerId);
+      if (!host) return;
+      host.innerHTML = "";
+      (items || []).forEach(function (item, idx) {
+        var row = document.createElement("div");
+        row.className = "rel-top-item";
+        row.innerHTML =
+          '<div class="rel-top-rank">' + String(idx + 1).padStart(2, "0") + '</div>' +
+          '<div class="rel-top-body"><strong>' + esc(item) + '</strong></div>';
+        host.appendChild(row);
+      });
+    }
+
+    function renderMetricas(containerId, items) {
+      var host = document.getElementById(containerId);
+      if (!host) return;
+      host.innerHTML = "";
+      (items || []).forEach(function (item, idx) {
+        var row = document.createElement("div");
+        row.className = "rel-top-item";
+        row.innerHTML =
+          '<div class="rel-top-rank">' + String(idx + 1).padStart(2, "0") + '</div>' +
+          '<div class="rel-top-body"><strong>' + esc(item.nome) + " · " + esc(item.valor) + '</strong><span>' + esc(item.insight || "") + '</span></div>';
+        host.appendChild(row);
+      });
+    }
+
+    async function gerarMaiaraInline(formato) {
+      var params = new URLSearchParams(new FormData(document.getElementById("form-rel")));
+      params.set("formato", formato || "executivo");
+      var shell = document.getElementById("maiara-inline-shell");
+      var spin = document.getElementById("rel-spin");
+      if (spin) spin.style.display = "block";
+      try {
+        var resp = await fetch("/api/nik/maiara/relatorio?" + params.toString(), { credentials: "same-origin" });
+        var data = await resp.json();
+        var conteudo = data.conteudo || {};
+        shell.style.display = "";
+        document.getElementById("maiara-inline-title").textContent = conteudo.titulo || "Relatório executivo";
+        document.getElementById("maiara-inline-summary").textContent = conteudo.resumo_executivo || "";
+        document.getElementById("maiara-inline-fonte").textContent = data.fonte === "fallback" ? "Fallback" : "Gerado por IA";
+        document.getElementById("maiara-inline-visao").textContent = data.visao || formato;
+        var badge = document.getElementById("maiara-badge");
+        if (badge) {
+          badge.textContent = data.fonte === "fallback" ? "Fallback" : "IA";
+          badge.className = data.fonte === "fallback" ? "nik-badge nik-badge--fallback" : "nik-badge nik-badge--ia";
+        }
+        renderSimpleList("maiara-inline-riscos", conteudo.riscos || []);
+        renderSimpleList("maiara-inline-oportunidades", conteudo.oportunidades || []);
+        renderSimpleList("maiara-inline-recomendacoes", conteudo.recomendacoes || []);
+        renderMetricas("maiara-inline-metricas", conteudo.metricas_chave || []);
+        document.getElementById("maiara-export-actions-rel").style.display = "flex";
+        document.getElementById("maiara-export-json-rel").href = "/api/nik/maiara/relatorio/" + data.id + "/export?formato=json";
+        document.getElementById("maiara-export-md-rel").href = "/api/nik/maiara/relatorio/" + data.id + "/export?formato=md";
+      } catch (err) {
+        if (window.previewToast) window.previewToast("Não foi possível gerar a visão da Maiara agora.", "warn");
+      } finally {
+        if (spin) spin.style.display = "";
+      }
+    }
+
+    document.querySelectorAll("[data-maiara-format]").forEach(function (btn) {
+      btn.addEventListener("click", function () {
+        gerarMaiaraInline(btn.getAttribute("data-maiara-format"));
+      });
+    });
+  })();
+</script>
 {% endblock %}

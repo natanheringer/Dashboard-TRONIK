@@ -1,0 +1,434 @@
+{% extends 'preview/base_v2.html' %}
+{% set current = 'gestao' %}
+{% block title %}Gestão · Tronik{% endblock %}
+
+{% block head_extra %}
+<link rel="stylesheet" href="{{ url_for('static', filename='css/v2/preview-home.css') }}?v={{ cache_version }}">
+<style>
+  .gestao-tabs {
+    display: flex;
+    gap: var(--space-2);
+    margin-bottom: var(--space-8);
+    border-bottom: 1px solid var(--line-default);
+    padding-bottom: var(--space-4);
+  }
+  
+  .gestao-tab {
+    padding: var(--space-2) var(--space-6);
+    background: transparent;
+    border: none;
+    font-family: var(--font-display);
+    font-size: var(--text-md);
+    font-weight: 500;
+    color: var(--ink-tertiary);
+    cursor: pointer;
+    border-radius: var(--radius-md);
+    transition: all 160ms ease;
+  }
+  
+  .gestao-tab:hover {
+    background: var(--tronik-ghost);
+    color: var(--tronik);
+  }
+  
+  .gestao-tab.active {
+    background: var(--tronik);
+    color: var(--paper-elevated);
+  }
+  
+  .tab-content {
+    display: none;
+    animation: fadeIn 200ms ease-out;
+  }
+  
+  .tab-content.active {
+    display: grid;
+    grid-template-columns: 1fr 380px;
+    gap: var(--space-8);
+  }
+  
+  @keyframes fadeIn {
+    from { opacity: 0; transform: translateY(8px); }
+    to { opacity: 1; transform: translateY(0); }
+  }
+  
+  .gestao-grid {
+    display: flex;
+    flex-direction: column;
+    gap: var(--space-6);
+  }
+  
+  .config-card {
+    background: var(--paper-card);
+    border: 1px solid var(--line-default);
+    border-radius: var(--radius-lg);
+    padding: var(--space-6);
+  }
+  
+  .config-card h2 {
+    font-family: var(--font-display);
+    font-size: var(--text-lg);
+    margin-bottom: var(--space-4);
+    color: var(--ink-primary);
+  }
+  
+  .form-grid-v2 {
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+    gap: var(--space-4);
+  }
+  
+  .form-group-v2 {
+    display: flex;
+    flex-direction: column;
+    gap: var(--space-1);
+  }
+  
+  .form-group-v2 label {
+    font-size: var(--text-xs);
+    font-weight: 600;
+    text-transform: uppercase;
+    letter-spacing: 0.05em;
+    color: var(--ink-tertiary);
+  }
+  
+  .form-input-v2 {
+    background: var(--paper-sunk);
+    border: 1px solid var(--line-default);
+    padding: var(--space-2) var(--space-3);
+    border-radius: var(--radius-md);
+    color: var(--ink-primary);
+    font-size: var(--text-sm);
+    transition: all 160ms ease;
+  }
+  
+  .form-input-v2:focus {
+    outline: none;
+    border-color: var(--tronik);
+    background: var(--paper-elevated);
+    box-shadow: 0 0 0 3px var(--tronik-ghost);
+  }
+  
+  .gestao-list {
+    display: flex;
+    flex-direction: column;
+    gap: var(--space-2);
+  }
+  
+  .gestao-item {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    padding: var(--space-4);
+    background: var(--paper-card);
+    border: 1px solid var(--line-default);
+    border-radius: var(--radius-md);
+    transition: all 160ms ease;
+  }
+  
+  .gestao-item:hover {
+    border-color: var(--line-strong);
+    background: var(--paper-elevated);
+  }
+  
+  .gestao-item-info strong {
+    display: block;
+    font-size: var(--text-sm);
+    color: var(--ink-primary);
+  }
+  
+  .gestao-item-info span {
+    font-size: var(--text-xs);
+    color: var(--ink-tertiary);
+  }
+  
+  .btn-delete-v2 {
+    padding: var(--space-1) var(--space-3);
+    background: transparent;
+    border: 1px solid var(--signal-critical-soft);
+    color: var(--signal-critical);
+    border-radius: var(--radius-sm);
+    font-size: var(--text-xs);
+    font-weight: 600;
+    cursor: pointer;
+    transition: all 160ms ease;
+  }
+  
+  .btn-delete-v2:hover {
+    background: var(--signal-critical);
+    color: var(--paper-elevated);
+    border-color: var(--signal-critical);
+  }
+  
+  .form-status {
+    padding: var(--space-3);
+    border-radius: var(--radius-md);
+    font-size: var(--text-sm);
+    display: none;
+    margin-top: var(--space-4);
+  }
+  
+  .form-status.success { background: var(--signal-ok-soft); color: var(--signal-ok); border: 1px solid var(--signal-ok); display: block; }
+  .form-status.error { background: var(--signal-critical-soft); color: var(--signal-critical); border: 1px solid var(--signal-critical); display: block; }
+
+  @media (max-width: 1024px) {
+    .tab-content.active {
+      grid-template-columns: 1fr;
+    }
+    .side-panel-gestao {
+      order: -1;
+    }
+  }
+</style>
+{% endblock %}
+
+{% block conteudo %}
+<div class="page-header">
+  <div class="page-title-group">
+    <h1>Gestão</h1>
+    <p>Operações de sistema e cadastro de coletores</p>
+  </div>
+</div>
+
+<div class="hub-modules-grid" style="margin-bottom: var(--space-8);">
+  <a class="hub-module-card preview-link-reset" href="{{ url_for('preview.dashboard_home') }}">
+    <span class="hub-module-tag">HUB</span>
+    <h3>Hub operacional</h3>
+    <p>Visão geral e KPIs.</p>
+  </a>
+  <a class="hub-module-card preview-link-reset" href="{{ url_for('preview.prospeccao') }}">
+    <span class="hub-module-tag">REE</span>
+    <h3>Prospecção</h3>
+    <p>Fila de candidatos ranqueados.</p>
+  </a>
+  <a class="hub-module-card preview-link-reset" href="{{ url_for('paginas.crm') }}">
+    <span class="hub-module-tag">CRM</span>
+    <h3>CRM</h3>
+    <p>Pipeline e leads.</p>
+  </a>
+</div>
+
+<div class="gestao-tabs">
+  <button class="gestao-tab active" data-tab="coletores">Coletores</button>
+  <button class="gestao-tab" data-tab="sensores">Sensores</button>
+  <button class="gestao-tab" data-tab="coletas">Coletas</button>
+  <button class="gestao-tab" data-tab="solicitacoes">Solicitações <span class="nav-ml-badge">Novo</span></button>
+</div>
+
+<!-- ABA SOLICITAÇÕES -->
+<div id="tab-solicitacoes" class="tab-content">
+  <section class="gestao-grid" style="grid-column: 1 / -1;">
+    <div class="config-card">
+      <h2>Solicitações de Coletores (Landing Page)</h2>
+      <p style="color: var(--ink-secondary); margin-bottom: 16px;">Acompanhe os pedidos de novos coletores feitos através do site público.</p>
+      
+      <div id="lista-solicitacoes" class="gestao-list" style="overflow-x: auto;">
+        <table style="width: 100%; border-collapse: collapse; font-size: 14px; text-align: left;">
+          <thead>
+            <tr style="border-bottom: 1px solid var(--line-default);">
+              <th style="padding: 12px; color: var(--ink-tertiary);">Data</th>
+              <th style="padding: 12px; color: var(--ink-tertiary);">Nome/Empresa</th>
+              <th style="padding: 12px; color: var(--ink-tertiary);">Contato</th>
+              <th style="padding: 12px; color: var(--ink-tertiary);">Localização</th>
+              <th style="padding: 12px; color: var(--ink-tertiary);">Mensagem</th>
+              <th style="padding: 12px; color: var(--ink-tertiary);">Status</th>
+              <th style="padding: 12px; color: var(--ink-tertiary);">Ação</th>
+            </tr>
+          </thead>
+          <tbody id="tbody-solicitacoes"></tbody>
+        </table>
+      </div>
+    </div>
+  </section>
+</div>
+
+<!-- Modal Confirmação -->
+<!-- ABA COLETORES -->
+<div id="tab-coletores" class="tab-content active">
+  <section class="gestao-grid">
+    <div class="config-card">
+      <h2>Coletores Cadastrados</h2>
+      <div id="lista-coletores" class="gestao-list">
+        <p class="home-subtitle">Carregando lista...</p>
+      </div>
+    </div>
+  </section>
+  
+  <aside class="side-panel-gestao">
+    <div class="config-card">
+      <h2>Novo Coletor</h2>
+      <form id="form-novo-coletor">
+        <div style="display:flex; flex-direction:column; gap:var(--space-4);">
+          <div class="form-group-v2">
+            <label for="localizacao">Localização *</label>
+            <input type="text" id="localizacao" name="localizacao" class="form-input-v2" required placeholder="Ex: Asa Norte - Bloco A">
+          </div>
+          
+          <div class="form-grid-v2">
+            <div class="form-group-v2">
+              <label for="tipo_material_id">Material</label>
+              <select id="tipo_material_id" name="tipo_material_id" class="form-input-v2">
+                <option value="">Selecione...</option>
+              </select>
+            </div>
+            <div class="form-group-v2">
+              <label for="parceiro_id">Parceiro</label>
+              <select id="parceiro_id" name="parceiro_id" class="form-input-v2">
+                <option value="">Selecione...</option>
+              </select>
+            </div>
+          </div>
+          
+          <div class="form-grid-v2">
+            <div class="form-group-v2">
+              <label for="nivel_preenchimento">Nível (%)</label>
+              <input type="number" id="nivel_preenchimento" name="nivel_preenchimento" class="form-input-v2" min="0" max="100" step="0.1" value="0">
+            </div>
+            <div class="form-group-v2">
+              <label for="status">Status</label>
+              <select id="status" name="status" class="form-input-v2">
+                <option value="OK">OK</option>
+                <option value="CHEIA">CHEIA</option>
+                <option value="QUEBRADA">QUEBRADA</option>
+              </select>
+            </div>
+          </div>
+          
+          <div class="form-grid-v2">
+            <div class="form-group-v2">
+              <label for="latitude">Latitude</label>
+              <input type="number" id="latitude" name="latitude" class="form-input-v2" step="0.000001" placeholder="-15.7801">
+            </div>
+            <div class="form-group-v2">
+              <label for="longitude">Longitude</label>
+              <input type="number" id="longitude" name="longitude" class="form-input-v2" step="0.000001" placeholder="-47.9292">
+            </div>
+          </div>
+          
+          <button type="submit" class="btn btn-primary" style="width:100%; justify-content:center; margin-top:var(--space-2);">Salvar Coletor</button>
+        </div>
+        <div id="msg-coletor" class="form-status"></div>
+      </form>
+    </div>
+  </aside>
+</div>
+
+<!-- ABA SENSORES -->
+<div id="tab-sensores" class="tab-content">
+  <section class="gestao-grid">
+    <div class="config-card">
+      <h2>Sensores Ativos</h2>
+      <div id="lista-sensores" class="gestao-list">
+        <p class="home-subtitle">Carregando lista...</p>
+      </div>
+    </div>
+  </section>
+  
+  <aside class="side-panel-gestao">
+    <div class="config-card">
+      <h2>Novo Sensor</h2>
+      <form id="form-novo-sensor">
+        <div style="display:flex; flex-direction:column; gap:var(--space-4);">
+          <div class="form-group-v2">
+            <label for="sensor-coletor-id">Coletor *</label>
+            <select id="sensor-coletor-id" name="coletor_id" class="form-input-v2" required>
+              <option value="">Selecione...</option>
+            </select>
+          </div>
+          <div class="form-group-v2">
+            <label for="sensor-tipo-id">Tipo de Sensor</label>
+            <select id="sensor-tipo-id" name="tipo_sensor_id" class="form-input-v2">
+              <option value="">Selecione...</option>
+            </select>
+          </div>
+          <div class="form-group-v2">
+            <label for="sensor-bateria">Bateria (%)</label>
+            <input type="number" id="sensor-bateria" name="bateria" class="form-input-v2" min="0" max="100" value="100">
+          </div>
+          
+          <button type="submit" class="btn btn-primary" style="width:100%; justify-content:center; margin-top:var(--space-2);">Adicionar Sensor</button>
+        </div>
+        <div id="msg-sensor" class="form-status"></div>
+      </form>
+    </div>
+  </aside>
+</div>
+
+<!-- ABA COLETAS -->
+<div id="tab-coletas" class="tab-content">
+  <section class="gestao-grid">
+    <div class="config-card">
+      <h2>Registrar Coleta Manual</h2>
+      <form id="form-nova-coleta">
+        <div class="form-grid-v2" style="grid-template-columns: 1fr 1fr; gap: var(--space-6);">
+          <div style="display:flex; flex-direction:column; gap:var(--space-4);">
+            <div class="form-group-v2">
+              <label for="coleta-coletor-id">Coletor *</label>
+              <select id="coleta-coletor-id" name="coletor_id" class="form-input-v2" required>
+                <option value="">Selecione...</option>
+              </select>
+            </div>
+            <div class="form-group-v2" id="group-data-hora">
+              <label for="coleta-data-hora">Data/Hora *</label>
+              <input type="datetime-local" id="coleta-data-hora" name="data_hora" class="form-input-v2" required>
+            </div>
+            <div class="form-group-v2">
+              <label for="coleta-volume">Volume (KG) *</label>
+              <input type="number" id="coleta-volume" name="volume_estimado" class="form-input-v2" step="0.01" required>
+            </div>
+            <div class="form-group-v2">
+              <label for="coleta-tipo-op">Tipo de Operação</label>
+              <select id="coleta-tipo-op" name="tipo_operacao" class="form-input-v2">
+                <option value="Avulsa">Avulsa</option>
+                <option value="Campanha">Campanha</option>
+              </select>
+            </div>
+          </div>
+          
+          <div style="display:flex; flex-direction:column; gap:var(--space-4);">
+            <div class="form-group-v2">
+              <label for="coleta-km">Distância (KM)</label>
+              <input type="number" id="coleta-km" name="km_percorrido" class="form-input-v2" step="0.1">
+            </div>
+            <div class="form-group-v2">
+              <label for="coleta-combustivel">Preço Combustível (R$/L)</label>
+              <input type="number" id="coleta-combustivel" name="preco_combustivel" class="form-input-v2" step="0.01">
+            </div>
+            <div class="form-group-v2">
+              <label for="coleta-lucro">Lucro por KG (R$)</label>
+              <input type="number" id="coleta-lucro" name="lucro_por_kg" class="form-input-v2" step="0.01">
+            </div>
+            <div class="form-group-v2">
+              <label for="coleta-mtr">MTR (Emitir?)</label>
+              <select id="coleta-mtr" name="emissao_mtr" class="form-input-v2">
+                <option value="false">Não</option>
+                <option value="true">Sim</option>
+              </select>
+            </div>
+          </div>
+        </div>
+        
+        <button type="submit" class="btn btn-primary" style="margin-top:var(--space-8); width:280px; justify-content:center;">Registrar Esvaziamento</button>
+        <div id="msg-coleta" class="form-status"></div>
+      </form>
+    </div>
+  </section>
+  <aside class="side-panel-gestao">
+    <div class="alert-card" style="margin:0;">
+      <div class="alert-head">
+        <div class="alert-icon">i</div>
+        <div class="alert-title">Dica operacional</div>
+      </div>
+      <p class="alert-text">
+        Registrar coletas manuais ajuda a recalibrar o nível médio e manter o histórico de eficiência do parceiro.
+      </p>
+    </div>
+  </aside>
+</div>
+
+{% endblock %}
+
+{% block scripts_extra %}
+<script src="{{ url_for('static', filename='js/api.js') }}?v={{ cache_version }}"></script>
+<script src="{{ url_for('static', filename='js/v2/gestao.js') }}?v={{ cache_version }}" defer></script>
+{% endblock %}

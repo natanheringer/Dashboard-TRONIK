@@ -18,9 +18,9 @@ os.environ.setdefault("ADMIN_USERNAME", "smoke")
 os.environ.setdefault("ADMIN_EMAIL", "smoke@test.com")
 os.environ.setdefault("ADMIN_PASSWORD", "Smoke123!@#")
 
-import app as A  # noqa: E402
+import app  # noqa: E402
 
-cli = A.app.test_client()
+cli = app.app.test_client()
 
 r = cli.post(
     "/auth/login",

@@ -1,0 +1,249 @@
+"""Score prospection feature snapshots with the active ranker."""
+
+from __future__ import annotations
+
+import json
+import logging
+from collections import Counter, defaultdict
+from datetime import UTC, datetime
+from pathlib import Path
+from statistics import mean
+from typing import Any
+
+from sqlalchemy.orm import Session
+
+from banco_dados.modelos import FeatureSnapshotProspeccao, ModeloProspeccao, ScoreProspeccao
+from jobs.prospeccao import config
+from jobs.prospeccao.ranker_contract import FEATURE_NAMES, heuristic_score, top_reasons
+
+logger = logging.getLogger(__name__)
+
+
+def _json(data: Any) -> str:
+    return json.dumps(data, ensure_ascii=False, sort_keys=True, default=str)
+
+
+def _active_model(db: Session, model_version: str | None = None) -> ModeloProspeccao:
+    query = db.query(ModeloProspeccao)
+    if model_version:
+        model = query.filter(ModeloProspeccao.versao == model_version).first()
+    else:
+        model = query.filter(ModeloProspeccao.ativo.is_(True)).order_by(ModeloProspeccao.treinado_em.desc()).first()
+    if not model:
+        raise ValueError("No prospection model is available. Run train-ranker first.")
+    return model
+
+
+def _predict_and_explain(
+    model: ModeloProspeccao,
+    feature_rows: list[dict[str, float]],
+) -> tuple[list[float], list[dict[str, float]] | None]:
+    """Return (predictions, per-row SHAP value dicts or None)."""
+    if model.algoritmo == "xgboost_ranker" and model.artefato_path:
+        import joblib
+        import numpy as np
+
+        artifact = joblib.load(Path(config.REPO_ROOT) / model.artefato_path)
+        ranker = artifact["model"]
+        features = artifact.get("features", FEATURE_NAMES)
+        x = np.asarray(
+            [[float(row.get(name, 0.0)) for name in features] for row in feature_rows],
+            dtype=float,
+        )
+        predictions = [float(v) for v in ranker.predict(x)]
+
+        shap_maps: list[dict[str, float]] | None = None
+        try:
+            import shap
+
+            explainer = shap.TreeExplainer(ranker)
+            shap_values = explainer.shap_values(x)
+            shap_maps = [
+                dict(zip(features, (float(v) for v in row_shap), strict=False))
+                for row_shap in shap_values
+            ]
+        except Exception as exc:
+            logger.warning("SHAP calculation failed: %s", exc)
+
+        return predictions, shap_maps
+
+    return [heuristic_score(row) for row in feature_rows], None
+
+
+def _summarize_distribution(values: list[float]) -> dict[str, float]:
+    """Return compact telemetry for score distributions."""
+    if not values:
+        return {}
+    sorted_vals = sorted(float(v) for v in values)
+    n = len(sorted_vals)
+
+    def _percentile(p: float) -> float:
+        if n == 1:
+            return sorted_vals[0]
+        pos = (n - 1) * p
+        lo = int(pos)
+        hi = min(lo + 1, n - 1)
+        frac = pos - lo
+        return sorted_vals[lo] + (sorted_vals[hi] - sorted_vals[lo]) * frac
+
+    return {
+        "count": float(n),
+        "min": round(sorted_vals[0], 6),
+        "p10": round(_percentile(0.10), 6),
+        "p50": round(_percentile(0.50), 6),
+        "p90": round(_percentile(0.90), 6),
+        "max": round(sorted_vals[-1], 6),
+        "mean": round(mean(sorted_vals), 6),
+    }
+
+
+def _priority(rank: int, group_size: int, score: float, *, uses_absolute_scale: bool) -> str:
+    """Assign priority primarily by relative rank with safe fallbacks."""
+    percentile_top = 1.0 if group_size <= 1 else 1.0 - ((rank - 1) / (group_size - 1))
+
+    # Preserve compatibility for heuristic mode (scores already on 0-100).
+    if uses_absolute_scale:
+        if score >= 70:
+            return "alta"
+        if score <= 20:
+            return "baixa"
+
+    if percentile_top >= 0.90:
+        return "alta"
+    if percentile_top >= 0.60:
+        return "media"
+
+    # Conservative fallback for tiny groups.
+    if rank <= 5:
+        return "alta"
+    if rank <= max(1, int(group_size * 0.40)):
+        return "media"
+    return "baixa"
+
+
+def score_candidates(
+    db: Session,
+    *,
+    model_version: str | None = None,
+    pipeline_version: str | None = None,
+) -> dict[str, Any]:
+    model = _active_model(db, model_version)
+    pipeline_version = pipeline_version or model.pipeline_version
+
+    # Validate pipeline version compatibility
+    if model.pipeline_version and pipeline_version and model.pipeline_version != pipeline_version:
+        raise ValueError(
+            f"Model '{model.versao}' was trained on pipeline '{model.pipeline_version}' "
+            f"but requested pipeline is '{pipeline_version}'. "
+            f"Use --pipeline-version {model.pipeline_version} or retrain the model."
+        )
+
+    snapshots = (
+        db.query(FeatureSnapshotProspeccao)
+        .filter(FeatureSnapshotProspeccao.pipeline_version == pipeline_version)
+        .order_by(FeatureSnapshotProspeccao.qid.asc(), FeatureSnapshotProspeccao.id.asc())
+        .all()
+    )
+    grouped: dict[str, list[FeatureSnapshotProspeccao]] = defaultdict(list)
+    for snapshot in snapshots:
+        grouped[snapshot.qid].append(snapshot)
+
+    created = 0
+    updated = 0
+    processed = 0
+    scores_by_prioridade: Counter[str] = Counter()
+    raw_scores_all: list[float] = []
+    relative_scores_all: list[float] = []
+    batch_size = 2000
+
+    # Pre-load all existing ScoreProspeccao records for this model to avoid N+1 queries
+    existing_scores = {
+        (r.snapshot_id, r.modelo_id): r
+        for r in db.query(ScoreProspeccao)
+        .filter(ScoreProspeccao.modelo_id == model.id)
+        .all()
+    }
+
+    for qid, rows in grouped.items():
+        feature_rows = [json.loads(row.features_json) for row in rows]
+        predictions, shap_maps = _predict_and_explain(model, feature_rows)
+        raw_scores_all.extend(float(v) for v in predictions)
+        explanations = shap_maps or [None] * len(rows)
+        ranked = sorted(
+            zip(rows, feature_rows, predictions, explanations, strict=False),
+            key=lambda item: item[2],
+            reverse=True,
+        )
+        group_size = len(ranked)
+        uses_absolute_scale = model.algoritmo != "xgboost_ranker"
+
+        for rank, (snapshot, features, score, shap_vals) in enumerate(ranked, start=1):
+            percentile_top = 1.0 if group_size <= 1 else 1.0 - ((rank - 1) / (group_size - 1))
+            relative_scores_all.append(percentile_top * 100.0)
+            score_row = existing_scores.get((snapshot.id, model.id))
+            if not score_row:
+                score_row = ScoreProspeccao(snapshot_id=snapshot.id, modelo_id=model.id)
+                db.add(score_row)
+                created += 1
+            else:
+                updated += 1
+
+            score_row.empresa_id = snapshot.empresa_id
+            score_row.local_id = snapshot.local_id
+            score_row.qid = qid
+            score_row.score = round(float(score), 6)
+            score_row.ranking_contexto = rank
+            score_row.prioridade = _priority(
+                rank,
+                group_size,
+                float(score),
+                uses_absolute_scale=uses_absolute_scale,
+            )
+            scores_by_prioridade[score_row.prioridade] += 1
+            score_row.pipeline_version = pipeline_version
+            # Build enriched motivos with SHAP context and human-readable labels
+            enriched_motivos = top_reasons(
+                features,
+                shap_vals,
+                limit=5,
+                min_fallback_value=None if shap_vals else 0.1,
+            )
+            score_row.motivos_json = _json(enriched_motivos)
+            score_row.calculado_em = datetime.now(UTC)
+
+            processed += 1
+            if processed % batch_size == 0:
+                db.commit()
+                logger.info(f"Committed batch of {batch_size}. Progress: {processed}/{len(snapshots)} scores processed.")
+
+    # Final commit for remaining records
+    db.commit()
+
+    # Log distribution of priorities
+    all_scores = db.query(ScoreProspeccao).filter(
+        ScoreProspeccao.modelo_id == model.id,
+        ScoreProspeccao.pipeline_version == pipeline_version,
+    ).all()
+    prioridade_dist = Counter(s.prioridade for s in all_scores)
+    logger.info("Distribuicao de prioridades: %s", dict(prioridade_dist))
+    logger.info(
+        "Score telemetry | modelo=%s algoritmo=%s raw=%s relative_0_100=%s",
+        model.versao,
+        model.algoritmo,
+        _json(_summarize_distribution(raw_scores_all)),
+        _json(_summarize_distribution(relative_scores_all)),
+    )
+
+    return {
+        "modelo": model.versao,
+        "model_version": model.versao,
+        "algoritmo": model.algoritmo,
+        "pipeline_version": pipeline_version,
+        "snapshots": len(snapshots),
+        "scores_criados": created,
+        "scores_atualizados": updated,
+        "grupos": len(grouped),
+        "qids_processed": len(grouped),
+        "scores_by_prioridade": dict(scores_by_prioridade),
+        "prioridade_distribuicao": dict(prioridade_dist),
+    }

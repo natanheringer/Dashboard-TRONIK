@@ -7,49 +7,63 @@ Aqui devem ser registradas todas as rotas e configurações básicas.
 """
 
 # Importações do Flask
+import logging
+import os
+import secrets
+from pathlib import Path
+
+from dotenv import load_dotenv
 from flask import Flask, request
 from flask_cors import CORS
 from flask_login import LoginManager
 from flask_talisman import Talisman
-from dotenv import load_dotenv
-import os
-import secrets
-import logging
 
 # Importações do SQLAlchemy
-from sqlalchemy import create_engine
-from sqlalchemy.orm import sessionmaker, scoped_session
+from sqlalchemy import create_engine, text
+from sqlalchemy.orm import scoped_session, sessionmaker
+
+# Importações do sistema de inicialização
+from banco_dados.inicializar import (
+    criar_usuario_admin,
+    garantir_usuario_dev,
+)
 
 # Importações dos modelos
 # Importar todos os modelos para garantir que as tabelas sejam criadas
 from banco_dados.modelos import (
-    Base, Usuario, Coletor, Sensor, Coleta,
-    Parceiro, TipoMaterial, TipoSensor, TipoColetor, Notificacao,
-    MetaComercial, Pipeline, Interacao, Tarefa, ContratoRecorrente
-)
-
-# Importações do sistema de inicialização
-from banco_dados.inicializar import (
-    criar_banco,
-    criar_usuario_admin,
-    garantir_usuario_dev,
-    inserir_dados_iniciais,
+    Base,
+    Usuario,
 )
 from banco_dados.seed_tipos import popular_tipos
-
-# Importações dos blueprints
-from rotas.api import api_bp
-from rotas.api._limiter import limiter  # singleton compartilhado pelos blueprints
-from rotas.paginas import paginas_bp
-from rotas.preview import preview_bp
-from rotas.auth import auth_bp
-from rotas.websocket import inicializar_websocket
 
 # Configurar logging centralizado
 from banco_dados.utils.logger import configurar_logging
 
+# Importações dos blueprints
+from rotas.api import api_bp
+from rotas.api._limiter import limiter  # singleton compartilhado pelos blueprints
+from rotas.auth import auth_bp
+from rotas.paginas import paginas_bp
+from rotas.preview import preview_bp
+from rotas.websocket import inicializar_websocket
+
 # Carregar variáveis de ambiente
 load_dotenv()
+
+
+def _carregar_config_nik_dev() -> None:
+    """Carrega config local da Nik em desenvolvimento.
+
+    Permite centralizar configuracoes de dev em `nik_bot/config_nik_dev.env`
+    sem depender de um `.env` global. O arquivo local sobrescreve valores
+    anteriores para facilitar teste iterativo.
+    """
+    caminho = Path(__file__).resolve().parent / "nik_bot" / "config_nik_dev.env"
+    if caminho.exists():
+        load_dotenv(caminho, override=True)
+
+
+_carregar_config_nik_dev()
 
 # Configuração de ambiente (deve estar antes de criar o app)
 FLASK_ENV = os.getenv('FLASK_ENV', 'development')
@@ -63,29 +77,39 @@ app = Flask(__name__, static_folder='estatico', static_url_path='/static')
 @app.route('/api/health', methods=['GET'])
 @app.route('/health', methods=['GET'])  # Também em /health como fallback
 def health_check():
-    """Endpoint simples para health check (sem autenticação, sem dependências)"""
-    from flask import Response
-    # Retornar resposta JSON direta sem passar por middlewares
-    return Response(
-        '{"status":"ok","service":"dashboard-tronik"}',
-        mimetype='application/json',
-        status=200
-    )
+    """Health check leve: SELECT 1 no banco; 503 se o DB estiver indisponível."""
+    from flask import jsonify
+
+    payload = {'status': 'ok', 'service': 'dashboard-tronik'}
+    try:
+        with engine.connect() as conn:
+            conn.execute(text('SELECT 1'))
+    except Exception as exc:
+        logger.error('Health check: banco indisponível: %s', exc)
+        return jsonify({
+            **payload,
+            'status': 'error',
+            'database': 'unavailable',
+            'error': 'database_unreachable',
+        }), 503
+    return jsonify({**payload, 'database': 'ok'}), 200
 
 # Cache busting para arquivos estáticos em desenvolvimento
 import time
+
+
 @app.context_processor
 def inject_cache_bust():
     """Adiciona versão aos arquivos estáticos para evitar cache"""
     # Em desenvolvimento, usar timestamp para forçar atualização
     # Em produção, usar versão fixa (pode ser atualizada manualmente)
     cache_version = int(time.time()) if FLASK_ENV == 'development' else '1.0.0'
-    preview_demo_banner = os.getenv('PREVIEW_DEMO_BANNER', 'true').strip().lower() in (
+    preview_demo_banner = os.getenv('PREVIEW_DEMO_BANNER', 'false').strip().lower() in (
         '1',
         'true',
         'yes',
     )
-    return dict(cache_version=cache_version, preview_demo_banner_enabled=preview_demo_banner)
+    return {"cache_version": cache_version, "preview_demo_banner_enabled": preview_demo_banner}
 
 # Desabilitar cache de arquivos estáticos em desenvolvimento
 if FLASK_ENV == 'development':
@@ -117,6 +141,12 @@ elif len(SECRET_KEY) < 32:
 
 app.config['SECRET_KEY'] = SECRET_KEY
 
+app.config['PREVIEW_SHOW_BADGE'] = os.getenv('PREVIEW_SHOW_BADGE', 'false').strip().lower() in (
+    '1',
+    'true',
+    'yes',
+)
+
 # Configurações básicas
 app.config['JSON_SORT_KEYS'] = False
 app.config['SESSION_COOKIE_HTTPONLY'] = True
@@ -146,13 +176,23 @@ login_manager.init_app(app)
 login_manager.login_view = 'auth.login'
 login_manager.login_message = 'Por favor, faça login para acessar esta página.'
 login_manager.login_message_category = 'info'
-login_manager.session_protection = 'strong'  # Proteção contra session fixation
+# "strong" invalida a sessão se IP ou User-Agent mudarem — em dev isso gera 401 intermitente
+# (ex.: alternar 127.0.0.1 / LAN, VPN, extensões). Em produção mantenha "strong".
+_login_prot = os.getenv("FLASK_LOGIN_SESSION_PROTECTION", "").strip().lower()
+if _login_prot in {"false", "0", "no", "none"}:
+    login_manager.session_protection = False
+elif _login_prot in {"basic", "strong"}:
+    login_manager.session_protection = _login_prot
+elif FLASK_ENV == "development":
+    login_manager.session_protection = "basic"
+else:
+    login_manager.session_protection = "strong"
 
 # Não redirecionar health check para login
 @login_manager.request_loader
 def load_user_from_request(request):
     """Permitir health check sem autenticação"""
-    if request.path == '/api/health':
+    if request.path in ('/api/health', '/health'):
         return None
     return None
 
@@ -225,6 +265,37 @@ log_file = os.getenv('LOG_FILE', None)
 configurar_logging(nivel=log_level, arquivo_log=log_file)
 logger = logging.getLogger(__name__)
 
+
+def _init_sentry() -> None:
+    """Inicializa Sentry quando SENTRY_DSN estiver definido (opcional)."""
+    dsn = os.getenv("SENTRY_DSN", "").strip()
+    if not dsn:
+        return
+    try:
+        import sentry_sdk
+        from sentry_sdk.integrations.flask import FlaskIntegration
+    except ImportError:
+        logger.warning(
+            "SENTRY_DSN definido mas sentry-sdk nao esta instalado; "
+            "instale com: pip install 'sentry-sdk[flask]>=2.0'"
+        )
+        return
+    try:
+        traces_rate = float(os.getenv("SENTRY_TRACES_SAMPLE_RATE", "0.1"))
+    except ValueError:
+        logger.warning("SENTRY_TRACES_SAMPLE_RATE invalido; usando 0.1")
+        traces_rate = 0.1
+    sentry_sdk.init(
+        dsn=dsn,
+        integrations=[FlaskIntegration()],
+        environment=FLASK_ENV,
+        traces_sample_rate=traces_rate,
+    )
+    logger.info("Sentry inicializado (environment=%s)", FLASK_ENV)
+
+
+_init_sentry()
+
 # ========================================
 # FLASK-MAIL (Notificações por Email)
 # ========================================
@@ -276,17 +347,17 @@ if DATABASE_URL.startswith('postgresql://') or DATABASE_URL.startswith('postgres
         db_url = db_url.replace('postgres://', 'postgresql+psycopg://')
     else:
         db_url = DATABASE_URL
-    
+
     # Configurações de pool e SSL para PostgreSQL
     # Verificar se a URL já tem parâmetros SSL
     connect_args = {
         'connect_timeout': 10,  # Timeout de conexão de 10 segundos
     }
-    
+
     # Se for URL externa (não internal), usar SSL
     if 'internal' not in db_url.lower() and 'localhost' not in db_url.lower():
         connect_args['sslmode'] = 'require'  # Exigir SSL para conexões externas
-    
+
     engine = create_engine(
         db_url,
         echo=False,
@@ -298,7 +369,21 @@ if DATABASE_URL.startswith('postgresql://') or DATABASE_URL.startswith('postgres
         connect_args=connect_args
     )
 else:
-    engine = create_engine(DATABASE_URL, echo=False)
+    # SQLite configuration for concurrent access (WAL mode + extended timeout)
+    engine = create_engine(
+        DATABASE_URL,
+        echo=False,
+        connect_args={
+            "timeout": 60,
+            "check_same_thread": False,
+        },
+    )
+
+    # Enable WAL mode and optimize for concurrent access
+    with engine.begin() as conn:
+        conn.execute(text("PRAGMA journal_mode=WAL"))
+        conn.execute(text("PRAGMA synchronous=NORMAL"))
+
 SessionLocal = scoped_session(sessionmaker(bind=engine))
 
 # Tornar SessionLocal disponível globalmente para os blueprints
@@ -319,19 +404,27 @@ else:
 # Sempre criar todas as tabelas (SQLAlchemy só cria as que não existem)
 Base.metadata.create_all(engine)
 
+# Garantir diretório para modelos ML serializados
+os.makedirs('banco_dados/ml_models', exist_ok=True)
+
 from banco_dados.schema_compat import aplicar_compat_schema
 
 aplicar_compat_schema(engine)
 
-# Aviso se preview público estiver ligado em produção
-if (
-    FLASK_ENV == "production"
-    and os.getenv("PREVIEW_PUBLIC", "").strip().lower() in {"1", "true", "yes"}
-):
-    logger.warning(
-        "PREVIEW_PUBLIC esta ativo em producao: /preview fica sem login. "
-        "Desligue para ambientes expostos na Internet."
-    )
+# Produção: flags inseguras — log ERROR (não derruba o processo)
+if FLASK_ENV == "production":
+    if os.getenv("PREVIEW_PUBLIC", "").strip().lower() in {"1", "true", "yes"}:
+        logger.error(
+            "SEGURANCA: PREVIEW_PUBLIC=true em producao — /preview sem login. "
+            "Desligue antes de expor na Internet."
+        )
+    if os.getenv("TELEMETRIA_ALLOW_NO_TOKEN", "").strip().lower() in {
+        "1", "true", "yes"
+    }:
+        logger.error(
+            "SEGURANCA: TELEMETRIA_ALLOW_NO_TOKEN=true em producao — "
+            "telemetria aceita POST sem token. Desligue em ambientes expostos."
+        )
 
 # Sempre popular tipos (seguro, não duplica se já existirem)
 logger.info("Populando tabelas de tipos...")
@@ -419,10 +512,10 @@ if __name__ == '__main__':
     logger.info(f"Ambiente: {FLASK_ENV}")
     logger.info(f"Banco de dados: {DATABASE_URL}")
     logger.info(f"Rate Limiting: {'Ativado' if limiter.enabled else 'Desativado'}")
-    logger.info(f"Acesse: http://localhost:5000")
-    logger.info(f"Login: http://localhost:5000/auth/login")
+    logger.info("Acesse: http://localhost:5000")
+    logger.info("Login: http://localhost:5000/auth/login")
     logger.info("=" * 50)
-    
+
     # Executar aplicação com WebSocket
     if socketio:
         socketio.run(

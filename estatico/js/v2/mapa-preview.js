@@ -186,4 +186,66 @@
     markersById: markersById,
     updateMarker: updateMarker,
   };
+
+  // ── Camada de prospecção REE ────────────────────────────────────────────────
+  var prospPin = window.__PROSPECCAO_PIN__;
+  if (prospPin && typeof prospPin.lat === "number" && typeof prospPin.lon === "number") {
+    // Marcador destacado para o candidato focado
+    var starIcon = L.divIcon({
+      className: "",
+      html: '<div style="width:20px;height:20px;background:#1a5d3a;border:3px solid #fff;border-radius:50%;box-shadow:0 2px 8px rgba(0,0,0,0.4);"></div>',
+      iconSize: [20, 20],
+      iconAnchor: [10, 10],
+    });
+    var prospMarker = L.marker([prospPin.lat, prospPin.lon], { icon: starIcon, zIndexOffset: 1000 })
+      .addTo(map)
+      .bindPopup(
+        "<strong>" + (prospPin.label || "Candidato REE") + "</strong>" +
+        "<br/><em style='color:#1a5d3a;font-size:11px;'>Prospecção REE</em>"
+      );
+    prospMarker.openPopup();
+    map.setView([prospPin.lat, prospPin.lon], 15);
+
+    // Carregar outros candidatos da fila como pinos menores
+    fetch("/api/prospeccao/candidatos?limite=50", { credentials: "same-origin" })
+      .then(function (r) { return r.json(); })
+      .then(function (body) {
+        if (!body.ok || !Array.isArray(body.dados)) return;
+        var prosp_cluster = typeof L.markerClusterGroup === "function"
+          ? L.markerClusterGroup({ maxClusterRadius: 40, showCoverageOnHover: false })
+          : null;
+        body.dados.forEach(function (cand) {
+          var loc = cand.local;
+          if (!loc || loc.latitude == null || loc.longitude == null) return;
+          var empresa = cand.empresa || {};
+          var nome = empresa.razao_social || empresa.nome_fantasia || "Candidato REE";
+          // Pular o candidato que já está marcado (evitar duplicar)
+          var isFocused = Math.abs(loc.latitude - prospPin.lat) < 0.0001 &&
+                          Math.abs(loc.longitude - prospPin.lon) < 0.0001;
+          if (isFocused) return;
+          var smallIcon = L.circleMarker([loc.latitude, loc.longitude], {
+            radius: 6,
+            color: "#1a5d3a",
+            fillColor: "#1a5d3a",
+            fillOpacity: 0.45,
+            weight: 1.5,
+          });
+          smallIcon.bindPopup(
+            "<strong>" + nome + "</strong>" +
+            "<br/><small>" + (empresa.bairro || cand.qid || "") + "</small>" +
+            "<br/><a href='/preview/mapa?prosp_lat=" + loc.latitude +
+            "&prosp_lon=" + loc.longitude +
+            "&prosp_label=" + encodeURIComponent(nome) +
+            "' style='color:#1a5d3a;font-size:11px;'>Focar aqui</a>"
+          );
+          if (prosp_cluster) {
+            prosp_cluster.addLayer(smallIcon);
+          } else {
+            smallIcon.addTo(map);
+          }
+        });
+        if (prosp_cluster) map.addLayer(prosp_cluster);
+      })
+      .catch(function () { /* sem candidatos — OK */ });
+  }
 })();

@@ -1,0 +1,25 @@
+%% Orquestração por camadas (rodadas de desenvolvimento)
+flowchart TB
+  subgraph ingest["Ingestão"]
+    R[Receita CNEFE IBAMA...]
+    N[normalize + stats]
+  end
+  subgraph ml["ML"]
+    F[build-features + labels internos]
+    T[train / score / publish]
+  end
+  subgraph api["API"]
+    C["GET candidatos"]
+    M["GET modelo-ativo"]
+    H["GET saude"]
+  end
+  subgraph ui["Preview v2"]
+    P["Preview prospeccao"]
+    CRM_P["Preview CRM"]
+  end
+  subgraph nik["Nik Ops"]
+    T1[listar explicar comparar roteiro tarefa]
+  end
+  ingest --> ml --> api
+  api --> ui
+  api --> nik

@@ -42,6 +42,8 @@ ignore = [
 [tool.ruff.lint.per-file-ignores]
 "tests/**" = ["B011", "F841", "N802"]
 "scripts/**" = ["T201", "T203"]  # prints sao OK em scripts
+"app.py" = ["E402"]  # imports tardios apos config Flask/DB
+"banco_dados/utils/erros.py" = ["N818"]  # ErroAPI e nome publico da API
 
 [tool.ruff.lint.isort]
 known-first-party = ["banco_dados", "rotas"]

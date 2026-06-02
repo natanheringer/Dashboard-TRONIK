@@ -9,14 +9,44 @@ from __future__ import annotations
 
 import os
 from functools import wraps
+from pathlib import Path
 
-from flask import Blueprint, render_template, request
+from flask import (
+    Blueprint,
+    abort,
+    current_app,
+    redirect,
+    render_template,
+    request,
+    send_from_directory,
+    url_for,
+)
 from flask_login import current_user, login_required
 
-from banco_dados.services import preview_service as pv
+from banco_dados.services import nik_service, preview_service as pv
+from rotas.api._limiter import limiter
 from rotas.api.decorators import get_db
 
 preview_bp = Blueprint("preview", __name__, url_prefix="/preview")
+limiter.exempt(preview_bp)
+_NIK_ASSETS_DIR = Path(__file__).resolve().parents[1] / "nik_bot"
+_NIK_ASSETS_ALLOWLIST = {
+    "Nik_normal.svg",
+    "Nik_escrevendo.svg",
+    "Nik_encontra_resposta_no_bg.svg",
+    "nik_duvida_nobg.svg",
+    "tronik_logo_only_nobg.svg",
+    "nik-acenando-lbadev.webm",
+    "nik-pensando-lbadev.webm",
+    "nik-encontra-resposta-lbadev.webm",
+    "nik_duvida-lbadev.webm",
+    "nik_cannon.png",
+    "nik_cannon_1.png",
+    "nik_cannon_animated_bg.webm",
+    "nik_cannon_animated_bg.mp4",
+    "nik_cannon_animated_nobg.webm",
+    "operation_tronik.png",
+}
 
 
 def _preview_publico() -> bool:
@@ -35,6 +65,21 @@ def auth_preview(view):
     return wrapper
 
 
+def admin_preview(view):
+    """Restringe acesso apenas para usuários administradores."""
+    protegido = auth_preview(view)
+
+    @wraps(view)
+    def wrapper(*args, **kwargs):
+        if _preview_publico():
+            return view(*args, **kwargs)
+        if current_user.is_authenticated and not current_user.admin:
+            abort(403)
+        return protegido(*args, **kwargs)
+
+    return wrapper
+
+
 def _nome_usuario() -> str:
     if current_user.is_authenticated:
         return (
@@ -44,9 +89,62 @@ def _nome_usuario() -> str:
     return "Visitante"
 
 
+@preview_bp.route("/solicitar-coletor", methods=["POST"])
+def solicitar_coletor():
+    """Rota pública para receber solicitações de novos coletores da landing."""
+    from flask import jsonify
+
+    from banco_dados.modelos import SolicitacaoColetor
+
+    try:
+        dados = request.get_json()
+        if not dados:
+            return jsonify({"ok": False, "erro": "Nenhum dado recebido"}), 400
+
+        nome = str(dados.get("nome", "")).strip()
+        email = str(dados.get("email", "")).strip()
+        localizacao = str(dados.get("localizacao", "")).strip()
+
+        if not nome or not email or not localizacao:
+            return jsonify({"ok": False, "erro": "Nome, e-mail e localização são obrigatórios"}), 400
+
+        db = get_db()
+        try:
+            nova_solicitacao = SolicitacaoColetor(
+                nome=nome,
+                email=email,
+                empresa=str(dados.get("empresa", "")).strip(),
+                localizacao=localizacao,
+                mensagem=str(dados.get("mensagem", "")).strip()[:1000]
+            )
+            db.add(nova_solicitacao)
+            db.commit()
+            return jsonify({"ok": True})
+        finally:
+            db.close()
+    except Exception as e:
+        import logging
+        logging.error(f"Erro ao salvar solicitação: {e}")
+        return jsonify({"ok": False, "erro": "Erro interno no servidor"}), 500
+
+
 @preview_bp.route("/")
 @auth_preview
 def home():
+    if current_user.is_authenticated:
+        if current_user.admin:
+            return redirect(url_for("preview.dashboard_home"))
+        return redirect(url_for("preview.parceiro"))
+    return redirect(url_for("preview.landing_preview"))
+
+
+@preview_bp.route("/home")
+@auth_preview
+def dashboard_home():
+    # Se não for admin, direciona para o portal de parceiro
+    if current_user.is_authenticated and not current_user.admin:
+        return redirect(url_for("preview.parceiro"))
+
     db = get_db()
     try:
         stats = pv.estatisticas_resumo(db)
@@ -54,6 +152,8 @@ def home():
         ctx = {
             "current": "home",
             "total_coletores": stats["total_coletores"],
+            "resumo_coletores": pv.resumo_coletores_operacional(db),
+            "resumo_prospeccao": pv.resumo_prospeccao(db),
             "stats": stats,
             "data_longa": pv.data_longa_pt(),
             "usuario_nome": _nome_usuario(),
@@ -67,33 +167,50 @@ def home():
 
 
 @preview_bp.route("/monitoramento")
-@auth_preview
+@admin_preview
 def monitoramento():
     db = get_db()
     try:
         q = (request.args.get("q") or "").strip()
         nivel = (request.args.get("nivel") or "todos").strip().lower()
         page = request.args.get("page", 1, type=int)
-        
+
         if nivel not in {"todos", "crit", "warn", "ok"}:
             nivel = "todos"
-        
+
         # Fetch paginated coletores
         coletores_pagina, total_coletores = pv.coletores_monitoramento_paginado(db, page=page, per_page=50)
-        
+
         # Get full list for stats (reuse para não recarregar)
         stats = pv.estatisticas_resumo(db)
-        
+
         # Build cards with filters
         cards = pv.montar_cards_coletores(coletores_pagina, q, nivel)
         alerta = pv.primeiro_alerta_critico(coletores_pagina)
         recentes = pv.coletas_recentes(db, 8)
-        
+
+        # --- ML: TRONIK Score ranking (Módulo 2) ---
+        ranking_ml = _obter_ranking_ml(db)
+
+        # --- ML: Predições rápidas (Módulo 1) ---
+        predicoes_map = _obter_predicoes_map(db)
+
+        # Enriquecer cards com dados ML
+        for card in cards:
+            cid = card.get('id')
+            if cid in predicoes_map:
+                card['ml_predicao'] = predicoes_map[cid]
+            # Score do ranking
+            for r in ranking_ml:
+                if r.get('coletor_id') == cid:
+                    card['ml_score'] = r.get('score')
+                    break
+
         # Pagination info
         per_page = 50
         total_pages = (total_coletores + per_page - 1) // per_page
         page = min(page, total_pages) if total_pages > 0 else 1
-        
+
         ctx = {
             "current": "monit",
             "total_coletores": stats["total_coletores"],
@@ -103,6 +220,7 @@ def monitoramento():
             "filtro_nivel": nivel,
             "alerta_destaque": alerta,
             "coletas_recentes": recentes,
+            "ranking_ml": ranking_ml[:5],
             "paginacao": {
                 "pagina_atual": page,
                 "total_paginas": total_pages,
@@ -118,7 +236,7 @@ def monitoramento():
 
 
 @preview_bp.route("/mapa")
-@auth_preview
+@admin_preview
 def mapa():
     db = get_db()
     try:
@@ -136,6 +254,14 @@ def mapa():
         sel_id = request.args.get("coletor_id", type=int)
         detalhe = pv.detalhe_coletor_mapa(db, sel_id) if sel_id else None
 
+        # Candidato de prospecção focado (vindo de /preview/prospeccao via "Ver mapa")
+        prosp_lat = request.args.get("prosp_lat", type=float)
+        prosp_lon = request.args.get("prosp_lon", type=float)
+        prosp_label = (request.args.get("prosp_label") or "").strip()[:120]
+        prosp_pin = None
+        if prosp_lat is not None and prosp_lon is not None:
+            prosp_pin = {"lat": prosp_lat, "lon": prosp_lon, "label": prosp_label or "Candidato REE"}
+
         ctx = {
             "current": "mapa",
             "total_coletores": stats["total_coletores"],
@@ -149,6 +275,7 @@ def mapa():
             "sede_mapa": sede,
             "detalhe": detalhe,
             "coletor_selecionado_id": detalhe["id"] if detalhe else None,
+            "prosp_pin": prosp_pin,
         }
         return render_template("preview/mapa.html", **ctx)
     finally:
@@ -156,7 +283,7 @@ def mapa():
 
 
 @preview_bp.route("/relatorios")
-@auth_preview
+@admin_preview
 def relatorios():
     db = get_db()
     try:
@@ -188,7 +315,15 @@ def parceiro():
     db = get_db()
     try:
         stats = pv.estatisticas_resumo(db)
+        # Parceiros: se for admin, vê todos. Se for parceiro, vê só o dele.
         parceiros_rows = pv.parceiros_tabela(db)
+        if current_user.is_authenticated and not current_user.admin and getattr(current_user, 'parceiro_id', None):
+            parceiros_rows = [p for p in parceiros_rows if p['id'] == current_user.parceiro_id]
+
+        # --- ML: Narrativa de impacto (Módulo 3) ---
+        for p in parceiros_rows:
+            p['narrativa'] = _obter_narrativa_parceiro(db, p.get('id'))
+
         ctx = {
             "current": "parceiro",
             "total_coletores": stats["total_coletores"],
@@ -198,3 +333,173 @@ def parceiro():
         return render_template("preview/parceiro.html", **ctx)
     finally:
         db.close()
+
+
+@preview_bp.route("/prospeccao")
+@admin_preview
+def prospeccao():
+    db = get_db()
+    try:
+        stats = pv.estatisticas_resumo(db)
+        ctx = {
+            "current": "prospeccao",
+            "total_coletores": stats["total_coletores"],
+            "stats": stats,
+            "usuario_nome": _nome_usuario(),
+        }
+        return render_template("preview/prospeccao.html", **ctx)
+    finally:
+        db.close()
+
+
+def _ctx_admin_shell(current: str) -> dict:
+    db = get_db()
+    try:
+        stats = pv.estatisticas_resumo(db)
+        return {
+            "current": current,
+            "total_coletores": stats["total_coletores"],
+            "stats": stats,
+            "usuario_nome": _nome_usuario(),
+        }
+    finally:
+        db.close()
+
+
+@preview_bp.route("/crm")
+@admin_preview
+def crm():
+    return render_template("preview/crm.html", **_ctx_admin_shell("crm"))
+
+
+@preview_bp.route("/comercial")
+@admin_preview
+def comercial():
+    return render_template("preview/comercial.html", **_ctx_admin_shell("comercial"))
+
+
+@preview_bp.route("/contratos")
+@admin_preview
+def contratos():
+    return render_template("preview/contratos.html", **_ctx_admin_shell("contratos"))
+
+
+@preview_bp.route("/gestao")
+@admin_preview
+def gestao():
+    db = get_db()
+    try:
+        stats = pv.estatisticas_resumo(db)
+        ctx = {
+            "current": "gestao",
+            "total_coletores": stats["total_coletores"],
+            "stats": stats,
+            "usuario_nome": _nome_usuario(),
+        }
+        return render_template("preview/gestao.html", **ctx)
+    finally:
+        db.close()
+
+
+@preview_bp.route("/nik")
+@admin_preview
+def nik():
+    db = get_db()
+    try:
+        stats = pv.estatisticas_resumo(db)
+        parceiros = pv.listar_parceiros_select(db)
+        historico = nik_service.listar_conversas_ops(
+            db,
+            current_user.id if current_user.is_authenticated else None,
+            limite=12,
+        )
+    except Exception:
+        stats = {"total_coletores": 0}
+        parceiros = []
+        historico = []
+    finally:
+        db.close()
+    planner_cfg = (os.getenv("NIK_AGENT_PLANNER", "heuristic") or "heuristic").strip().lower()
+    if planner_cfg not in {"llm", "heuristic", "auto"}:
+        planner_cfg = "heuristic"
+    current_app.config["NIK_AGENT_PLANNER"] = planner_cfg
+    mm = os.getenv("NIK_MULTIMODAL_ENABLED", "false").strip().lower() in {"1", "true", "yes"}
+    current_app.config["NIK_MULTIMODAL_ENABLED"] = mm
+    return render_template(
+        "preview/nik.html",
+        current="nik",
+        total_coletores=stats.get("total_coletores", 0),
+        stats=stats,
+        usuario_nome=_nome_usuario(),
+        parceiros=parceiros,
+        historico_nik=historico,
+    )
+
+
+@preview_bp.route("/landing")
+def landing_preview():
+    db = get_db()
+    try:
+        stats = pv.estatisticas_resumo(db)
+    except Exception:
+        stats = {"total_coletores": 0}
+    finally:
+        db.close()
+    return render_template(
+        "preview/landing_preview.html",
+        current="landing_preview",
+        total_coletores=stats.get("total_coletores", 0),
+        stats=stats,
+        usuario_nome=_nome_usuario(),
+    )
+
+
+@preview_bp.route("/assets/nik/<path:filename>")
+@limiter.exempt
+def nik_assets(filename: str):
+    if filename not in _NIK_ASSETS_ALLOWLIST:
+        abort(404)
+    return send_from_directory(_NIK_ASSETS_DIR, filename)
+
+
+# ==============================================================
+# HELPERS ML (queries leves, com try/except para não quebrar views)
+# ==============================================================
+
+def _obter_ranking_ml(db):
+    """Retorna ranking do TRONIK Score, ou [] se tabela não existir."""
+    try:
+        from banco_dados.services.ml_score import obter_ranking
+        return obter_ranking(db, limite=50)
+    except Exception:
+        return []
+
+
+def _obter_predicoes_map(db):
+    """Retorna dict {coletor_id: predicao_dict} com predições ativas."""
+    try:
+        from banco_dados.modelos import PredicaoEnchimento
+        preds = db.query(PredicaoEnchimento).filter(
+            PredicaoEnchimento.dados_suficientes.is_(True)
+        ).all()
+        result = {}
+        for p in preds:
+            result[p.coletor_id] = {
+                'horas_restantes': p.horas_restantes,
+                'velocidade': p.velocidade_enchimento,
+                'modelo': p.modelo_usado,
+            }
+        return result
+    except Exception:
+        return {}
+
+
+def _obter_narrativa_parceiro(db, parceiro_id):
+    """Retorna última narrativa gerada para um parceiro, ou None."""
+    if not parceiro_id:
+        return None
+    try:
+        from banco_dados.services.ml_narrativa import obter_ultima_narrativa
+        return obter_ultima_narrativa(db, parceiro_id)
+    except Exception:
+        return None

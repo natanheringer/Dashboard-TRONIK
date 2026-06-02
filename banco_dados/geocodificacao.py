@@ -10,10 +10,10 @@ Funcionalidades:
 - Cache de resultados para evitar requisições desnecessárias
 """
 
-import requests
-import time
 import logging
-from typing import Optional, Dict, Tuple
+import time
+
+import requests
 from sqlalchemy.orm import Session
 
 logger = logging.getLogger(__name__)
@@ -37,20 +37,20 @@ def geocodificar_endereco(
     cidade: str = "Brasília",
     estado: str = "DF",
     pais: str = "Brasil"
-) -> Optional[Dict[str, float]]:
+) -> dict[str, float] | None:
     """
     Converte um endereço em coordenadas (latitude, longitude) usando Nominatim.
     Tenta múltiplas estratégias de busca para melhorar a taxa de sucesso.
-    
+
     Args:
         endereco: Nome do local/endereço (ex: "Hotel Royal Tulip")
         cidade: Cidade (padrão: "Brasília")
         estado: Estado (padrão: "DF")
         pais: País (padrão: "Brasil")
-    
+
     Returns:
         Dict com 'latitude' e 'longitude' se encontrado, None caso contrário
-    
+
     Exemplo:
         >>> coords = geocodificar_endereco("Hotel Royal Tulip")
         >>> print(coords)
@@ -59,9 +59,9 @@ def geocodificar_endereco(
     if not endereco or not endereco.strip():
         logger.warning("Endereço vazio fornecido para geocodificação")
         return None
-    
+
     endereco_limpo = endereco.strip()
-    
+
     # Estratégias de busca (tentativas em ordem de especificidade)
     # IMPORTANTE: Priorizar endereços completos mesmo que o nome não esteja registrado
     estrategias = [
@@ -74,24 +74,24 @@ def geocodificar_endereco(
         # 4. Busca apenas o endereço (pode encontrar em qualquer lugar)
         endereco_limpo,
     ]
-    
+
     # Se o endereço parece ser um endereço completo (contém rua, número, bairro),
     # adicionar estratégias mais específicas
     import re
     tem_rua_numero = bool(re.search(r'(Rua|Avenida|Quadra|SHIS|SES|SCS|SGAN|EQN|QE|QSD|SIAS|Rodovia|DF-\d+|Km\s+\d+|Trecho|Área Especial)', endereco_limpo, re.IGNORECASE))
     tem_bairro = bool(re.search(r'(Asa Norte|Asa Sul|Guará|Taguatinga|Sobradinho|Gama|Águas Claras|Lago Sul|SIA|Jardim Botânico|Recanto das Emas|Vila Planalto)', endereco_limpo, re.IGNORECASE))
-    
+
     if tem_rua_numero or tem_bairro:
         # Se parece ser um endereço completo, priorizar busca exata do endereço
         # antes de tentar variações com o nome
         estrategias.insert(0, endereco_limpo)  # Adicionar no início
-    
+
     # Se o endereço parece ser um nome pessoal ou muito genérico, tentar variações
     if len(endereco_limpo.split()) <= 2 and not any(palavra.lower() in endereco_limpo.lower() for palavra in ['hotel', 'condomínio', 'shopping', 'escola', 'igreja', 'colegio', 'associação']):
         # Adicionar estratégias com contexto de Brasília
         estrategias.insert(1, f"{endereco_limpo}, Brasília, DF, Brasil")
         estrategias.insert(2, f"{endereco_limpo}, Distrito Federal, Brasil")
-    
+
     for i, query in enumerate(estrategias, 1):
         try:
             params = {
@@ -101,7 +101,7 @@ def geocodificar_endereco(
                 'addressdetails': 1,
                 'countrycodes': 'br'  # Limitar ao Brasil
             }
-            
+
             logger.debug(f"Tentativa {i}/{len(estrategias)}: {query}")
             response = requests.get(
                 NOMINATIM_URL,
@@ -109,16 +109,16 @@ def geocodificar_endereco(
                 headers=NOMINATIM_HEADERS,
                 timeout=10
             )
-            
+
             # Verificar rate limit
             if response.status_code == 429:
                 logger.warning("Rate limit atingido. Aguardando antes de tentar novamente...")
                 time.sleep(RATE_LIMIT_DELAY * 2)
                 continue  # Tentar próxima estratégia
-            
+
             response.raise_for_status()
             data = response.json()
-            
+
             if data and len(data) > 0:
                 # Filtrar resultados para priorizar Brasília/DF
                 resultados_filtrados = []
@@ -129,13 +129,13 @@ def geocodificar_endereco(
                         resultados_filtrados.insert(0, resultado)
                     else:
                         resultados_filtrados.append(resultado)
-                
+
                 # Usar o melhor resultado
                 melhor_resultado = resultados_filtrados[0] if resultados_filtrados else data[0]
-                
+
                 latitude = float(melhor_resultado['lat'])
                 longitude = float(melhor_resultado['lon'])
-                
+
                 # Validar se está em Brasília (aproximadamente)
                 # Brasília: lat ~-15.8, lon ~-47.9
                 if -16.5 <= latitude <= -15.0 and -48.5 <= longitude <= -47.0:
@@ -161,7 +161,7 @@ def geocodificar_endereco(
                         }
                     # Continuar tentando outras estratégias
                     continue
-            
+
         except requests.exceptions.RequestException as e:
             logger.debug(f"Erro na requisição (estratégia {i}): {e}")
             if i < len(estrategias):
@@ -181,16 +181,16 @@ def geocodificar_endereco(
                 continue
             else:
                 return None
-        
+
         # Rate limiting entre tentativas
         if i < len(estrategias):
             time.sleep(RATE_LIMIT_DELAY)
-    
+
     # Se chegou aqui, nenhuma estratégia funcionou
     # Usar coordenadas aproximadas de Brasília como fallback
     logger.warning(f"⚠️  Endereço não encontrado após {len(estrategias)} tentativas: {endereco}")
-    logger.info(f"📍 Usando coordenadas aproximadas de Brasília como fallback")
-    
+    logger.info("📍 Usando coordenadas aproximadas de Brasília como fallback")
+
     return {
         'latitude': COORDENADAS_BRASILIA['latitude'],
         'longitude': COORDENADAS_BRASILIA['longitude'],
@@ -207,55 +207,55 @@ def geocodificar_coletor(
     cidade: str = "Brasília",
     estado: str = "DF",
     forcar_atualizacao: bool = False
-) -> Tuple[bool, Optional[str]]:
+) -> tuple[bool, str | None]:
     """
     Geocodifica uma coletor específica e atualiza no banco de dados.
-    
+
     Args:
         session: Sessão do SQLAlchemy
         coletor_id: ID da coletor
         cidade: Cidade para geocodificação
         estado: Estado para geocodificação
         forcar_atualizacao: Se True, atualiza mesmo se já tiver coordenadas
-    
+
     Returns:
         Tuple (sucesso: bool, mensagem: str)
     """
     from banco_dados.modelos import Coletor
-    
+
     try:
         coletor = session.query(Coletor).filter(Coletor.id == coletor_id).first()
-        
+
         if not coletor:
             return False, f"Coletor {coletor_id} não encontrada"
-        
+
         # Verificar se já tem coordenadas
         if not forcar_atualizacao and coletor.latitude and coletor.longitude:
             logger.debug(f"Coletor {coletor_id} já possui coordenadas. Pulando...")
             return True, "Coletor já possui coordenadas"
-        
+
         # Geocodificar
         resultado = geocodificar_endereco(
             coletor.localizacao,
             cidade=cidade,
             estado=estado
         )
-        
+
         if resultado:
             coletor.latitude = resultado['latitude']
             coletor.longitude = resultado['longitude']
             session.commit()
-            
+
             # Mensagem informativa sobre o tipo de geocodificação
             if resultado.get('estrategia') == 'fallback':
                 mensagem = f"Coordenadas aproximadas (fallback): ({resultado['latitude']}, {resultado['longitude']})"
             else:
                 mensagem = f"Coordenadas atualizadas: ({resultado['latitude']}, {resultado['longitude']})"
-            
+
             return True, mensagem
         else:
             return False, f"Não foi possível geocodificar: {coletor.localizacao}"
-            
+
     except Exception as e:
         session.rollback()
         logger.error(f"Erro ao geocodificar coletor {coletor_id}: {e}")
@@ -267,23 +267,23 @@ def geocodificar_lixeiras_em_lote(
     cidade: str = "Brasília",
     estado: str = "DF",
     apenas_sem_coordenadas: bool = True,
-    limite: Optional[int] = None
-) -> Dict[str, any]:
+    limite: int | None = None
+) -> dict[str, any]:
     """
     Geocodifica múltiplas coletores em lote, respeitando rate limits.
-    
+
     Args:
         session: Sessão do SQLAlchemy
         cidade: Cidade para geocodificação
         estado: Estado para geocodificação
         apenas_sem_coordenadas: Se True, processa apenas coletores sem coordenadas
         limite: Número máximo de coletores a processar (None = todas)
-    
+
     Returns:
         Dict com estatísticas do processamento
     """
     from banco_dados.modelos import Coletor
-    
+
     stats = {
         'total': 0,
         'processadas': 0,
@@ -292,29 +292,29 @@ def geocodificar_lixeiras_em_lote(
         'puladas': 0,
         'erros': []
     }
-    
+
     try:
         # Buscar coletores
         query = session.query(Coletor)
-        
+
         if apenas_sem_coordenadas:
             query = query.filter(
                 (Coletor.latitude.is_(None)) | (Coletor.longitude.is_(None))
             )
-        
+
         if limite:
             query = query.limit(limite)
-        
+
         coletores = query.all()
         stats['total'] = len(coletores)
-        
+
         logger.info(f"Iniciando geocodificação em lote de {stats['total']} coletores...")
-        
+
         for i, coletor in enumerate(coletores, 1):
             stats['processadas'] += 1
-            
+
             logger.info(f"Processando {i}/{stats['total']}: {coletor.localizacao}")
-            
+
             sucesso, mensagem = geocodificar_coletor(
                 session,
                 coletor.id,
@@ -322,7 +322,7 @@ def geocodificar_lixeiras_em_lote(
                 estado=estado,
                 forcar_atualizacao=False
             )
-            
+
             if sucesso:
                 if "já possui" in mensagem.lower():
                     stats['puladas'] += 1
@@ -335,19 +335,19 @@ def geocodificar_lixeiras_em_lote(
                     'localizacao': coletor.localizacao,
                     'erro': mensagem
                 })
-            
+
             # Rate limiting: aguardar entre requisições
             if i < stats['total']:  # Não aguardar após a última
                 time.sleep(RATE_LIMIT_DELAY)
-        
-        logger.info(f"✅ Geocodificação em lote concluída!")
+
+        logger.info("✅ Geocodificação em lote concluída!")
         logger.info(f"   Total: {stats['total']}")
         logger.info(f"   Sucesso: {stats['sucesso']}")
         logger.info(f"   Falha: {stats['falha']}")
         logger.info(f"   Puladas: {stats['puladas']}")
-        
+
         return stats
-        
+
     except Exception as e:
         logger.error(f"Erro na geocodificação em lote: {e}")
         stats['erros'].append({'erro_geral': str(e)})
@@ -357,11 +357,11 @@ def geocodificar_lixeiras_em_lote(
 def validar_coordenadas(latitude: float, longitude: float) -> bool:
     """
     Valida se as coordenadas estão dentro de limites válidos.
-    
+
     Args:
         latitude: Latitude (-90 a 90)
         longitude: Longitude (-180 a 180)
-    
+
     Returns:
         True se válidas, False caso contrário
     """
@@ -377,7 +377,7 @@ if __name__ == "__main__":
         level=logging.INFO,
         format='%(asctime)s - %(name)s - %(levelname)s - %(message)s'
     )
-    
+
     # Teste básico
     print("Testando geocodificação...")
     resultado = geocodificar_endereco("Hotel Royal Tulip", "Brasília", "DF")

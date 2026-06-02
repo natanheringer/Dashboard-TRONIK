@@ -4,14 +4,16 @@ API CRM - Dashboard-TRONIK
 Endpoints para CRM e pipeline de vendas.
 """
 
+
 from flask import Blueprint, jsonify, request
-from flask_login import login_required, current_user
+from flask_login import current_user, login_required
+
+from banco_dados.modelos import Pipeline
 from banco_dados.services.crm_service import CRMService
-from banco_dados.modelos import Pipeline, Interacao, Tarefa
+from banco_dados.services.prospeccao_crm_bridge import buscar_scores_para_pipeline
 from banco_dados.utils.db_session import get_db_session
 from banco_dados.utils.logger import obter_logger
 from rotas.api import decorators
-from datetime import datetime
 
 logger = obter_logger(__name__)
 
@@ -24,9 +26,9 @@ crm_bp = Blueprint('crm_api', __name__, url_prefix='/crm')
 def listar_pipeline():
     """
     GET /api/crm/pipeline
-    
+
     Lista itens do pipeline com filtros opcionais
-    
+
     Query Parameters:
     - status: Filtrar por status
     - responsavel_id: Filtrar por responsável
@@ -35,30 +37,30 @@ def listar_pipeline():
     db = get_db_session()
     try:
         from sqlalchemy.orm import joinedload
-        
+
         status = request.args.get('status')
         responsavel_id = request.args.get('responsavel_id', type=int)
         coletor_id = request.args.get('coletor_id', type=int)
-        
+
         query = db.query(Pipeline).options(
             joinedload(Pipeline.coletor),
             joinedload(Pipeline.responsavel)
         )
-        
+
         if status:
             query = query.filter_by(status=status)
         if responsavel_id:
             query = query.filter_by(responsavel_id=responsavel_id)
         if coletor_id:
             query = query.filter_by(coletor_id=coletor_id)
-        
+
         pipelines = query.order_by(Pipeline.criado_em.desc()).all()
-        
+
         # Expurgar objetos após serializar
         resultado = [p.to_dict() for p in pipelines]
         for p in pipelines:
             db.expunge(p)
-        
+
         return jsonify(resultado), 200
     except Exception as e:
         logger.error(f"Erro ao listar pipeline: {str(e)}", exc_info=True)
@@ -73,9 +75,9 @@ def listar_pipeline():
 def criar_pipeline():
     """
     POST /api/crm/pipeline
-    
+
     Cria novo item no pipeline
-    
+
     Body:
     {
         "coletor_id": 1,  # Opcional (pode ser null para leads sem coletor)
@@ -91,26 +93,28 @@ def criar_pipeline():
     """
     try:
         from banco_dados.utils.validacao import (
-            validar_dados_requisicao, validar_data_iso, sanitizar_dados_entrada
+            sanitizar_dados_entrada,
+            validar_dados_requisicao,
+            validar_data_iso,
         )
-        
+
         dados = request.get_json()
         dados = validar_dados_requisicao(dados)
-        
+
         # Sanitizar dados de entrada
         campos_string = ['proxima_acao', 'origem', 'tipo_servico', 'observacoes', 'descricao_inicial', 'status']
         dados = sanitizar_dados_entrada(dados, campos_string)
-        
+
         # Converter data_proxima_acao se fornecida (usando validação padronizada)
         if 'data_proxima_acao' in dados and dados['data_proxima_acao']:
             try:
                 dados['data_proxima_acao'] = validar_data_iso(dados['data_proxima_acao'], 'data_proxima_acao')
             except Exception as e:
                 return jsonify({'erro': str(e)}), 400
-        
+
         usuario_id = current_user.id if current_user.is_authenticated else None
         pipeline = CRMService.criar_pipeline(dados, usuario_id)
-        
+
         # Pipeline já foi expurgado pelo serviço, mas precisamos garantir que to_dict funcione
         # O serviço já faz eager load e expunge, então está seguro
         return jsonify(pipeline.to_dict()), 201
@@ -136,22 +140,55 @@ def obter_pipeline(pipeline_id):
             joinedload(Pipeline.responsavel),
             joinedload(Pipeline.tarefas)
         ).filter_by(id=pipeline_id).first()
-        
+
         if not pipeline:
             return jsonify({'erro': 'Pipeline não encontrado'}), 404
-        
+
         resultado = pipeline.to_dict()
         # Carregar interações separadamente (lazy="dynamic" retorna query object)
         from banco_dados.modelos import Interacao
         interacoes = db.query(Interacao).filter_by(pipeline_id=pipeline_id).all()
         resultado['interacoes'] = [i.to_dict() for i in interacoes]
         resultado['tarefas'] = [t.to_dict() for t in pipeline.tarefas] if pipeline.tarefas else []
-        
+
         db.expunge(pipeline)
         return jsonify(resultado), 200
     except Exception as e:
         logger.error(f"Erro ao obter pipeline: {str(e)}", exc_info=True)
         return jsonify({'erro': 'Erro ao obter pipeline'}), 500
+    finally:
+        db.close()
+
+
+@crm_bp.route('/pipeline/<int:pipeline_id>/prospeccao', methods=['GET'])
+@login_required
+@decorators.rate_limit("30 per minute")
+def pipeline_prospeccao(pipeline_id):
+    """GET /api/crm/pipeline/<id>/prospeccao — scores de prospecção ligados ao lead.
+
+    Query: model_version (opcional) — mesma semântica que GET /api/prospeccao/candidatos.
+    """
+    db = get_db_session()
+    try:
+        resultado = buscar_scores_para_pipeline(
+            db, pipeline_id, model_version=request.args.get("model_version") or None
+        )
+        if resultado is None:
+            return jsonify({'erro': 'Pipeline não encontrado'}), 404
+
+        scores = resultado.get('scores') or []
+        melhor = (
+            max(scores, key=lambda s: float(s.get('score') or 0))
+            if scores
+            else None
+        )
+        candidato = CRMService._resumo_candidato(melhor) if melhor else None
+        dados = {**resultado, 'candidato': candidato}
+        payload = {'ok': True, 'dados': dados, 'erros': [], **dados}
+        return jsonify(payload), 200
+    except Exception as e:
+        logger.error(f"Erro ao cruzar pipeline com prospecção: {str(e)}", exc_info=True)
+        return jsonify({'erro': 'Erro ao buscar prospecção do pipeline'}), 500
     finally:
         db.close()
 
@@ -162,9 +199,9 @@ def obter_pipeline(pipeline_id):
 def atualizar_status_pipeline(pipeline_id):
     """
     PUT /api/crm/pipeline/<id>/status
-    
+
     Atualiza status do pipeline
-    
+
     Body:
     {
         "status": "proposta_enviada",
@@ -173,28 +210,33 @@ def atualizar_status_pipeline(pipeline_id):
     """
     try:
         from banco_dados.utils.validacao import (
-            validar_dados_requisicao, validar_enum, sanitizar_dados_entrada
+            sanitizar_dados_entrada,
+            validar_dados_requisicao,
+            validar_enum,
         )
-        
+
         dados = request.get_json()
         dados = validar_dados_requisicao(dados, ['status'])
-        
+
         # Sanitizar dados de entrada
         campos_string = ['status', 'motivo_perda']
         dados = sanitizar_dados_entrada(dados, campos_string)
-        
+
         # Validar status
-        status_permitidos = ['lead', 'contato_inicial', 'proposta_enviada', 'negociacao', 'fechado', 'perdido']
+        status_permitidos = [
+            'lead', 'contato_inicial', 'proposta_enviada', 'negociacao',
+            'ganho', 'fechado', 'perdido',
+        ]
         validar_enum(dados.get('status'), status_permitidos, 'status')
-        
+
         novo_status = dados.get('status')
         if not novo_status:
             return jsonify({'erro': 'Status não fornecido'}), 400
-        
+
         motivo_perda = dados.get('motivo_perda') if novo_status == 'perdido' else None
         if novo_status == 'perdido' and not motivo_perda:
             return jsonify({'erro': 'Motivo da perda é obrigatório quando status é "perdido"'}), 400
-        
+
         pipeline = CRMService.atualizar_status(pipeline_id, novo_status, motivo_perda)
         return jsonify(pipeline.to_dict()), 200
     except ValueError as e:
@@ -211,9 +253,9 @@ def atualizar_status_pipeline(pipeline_id):
 def registrar_interacao(pipeline_id):
     """
     POST /api/crm/pipeline/<id>/interacoes
-    
+
     Registra interação com cliente
-    
+
     Body:
     {
         "tipo": "ligacao",
@@ -224,27 +266,29 @@ def registrar_interacao(pipeline_id):
     """
     try:
         from banco_dados.utils.validacao import (
-            validar_dados_requisicao, validar_obrigatorio, validar_enum,
-            validar_tamanho_string, sanitizar_dados_entrada
+            sanitizar_dados_entrada,
+            validar_dados_requisicao,
+            validar_enum,
+            validar_tamanho_string,
         )
-        
+
         dados = request.get_json()
         dados = validar_dados_requisicao(dados, ['tipo', 'descricao'])
-        
+
         # Sanitizar dados de entrada
         campos_string = ['tipo', 'descricao', 'resultado']
         dados = sanitizar_dados_entrada(dados, campos_string)
-        
+
         # Validações específicas
         validar_tamanho_string(dados.get('descricao'), min_len=1, max_len=1000, nome_campo='descricao')
-        
+
         # Validar tipo de interação
         tipos_permitidos = ['ligacao', 'email', 'reuniao', 'whatsapp', 'outro']
         validar_enum(dados.get('tipo'), tipos_permitidos, 'tipo')
-        
+
         tipo = dados.get('tipo')
         descricao = dados.get('descricao')
-        
+
         usuario_id = current_user.id if current_user.is_authenticated else None
         interacao = CRMService.registrar_interacao(
             pipeline_id,
@@ -254,7 +298,7 @@ def registrar_interacao(pipeline_id):
             usuario_id=usuario_id,
             duracao_minutos=dados.get('duracao_minutos')
         )
-        
+
         return jsonify(interacao.to_dict()), 201
     except ValueError as e:
         logger.warning(f"Erro ao registrar interação: {str(e)}")
@@ -296,9 +340,9 @@ def get_estatisticas():
 def listar_tarefas():
     """
     GET /api/crm/tarefas
-    
+
     Lista tarefas pendentes
-    
+
     Query Parameters:
     - usuario_id: Filtrar por usuário (padrão: usuário atual)
     - atrasadas: true/false - Filtrar apenas atrasadas
@@ -306,16 +350,16 @@ def listar_tarefas():
     try:
         usuario_id = request.args.get('usuario_id', type=int)
         atrasadas = request.args.get('atrasadas', 'false').lower() == 'true'
-        
+
         # Se não especificado, usar usuário atual
         if not usuario_id and current_user.is_authenticated:
             usuario_id = current_user.id
-        
+
         if atrasadas:
             tarefas = CRMService.get_tarefas_atrasadas(usuario_id)
         else:
             tarefas = CRMService.get_tarefas_pendentes(usuario_id)
-        
+
         return jsonify([t.to_dict() for t in tarefas]), 200
     except Exception as e:
         logger.error(f"Erro ao listar tarefas: {str(e)}", exc_info=True)
@@ -328,9 +372,9 @@ def listar_tarefas():
 def criar_tarefa():
     """
     POST /api/crm/tarefas
-    
+
     Cria nova tarefa
-    
+
     Body:
     {
         "titulo": "Ligar para cliente X",
@@ -342,31 +386,34 @@ def criar_tarefa():
     """
     try:
         from banco_dados.utils.validacao import (
-            validar_dados_requisicao, validar_tipo_campo,
-            validar_tamanho_string, validar_data_iso, sanitizar_dados_entrada
+            sanitizar_dados_entrada,
+            validar_dados_requisicao,
+            validar_data_iso,
+            validar_tamanho_string,
+            validar_tipo_campo,
         )
-        
+
         dados = request.get_json()
         dados = validar_dados_requisicao(dados, ['titulo'])
-        
+
         # Sanitizar dados de entrada
         campos_string = ['titulo', 'descricao', 'prioridade']
         dados = sanitizar_dados_entrada(dados, campos_string)
-        
+
         # Validações específicas
         validar_tipo_campo(dados.get('titulo'), str, 'titulo')
         validar_tamanho_string(dados.get('titulo'), min_len=1, max_len=200, nome_campo='titulo')
-        
+
         # Converter data_vencimento se fornecida (usando validação padronizada)
         if 'data_vencimento' in dados and dados['data_vencimento']:
             try:
                 dados['data_vencimento'] = validar_data_iso(dados['data_vencimento'], 'data_vencimento')
             except Exception as e:
                 return jsonify({'erro': str(e)}), 400
-        
+
         usuario_id = current_user.id if current_user.is_authenticated else None
         tarefa = CRMService.criar_tarefa(dados, usuario_id)
-        
+
         return jsonify(tarefa.to_dict()), 201
     except ValueError as e:
         logger.warning(f"Erro ao criar tarefa: {str(e)}")

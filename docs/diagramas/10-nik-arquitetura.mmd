@@ -1,0 +1,36 @@
+%% Nik: frontend, backend e NVIDIA NIM
+flowchart TB
+  subgraph front["Frontend"]
+    LAND[Landing blocos pré-gerados]
+    PREV[Preview /preview/nik]
+  end
+  subgraph back["Backend Flask"]
+    API_NIK[rotas/api/nik.py]
+    SVC[nik_service.py]
+    CTX[nik_contexto]
+    PRV[nik_provider]
+    PMT[nik_prompts]
+    VAL[nik_validacao]
+    TOOLS[nik_tools]
+    LOOP[nik_agent_loop]
+    PLAN[nik_agent_planner]
+    API_NIK --> SVC
+    SVC --> CTX
+    SVC --> PRV
+    SVC --> PMT
+    SVC --> VAL
+    SVC --> TOOLS
+    SVC --> LOOP
+    SVC --> PLAN
+    SCH[banco_dados.agendamento pre_gerar_nik]
+  end
+  subgraph nim["NVIDIA NIM / Groq"]
+    PUB[Ministral 14B landing]
+    OPS[Gemma 3 27B ops]
+    FB[Gemma 3 1B fallback]
+  end
+  LAND -->|GET /api/nik/landing| API_NIK
+  PREV -->|POST /api/nik/ops/conversa| API_NIK
+  PREV -->|POST /api/nik/ops/analisar-imagem| API_NIK
+  PRV --> nim
+  SCH --> SVC

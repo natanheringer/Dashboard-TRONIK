@@ -5,25 +5,25 @@ Endpoints para operações CRUD de sensores.
 """
 
 import secrets
+from datetime import datetime
 
 from flask import Blueprint, jsonify, request
 from flask_login import login_required
-from rotas.api.decorators import admin_required, get_db
-from rotas.api import decorators
+from sqlalchemy.orm import joinedload
+
 from banco_dados.modelos import Sensor
-from banco_dados.serializers import sensor_para_dict
 from banco_dados.seguranca import validar_sensor
-from banco_dados.utils import utc_now_naive
+from banco_dados.serializers import sensor_para_dict
 from banco_dados.telemetria_auth import validar_telemetria
+from banco_dados.utils import utc_now_naive
 from banco_dados.utils.erros import (
-    tratar_erro_api,
     ErroNaoEncontrado,
     ErroValidacao,
-    validar_requisicao_json,
+    tratar_erro_api,
 )
 from banco_dados.utils.logger import obter_logger
-from sqlalchemy.orm import joinedload
-from datetime import datetime
+from rotas.api import decorators
+from rotas.api.decorators import admin_required, get_db
 
 logger = obter_logger(__name__)
 
@@ -42,13 +42,13 @@ def listar_sensores():
             joinedload(Sensor.coletor),
             joinedload(Sensor.tipo_sensor)
         )
-        
+
         # Filtros opcionais
         coletor_id = request.args.get('coletor_id', type=int)
         tipo_sensor_id = request.args.get('tipo_sensor_id', type=int)
         bateria_min = request.args.get('bateria_min', type=float)
         bateria_max = request.args.get('bateria_max', type=float)
-        
+
         if coletor_id:
             query = query.filter(Sensor.coletor_id == coletor_id)
         if tipo_sensor_id:
@@ -57,7 +57,7 @@ def listar_sensores():
             query = query.filter(Sensor.bateria >= bateria_min)
         if bateria_max is not None:
             query = query.filter(Sensor.bateria <= bateria_max)
-        
+
         sensores = query.all()
         resultado = [sensor_para_dict(s) for s in sensores]
         return jsonify(resultado)
@@ -77,10 +77,10 @@ def obter_sensor(sensor_id):
             joinedload(Sensor.coletor),
             joinedload(Sensor.tipo_sensor)
         ).filter(Sensor.id == sensor_id).first()
-        
+
         if not sensor:
             raise ErroNaoEncontrado("Sensor", sensor_id)
-        
+
         return jsonify(sensor_para_dict(sensor))
     except Exception as e:
         return tratar_erro_api(e)
@@ -95,21 +95,19 @@ def criar_sensor():
     """Endpoint para criar um novo sensor"""
     db = get_db()
     try:
-        from banco_dados.utils.validacao import (
-            validar_dados_requisicao, sanitizar_dados_entrada
-        )
-        
+        from banco_dados.utils.validacao import sanitizar_dados_entrada, validar_dados_requisicao
+
         dados = request.get_json()
         dados = validar_dados_requisicao(dados)
-        
+
         # Sanitizar dados de entrada (sensores geralmente não têm strings, mas por segurança)
         dados = sanitizar_dados_entrada(dados, [])
-        
+
         # Validar dados
         erros = validar_sensor(dados, criar=True, db=db)
         if erros:
             raise ErroValidacao("Erros de validação", {"detalhes": erros})
-        
+
         # Criar novo sensor (token opaco para telemetria; mostrado só nesta resposta)
         novo_sensor = Sensor(
             coletor_id=dados['coletor_id'],
@@ -118,17 +116,17 @@ def criar_sensor():
             ultimo_ping=utc_now_naive(),
             api_token=secrets.token_urlsafe(32)[:128],
         )
-        
+
         db.add(novo_sensor)
         db.commit()
         db.refresh(novo_sensor)
-        
+
         # Carregar relacionamentos
         novo_sensor = db.query(Sensor).options(
             joinedload(Sensor.coletor),
             joinedload(Sensor.tipo_sensor)
         ).filter(Sensor.id == novo_sensor.id).first()
-        
+
         out = sensor_para_dict(novo_sensor)
         out["api_token"] = novo_sensor.api_token
         return jsonify(out), 201
@@ -149,22 +147,20 @@ def atualizar_sensor(sensor_id):
         sensor = db.query(Sensor).filter(Sensor.id == sensor_id).first()
         if not sensor:
             raise ErroNaoEncontrado("Sensor", sensor_id)
-        
-        from banco_dados.utils.validacao import (
-            validar_dados_requisicao, sanitizar_dados_entrada
-        )
-        
+
+        from banco_dados.utils.validacao import sanitizar_dados_entrada, validar_dados_requisicao
+
         dados = request.get_json()
         dados = validar_dados_requisicao(dados)
-        
+
         # Sanitizar dados de entrada
         dados = sanitizar_dados_entrada(dados, [])
-        
+
         # Validar dados
         erros = validar_sensor(dados, criar=False, db=db)
         if erros:
             raise ErroValidacao("Erros de validação", {"detalhes": erros})
-        
+
         # Atualizar campos
         if 'coletor_id' in dados:
             sensor.coletor_id = dados['coletor_id']
@@ -175,18 +171,18 @@ def atualizar_sensor(sensor_id):
         if 'ultimo_ping' in dados and dados['ultimo_ping']:
             try:
                 sensor.ultimo_ping = datetime.fromisoformat(dados['ultimo_ping'].replace('Z', '+00:00'))
-            except:
+            except (ValueError, TypeError):
                 sensor.ultimo_ping = utc_now_naive()
-        
+
         db.commit()
         db.refresh(sensor)
-        
+
         # Carregar relacionamentos
         sensor = db.query(Sensor).options(
             joinedload(Sensor.coletor),
             joinedload(Sensor.tipo_sensor)
         ).filter(Sensor.id == sensor_id).first()
-        
+
         return jsonify(sensor_para_dict(sensor))
     except Exception as e:
         db.rollback()
@@ -204,10 +200,10 @@ def deletar_sensor(sensor_id):
         sensor = db.query(Sensor).filter(Sensor.id == sensor_id).first()
         if not sensor:
             raise ErroNaoEncontrado("Sensor", sensor_id)
-        
+
         db.delete(sensor)
         db.commit()
-        
+
         return jsonify({"mensagem": "Sensor deletado com sucesso"}), 200
     except Exception as e:
         db.rollback()

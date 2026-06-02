@@ -7,6 +7,7 @@
       crossorigin="" />
 <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/leaflet.markercluster@1.5.3/dist/MarkerCluster.css" crossorigin="" />
 <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/leaflet.markercluster@1.5.3/dist/MarkerCluster.Default.css" crossorigin="" />
+<link rel="stylesheet" href="{{ url_for('static', filename='css/v2/preview-mapa.css') }}?v={{ cache_version }}">
 {% endblock %}
 {% block conteudo %}
       <div class="page-header">
@@ -53,8 +54,8 @@
       </form>
 
       <div class="mapa-container">
-        <div id="mapa-preview" class="mapa-fake mapa-fake--live" style="position:relative;min-height:520px;padding:0;">
-          <div id="leaflet-map" style="position:absolute;inset:0;border-radius:var(--radius-lg);z-index:1;"></div>
+        <div id="mapa-preview" class="mapa-fake mapa-fake--live mapa-preview-live">
+          <div id="leaflet-map" class="leaflet-map-host"></div>
 
           {% if not marcadores %}
           <div class="map-empty-overlay" aria-live="polite">
@@ -68,7 +69,7 @@
           {% endif %}
 
           {% if detalhe %}
-          <div class="mapa-detail" style="z-index:500;">
+          <div class="mapa-detail mapa-detail-front">
             <div class="detail-head">
               <div class="coletor-id">{{ detalhe.id_fmt }}{% if coletor_selecionado_id %} · selecionado{% endif %}</div>
               <h3>{{ detalhe.nome }}</h3>
@@ -85,15 +86,16 @@
               <div class="detail-row"><span>Última coleta</span><strong>{{ detalhe.ultima_coleta }}</strong></div>
               <div class="detail-row"><span>Bateria (média)</span><strong>{% if detalhe.bateria is not none %}{{ detalhe.bateria }}%{% else %}—{% endif %}</strong></div>
             </div>
-            <div style="display:flex; gap:var(--space-2); margin-top:auto; flex-wrap:wrap;">
-              <a class="btn btn-primary" style="flex:1;min-width:120px;" href="{{ url_for('preview.monitoramento', q=detalhe.id_fmt) }}">Abrir monitoramento</a>
+            <div id="nik-ops-coletor" class="nik-container"></div>
+            <div class="mapa-detail-actions">
+              <a class="btn btn-primary mapa-detail-open-btn" href="{{ url_for('preview.monitoramento', q=detalhe.id_fmt) }}">Abrir monitoramento</a>
               <a class="btn" href="{{ url_for('preview.mapa') }}">Fechar painel</a>
             </div>
           </div>
           {% endif %}
         </div>
       </div>
-      <p style="margin-top:var(--space-4);font-size:var(--text-sm);color:var(--ink-tertiary);">
+      <p class="mapa-hint">
         Clique num marcador para ver detalhes com <code>?coletor_id=</code>. Sem GPS cadastrado usa posição estimada próxima a Brasília.
       </p>
 {% endblock %}
@@ -102,10 +104,20 @@
   window.__PREVIEW_MAP__ = {{ marcadores|tojson }};
   window.__PREVIEW_SELECTED__ = {{ coletor_selecionado_id or 'null' }};
   window.__PREVIEW_SEDE__ = {{ sede_mapa|tojson }};
+  window.__PROSPECCAO_PIN__ = {{ prosp_pin|tojson if prosp_pin else 'null' }};
 </script>
 <script src="https://cdn.jsdelivr.net/npm/leaflet@1.9.4/dist/leaflet.js"
         integrity="sha256-20nQCchB9co0qIjJZRGuk2/Z9VM+kNiyxNV1lvTlZBo="
         crossorigin=""></script>
 <script src="https://cdn.jsdelivr.net/npm/leaflet.markercluster@1.5.3/dist/leaflet.markercluster.js" crossorigin=""></script>
 <script src="{{ url_for('static', filename='js/v2/mapa-preview.js') }}?v={{ cache_version }}"></script>
+{% if detalhe %}
+<script>
+  document.addEventListener("DOMContentLoaded", function () {
+    if (window.NikLoader) {
+      window.NikLoader.carregarNikOps("/ops/coletor/{{ detalhe.id }}", "nik-ops-coletor");
+    }
+  });
+</script>
+{% endif %}
 {% endblock %}

@@ -1,0 +1,22 @@
+%% Labels internos para treino listwise (labels_internal.py)
+flowchart LR
+  subgraph ops["DB operacional"]
+    P[Parceiro]
+    C[Coletor]
+    Co[Coleta]
+    Cr[ContratoRecorrente]
+    PL[Pipeline ganho]
+  end
+  subgraph pros["Prospecção"]
+    E[EmpresaCandidata]
+    L[LocalCandidato]
+    FS[FeatureSnapshotProspeccao]
+  end
+  P --> C
+  C --> Co
+  C --> Cr
+  C -->|normalize localizacao| IDX[InternalLabelIndex]
+  E -->|normalize razao CNPJ| IDX
+  PL -->|CRM ganho| IDX
+  IDX -->|raw score| BF[build_features]
+  BF -->|labels por qid| FS

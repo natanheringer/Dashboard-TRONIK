@@ -30,9 +30,21 @@ env/
 
 # === Banco de dados local (nunca versionar) ===
 *.db
+*.db-wal
+*.db-shm
 *.sqlite
 *.sqlite3
 tronik.db
+tronik-*.db
+*-outdated.db
+
+# Backups pg_dump / exports SQL (podem conter dados de prod)
+*.dump
+*.sql
+railway-*.dump
+backup_*.sql
+**/backup_*.sql
+**/backup*.sql
 
 # === Dados / exports locais ===
 *.csv
@@ -91,6 +103,22 @@ analise_precificacao/
 
 # === Pasta local para lixo / exports / dumps de desenvolvimento ===
 ignore/
+dump.txt
+dump*.txt
 
 # === Cursor — transcripts/agents locais 
 .cursor/agent-transcripts/
+
+# === nik_bot — versionar só assets cannon + ficheiros de projeto ===
+# Tudo o resto (Nik*.svg, tronik*, lbadev*, PDFs, MP4 antigos, etc.) fica local.
+# Se o deploy precisar desses ficheiros, copia-os no servidor ou ajusta templates/allowlist.
+nik_bot/*
+!nik_bot/nik_cannon*
+!nik_bot/operation_tronik.png
+!nik_bot/gerar_entrega.py
+!nik_bot/config_nik_dev.env.example
+!nik_bot/spec_nik_agent.md
+
+# === Ingestão prospecção (artefatos locais; podem ser GB) ===
+data/raw/prospeccao/**/*
+!data/raw/prospeccao/.gitkeep

@@ -1,0 +1,27 @@
+{
+  "permissions": {
+    "allow": [
+      "Bash(ls /mnt/c/Users/evizuu/Documents/tronik/tronik/dashboard-tronik/data/ml/ 2>/dev/null || echo \"DIR_NOT_FOUND\")",
+      "Read(//mnt/c/Users/evizuu/Documents/tronik/tronik/dashboard-tronik/data/**)",
+      "Bash(git -C \"c:/Users/evizuu/Documents/tronik/tronik/dashboard-tronik\" status)",
+      "Bash(git -C \"c:/Users/evizuu/Documents/tronik/tronik/dashboard-tronik\" add jobs/prospeccao/build_features.py jobs/prospeccao/casadosdados_fetch.py jobs/prospeccao/cli.py jobs/prospeccao/cnefe_ingest.py jobs/prospeccao/config.py jobs/prospeccao/harvest.py jobs/prospeccao/normalize_candidates.py jobs/prospeccao/publish_scores.py jobs/prospeccao/ranker_contract.py jobs/prospeccao/receita_parse.py jobs/prospeccao/score_candidates.py jobs/prospeccao/train_xgboost.py banco_dados/modelos.py jobs/prospeccao/aneel_ingest.py jobs/prospeccao/brasilapi_enrich.py jobs/prospeccao/ibram_ingest.py)",
+      "Bash(git -C c:/Users/evizuu/Documents/tronik/tronik/dashboard-tronik commit -m ' *)",
+      "Bash(git -C \"c:/Users/evizuu/Documents/tronik/tronik/dashboard-tronik\" push origin dev)",
+      "Bash(git -C \"c:/Users/evizuu/Documents/tronik/tronik/dashboard-tronik\" diff --stat)",
+      "Bash(git -C \"c:/Users/evizuu/Documents/tronik/tronik/dashboard-tronik\" add jobs/prospeccao/ranker_contract.py)",
+      "Bash(git -C \"c:/Users/evizuu/Documents/tronik/tronik/dashboard-tronik\" commit -m \"feat\\(prospeccao\\): incrementa schema para v3.2 após mudança de features \\(17→16\\)\")",
+      "Bash(git add *)",
+      "Bash(git commit -m ' *)",
+      "Bash(git push *)",
+      "Bash(git commit *)",
+      "Bash(python -c \"import jobs.prospeccao.db as d; print\\([x for x in dir\\(d\\) if not x.startswith\\('_'\\)]\\)\")",
+      "Bash(.venv/Scripts/pip install *)",
+      "Bash(python -c \"import shapely; print\\('shapely', shapely.__version__\\)\")",
+      "Bash(.venv/Scripts/python -m pip install shapely)",
+      "Bash(.venv/Scripts/python -c ' *)",
+      "WebSearch",
+      "WebFetch(domain:dadosabertos.ibama.gov.br)",
+      "WebFetch(domain:dadosabertos.aneel.gov.br)"
+    ]
+  }
+}

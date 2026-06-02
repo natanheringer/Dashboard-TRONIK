@@ -54,7 +54,7 @@ services:
       - key: DEBUG
         value: "false"
     
-    healthCheckPath: /api/configuracoes
+    healthCheckPath: /api/health
 
   # PostgreSQL Database (Opcional - recomendado para produção)
   - type: pgsql

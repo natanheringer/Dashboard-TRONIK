@@ -82,3 +82,15 @@
   --sidebar-width: 248px;
   --sidebar-collapsed: 68px;
 }
+
+/* Icon system — Lucide */
+.icon {
+  width: 1em;
+  height: 1em;
+  vertical-align: -0.125em;
+  stroke-width: 1.75;
+  flex-shrink: 0;
+}
+.icon-sm { width: 0.875em; height: 0.875em; }
+.icon-lg { width: 1.25em; height: 1.25em; }
+.icon-xl { width: 1.5em; height: 1.5em; }

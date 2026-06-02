@@ -1,0 +1,41 @@
+%% Ciclo de negócio Tronik: descobrir → vender → operar → observar
+flowchart TB
+  subgraph truth["Fonte de verdade"]
+    ACC[ContaComercial CNPJ]
+    PAR[Parceiro]
+  end
+
+  subgraph discover["Descobrir"]
+    ING[Ingest Receita + enrich]
+    ML[Train/score labels internos]
+    Q[Fila REE]
+  end
+
+  subgraph sell["Vender"]
+    CRM[Pipeline CRM]
+    WIN[Win workflow ganho/fechado]
+  end
+
+  subgraph operate["Operar"]
+    COL[Coletor + Sensor]
+    COLETA[Coleta]
+    CONT[Contrato recorrente]
+  end
+
+  subgraph observe["Observar"]
+    MON[Monitoramento + alertas]
+    CI[CI health Sentry]
+  end
+
+  ACC --> ING
+  PAR --> ACC
+  ING --> ML --> Q
+  Q -->|Criar lead CRM| CRM
+  CRM --> WIN
+  WIN -->|vincula candidato| ACC
+  WIN --> COL
+  COL --> COLETA
+  WIN --> CONT
+  COL --> MON
+  CI -.-> discover
+  CI -.-> operate

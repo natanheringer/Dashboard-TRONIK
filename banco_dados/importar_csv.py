@@ -9,15 +9,18 @@ import csv
 import os
 import sys
 from datetime import datetime
-from banco_dados.utils import utc_now_naive
+
 from sqlalchemy.orm import sessionmaker
+
+from banco_dados.utils import utc_now_naive
 
 # Adicionar diretório raiz ao path para imports
 sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 
-from banco_dados.modelos import Coletor, Coleta, Parceiro, TipoColetor
-from banco_dados.seed_tipos import obter_parceiro_por_nome, obter_tipo_coletor_por_nome
 import logging
+
+from banco_dados.modelos import Coleta, Coletor
+from banco_dados.seed_tipos import obter_parceiro_por_nome, obter_tipo_coletor_por_nome
 
 logger = logging.getLogger(__name__)
 
@@ -25,16 +28,16 @@ logger = logging.getLogger(__name__)
 def converter_data(data_str):
     """
     Converte data do formato DD/MM/YYYY para datetime.
-    
+
     Args:
         data_str: String no formato DD/MM/YYYY
-    
+
     Returns:
         datetime object ou None se inválido
     """
     if not data_str or not data_str.strip():
         return None
-    
+
     try:
         # Remover espaços e tentar converter
         data_str = data_str.strip()
@@ -47,18 +50,18 @@ def converter_data(data_str):
 def validar_float(valor, nome_campo, min_valor=0):
     """
     Valida e converte string para float.
-    
+
     Args:
         valor: Valor a converter
         nome_campo: Nome do campo (para mensagens de erro)
         min_valor: Valor mínimo permitido
-    
+
     Returns:
         float ou None se inválido
     """
     if not valor or not str(valor).strip():
         return None
-    
+
     try:
         valor_float = float(str(valor).strip().replace(',', '.'))
         if valor_float < min_valor:
@@ -74,16 +77,16 @@ def validar_boolean(valor):
     """
     Converte string para boolean.
     SIM -> True, NÃO -> False
-    
+
     Args:
         valor: String "SIM" ou "NÃO"
-    
+
     Returns:
         bool
     """
     if not valor:
         return False
-    
+
     valor_str = str(valor).strip().upper()
     return valor_str == "SIM"
 
@@ -91,24 +94,24 @@ def validar_boolean(valor):
 def criar_ou_buscar_lixeira(session, nome_empresa, parceiro_id=None, tipo_material_id=None):
     """
     Cria ou busca uma coletor pelo nome da empresa.
-    
+
     Args:
         session: SQLAlchemy session
         nome_empresa: Nome da empresa/localização
         parceiro_id: ID do parceiro (opcional)
         tipo_material_id: ID do tipo de material (opcional)
-    
+
     Returns:
         Coletor object
     """
     if not nome_empresa or not nome_empresa.strip():
         raise ValueError("Nome da empresa não pode ser vazio")
-    
+
     nome_empresa = nome_empresa.strip()
-    
+
     # Buscar coletor existente pela localização
     coletor = session.query(Coletor).filter(Coletor.localizacao == nome_empresa).first()
-    
+
     if not coletor:
         # Criar nova coletor
         coletor = Coletor(
@@ -128,28 +131,28 @@ def criar_ou_buscar_lixeira(session, nome_empresa, parceiro_id=None, tipo_materi
         if parceiro_id and not coletor.parceiro_id:
             coletor.parceiro_id = parceiro_id
             session.commit()
-    
+
     return coletor
 
 
 def validar_linha_csv(linha, num_linha):
     """
     Valida uma linha do CSV.
-    
+
     Args:
         linha: Dict com dados da linha
         num_linha: Número da linha (para logs)
-    
+
     Returns:
         tuple: (valido, erros)
     """
     erros = []
-    
+
     # Validar empresa
     empresa = linha.get('EMPRESAS', '').strip() if 'EMPRESAS' in linha else ''
     if not empresa:
         erros.append("Empresa vazia")
-    
+
     # Validar data
     data_str = linha.get('DATA DA COLETA', '').strip() if 'DATA DA COLETA' in linha else ''
     if not data_str:
@@ -158,34 +161,34 @@ def validar_linha_csv(linha, num_linha):
         data = converter_data(data_str)
         if not data:
             erros.append(f"Data inválida: {data_str}")
-    
+
     # Validar quantidade
     quantidade_str = linha.get('QUANTIDADE(KG)', '').strip() if 'QUANTIDADE(KG)' in linha else ''
     quantidade = validar_float(quantidade_str, "QUANTIDADE(KG)", min_valor=0)
     if quantidade is None or quantidade <= 0:
         erros.append(f"Quantidade inválida: {quantidade_str}")
-    
+
     return len(erros) == 0, erros
 
 
 def importar_csv(caminho_csv, engine, atualizar_existentes=False):
     """
     Importa coletas do arquivo CSV para o banco de dados.
-    
+
     Args:
         caminho_csv: Caminho para o arquivo CSV
         engine: SQLAlchemy engine
         atualizar_existentes: Se True, atualiza coletas existentes (mesma empresa + data + quantidade)
-    
+
     Returns:
         dict: Estatísticas da importação
     """
     if not os.path.exists(caminho_csv):
         raise FileNotFoundError(f"Arquivo CSV não encontrado: {caminho_csv}")
-    
+
     Session = sessionmaker(bind=engine)
     session = Session()
-    
+
     stats = {
         'total_linhas': 0,
         'linhas_validas': 0,
@@ -195,35 +198,35 @@ def importar_csv(caminho_csv, engine, atualizar_existentes=False):
         'coletas_duplicadas': 0,
         'erros': []
     }
-    
+
     try:
         logger.info(f"Iniciando importação do CSV: {caminho_csv}")
-        
+
         # Ler CSV com encoding UTF-8-sig (remove BOM)
-        with open(caminho_csv, 'r', encoding='utf-8-sig', newline='') as f:
+        with open(caminho_csv, encoding='utf-8-sig', newline='') as f:
             # Ler primeira linha para detectar delimitador
             primeira_linha = f.readline()
             f.seek(0)
-            
+
             # Detectar delimitador
             delimiter = ',' if ',' in primeira_linha else ';'
-            
+
             reader = csv.DictReader(f, delimiter=delimiter)
-            
+
             # Limpar nomes das colunas (remover espaços e BOM)
             fieldnames = [field.strip().lstrip('\ufeff') for field in reader.fieldnames] if reader.fieldnames else []
             reader.fieldnames = fieldnames
-            
+
             for num_linha, linha in enumerate(reader, start=2):  # Começa em 2 (linha 1 é header)
                 stats['total_linhas'] += 1
-                
+
                 # Pular linhas vazias
                 if not any(linha.values()):
                     continue
-                
+
                 # Validar linha
                 valido, erros = validar_linha_csv(linha, num_linha)
-                
+
                 if not valido:
                     stats['linhas_invalidas'] += 1
                     stats['erros'].append({
@@ -233,9 +236,9 @@ def importar_csv(caminho_csv, engine, atualizar_existentes=False):
                     })
                     logger.warning(f"Linha {num_linha} inválida: {erros}")
                     continue
-                
+
                 stats['linhas_validas'] += 1
-                
+
                 try:
                     # Extrair dados
                     empresa = linha.get('EMPRESAS', '').strip()
@@ -248,7 +251,7 @@ def importar_csv(caminho_csv, engine, atualizar_existentes=False):
                     tipo_coleta = linha.get('Tipo de coleta', '').strip()
                     tipo_coletor_nome = linha.get('TIPO DE COLETOR', '').strip()
                     parceiro_nome = linha.get('PARCEIRO', '').strip()
-                    
+
                     # Converter dados
                     data_hora = converter_data(data_str)
                     quantidade = validar_float(quantidade_str, "QUANTIDADE(KG)", min_valor=0)
@@ -256,7 +259,7 @@ def importar_csv(caminho_csv, engine, atualizar_existentes=False):
                     preco_combustivel = validar_float(preco_combustivel_str, "Preço Combustível", min_valor=0)
                     lucro_kg = validar_float(lucro_kg_str, "Lucro por Kg", min_valor=0)
                     emissao_mtr = validar_boolean(emissao_mtr_str)
-                    
+
                     # Normalizar tipo de coleta
                     if tipo_coleta:
                         tipo_coleta = tipo_coleta.strip()
@@ -268,28 +271,28 @@ def importar_csv(caminho_csv, engine, atualizar_existentes=False):
                             tipo_operacao = tipo_coleta
                     else:
                         tipo_operacao = None
-                    
+
                     # Buscar/criar parceiro
                     parceiro = obter_parceiro_por_nome(session, parceiro_nome) if parceiro_nome else None
                     parceiro_id = parceiro.id if parceiro else None
-                    
+
                     # Buscar/criar tipo de coletor
                     tipo_coletor = None
                     tipo_coletor_id = None
                     if tipo_coletor_nome:
                         tipo_coletor = obter_tipo_coletor_por_nome(session, tipo_coletor_nome)
                         tipo_coletor_id = tipo_coletor.id if tipo_coletor else None
-                    
+
                     # Criar/buscar coletor
                     coletor = criar_ou_buscar_lixeira(session, empresa, parceiro_id=parceiro_id)
-                    
+
                     # Verificar se coleta já existe (mesma coletor + data + quantidade)
                     coleta_existente = session.query(Coleta).filter(
                         Coleta.coletor_id == coletor.id,
                         Coleta.data_hora == data_hora,
                         Coleta.volume_estimado == quantidade
                     ).first()
-                    
+
                     if coleta_existente:
                         if atualizar_existentes:
                             # Atualizar coleta existente
@@ -324,7 +327,7 @@ def importar_csv(caminho_csv, engine, atualizar_existentes=False):
                         session.commit()
                         stats['coletas_criadas'] += 1
                         logger.debug(f"Coleta criada: {empresa} - {data_str} - {quantidade}KG")
-                
+
                 except Exception as e:
                     stats['linhas_invalidas'] += 1
                     stats['erros'].append({
@@ -335,7 +338,7 @@ def importar_csv(caminho_csv, engine, atualizar_existentes=False):
                     logger.error(f"Erro ao processar linha {num_linha}: {e}")
                     session.rollback()
                     continue
-        
+
         logger.info("✅ Importação concluída!")
         logger.info(f"   Total de linhas: {stats['total_linhas']}")
         logger.info(f"   Linhas válidas: {stats['linhas_validas']}")
@@ -343,9 +346,9 @@ def importar_csv(caminho_csv, engine, atualizar_existentes=False):
         logger.info(f"   Coletas criadas: {stats['coletas_criadas']}")
         logger.info(f"   Coletas atualizadas: {stats['coletas_atualizadas']}")
         logger.info(f"   Coletas duplicadas: {stats['coletas_duplicadas']}")
-        
+
         return stats
-        
+
     except Exception as e:
         logger.error(f"❌ Erro fatal na importação: {e}")
         session.rollback()
@@ -360,25 +363,26 @@ if __name__ == "__main__":
         level=logging.INFO,
         format='%(asctime)s - %(name)s - %(levelname)s - %(message)s'
     )
-    
+
     from sqlalchemy import create_engine
+
     from banco_dados.modelos import Base
     from banco_dados.seed_tipos import popular_tipos
-    
+
     # Mudar para diretório raiz do projeto
     script_dir = os.path.dirname(os.path.abspath(__file__))
     project_root = os.path.dirname(script_dir)
     os.chdir(project_root)
-    
+
     # Criar engine
     engine = create_engine('sqlite:///tronik.db', echo=False)
-    
+
     # Criar tabelas
     Base.metadata.create_all(engine)
-    
+
     # Popular tipos
     popular_tipos(engine)
-    
+
     # Importar CSV
     caminho_csv = "BaseTronik v2 (1)(FatoColetas) (1).csv"
     if os.path.exists(caminho_csv):

@@ -1,0 +1,17 @@
+%% Visão geral: mundo físico, aplicação e Nik
+flowchart LR
+  subgraph mundo["Mundo"]
+    HW[Hardware sensor ESP32]
+  end
+  subgraph app["App Flask"]
+    API[REST e WebSocket]
+    DB[(PostgreSQL ou SQLite)]
+    JOBS[jobs/prospeccao]
+  end
+  subgraph nuvem_llm["Nuvem LLM"]
+    NIK[Nik assistente]
+  end
+  HW -->|telemetria JSON| API
+  API --> DB
+  JOBS -->|scores e candidatos| DB
+  API -->|dados agregados| NIK

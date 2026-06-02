@@ -1,0 +1,928 @@
+{% extends 'preview/base_v2.html' %}
+{% set current = 'nik' %}
+{% set cannon_png_fb = url_for('preview.nik_assets', filename='nik_cannon_1.png') %}
+{% block title %}Nik · Tronik{% endblock %}
+{% block head_extra %}
+<style>
+  /* Remove padding from the global .main container to let the chat app expand full height */
+  .main { padding: 0 !important; display: flex; flex-direction: column; height: 100vh; overflow: hidden; }
+  .main > .view.active {
+    flex: 1;
+    min-height: 0;
+    display: flex !important;
+    flex-direction: column;
+    overflow: hidden;
+  }
+  .nik-app-layout.nik-app-layout--dark-chat {
+    flex: 1;
+    min-height: 0;
+    height: auto !important;
+  }
+</style>
+{% endblock %}
+
+{% block conteudo %}
+<div class="nik-app-layout">
+  <!-- Internal Sidebar -->
+  <aside class="nik-sidebar">
+    <div class="nik-sidebar-header">
+      <div class="nik-search-box">
+        <i data-lucide="search" class="icon"></i>
+        <input type="text" placeholder="Pesquisar..." />
+      </div>
+    </div>
+
+    <div class="nik-sidebar-scroll">
+      <div class="nik-sidebar-section">
+        <div class="nik-sidebar-label">Projetos</div>
+        <div class="nik-sidebar-item" onclick="document.getElementById('nik-chat-input').value='Gerar relatório Maiara'; document.getElementById('nik-chat-form').dispatchEvent(new Event('submit', { cancelable: true, bubbles: true }));">
+          <i data-lucide="folder" class="icon"></i>
+          <span class="nik-truncate">Relatórios Maiara</span>
+        </div>
+      </div>
+
+      <div class="nik-sidebar-section">
+        <div class="nik-sidebar-label">Todas as tarefas</div>
+        <div class="nik-sidebar-item active">
+          <i data-lucide="message-circle" class="icon"></i>
+          <span class="nik-truncate">Discussão Geral Nik</span>
+        </div>
+      </div>
+    </div>
+  </aside>
+
+  <!-- Main Chat Area -->
+  <main class="nik-main-area">
+    <header class="nik-main-header">
+      <div class="nik-header-title">
+        <h2>Nik Ops</h2>
+        <p class="nik-header-subtitle">Nik Ops · agente com ferramentas</p>
+      </div>
+      <span id="nik-planner-config-chip" class="nik-planner-chip" hidden></span>
+    </header>
+
+    <div class="nik-chat-scroll-area" id="nik-chat-thread">
+      <div class="nik-chat-presence" id="nik-presence-root" data-nik-presence-state="wave">
+        <div class="nik-presence-visual" aria-hidden="true">
+          <video
+            class="nik-presence-video"
+            loop
+            muted
+            playsinline
+            preload="metadata"
+            poster="{{ url_for('preview.nik_assets', filename='nik_cannon.png') }}"
+          >
+          </video>
+          <img
+            src="{{ url_for('preview.nik_assets', filename='nik_cannon.png') }}"
+            alt=""
+            class="nik-presence-img"
+            width="112"
+            height="120"
+            loading="eager"
+            decoding="async"
+            onerror="if(!this.dataset.fallback){this.dataset.fallback='1';this.src='{{ cannon_png_fb }}';}"
+          >
+        </div>
+        <div class="nik-presence-text">
+          <strong id="nik-presence-title">Nik está online</strong>
+          <span id="nik-presence-subtitle">Foco em respostas operacionais e análise em tempo real.</span>
+        </div>
+      </div>
+
+      <div class="nik-chat-content-inner">
+        <!-- Messages -->
+        <div class="nik-message assistant">
+          <div class="nik-message-avatar tronik-avatar tronik-avatar--static" title="Nik">
+             <img
+               src="{{ url_for('preview.nik_assets', filename='nik_cannon.png') }}"
+               alt="Nik"
+               class="nik-avatar-img"
+               width="112"
+               height="112"
+               loading="eager"
+               decoding="async"
+               onerror="if(!this.dataset.fallback){this.dataset.fallback='1';this.src='{{ cannon_png_fb }}';}"
+             >
+          </div>
+          <div class="nik-message-body">
+            <div class="nik-message-author">Nik <span class="nik-badge-lite">Lite</span></div>
+            <div class="nik-message-text">Olá! Sou a Nik. Consigo ajudar com perguntas operacionais: qual coletor precisa de atenção, por quê esse alerta importa, como os dados se conectam. O que precisa agora?</div>
+          </div>
+        </div>
+        
+        <!-- Loop historico -->
+        {% for item in historico_nik|reverse %}
+        <div class="nik-message user">
+          <div class="nik-message-avatar user-avatar">V</div>
+          <div class="nik-message-body">
+            <div class="nik-message-text">{{ item.pergunta }}</div>
+          </div>
+        </div>
+        <div class="nik-message assistant">
+          <div class="nik-message-avatar tronik-avatar tronik-avatar--static" title="Nik">
+             <img src="{{ url_for('preview.nik_assets', filename='nik_cannon.png') }}" alt="Nik" class="nik-avatar-img" loading="lazy" decoding="async" onerror="if(!this.dataset.fallback){this.dataset.fallback='1';this.src='{{ cannon_png_fb }}';}">
+          </div>
+          <div class="nik-message-body">
+            <div class="nik-message-author">Nik <span class="nik-badge-lite">{{ item.contexto_modo }}</span></div>
+            <div class="nik-message-text">{{ item.resposta|e }}</div>
+          </div>
+        </div>
+        {% endfor %}
+
+        <div id="nik-typing-indicator" class="nik-typing-container" style="display:none;" aria-live="polite">
+          <div class="nik-message assistant">
+            <div class="nik-message-avatar tronik-avatar tronik-avatar--typing">
+               <video class="nik-avatar-video" loop muted playsinline preload="auto">
+                 <source src="{{ url_for('preview.nik_assets', filename='nik_cannon_animated_bg.mp4') }}" type="video/mp4">
+                 <source src="{{ url_for('preview.nik_assets', filename='nik_cannon_animated_bg.webm') }}" type="video/webm">
+               </video>
+               <img src="{{ url_for('preview.nik_assets', filename='nik_cannon.png') }}" alt="" class="nik-avatar-img" width="112" height="112" onerror="if(!this.dataset.fallback){this.dataset.fallback='1';this.src='{{ cannon_png_fb }}';}">
+            </div>
+            <div class="nik-message-body">
+              <div class="nik-typing-dots">
+                <span></span><span></span><span></span>
+              </div>
+            </div>
+          </div>
+        </div>
+      </div>
+
+      <div class="nik-bottom-spacer"></div>
+    </div>
+
+    <div class="nik-input-area">
+      <div class="nik-suggestions" id="nik-quick-actions">
+        <button type="button" class="nik-suggestion-chip nik-quick-chip" data-nik-prefill="Liste os top candidatos REE da fila de prospecção">
+          <i data-lucide="star" class="icon"></i>
+          Top candidatos REE
+        </button>
+        <button type="button" class="nik-suggestion-chip nik-quick-chip" data-nik-prefill="Qual o status do modelo de prospecção REE ativo?">
+          <i data-lucide="info" class="icon"></i>
+          Status do modelo
+        </button>
+        <button type="button" class="nik-suggestion-chip nik-quick-chip" data-nik-prefill="Compare os leads do CRM com os scores de prospecção REE">
+          <i data-lucide="trending-up" class="icon"></i>
+          Comparar leads
+        </button>
+      </div>
+      
+      <div class="nik-input-wrapper">
+        <form id="nik-chat-form" class="nik-chat-form-box">
+          <input type="hidden" id="nik-thread-id" value="main">
+          
+          <div class="nik-chat-form-top">
+            <textarea id="nik-chat-input" class="nik-chat-input-field" rows="1" placeholder="Pergunte para a Nik…" aria-label="Pergunte para a Nik"></textarea>
+          </div>
+          
+          <div class="nik-chat-form-bottom">
+            <div class="nik-chat-actions-left">
+              {% if config.get('NIK_MULTIMODAL_ENABLED') %}
+              <input type="file" id="nik-image-input" accept="image/jpeg,image/png,image/webp,image/gif" hidden>
+              <button type="button" id="nik-attach-image-btn" class="nik-icon-btn" title="Anexar imagem"><i data-lucide="paperclip" class="icon"></i></button>
+              {% endif %}
+              <button type="button" class="nik-icon-btn" data-nik-seed title="Configurar dados de exemplo"><i data-lucide="bar-chart-2" class="icon"></i></button>
+              <button type="button" class="nik-icon-btn" title="Entrada por voz"><i data-lucide="mic" class="icon"></i></button>
+            </div>
+
+            <div class="nik-chat-actions-right">
+              <button type="submit" class="nik-submit-btn"><i data-lucide="arrow-up" class="icon"></i></button>
+            </div>
+          </div>
+        </form>
+      </div>
+      <div id="nik-runtime-status" class="nik-runtime-status">Routing: aguardando...</div>
+      <div class="nik-footer-disclaimer">Tronik Nik pode cometer erros. Verifique informações importantes.</div>
+    </div>
+  </main>
+</div>
+{% endblock %}
+
+{% block scripts_extra %}
+<script>
+  (function () {
+    var NIK_AGENT_PLANNER = "{{ config.get('NIK_AGENT_PLANNER', 'heuristic') }}";
+    var NIK_MULTIMODAL_ENABLED = {{ 'true' if config.get('NIK_MULTIMODAL_ENABLED') else 'false' }};
+    /** Cannon estático (PNG) no chat; animação só na faixa de presença + indicador “digitando”. */
+    var CANNON_PNG_URL = "{{ url_for('preview.nik_assets', filename='nik_cannon.png') }}";
+    var CANNON_BG_MP4 = "{{ url_for('preview.nik_assets', filename='nik_cannon_animated_bg.mp4') }}";
+    var CANNON_BG_WEBM = "{{ url_for('preview.nik_assets', filename='nik_cannon_animated_bg.webm') }}";
+
+    /** Estados com vídeo: sempre o mesmo clip cannon com fundo (pergunta em andamento → resposta). */
+    var NIK_VIDEO = {
+      doubt: CANNON_BG_WEBM,
+      thinking: CANNON_BG_WEBM,
+      success: CANNON_BG_WEBM
+    };
+    var NIK_VIDEO_MP4 = {
+      doubt: CANNON_BG_MP4,
+      thinking: CANNON_BG_MP4,
+      success: CANNON_BG_MP4
+    };
+    var NIK_SVG = {
+      wave: CANNON_PNG_URL,
+      doubt: CANNON_PNG_URL,
+      thinking: CANNON_PNG_URL,
+      success: CANNON_PNG_URL
+    };
+
+    var PRESENCE_COPY = {
+      wave: {
+        title: "Nik está online",
+        subtitle: "Foco em respostas operacionais e análise em tempo real."
+      },
+      doubt: {
+        title: "Entendendo sua pergunta",
+        subtitle: "Interpretando o que você precisa antes de buscar a resposta."
+      },
+      thinking: {
+        title: "Nik está pensando",
+        subtitle: "Consultando contexto operacional e dados disponíveis."
+      },
+      success: {
+        title: "Resposta encontrada",
+        subtitle: "Veja a mensagem abaixo com o que encontrei."
+      }
+    };
+
+    function applyPresenceVideoSources(video, state) {
+      if (!video || state === "wave") return;
+      var webm = NIK_VIDEO[state];
+      var mp4 = NIK_VIDEO_MP4[state];
+      if (!webm) return;
+      video.innerHTML = "";
+      if (mp4) {
+        var m = document.createElement("source");
+        m.src = mp4;
+        m.type = "video/mp4";
+        video.appendChild(m);
+      }
+      var w = document.createElement("source");
+      w.src = webm;
+      w.type = "video/webm";
+      video.appendChild(w);
+    }
+
+    function setPresenceState(state) {
+      var root = document.getElementById("nik-presence-root");
+      if (!root || !PRESENCE_COPY[state]) return;
+      if (state !== "wave" && !NIK_VIDEO[state]) return;
+
+      root.dataset.nikPresenceState = state;
+      var video = root.querySelector(".nik-presence-video");
+      var img = root.querySelector(".nik-presence-img");
+      var titleEl = document.getElementById("nik-presence-title");
+      var subEl = document.getElementById("nik-presence-subtitle");
+      if (titleEl) titleEl.textContent = PRESENCE_COPY[state].title;
+      if (subEl) subEl.textContent = PRESENCE_COPY[state].subtitle;
+
+      if (!video || !img) return;
+
+      if (state === "wave") {
+        video.classList.remove("is-media-ready");
+        video.innerHTML = "";
+        try {
+          video.pause();
+        } catch (e) {}
+        video.style.display = "none";
+        img.src = NIK_SVG.wave;
+        img.style.display = "block";
+        return;
+      }
+
+      video.classList.remove("is-media-ready");
+      applyPresenceVideoSources(video, state);
+      img.src = NIK_SVG.wave;
+      img.style.display = "block";
+      video.style.display = "";
+      video.load();
+      video.play().catch(function () {});
+      if (!video.dataset.revealWired) {
+        video.dataset.revealWired = "1";
+        wireNikRevealVideo(video, img);
+      }
+    }
+
+    /** PNG fica visível por baixo até o vídeo ter dimensões / estar a reproduzir (evita “caixa preta”). */
+    function wireNikRevealVideo(video, img) {
+      if (!video) return;
+      function reveal() {
+        video.classList.add("is-media-ready");
+      }
+      video.addEventListener("playing", reveal);
+      video.addEventListener("loadeddata", function () {
+        if (video.videoWidth > 0) reveal();
+      });
+      video.addEventListener("error", function () {
+        video.style.display = "none";
+        video.classList.remove("is-media-ready");
+      });
+    }
+
+    function initPresenceIdle() {
+      setPresenceState("wave");
+    }
+
+    var PROSPECCAO_TOOLS = {
+      listar_candidatos_prospeccao: true,
+      explicar_candidato_prospeccao: true,
+      status_modelo_prospeccao: true,
+      cruzar_crm_prospeccao: true
+    };
+
+    function esc(value) {
+      var div = document.createElement("div");
+      div.textContent = String(value || "");
+      return div.innerHTML;
+    }
+
+    function humanizeToolName(name) {
+      return String(name || "").replace(/_/g, " ");
+    }
+
+    function plannerModeLabel(mode) {
+      if (mode === "llm" || mode === "auto_llm") return "LLM";
+      if (mode === "heuristic" || mode === "auto_heuristic") return "regras";
+      return "";
+    }
+
+    function buildPlannerBadgeHtml(mode) {
+      var label = plannerModeLabel(mode);
+      if (!label) return "";
+      var isLlm = mode === "llm" || mode === "auto_llm";
+      var cls = "nik-badge-planner" + (isLlm ? " nik-badge-planner--llm" : " nik-badge-planner--heuristic");
+      return (
+        '<span class="' +
+        cls +
+        '" title="Planejador: ' +
+        esc(mode) +
+        '">' +
+        esc(label) +
+        "</span>"
+      );
+    }
+
+    function buildToolsPanel(usedTools, toolTrace) {
+      var tools = Array.isArray(usedTools) ? usedTools.filter(Boolean) : [];
+      var trace = Array.isArray(toolTrace) ? toolTrace : [];
+      if (!tools.length && !trace.length) return "";
+
+      var names = tools.length
+        ? tools.slice()
+        : trace.map(function (entry) { return entry && entry.tool; }).filter(Boolean);
+      var unique = [];
+      names.forEach(function (name) {
+        if (unique.indexOf(name) === -1) unique.push(name);
+      });
+
+      var chipsHtml = unique.map(function (tool) {
+        var isPros = !!PROSPECCAO_TOOLS[tool];
+        var cls = "nik-tool-chip" + (isPros ? " nik-tool-chip--prospeccao" : "");
+        var badge = isPros ? '<span class="nik-tool-chip-badge">REE</span>' : "";
+        return '<span class="' + cls + '">' + badge + esc(humanizeToolName(tool)) + "</span>";
+      }).join("");
+
+      var traceHtml = "";
+      if (trace.length) {
+        traceHtml = '<ul class="nik-tool-trace-list">';
+        trace.forEach(function (entry) {
+          if (!entry) return;
+          var status = String(entry.status || "ok").toLowerCase();
+          var statusCls = status === "ok" ? "ok" : status === "error" ? "error" : "warn";
+          var kwargs = entry.kwargs && typeof entry.kwargs === "object" ? entry.kwargs : {};
+          var kwargsKeys = Object.keys(kwargs);
+          var kwargsHtml = kwargsKeys.length
+            ? '<span class="nik-tool-trace-kwargs">' + esc(JSON.stringify(kwargs)) + "</span>"
+            : "";
+          traceHtml +=
+            '<li class="nik-tool-trace-item nik-tool-trace-item--' + statusCls + '">' +
+            "<code>" + esc(entry.tool || "?") + "</code>" +
+            '<span class="nik-tool-trace-status">' + esc(status) + "</span>" +
+            kwargsHtml +
+            "</li>";
+        });
+        traceHtml += "</ul>";
+      }
+
+      return (
+        '<details class="nik-tool-trace">' +
+        '<summary class="nik-tool-trace-summary">Ferramentas usadas <span class="nik-tool-trace-count">' +
+        unique.length +
+        "</span></summary>" +
+        '<div class="nik-tool-trace-body">' +
+        '<div class="nik-tool-chips">' +
+        chipsHtml +
+        "</div>" +
+        traceHtml +
+        "</div>" +
+        "</details>"
+      );
+    }
+
+    function buildMessageFooter(meta) {
+      if (!meta) return "";
+      var parts = [];
+      if (meta.routing_model && meta.routing_model !== "n/a") {
+        parts.push(
+          '<span class="nik-msg-footer-model" title="Modelo planejado">' +
+          esc(meta.routing_model) +
+          "</span>"
+        );
+      }
+      if (meta.routing_mode && meta.routing_mode !== "n/a") {
+        parts.push('<span class="nik-msg-footer-route">' + esc(meta.routing_mode) + "</span>");
+      }
+      if (!parts.length) return "";
+      return '<div class="nik-message-footer">' + parts.join('<span class="nik-msg-footer-sep">·</span>') + "</div>";
+    }
+
+    /**
+     * Insere quebras de parágrafo onde o modelo colou tudo em uma linha só:
+     * pergunta → lista, dois-pontos → corpo, frase. Nova frase com maiúscula.
+     */
+    function preprocessTopicBreaks(t) {
+      t = String(t || "").replace(/\r\n/g, "\n").replace(/\r/g, "\n");
+      t = t.split("\n").map(function (ln) {
+        return ln.replace(/^\s+/, "");
+      }).join("\n");
+      t = t.replace(/\?\s*\n(\s*[-*•–—])/gm, "?\n\n$1");
+      t = t.replace(/\?\s+([-*•–—])\s+/g, "?\n\n$1 ");
+      t = t.replace(/([^\n])\n(\s*[-*•–—]\s)/g, "$1\n\n$2");
+      t = t.replace(/:\s+(?=[A-ZÁÉÍÓÚÂÊÔÇ])/g, ":\n\n");
+      t = t.replace(/([.!?])\s{1,2}(?=[A-ZÁÉÍÓÚÂÊÔÇ][a-záéíóúâêôçãõ])/g, "$1\n\n");
+      t = t.replace(/([.!?])\s*\n+(\s*)(?=[A-ZÁÉÍÓÚÂÊÔÇ])/g, "$1\n\n$2");
+      t = t.replace(/\n{5,}/g, "\n\n\n\n");
+      return t;
+    }
+
+    function normalizeBulletLines(s) {
+      return s
+        .split("\n")
+        .map(function (line) {
+          var m = line.match(/^(\s*)([\*•\-–—])\s+(.*)$/);
+          if (m && m[2] !== "•") return m[1] + "• " + m[3];
+          return line;
+        })
+        .join("\n");
+    }
+
+    function isBulletLine(line) {
+      return /^\s*•\s/.test(line);
+    }
+
+    /**
+     * Texto da Nik → HTML seguro: tópicos, listas, **negrito**, parágrafos.
+     */
+    function formatNikPlainTextForChat(raw) {
+      var t = preprocessTopicBreaks(raw);
+      var s = esc(t);
+      s = s.replace(/\*\*([^*]{1,400})\*\*/g, "<strong>$1</strong>");
+      s = normalizeBulletLines(s);
+      var chunks = s
+        .split(/\n{2,}/)
+        .map(function (x) {
+          return x.trim();
+        })
+        .filter(Boolean);
+      if (!chunks.length) return '<p class="nik-msg-p">' + s + "</p>";
+      var parts = [];
+      for (var c = 0; c < chunks.length; c++) {
+        var chunk = chunks[c];
+        var lines = chunk
+          .split(/\n/)
+          .map(function (l) {
+            return l.trim();
+          })
+          .filter(function (l) {
+            return l.length;
+          });
+        var allBullets =
+          lines.length > 0 &&
+          lines.every(function (l) {
+            return isBulletLine(l);
+          });
+        if (allBullets) {
+          parts.push('<div class="nik-msg-list" role="list">');
+          for (var i = 0; i < lines.length; i++) {
+            var inner = lines[i].replace(/^\s*•\s+/, "");
+            parts.push('<div class="nik-msg-li" role="listitem">' + inner + "</div>");
+          }
+          parts.push("</div>");
+          continue;
+        }
+        var restBullets =
+          lines.length > 1 &&
+          /\?\s*$/.test(lines[0]) &&
+          lines[0].length < 180 &&
+          !isBulletLine(lines[0]) &&
+          lines.slice(1).every(function (l) {
+            return isBulletLine(l);
+          });
+        if (restBullets) {
+          parts.push('<p class="nik-msg-topic">' + lines[0] + "</p>");
+          parts.push('<div class="nik-msg-list" role="list">');
+          for (var j = 1; j < lines.length; j++) {
+            var inner2 = lines[j].replace(/^\s*•\s+/, "");
+            parts.push('<div class="nik-msg-li" role="listitem">' + inner2 + "</div>");
+          }
+          parts.push("</div>");
+          continue;
+        }
+        if (
+          lines.length === 1 &&
+          /\?\s*$/.test(lines[0]) &&
+          lines[0].length < 180 &&
+          !isBulletLine(lines[0])
+        ) {
+          parts.push('<p class="nik-msg-topic">' + lines[0] + "</p>");
+          continue;
+        }
+        parts.push('<p class="nik-msg-p">' + chunk.replace(/\n/g, "<br>") + "</p>");
+      }
+      return parts.join("");
+    }
+
+    function enrichHistoricoAssistantMessages() {
+      document.querySelectorAll(".nik-chat-content-inner .nik-message.assistant .nik-message-text").forEach(function (el) {
+        if (el.dataset.nikFormatted === "1") return;
+        var raw = el.textContent;
+        if (!raw || !String(raw).trim()) return;
+        el.innerHTML = formatNikPlainTextForChat(raw);
+        el.classList.add("nik-message-text--rich");
+        el.dataset.nikFormatted = "1";
+      });
+    }
+
+    function wireMediaFallback(root) {
+      var scope = root || document;
+      scope.querySelectorAll(".nik-message-avatar").forEach(function (box) {
+        var video = box.querySelector(".nik-avatar-video");
+        var img = box.querySelector(".nik-avatar-img");
+        if (!video || !img || box.dataset.mediaReady === "1") return;
+        wireNikRevealVideo(video, img);
+        box.dataset.mediaReady = "1";
+      });
+    }
+
+    function ensureTypingAvatarWired() {
+      var box = document.querySelector("#nik-typing-indicator .tronik-avatar");
+      if (!box || box.dataset.mediaReady === "1") return;
+      var tv = box.querySelector(".nik-avatar-video");
+      var img = box.querySelector(".nik-avatar-img");
+      if (tv && img) {
+        wireNikRevealVideo(tv, img);
+        box.dataset.mediaReady = "1";
+      }
+    }
+
+    function syncTypingIndicatorVideo(play) {
+      var tv = document.querySelector("#nik-typing-indicator .nik-avatar-video");
+      if (!tv) return;
+      if (play) {
+        ensureTypingAvatarWired();
+        tv.muted = true;
+        tv.setAttribute("playsinline", "");
+        try {
+          tv.load();
+        } catch (e) {}
+        tv.currentTime = 0;
+        var done = function () {
+          tv.classList.add("is-media-ready");
+        };
+        tv.play().then(done).catch(done);
+      } else {
+        try {
+          tv.pause();
+        } catch (e) {}
+        tv.classList.remove("is-media-ready");
+      }
+    }
+    
+    var textarea = document.getElementById('nik-chat-input');
+    textarea.addEventListener('input', function() {
+      this.style.height = 'auto';
+      this.style.height = Math.min(this.scrollHeight, 200) + 'px';
+      if(this.value === '') {
+        this.style.height = 'auto';
+      }
+    });
+    
+    textarea.addEventListener('keydown', function(e) {
+      if (e.key === 'Enter' && !e.shiftKey) {
+        e.preventDefault();
+        document.getElementById('nik-chat-form').dispatchEvent(new Event('submit', { cancelable: true, bubbles: true }));
+      }
+    });
+
+    function appendMessage(label, text, cls, status, fontesWeb, documento, agentMeta) {
+      var thread = document.getElementById("nik-chat-thread").querySelector(".nik-chat-content-inner");
+      var msgDiv = document.createElement("div");
+      
+      var isUser = cls === "nik-chat-user";
+      msgDiv.className = "nik-message " + (isUser ? "user" : "assistant");
+      
+      var avatarHtml = isUser
+        ? '<div class="nik-message-avatar user-avatar">V</div>'
+        : '<div class="nik-message-avatar tronik-avatar tronik-avatar--static" title="Nik">' +
+            '<img src="' + esc(CANNON_PNG_URL) + '" alt="Nik" class="nik-avatar-img">' +
+          '</div>';
+        
+      var plannerBadge =
+        !isUser && agentMeta && agentMeta.planner_mode
+          ? buildPlannerBadgeHtml(agentMeta.planner_mode)
+          : "";
+      var headerHtml = isUser
+        ? ""
+        : '<div class="nik-message-author">Nik ' +
+          (status ? '<span class="nik-badge-lite">' + esc(status) + "</span>" : '<span class="nik-badge-lite">Ops</span>') +
+          plannerBadge +
+          "</div>";
+
+      var attachmentsHtml = "";
+      if (fontesWeb && fontesWeb.length > 0) {
+        attachmentsHtml = '<div class="nik-message-attachments">';
+        fontesWeb.forEach(function(src) {
+           var titulo = src.titulo || src.fonte || 'Fonte Web';
+           attachmentsHtml += `
+             <a class="nik-attachment-card" href="${esc(src.url)}" target="_blank">
+                <div class="nik-attachment-icon"><i data-lucide="link" class="icon" style="width: 16px; height: 16px;"></i></div>
+                <div class="nik-attachment-info">
+                   <div class="nik-attachment-title">${esc(titulo)}</div>
+                   <div class="nik-attachment-meta">Link externo</div>
+                </div>
+             </a>`;
+        });
+        attachmentsHtml += '</div>';
+      }
+
+      var documentoHtml = "";
+      if (documento && documento.titulo) {
+        var sumario = (documento.sumario || []).map(function(s) { return '<li>' + esc(s) + '</li>'; }).join('');
+        var secoes = (documento.secoes || []).map(function(sec) {
+          var corpo = esc(sec.conteudo || "").replace(/\n/g, "<br>");
+          return '<div class="nik-doc-section"><h4>' + esc(sec.titulo) + '</h4><p>' + corpo + '</p></div>';
+        }).join('');
+        var proximos = (documento.proximos_passos || []).map(function(p) { return '<li>' + esc(p) + '</li>'; }).join('');
+        documentoHtml =
+          '<div class="nik-doc-card">' +
+            '<h3>' + esc(documento.titulo) + '</h3>' +
+            '<div class="nik-doc-subtitle">Sumário</div><ol>' + sumario + '</ol>' +
+            secoes +
+            '<div class="nik-doc-subtitle">Conclusão</div><p>' + esc(documento.conclusao || '') + '</p>' +
+            '<div class="nik-doc-subtitle">Próximos passos</div><ul>' + proximos + '</ul>' +
+          '</div>';
+      }
+
+      var bodyHtml = isUser ? esc(text) : formatNikPlainTextForChat(text);
+      var bodyClass = isUser ? "nik-message-text" : "nik-message-text nik-message-text--rich";
+      var toolsHtml =
+        !isUser && agentMeta
+          ? buildToolsPanel(agentMeta.used_tools, agentMeta.tool_trace)
+          : "";
+      var footerHtml = !isUser && agentMeta ? buildMessageFooter(agentMeta) : "";
+
+      msgDiv.innerHTML = avatarHtml + 
+        '<div class="nik-message-body">' + 
+          headerHtml + 
+          '<div class="' + bodyClass + '">' + bodyHtml + '</div>' + 
+          documentoHtml +
+          attachmentsHtml +
+          toolsHtml +
+          footerHtml +
+        '</div>';
+
+      var typingEl = document.getElementById("nik-typing-indicator");
+      if (typingEl && typingEl.parentNode === thread) {
+        thread.insertBefore(msgDiv, typingEl);
+      } else {
+        thread.appendChild(msgDiv);
+      }
+      wireMediaFallback(msgDiv);
+      scrollToBottom();
+    }
+    
+    function scrollToBottom() {
+      var scrollArea = document.getElementById("nik-chat-thread");
+      scrollArea.scrollTop = scrollArea.scrollHeight;
+    }
+
+    function sleep(ms) {
+      return new Promise(function (resolve) { setTimeout(resolve, ms); });
+    }
+
+    /** Fetch com retries leves para falhas transitórias de rede / upstream. */
+    async function fetchComRetry(url, init, maxTries) {
+      maxTries = maxTries || 3;
+      var lastErr = null;
+      for (var t = 0; t < maxTries; t++) {
+        if (t > 0) {
+          await sleep(Math.min(2500, Math.round(350 * Math.pow(1.75, t - 1))));
+        }
+        try {
+          var resp = await fetch(url, init);
+          if (resp.status === 502 || resp.status === 503 || resp.status === 504) {
+            lastErr = new Error("upstream " + resp.status);
+            continue;
+          }
+          return resp;
+        } catch (e) {
+          lastErr = e;
+        }
+      }
+      throw lastErr || new Error("fetch failed");
+    }
+
+    var form = document.getElementById("nik-chat-form");
+    var input = document.getElementById("nik-chat-input");
+    var threadInput = document.getElementById("nik-thread-id");
+    var runtimeStatus = document.getElementById("nik-runtime-status");
+    
+    var savedThread = localStorage.getItem("nik_thread_id");
+    if (savedThread) threadInput.value = savedThread;
+
+    form.addEventListener("submit", async function (event) {
+      event.preventDefault();
+      var mensagem = input.value.trim();
+      if (!mensagem) return;
+      
+      var threadId = (threadInput.value || "main").trim() || "main";
+      localStorage.setItem("nik_thread_id", threadId);
+      
+      appendMessage("Você", mensagem, "nik-chat-user");
+      
+      input.value = "";
+      input.style.height = 'auto'; 
+      scrollToBottom();
+      
+      setPresenceState("doubt");
+      await sleep(380);
+      setPresenceState("thinking");
+      var typingRoot = document.getElementById("nik-typing-indicator");
+      typingRoot.style.display = "block";
+      scrollToBottom();
+      requestAnimationFrame(function () {
+        syncTypingIndicatorVideo(true);
+        scrollToBottom();
+      });
+      
+      try {
+        var resp = await fetchComRetry("/api/nik/ops/conversa", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          credentials: "same-origin",
+          body: JSON.stringify({ mensagem: mensagem, thread_id: threadId })
+        }, 3);
+        document.getElementById("nik-typing-indicator").style.display = "none";
+        syncTypingIndicatorVideo(false);
+        if (resp.status === 401) {
+          setPresenceState("doubt");
+          appendMessage(
+            "Nik",
+            "Sua sessão expirou ou não está autenticado. Abra o login e volte ao chat.",
+            "nik-chat-assistant"
+          );
+          runtimeStatus.textContent = "Routing: sessão (401) — faça login novamente";
+          setTimeout(function () {
+            window.location.href = "/auth/login?next=" + encodeURIComponent(window.location.pathname);
+          }, 1200);
+          return;
+        }
+        var data = await resp.json();
+        
+        var replyText = data.texto || "Não consegui gerar uma resposta.";
+        var replyIsDoubt =
+          /não consegui|erro|sessão expirou|não está autenticado|tente novamente/i.test(String(replyText || ""));
+        setPresenceState(replyIsDoubt ? "doubt" : "success");
+        var routeMode = data.routing_mode || "n/a";
+        var plannedModel = data.routing_model || "n/a";
+        appendMessage(
+          "Nik",
+          replyText,
+          "nik-chat-assistant",
+          data.modo_contexto,
+          data.fontes_web || [],
+          data.documento || null,
+          {
+            used_tools: data.used_tools,
+            tool_trace: data.tool_trace,
+            routing_model: plannedModel,
+            routing_mode: routeMode,
+            planner_mode: data.planner_mode
+          }
+        );
+        var usedModel = data.modelo || plannedModel;
+        var webStatus = data.web_status && data.web_status !== "n/a" ? " · web: " + data.web_status : "";
+        var plannedHint =
+          plannedModel && plannedModel !== usedModel && plannedModel !== "n/a"
+            ? " (planejado: " + plannedModel + ")"
+            : "";
+        runtimeStatus.textContent = "Routing: " + routeMode + " -> " + usedModel + plannedHint + webStatus;
+        await sleep(replyIsDoubt ? 2400 : 1700);
+        setPresenceState("wave");
+      } catch (err) {
+        document.getElementById("nik-typing-indicator").style.display = "none";
+        syncTypingIndicatorVideo(false);
+        setPresenceState("doubt");
+        appendMessage("Nik", "Tente novamente em poucos instantes.", "nik-chat-assistant");
+        runtimeStatus.textContent = "Routing: erro de conexão";
+        await sleep(2200);
+        setPresenceState("wave");
+      }
+    });
+
+    document.querySelectorAll("[data-nik-prefill]").forEach(function (btn) {
+      btn.addEventListener("click", function () {
+        var msg = btn.getAttribute("data-nik-prefill");
+        if (!msg) return;
+        input.value = msg;
+        input.style.height = "auto";
+        input.dispatchEvent(new Event("input", { bubbles: true }));
+        form.dispatchEvent(new Event("submit", { cancelable: true, bubbles: true }));
+      });
+    });
+
+    function wireImageAttach() {
+      if (!NIK_MULTIMODAL_ENABLED) return;
+      var attachBtn = document.getElementById("nik-attach-image-btn");
+      var fileInput = document.getElementById("nik-image-input");
+      if (!attachBtn || !fileInput) return;
+      attachBtn.addEventListener("click", function () {
+        fileInput.click();
+      });
+      fileInput.addEventListener("change", async function () {
+        var file = fileInput.files && fileInput.files[0];
+        fileInput.value = "";
+        if (!file) return;
+        if (file.size > 4 * 1024 * 1024) {
+          appendMessage("Nik", "A imagem deve ter no máximo 4 MB.", "nik-chat-assistant");
+          return;
+        }
+        var caption = input.value.trim() || "Analise esta imagem do coletor.";
+        appendMessage("Você", caption + " [imagem anexada]", "nik-chat-user");
+        input.value = "";
+        input.style.height = "auto";
+        setPresenceState("thinking");
+        var typingRoot = document.getElementById("nik-typing-indicator");
+        typingRoot.style.display = "block";
+        scrollToBottom();
+        try {
+          var fd = new FormData();
+          fd.append("imagem", file, file.name || "upload.jpg");
+          fd.append("pergunta", caption);
+          var resp = await fetchComRetry("/api/nik/ops/analisar-imagem", {
+            method: "POST",
+            credentials: "same-origin",
+            body: fd
+          }, 2);
+          typingRoot.style.display = "none";
+          if (resp.status === 401) {
+            appendMessage("Nik", "Sua sessão expirou. Faça login novamente.", "nik-chat-assistant");
+            return;
+          }
+          if (resp.status === 403) {
+            appendMessage("Nik", "Análise de imagem requer perfil administrador.", "nik-chat-assistant");
+            return;
+          }
+          var data = await resp.json();
+          var replyText = data.texto || data.erro || "Não consegui analisar a imagem.";
+          appendMessage("Nik", replyText, "nik-chat-assistant", data.fonte === "modelo" ? "Visão" : "Ops");
+          setPresenceState("success");
+          await sleep(1500);
+          setPresenceState("wave");
+        } catch (e) {
+          typingRoot.style.display = "none";
+          appendMessage("Nik", "Falha ao enviar a imagem. Tente novamente.", "nik-chat-assistant");
+          setPresenceState("wave");
+        }
+      });
+    }
+
+    document.querySelector("[data-nik-seed]").addEventListener("click", function () {
+      appendMessage(
+        "Nik",
+        "Para carregar dados de exemplo, rode no terminal: python -m banco_dados.popular_mock_preview — depois recarregue a página e eu terei contexto real para analisar.",
+        "nik-chat-assistant"
+      );
+    });
+    
+    function initPlannerConfigChip() {
+      var chip = document.getElementById("nik-planner-config-chip");
+      if (!chip) return;
+      var cfg = String(NIK_AGENT_PLANNER || "heuristic").toLowerCase();
+      var isLlm = cfg === "llm" || cfg === "auto";
+      chip.textContent = isLlm ? "Modo: LLM" : "Modo: regras";
+      chip.classList.add(isLlm ? "nik-planner-chip--llm" : "nik-planner-chip--heuristic");
+      chip.hidden = false;
+    }
+
+    setTimeout(function () {
+      scrollToBottom();
+      enrichHistoricoAssistantMessages();
+      initPresenceIdle();
+      initPlannerConfigChip();
+      wireImageAttach();
+      wireMediaFallback(document);
+    }, 100);
+  })();
+</script>
+{% endblock %}

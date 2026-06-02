@@ -1,0 +1,14 @@
+%% Mapa mental do Dashboard-TRONIK (1 pagina)
+flowchart TB
+  TRONIK[Dashboard-TRONIK]
+  TRONIK --> OPS[Operacao IoT]
+  TRONIK --> REE[Prospeccao REE ML]
+  TRONIK --> COM[CRM Comercial Contratos]
+  TRONIK --> NIK[Nik agentic]
+  TRONIK --> INFRA[CI Health Sentry Redis]
+  OPS --> TEL[Telemetria WebSocket]
+  REE --> PIPE[jobs/prospeccao]
+  REE --> FILA[Preview prospeccao]
+  COM --> PREVIEW[Preview CRM comercial]
+  NIK --> TOOLS[12+ ferramentas]
+  NIK --> LOOP[Agent loop opcional]

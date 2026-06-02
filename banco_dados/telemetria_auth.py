@@ -13,7 +13,6 @@ from __future__ import annotations
 
 import os
 import secrets
-from typing import Optional
 
 from banco_dados.modelos import Sensor
 from banco_dados.utils.erros import ErroNaoAutorizado
@@ -23,7 +22,7 @@ def _ambiente_producao() -> bool:
     return os.getenv("FLASK_ENV", "development").strip().lower() == "production"
 
 
-def _shared_secret() -> Optional[str]:
+def _shared_secret() -> str | None:
     raw = os.getenv("TELEMETRY_SHARED_SECRET", "").strip()
     return raw or None
 
@@ -36,7 +35,7 @@ def _allow_no_token_dev() -> bool:
     )
 
 
-def validar_telemetria(sensor: Sensor, api_key_payload: Optional[str]) -> None:
+def validar_telemetria(sensor: Sensor, api_key_payload: str | None) -> None:
     """
     Garante que a requisição pode atuar como o sensor indicado.
 

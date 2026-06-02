@@ -12,22 +12,23 @@
   <link rel="stylesheet" href="{{ url_for('static', filename='css/v2/tokens.css') }}?v={{ cache_version }}">
   <link rel="stylesheet" href="{{ url_for('static', filename='css/v2/preview.css') }}?v={{ cache_version }}">
   <link rel="stylesheet" href="{{ url_for('static', filename='css/v2/motion.css') }}?v={{ cache_version }}">
+  <link rel="stylesheet" href="{{ url_for('static', filename='css/v2/nik.css') }}?v={{ cache_version }}">
   {% block head_extra %}{% endblock %}
 </head>
 <body>
 
-{% if config.get('PREVIEW_SHOW_BADGE', True) %}
+{% if config.get('PREVIEW_SHOW_BADGE', False) %}
 <div class="preview-badge">PREVIEW v2</div>
 {% endif %}
 
 <!-- Mobile topbar -->
 <div class="mobile-topbar">
-  <div style="display:flex; align-items:center; gap:var(--space-3);">
+  <div class="mobile-topbar-brand-row">
     <div class="brand-mark">T</div>
     <div class="mobile-topbar-title">Tronik</div>
   </div>
   <button class="mobile-menu-btn" type="button" onclick="togglePreviewSidebar()" aria-label="Abrir menu">
-    <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><line x1="3" y1="12" x2="21" y2="12"/><line x1="3" y1="6" x2="21" y2="6"/><line x1="3" y1="18" x2="21" y2="18"/></svg>
+    <i data-lucide="menu" class="icon" style="width: 20px; height: 20px;"></i>
   </button>
 </div>
 
@@ -45,7 +46,16 @@
 
 <script src="https://cdn.jsdelivr.net/npm/socket.io-client@4.7.0/dist/socket.io.min.js" crossorigin="anonymous" defer></script>
 <script src="https://cdn.jsdelivr.net/npm/htmx.org@2.0.4/dist/htmx.min.js" crossorigin="anonymous" defer></script>
+<script src="https://unpkg.com/lucide@0.468.0/dist/umd/lucide.min.js"></script>
 <script src="{{ url_for('static', filename='js/v2/preview.js') }}?v={{ cache_version }}" defer></script>
+<script src="{{ url_for('static', filename='js/v2/nik-loader.js') }}?v={{ cache_version }}" defer></script>
+<script>
+  document.addEventListener('DOMContentLoaded', function() {
+    if (window.lucide) {
+      lucide.createIcons();
+    }
+  });
+</script>
 {% block scripts_extra %}{% endblock %}
 </body>
 </html>

@@ -1,0 +1,922 @@
+/* Nik Pública — alinhado à preview landing (dark / sci‑fi B2B) */
+
+.nikpub-page {
+  background: var(--paper-page);
+  color: var(--ink-primary);
+}
+
+/* Correção do Header (Nav) para tema claro */
+.nikpub-page .lp-nav-inner {
+  background: rgba(255, 253, 247, 0.85);
+  border: 1px solid var(--line-subtle);
+}
+
+.nikpub-page .lp-nav-links > a,
+.nikpub-page .lp-nav-item > button {
+  color: var(--ink-secondary);
+}
+
+.nikpub-page .lp-nav-links > a:hover,
+.nikpub-page .lp-nav-item:hover > button {
+  color: var(--tronik);
+}
+
+.nikpub-page .lp-brand {
+  color: var(--ink-primary);
+}
+
+.nikpub-page .lp-pill-btn {
+  border-color: var(--line-default);
+  color: var(--ink-secondary);
+}
+
+.nikpub-page .lp-pill-btn:hover {
+  background: var(--tronik);
+  color: #fff;
+  border-color: var(--tronik);
+}
+
+.nikpub-page main {
+  padding-top: 72px;
+}
+
+.nikpub-hero {
+  position: relative;
+  padding: clamp(20px, 4vh, 48px) clamp(24px, 5vw, 82px) clamp(64px, 10vh, 120px);
+  background: linear-gradient(135deg, var(--paper-page) 0%, var(--paper-card) 100%);
+  overflow: hidden;
+}
+
+.nikpub-hero::before {
+  content: "";
+  position: absolute;
+  inset: 0;
+  background:
+    radial-gradient(ellipse 70% 50% at 75% 30%, rgba(26, 93, 58, 0.12) 0%, transparent 55%),
+    radial-gradient(ellipse 45% 40% at 10% 80%, rgba(26, 93, 58, 0.08) 0%, transparent 60%);
+  pointer-events: none;
+}
+
+.nikpub-hero-inner {
+  position: relative;
+  z-index: 1;
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) minmax(220px, 380px);
+  gap: clamp(28px, 5vw, 56px);
+  align-items: start;
+  max-width: 1120px;
+  margin: 0 auto;
+}
+
+.nikpub-hero-copy {
+  min-width: 0;
+}
+
+.nikpub-hero-visual {
+  min-width: 0;
+}
+
+.nikpub-cannon-frame {
+  width: 100%;
+  max-width: 380px;
+  margin-left: auto;
+}
+
+.nikpub-cannon-wrap {
+  position: relative;
+  width: 100%;
+  border-radius: 14px;
+  overflow: hidden;
+  background: var(--paper-sunk);
+  border: 1px solid var(--line-default);
+  box-shadow: inset 0 2px 6px rgba(0,0,0,0.05), var(--shadow-sm);
+}
+
+.nikpub-cannon-fallback {
+  width: 100%;
+  height: auto;
+  display: block;
+  z-index: 0;
+}
+
+.nikpub-cannon-video {
+  position: absolute;
+  inset: 0;
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+}
+
+.nikpub-cannon-video {
+  z-index: 1;
+  opacity: 0;
+  transition: opacity 0.35s ease;
+}
+
+.nikpub-cannon-video.is-media-ready {
+  opacity: 1;
+}
+
+.nikpub-cannon-fallback {
+  z-index: 0;
+  filter: drop-shadow(0 8px 24px rgba(46, 229, 181, 0.12));
+}
+
+.nikpub-cannon-static {
+  opacity: 1;
+}
+
+@media (max-width: 900px) {
+  .nikpub-hero-inner {
+    grid-template-columns: 1fr;
+  }
+
+  .nikpub-cannon-frame {
+    margin: 8px auto 0;
+    max-width: min(300px, 82vw);
+  }
+}
+
+.nikpub-hero h1 {
+  font-family: var(--font-display);
+  font-size: clamp(36px, 5.2vw, 52px);
+  font-weight: 600;
+  letter-spacing: -0.035em;
+  line-height: 1.2;
+  margin: 20px 0 24px;
+  color: var(--ink-primary);
+}
+
+.nikpub-hero h1 span {
+  color: var(--tronik);
+  font-weight: 700;
+  display: inline-block;
+}
+
+.nikpub-hero-lead {
+  margin: 0;
+  font-size: clamp(15px, 1.55vw, 18px);
+  line-height: 1.75;
+  color: var(--ink-secondary);
+  max-width: 580px;
+  font-weight: 400;
+}
+
+.nikpub-section {
+  padding: clamp(72px, 10vh, 128px) clamp(24px, 5vw, 82px);
+}
+
+.nikpub-section--dark {
+  background: var(--paper-sunk);
+  border-top: 1px solid var(--line-subtle);
+  border-bottom: 1px solid var(--line-subtle);
+}
+
+.nikpub-section--elevated {
+  background: var(--paper-card);
+  border-top: 1px solid var(--line-subtle);
+  border-bottom: 1px solid var(--line-subtle);
+}
+
+.nikpub-section-head {
+  max-width: 760px;
+  margin-bottom: 48px;
+}
+
+.nikpub-section-head h2 {
+  font-family: var(--font-display);
+  font-size: clamp(28px, 3.5vw, 42px);
+  font-weight: 600;
+  margin: 14px 0 0;
+  letter-spacing: -0.025em;
+  color: var(--ink-primary);
+  line-height: 1.2;
+}
+
+.nikpub-section-head p {
+  margin: 14px 0 0;
+  font-size: 15px;
+  line-height: 1.65;
+  color: var(--ink-secondary);
+}
+
+/* Operação: texto à esquerda · resposta Nik à direita */
+.nikpub-op-layout {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) minmax(0, 1.12fr);
+  gap: clamp(28px, 5vw, 52px);
+  align-items: start;
+  max-width: 1120px;
+  margin: 0 auto;
+}
+
+.nikpub-op-intro {
+  display: flex;
+  flex-direction: column;
+  gap: 0;
+  min-width: 0;
+  padding-top: 4px;
+}
+
+.nikpub-op-intro-copy .lp-label {
+  letter-spacing: 0.14em;
+  color: var(--accent-clay);
+  font-weight: 600;
+}
+
+.nikpub-op-intro-copy h2 {
+  font-family: var(--font-display);
+  font-size: clamp(28px, 3.4vw, 40px);
+  font-weight: 600;
+  letter-spacing: -0.03em;
+  line-height: 1.18;
+  margin: 16px 0 0;
+  color: var(--ink-primary);
+}
+
+.nikpub-op-lead {
+  margin: 20px 0 0;
+  font-size: clamp(16px, 1.5vw, 18px);
+  line-height: 1.75;
+  color: var(--ink-secondary);
+  max-width: 34em;
+  font-weight: 400;
+}
+
+.nikpub-op-brand {
+  margin-top: 28px;
+  display: flex;
+  align-items: center;
+  gap: 14px;
+  padding-top: 22px;
+  border-top: 1px solid var(--line-subtle);
+}
+
+.nikpub-op-avatar {
+  width: 56px;
+  height: 56px;
+  object-fit: contain;
+  flex-shrink: 0;
+  background: #020202;
+  border-radius: var(--radius-sm);
+  border: 1px solid var(--line-default);
+  box-shadow: inset 0 2px 6px rgba(0,0,0,0.4), var(--shadow-sm);
+}
+
+.nikpub-op-brand-caption {
+  font-size: 13px;
+  font-weight: 500;
+  letter-spacing: 0.03em;
+  color: var(--ink-tertiary);
+  line-height: 1.35;
+}
+
+.nikpub-op-response {
+  min-width: 0;
+  position: relative;
+}
+
+.nikpub-op-stream {
+  border-radius: 12px;
+  border: 1px solid var(--line-default);
+  background: var(--paper-page);
+  overflow: hidden;
+  box-shadow: var(--shadow-md);
+  transition: border-color 0.25s ease, box-shadow 0.25s ease;
+}
+
+.nikpub-op-stream-bar {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: 12px 16px;
+  border-bottom: 1px solid var(--line-subtle);
+  font-family: var(--font-mono);
+  font-size: 12px;
+  letter-spacing: 0.1em;
+  text-transform: uppercase;
+  color: var(--ink-tertiary);
+  background: var(--paper-sunk);
+}
+
+.nikpub-op-stream-body {
+  padding: 22px 22px 26px;
+}
+
+.nikpub-op-stream-body h3 {
+  margin: 0 0 20px;
+  font-size: clamp(18px, 1.75vw, 22px);
+  font-weight: 600;
+  color: var(--ink-primary);
+  font-family: var(--font-display);
+  letter-spacing: -0.02em;
+  line-height: 1.3;
+}
+
+.nikpub-op-stream-content {
+  min-height: 200px;
+}
+
+.nikpub-op-list {
+  margin: 0;
+  padding-left: 1.5em;
+  list-style: decimal;
+  list-style-position: outside;
+  font-family: var(--font-body, system-ui, sans-serif);
+}
+
+.nikpub-op-item::marker {
+  color: var(--tronik);
+  font-weight: 700;
+  font-size: 0.95em;
+}
+
+.nikpub-op-item {
+  margin: 0 0 18px;
+  padding-bottom: 16px;
+  padding-left: 0.35em;
+  border-bottom: 1px solid var(--line-subtle);
+}
+
+.nikpub-op-item:last-child {
+  margin-bottom: 0;
+  padding-bottom: 0;
+  border-bottom: none;
+}
+
+.nikpub-op-li-title {
+  display: block;
+  font-size: 16px;
+  font-weight: 700;
+  color: var(--ink-primary);
+  margin-bottom: 10px;
+  font-family: var(--font-display);
+  letter-spacing: -0.015em;
+}
+
+.nikpub-op-li-desc {
+  display: block;
+  font-size: 15px;
+  line-height: 1.75;
+  color: var(--ink-secondary);
+  font-weight: 400;
+}
+
+.nikpub-cap-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(240px, 1fr));
+  gap: 18px;
+  max-width: 1120px;
+  margin: 0 auto;
+}
+
+@media (min-width: 1080px) {
+  .nikpub-cap-grid {
+    grid-template-columns: repeat(4, minmax(0, 1fr));
+  }
+}
+
+@media (max-width: 980px) {
+  .nikpub-op-layout {
+    grid-template-columns: 1fr;
+    gap: 28px;
+  }
+
+  .nikpub-op-brand {
+    margin-top: 22px;
+    padding-top: 18px;
+  }
+
+  .nikpub-op-stream-body h3 {
+    font-size: clamp(16px, 4.2vw, 19px);
+  }
+
+  .nikpub-op-stream-content {
+    min-height: 0;
+  }
+
+  .nikpub-op-li-title {
+    font-size: 15px;
+  }
+
+  .nikpub-op-li-desc {
+    font-size: 14px;
+  }
+}
+
+.nikpub-cap-card {
+  padding: 22px 20px;
+  border-radius: 10px;
+  border: 1px solid var(--line-default);
+  background: var(--paper-card);
+  box-shadow: var(--shadow-sm);
+  transition: border-color 0.25s ease, box-shadow 0.25s ease, transform 0.25s ease;
+}
+
+.nikpub-cap-card:hover {
+  border-color: var(--line-strong);
+  box-shadow: var(--shadow-md);
+  transform: translateY(-1px);
+}
+
+.nikpub-cap-card h3 {
+  margin: 0 0 10px;
+  font-size: 15px;
+  font-weight: 600;
+  color: var(--ink-primary);
+  font-family: var(--font-display);
+}
+
+.nikpub-cap-card p {
+  margin: 0;
+  font-size: 14px;
+  line-height: 1.55;
+  color: var(--ink-secondary);
+}
+
+.nikpub-stream-grid {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr);
+  gap: 32px;
+  max-width: 1120px;
+  margin: 0 auto;
+}
+
+@media (min-width: 960px) {
+  .nikpub-stream-grid {
+    grid-template-columns: 1fr 1fr;
+    align-items: start;
+  }
+
+  .nikpub-terminal {
+    grid-column: 1;
+    grid-row: 1;
+  }
+
+  .nikpub-faq-panel--stream {
+    grid-column: 2;
+    grid-row: 1;
+  }
+
+  .nikpub-faq-ask {
+    grid-column: 1 / -1;
+    grid-row: 2;
+  }
+}
+
+.nikpub-terminal {
+  border-radius: 10px;
+  border: 1px solid var(--line-default);
+  background: var(--paper-page);
+  overflow: hidden;
+  box-shadow: var(--shadow-md);
+  transition: border-color 0.25s ease, box-shadow 0.25s ease;
+}
+
+.nikpub-terminal-bar {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: 10px 14px;
+  border-bottom: 1px solid var(--line-subtle);
+  font-family: var(--font-mono);
+  font-size: 11px;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  color: var(--ink-tertiary);
+  background: var(--paper-sunk);
+}
+
+.nikpub-terminal-bar .nikpub-dot {
+  width: 7px;
+  height: 7px;
+  border-radius: 1px;
+  background: var(--tronik);
+  box-shadow: none;
+}
+
+.nikpub-terminal-body {
+  padding: 18px 18px 22px;
+  min-height: 160px;
+  font-family: var(--font-mono);
+  font-size: 13px;
+  line-height: 1.65;
+  color: var(--ink-secondary);
+}
+
+.nikpub-terminal-body .cursor {
+  display: inline-block;
+  width: 8px;
+  height: 1.1em;
+  margin-left: 2px;
+  background: var(--tronik);
+  animation: nikpub-cursor-blink 1s step-end infinite;
+  vertical-align: text-bottom;
+}
+
+@keyframes nikpub-cursor-blink {
+  50% {
+    opacity: 0;
+  }
+}
+
+.nikpub-stream-note {
+  margin-top: 12px;
+  font-size: 12px;
+  color: var(--ink-tertiary);
+  font-family: var(--font-mono);
+  line-height: 1.5;
+}
+
+.nikpub-faq-ask {
+  padding-top: 4px;
+}
+
+.nikpub-faq-ask-lead {
+  margin: 10px 0 18px;
+  font-size: 14px;
+  line-height: 1.6;
+  color: var(--ink-secondary);
+  max-width: 720px;
+}
+
+.nikpub-faq-chips {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 12px;
+}
+
+.nikpub-chip {
+  cursor: pointer;
+  border: 1px solid var(--line-default);
+  background: var(--paper-card);
+  color: var(--ink-secondary);
+  font-family: var(--font-mono);
+  font-size: 11px;
+  letter-spacing: 0.05em;
+  text-transform: uppercase;
+  padding: 11px 16px;
+  border-radius: 8px;
+  transition: border-color 0.2s, background 0.2s, box-shadow 0.2s;
+  font-weight: 500;
+}
+
+.nikpub-chip:hover,
+.nikpub-chip:focus-visible {
+  outline: none;
+  border-color: var(--line-strong);
+  background: var(--paper-elevated);
+  box-shadow: var(--shadow-sm);
+}
+
+.nikpub-chip.is-active {
+  border-color: var(--tronik);
+  background: var(--tronik-soft);
+  color: var(--tronik);
+  font-weight: 600;
+}
+
+.nikpub-faq-panel {
+  padding: 22px 22px 26px;
+  border-radius: 10px;
+  border: 1px solid var(--line-default);
+  background: var(--paper-page);
+  min-height: 120px;
+  transition: border-color 0.25s ease, box-shadow 0.25s ease;
+}
+
+.nikpub-faq-panel--stream {
+  padding: 0;
+  overflow: hidden;
+  box-shadow: var(--shadow-md);
+}
+
+.nikpub-faq-panel-bar {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: 10px 14px;
+  border-bottom: 1px solid var(--line-subtle);
+  font-family: var(--font-mono);
+  font-size: 11px;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  color: var(--ink-tertiary);
+  background: var(--paper-sunk);
+}
+
+.nikpub-faq-panel-bar .nikpub-dot {
+  width: 7px;
+  height: 7px;
+  border-radius: 1px;
+  background: var(--signal-warn);
+  box-shadow: none;
+}
+
+.nikpub-faq-panel-inner {
+  padding: 18px 22px 22px;
+  min-height: 160px;
+}
+
+.nikpub-faq-panel h3 {
+  margin: 0 0 14px;
+  font-size: clamp(16px, 1.7vw, 19px);
+  font-weight: 600;
+  color: var(--ink-primary);
+  font-family: var(--font-display);
+  letter-spacing: -0.015em;
+  line-height: 1.3;
+}
+
+.nikpub-faq-panel .nikpub-faq-body {
+  margin: 0;
+  font-size: 15px;
+  line-height: 1.75;
+  color: var(--ink-secondary);
+  font-weight: 400;
+}
+
+.nikpub-faq-panel .nikpub-faq-body p + p {
+  margin-top: 12px;
+}
+
+#nikpub-faq-stream-cursor {
+  display: none;
+}
+
+.nikpub-faq-panel.is-streaming #nikpub-faq-stream-cursor {
+  display: inline-block;
+  vertical-align: text-bottom;
+  margin-left: 2px;
+}
+
+.nikpub-faq-hint {
+  margin-top: 14px;
+  font-size: 11px;
+  font-family: var(--font-mono);
+  color: var(--ink-tertiary);
+}
+
+.nikpub-blocos-meta {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  max-width: 1120px;
+  margin: 0 auto 18px;
+  font-family: var(--font-mono);
+  font-size: 11px;
+  color: var(--ink-tertiary);
+  letter-spacing: 0.04em;
+}
+
+.nikpub-blocos-meta-dot {
+  width: 7px;
+  height: 7px;
+  border-radius: 50%;
+  background: var(--tronik);
+  animation: nikpub-pulse 2s ease-in-out infinite;
+  flex-shrink: 0;
+}
+
+@keyframes nikpub-pulse {
+  0%, 100% { opacity: 1; transform: scale(1); }
+  50%       { opacity: 0.35; transform: scale(0.75); }
+}
+
+.nikpub-blocos-grid {
+  display: flex;
+  flex-direction: column;
+  gap: 28px;
+  max-width: 1120px;
+  margin: 0 auto;
+}
+
+.nikpub-blocos-grid .nik-container {
+  min-height: 48px;
+}
+
+/* streaming loading dots */
+.nikpub-blocos-grid .nik-loading {
+  display: flex;
+  align-items: center;
+  gap: 5px;
+  padding: 14px 0;
+}
+
+.nikpub-blocos-grid .nik-loading-dot {
+  width: 5px;
+  height: 5px;
+  border-radius: 50%;
+  background: var(--tronik-soft);
+  animation: nik-dot-pulse 1.2s ease-in-out infinite;
+}
+
+.nikpub-blocos-grid .nik-loading-dot:nth-child(2) { animation-delay: 0.2s; }
+.nikpub-blocos-grid .nik-loading-dot:nth-child(3) { animation-delay: 0.4s; }
+
+@keyframes nik-dot-pulse {
+  0%, 80%, 100% { opacity: 0.2; transform: scale(0.8); }
+  40%           { opacity: 1;   transform: scale(1); }
+}
+
+/* streaming cursor inside card body */
+.nik-stream-cursor {
+  display: inline-block;
+  width: 2px;
+  height: 1em;
+  background: var(--tronik);
+  margin-left: 2px;
+  vertical-align: text-bottom;
+  animation: nik-blink 0.9s step-end infinite;
+}
+
+@keyframes nik-blink {
+  0%, 100% { opacity: 1; }
+  50%      { opacity: 0; }
+}
+
+/* card dims slightly while streaming */
+.nikpub-blocos-grid .nik-card.is-streaming {
+  border-color: var(--tronik-soft);
+  background: var(--paper-sunk);
+}
+
+.nikpub-blocos-grid .nik-card {
+  border-radius: 12px;
+  border: 1px solid var(--line-default);
+  padding: 26px 28px 28px;
+  background: var(--paper-card);
+  box-shadow: var(--shadow-sm);
+  transition: border-color 0.25s ease, box-shadow 0.25s ease, transform 0.25s ease;
+}
+
+.nikpub-blocos-grid .nik-card:hover {
+  border-color: var(--line-strong);
+  box-shadow: var(--shadow-md);
+  transform: translateY(-2px);
+}
+
+.nikpub-blocos-grid .nik-card h3 {
+  margin: 0 0 12px;
+  font-size: clamp(17px, 1.8vw, 20px);
+  font-weight: 600;
+  color: var(--ink-primary);
+  font-family: var(--font-display);
+  letter-spacing: -0.015em;
+}
+
+.nikpub-blocos-grid .nik-card p {
+  margin: 0;
+  font-size: 15px;
+  line-height: 1.7;
+  color: var(--ink-secondary);
+  font-weight: 400;
+}
+
+.nikpub-blocos-grid .nik-card-subtle {
+  margin-top: 12px;
+  font-size: 13px;
+  color: var(--ink-tertiary);
+  font-weight: 400;
+}
+
+.nikpub-blocos-grid .nik-card blockquote {
+  margin: 10px 0;
+  padding-left: 14px;
+  border-left: 2px solid var(--line-strong);
+  font-style: normal;
+  color: var(--ink-secondary);
+}
+
+.nikpub-blocos-grid .nik-metric {
+  font-size: 32px;
+  font-weight: 700;
+  color: var(--tronik);
+  margin: 12px 0;
+  font-family: var(--font-display);
+  line-height: 1.1;
+}
+
+@media (max-width: 768px) {
+  .nikpub-page main {
+    padding-top: 64px;
+  }
+
+  .nikpub-hero {
+    padding: 16px 16px 40px;
+  }
+
+  .nikpub-hero-inner {
+    gap: 16px;
+  }
+
+  .nikpub-cannon-frame {
+    max-width: min(280px, 86vw);
+  }
+
+  .nikpub-hero h1 {
+    font-size: clamp(30px, 9vw, 42px);
+    line-height: 1.08;
+    margin: 10px 0 12px;
+  }
+
+  .nikpub-hero-lead {
+    font-size: 16px;
+    line-height: 1.55;
+  }
+
+  .nikpub-section {
+    padding: 38px 16px;
+  }
+
+  .nikpub-section-head {
+    margin-bottom: 20px;
+  }
+
+  .nikpub-section-head h2 {
+    font-size: clamp(25px, 8vw, 34px);
+    line-height: 1.12;
+    margin-top: 8px;
+  }
+
+  .nikpub-section-head p {
+    font-size: 14px;
+    line-height: 1.55;
+    margin-top: 10px;
+  }
+
+  .nikpub-op-layout {
+    gap: 22px;
+  }
+
+  .nikpub-op-stream-bar,
+  .nikpub-terminal-bar,
+  .nikpub-faq-panel-bar {
+    padding: 9px 11px;
+    font-size: 10px;
+  }
+
+  .nikpub-op-stream-body,
+  .nikpub-terminal-body,
+  .nikpub-faq-panel-inner {
+    padding: 12px;
+  }
+
+  .nikpub-terminal-body,
+  .nikpub-faq-panel .nikpub-faq-body {
+    font-size: 12px;
+    line-height: 1.55;
+  }
+
+  .nikpub-op-li-desc {
+    font-size: 13px;
+    line-height: 1.62;
+  }
+
+  .nikpub-faq-panel h3 {
+    font-size: 15px;
+    margin-bottom: 9px;
+  }
+
+  .nikpub-faq-ask-lead {
+    font-size: 13px;
+    line-height: 1.5;
+    margin: 8px 0 12px;
+  }
+
+  .nikpub-faq-chips {
+    flex-direction: column;
+  }
+
+  .nikpub-chip {
+    width: 100%;
+    text-align: left;
+  }
+}
+
+@media (max-width: 480px) {
+  .nikpub-hero {
+    padding: 12px 12px 30px;
+  }
+
+  .nikpub-hero h1 {
+    font-size: clamp(28px, 10vw, 36px);
+  }
+
+  .nikpub-hero-lead {
+    font-size: 15px;
+  }
+
+  .nikpub-cannon-frame {
+    max-width: min(250px, 88vw);
+  }
+
+  .nikpub-cannon-video,
+  .nikpub-cannon-fallback {
+    object-position: center 40%;
+  }
+
+  .nikpub-section {
+    padding: 32px 12px;
+  }
+}

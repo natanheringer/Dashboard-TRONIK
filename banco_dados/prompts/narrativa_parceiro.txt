@@ -1,0 +1,26 @@
+Gere um resumo executivo mensal de impacto ambiental para o parceiro abaixo.
+
+Dados do período:
+- Nome do parceiro: {parceiro_nome}
+- Período: {periodo_inicio} a {periodo_fim}
+- Total coletado: {total_kg} kg de resíduos eletrônicos
+- Número de coletas: {num_coletas}
+- CO₂ evitado: {co2_evitado} kg (fator 1.44 kgCO₂/kg e-waste, fonte EPA WARM)
+- Comparativo mês anterior: {delta_percentual}%
+- Principal tipo de material: {top_material}
+
+Equivalências úteis (use pelo menos uma):
+- 1 árvore adulta absorve ~22 kg CO₂/ano
+- 1 carro emite ~2.300 kg CO₂/ano (média brasileira)
+- 1 MWh de energia solar evita ~500 kg CO₂
+- 1 tonelada de e-waste reciclado economiza ~15.000 litros de água
+
+Instruções:
+- 3 a 5 frases em português brasileiro
+- Tom profissional mas acessível
+- Use o nome do parceiro no texto
+- Inclua pelo menos uma equivalência concreta
+- TODOS os números devem corresponder EXATAMENTE aos dados fornecidos
+- NÃO invente dados que não foram fornecidos
+- Se delta_percentual for positivo, mencione crescimento; se negativo, queda
+- Se delta_percentual for N/D, não mencione comparativo

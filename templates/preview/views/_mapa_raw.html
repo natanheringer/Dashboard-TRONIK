@@ -14,7 +14,7 @@
           <!-- Overlay superior: busca + controles -->
           <div class="mapa-overlay">
             <div class="mapa-search">
-              <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" style="color:var(--ink-tertiary)"><circle cx="11" cy="11" r="8"/><path d="M21 21l-4.35-4.35"/></svg>
+              <svg class="mapa-icon-muted" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="11" cy="11" r="8"/><path d="M21 21l-4.35-4.35"/></svg>
               <input type="text" placeholder="Buscar coletor ou endereço...">
             </div>
             <div class="mapa-controls">
@@ -31,14 +31,14 @@
           </div>
 
           <!-- Pins simulados -->
-          <div class="mapa-pin cluster" style="top: 30%; left: 35%;">17</div>
-          <div class="mapa-pin cluster" style="top: 42%; left: 48%;">15</div>
-          <div class="mapa-pin cluster" style="top: 20%; left: 55%;">4</div>
-          <div class="mapa-pin cluster" style="top: 62%; left: 40%;">3</div>
-          <div class="mapa-pin cluster crit" style="top: 38%; left: 62%;">1</div>
-          <div class="mapa-pin single" style="top: 55%; left: 68%;"></div>
-          <div class="mapa-pin single" style="top: 48%; left: 30%;"></div>
-          <div class="mapa-pin single warn" style="top: 35%; left: 25%;"></div>
+          <div class="mapa-pin cluster pin-1">17</div>
+          <div class="mapa-pin cluster pin-2">15</div>
+          <div class="mapa-pin cluster pin-3">4</div>
+          <div class="mapa-pin cluster pin-4">3</div>
+          <div class="mapa-pin cluster crit pin-5">1</div>
+          <div class="mapa-pin single pin-6"></div>
+          <div class="mapa-pin single pin-7"></div>
+          <div class="mapa-pin single warn pin-8"></div>
 
           <!-- Legenda -->
           <div class="mapa-legenda">
@@ -69,8 +69,8 @@
               <div class="detail-row"><span>Bateria do sensor</span><strong>87%</strong></div>
             </div>
 
-            <div style="display:flex; gap:var(--space-2); margin-top:auto;">
-              <button class="btn btn-primary" style="flex:1">Agendar coleta</button>
+            <div class="mapa-detail-actions">
+              <button class="btn btn-primary mapa-detail-open-btn">Agendar coleta</button>
               <button class="btn">⋯</button>
             </div>
           </div>
