@@ -342,7 +342,7 @@ def analisar_imagem_coletor(
             "coletor_id": coletor_id,
         }
 
-    modelo = os.getenv("NIK_MODELO_OPS", "google/gemma-3-27b-it")
+    modelo = os.getenv("NIK_MODELO_OPS", "llama-3.1-8b-instant")
     routed = _modelo_tarefa("ops_coletor")
     if provider.modelo_suporta_visao(routed):
         modelo = routed
@@ -510,7 +510,7 @@ _THREAD_RESUMO_MAX_CHARS = 400
 
 
 def _modelo_resumo_thread() -> str:
-    return os.getenv("NIK_MODELO_RESUMO", "gemma-3-1b-it")
+    return os.getenv("NIK_MODELO_RESUMO", "llama-3.1-8b-instant")
 
 
 def _query_thread_conversas(

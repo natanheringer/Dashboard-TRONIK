@@ -24,9 +24,76 @@ _PARCEIRO_ID_TABLES = (
     "nik_relatorios_gerados",
 )
 
+_LIXEIRA_FK_TABLES = ("coletas", "sensores")
+
+
+def _migrar_lixeira_para_coletor(engine, insp) -> None:
+    """Bases legadas: tabela ``lixeiras`` + FK ``lixeira_id`` → ``coletores`` + ``coletor_id``."""
+    tables = set(insp.get_table_names())
+
+    if "lixeiras" in tables and "coletores" in tables:
+        with engine.begin() as conn:
+            n_coletores = conn.execute(text("SELECT COUNT(*) FROM coletores")).scalar() or 0
+            n_lixeiras = conn.execute(text("SELECT COUNT(*) FROM lixeiras")).scalar() or 0
+            if n_lixeiras > 0 and n_coletores == 0:
+                conn.execute(
+                    text(
+                        """
+                        INSERT INTO coletores (
+                            id, localizacao, nivel_preenchimento, status, ultima_coleta,
+                            latitude, longitude, parceiro_id, tipo_material_id
+                        )
+                        SELECT
+                            id, localizacao, nivel_preenchimento, status, ultima_coleta,
+                            latitude, longitude, parceiro_id, tipo_material_id
+                        FROM lixeiras
+                        """
+                    )
+                )
+                max_id = conn.execute(text("SELECT MAX(id) FROM coletores")).scalar()
+                if max_id is not None:
+                    try:
+                        updated = conn.execute(
+                            text(
+                                "UPDATE sqlite_sequence SET seq = :seq WHERE name = 'coletores'"
+                            ),
+                            {"seq": int(max_id)},
+                        ).rowcount
+                        if not updated:
+                            conn.execute(
+                                text(
+                                    "INSERT INTO sqlite_sequence (name, seq) VALUES ('coletores', :seq)"
+                                ),
+                                {"seq": int(max_id)},
+                            )
+                    except Exception:
+                        logger.debug(
+                            "sqlite_sequence nao atualizado para coletores (ignorado).",
+                            exc_info=True,
+                        )
+                logger.info(
+                    "Schema compat: copiados %s registros de lixeiras -> coletores.",
+                    n_lixeiras,
+                )
+
+    for table in _LIXEIRA_FK_TABLES:
+        if table not in tables:
+            continue
+        cols = {c["name"] for c in insp.get_columns(table)}
+        if "coletor_id" in cols or "lixeira_id" not in cols:
+            continue
+        with engine.begin() as conn:
+            conn.execute(text(f"ALTER TABLE {table} ADD COLUMN coletor_id INTEGER"))
+            conn.execute(
+                text(f"UPDATE {table} SET coletor_id = lixeira_id WHERE coletor_id IS NULL")
+            )
+        logger.info("Schema compat: %s.lixeira_id copiado para coletor_id.", table)
+
 
 def aplicar_compat_schema(engine) -> None:
     """Garante colunas esperadas pelo código atual."""
+    insp = inspect(engine)
+    _migrar_lixeira_para_coletor(engine, insp)
     insp = inspect(engine)
     dialect = engine.dialect.name
     is_pg = dialect in ("postgresql", "postgres")

@@ -316,11 +316,13 @@ def multimodal_habilitado() -> bool:
 
 
 def modelo_suporta_visao(modelo: str) -> bool:
-    """Gemma 3 27B (NIK_MODELO_OPS) é multimodal; outros via NIK_MODELOS_VISAO."""
+    """Modelos com visão no Groq (OpenAI-compatible) ou lista explícita em NIK_MODELOS_VISAO."""
     m = (modelo or "").strip().lower()
     if not m:
         return False
     if "gemma-3-27" in m:
+        return True
+    if "vision" in m or "llava" in m:
         return True
     allow = (os.getenv("NIK_MODELOS_VISAO") or "").strip()
     if allow:
@@ -407,7 +409,9 @@ def chamar_modelo_visao(
     temperature: float = 0.3,
 ) -> NikResposta:
     """Chamada vision (image_url data URL) para modelos OpenAI-compatible com visão."""
-    modelo_principal = modelo or os.getenv("NIK_MODELO_OPS", "google/gemma-3-27b-it")
+    modelo_principal = modelo or os.getenv(
+        "NIK_MODELO_VISAO", "llama-3.2-11b-vision-preview"
+    )
     if not modelo_suporta_visao(modelo_principal):
         return _resposta_erro(modelo_principal, f"Modelo {modelo_principal} não suporta visão")
 
@@ -535,8 +539,8 @@ def chamar_modelo(
 ) -> NikResposta:
     """Chama o modelo no provedor primario; se falhar, tenta fallback de modelo e depois provedor secundario (NVIDIA)."""
     global _RATE_LIMIT_UNTIL_TS_PRIMARY
-    modelo_principal = modelo or os.getenv("NIK_MODELO_OPS", "google/gemma-3-27b-it")
-    modelo_fallback = os.getenv("NIK_MODELO_FALLBACK", "google/gemma-3-1b-it")
+    modelo_principal = modelo or os.getenv("NIK_MODELO_OPS", "llama-3.1-8b-instant")
+    modelo_fallback = os.getenv("NIK_MODELO_FALLBACK", "llama-3.1-8b-instant")
     ultimo_erro = "Falha desconhecida"
 
     # 1) Chat via NVIDIA Integrate (Nemotron): antes do cooldown Groq — usa chave nvapi, nao a gsk da Groq.
@@ -755,8 +759,8 @@ def chamar_modelo_com_ferramentas(
     O loop multi-turn fica em nik_agent_loop; max_rounds é metadado para o chamador.
     """
     _ = max_rounds  # reservado para o orquestrador do loop
-    modelo_principal = modelo or os.getenv("NIK_MODELO_OPS", "google/gemma-3-27b-it")
-    modelo_fallback = os.getenv("NIK_MODELO_FALLBACK", "google/gemma-3-1b-it")
+    modelo_principal = modelo or os.getenv("NIK_MODELO_OPS", "llama-3.1-8b-instant")
+    modelo_fallback = os.getenv("NIK_MODELO_FALLBACK", "llama-3.1-8b-instant")
     ultimo_erro = "Falha desconhecida"
 
     api_key = _strip_bearer(os.getenv("NVIDIA_API_KEY") or "")

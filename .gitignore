@@ -30,9 +30,21 @@ env/
 
 # === Banco de dados local (nunca versionar) ===
 *.db
+*.db-wal
+*.db-shm
 *.sqlite
 *.sqlite3
 tronik.db
+tronik-*.db
+*-outdated.db
+
+# Backups pg_dump / exports SQL (podem conter dados de prod)
+*.dump
+*.sql
+railway-*.dump
+backup_*.sql
+**/backup_*.sql
+**/backup*.sql
 
 # === Dados / exports locais ===
 *.csv
