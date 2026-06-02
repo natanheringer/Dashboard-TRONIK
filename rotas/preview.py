@@ -335,8 +335,6 @@ def parceiro():
         db.close()
 
 
-@preview_bp.route("/gestao")
-@auth_preview
 @preview_bp.route("/prospeccao")
 @admin_preview
 def prospeccao():
@@ -401,3 +399,107 @@ def gestao():
         return render_template("preview/gestao.html", **ctx)
     finally:
         db.close()
+
+
+@preview_bp.route("/nik")
+@admin_preview
+def nik():
+    db = get_db()
+    try:
+        stats = pv.estatisticas_resumo(db)
+        parceiros = pv.listar_parceiros_select(db)
+        historico = nik_service.listar_conversas_ops(
+            db,
+            current_user.id if current_user.is_authenticated else None,
+            limite=12,
+        )
+    except Exception:
+        stats = {"total_coletores": 0}
+        parceiros = []
+        historico = []
+    finally:
+        db.close()
+    planner_cfg = (os.getenv("NIK_AGENT_PLANNER", "heuristic") or "heuristic").strip().lower()
+    if planner_cfg not in {"llm", "heuristic", "auto"}:
+        planner_cfg = "heuristic"
+    current_app.config["NIK_AGENT_PLANNER"] = planner_cfg
+    mm = os.getenv("NIK_MULTIMODAL_ENABLED", "false").strip().lower() in {"1", "true", "yes"}
+    current_app.config["NIK_MULTIMODAL_ENABLED"] = mm
+    return render_template(
+        "preview/nik.html",
+        current="nik",
+        total_coletores=stats.get("total_coletores", 0),
+        stats=stats,
+        usuario_nome=_nome_usuario(),
+        parceiros=parceiros,
+        historico_nik=historico,
+    )
+
+
+@preview_bp.route("/landing")
+def landing_preview():
+    db = get_db()
+    try:
+        stats = pv.estatisticas_resumo(db)
+    except Exception:
+        stats = {"total_coletores": 0}
+    finally:
+        db.close()
+    return render_template(
+        "preview/landing_preview.html",
+        current="landing_preview",
+        total_coletores=stats.get("total_coletores", 0),
+        stats=stats,
+        usuario_nome=_nome_usuario(),
+    )
+
+
+@preview_bp.route("/assets/nik/<path:filename>")
+@limiter.exempt
+def nik_assets(filename: str):
+    if filename not in _NIK_ASSETS_ALLOWLIST:
+        abort(404)
+    return send_from_directory(_NIK_ASSETS_DIR, filename)
+
+
+# ==============================================================
+# HELPERS ML (queries leves, com try/except para não quebrar views)
+# ==============================================================
+
+def _obter_ranking_ml(db):
+    """Retorna ranking do TRONIK Score, ou [] se tabela não existir."""
+    try:
+        from banco_dados.services.ml_score import obter_ranking
+        return obter_ranking(db, limite=50)
+    except Exception:
+        return []
+
+
+def _obter_predicoes_map(db):
+    """Retorna dict {coletor_id: predicao_dict} com predições ativas."""
+    try:
+        from banco_dados.modelos import PredicaoEnchimento
+        preds = db.query(PredicaoEnchimento).filter(
+            PredicaoEnchimento.dados_suficientes.is_(True)
+        ).all()
+        result = {}
+        for p in preds:
+            result[p.coletor_id] = {
+                'horas_restantes': p.horas_restantes,
+                'velocidade': p.velocidade_enchimento,
+                'modelo': p.modelo_usado,
+            }
+        return result
+    except Exception:
+        return {}
+
+
+def _obter_narrativa_parceiro(db, parceiro_id):
+    """Retorna última narrativa gerada para um parceiro, ou None."""
+    if not parceiro_id:
+        return None
+    try:
+        from banco_dados.services.ml_narrativa import obter_ultima_narrativa
+        return obter_ultima_narrativa(db, parceiro_id)
+    except Exception:
+        return None
