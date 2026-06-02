@@ -24,7 +24,7 @@ from __future__ import annotations
 import json
 import math
 import os
-from datetime import datetime, timezone
+from datetime import UTC, datetime
 from typing import Any
 
 FEATURE_NAMES = [
@@ -326,7 +326,7 @@ def age_years_log(data_abertura: datetime | None) -> float:
     """log(1 + years) — continuous signal for tree-based models."""
     if not data_abertura:
         return 0.0
-    years = max(0.0, (datetime.now(timezone.utc) - data_abertura).days / 365.25)
+    years = max(0.0, (datetime.now(UTC) - data_abertura).days / 365.25)
     return round(math.log1p(years), 4)
 
 

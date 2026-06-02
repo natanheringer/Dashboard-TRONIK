@@ -56,24 +56,24 @@ def db_session(test_db):
     from banco_dados.modelos import (
         Coleta,
         Coletor,
-        Parceiro,
-        Sensor,
-        Usuario,
-        # 14 Tabelas ML
-        ScoreProspeccao,
+        ContaComercial,
+        EmpresaCandidata,
         FeatureSnapshotProspeccao,
-        ModeloProspeccao,
+        FontePublicaRegistro,
         LeituraSensor,
-        PredicaoEnchimento,
-        TronikScore,
+        LocalCandidato,
+        ModeloProspeccao,
         NarrativaGerada,
         NikConversa,
         NikRelatorioGerado,
-        EmpresaCandidata,
-        LocalCandidato,
-        FontePublicaRegistro,
-        ContaComercial,
+        Parceiro,
+        PredicaoEnchimento,
+        # 14 Tabelas ML
+        ScoreProspeccao,
+        Sensor,
         SolicitacaoColetor,
+        TronikScore,
+        Usuario,
     )
 
     Session = sessionmaker(bind=test_db)

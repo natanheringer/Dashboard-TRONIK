@@ -88,10 +88,7 @@ def _validar_magic_bytes_imagem(image_bytes: bytes) -> bool:
     if image_bytes[:6].startswith(b'GIF8'):
         return True
     # WebP: RIFF ... WEBP
-    if len(image_bytes) >= 12 and image_bytes[:4] == b'RIFF' and image_bytes[8:12] == b'WEBP':
-        return True
-
-    return False
+    return len(image_bytes) >= 12 and image_bytes[:4] == b'RIFF' and image_bytes[8:12] == b'WEBP'
 
 
 def _decodificar_base64_imagem(raw: str) -> bytes:

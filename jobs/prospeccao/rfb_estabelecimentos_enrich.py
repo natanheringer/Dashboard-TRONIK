@@ -15,7 +15,6 @@ from pathlib import Path
 from typing import Any
 
 import pandas as pd
-from sqlalchemy import or_
 from sqlalchemy.orm import Session
 
 from banco_dados.modelos import EmpresaCandidata, LocalCandidato

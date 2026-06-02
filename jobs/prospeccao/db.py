@@ -11,7 +11,6 @@ from sqlalchemy.orm import Session, sessionmaker
 
 from banco_dados.modelos import Base
 
-
 _SESSION_FACTORY_CACHE: dict = {}
 
 

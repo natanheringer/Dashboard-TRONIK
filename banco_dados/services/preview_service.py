@@ -119,7 +119,6 @@ def resumo_prospeccao(db: Session) -> dict[str, Any]:
 
 def estatisticas_resumo(db: Session) -> dict[str, Any]:
     total = db.query(func.count(Coletor.id)).scalar()
-    sensores_count = db.query(func.count(Sensor.id)).scalar()
     hoje = date.today()
     inicio_hoje = datetime.combine(hoje, datetime.min.time())
     fim_hoje = inicio_hoje + timedelta(days=1)

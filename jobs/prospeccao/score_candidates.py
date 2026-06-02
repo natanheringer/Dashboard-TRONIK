@@ -5,7 +5,7 @@ from __future__ import annotations
 import json
 import logging
 from collections import Counter, defaultdict
-from datetime import datetime, timezone
+from datetime import UTC, datetime
 from pathlib import Path
 from statistics import mean
 from typing import Any
@@ -209,7 +209,7 @@ def score_candidates(
                 min_fallback_value=None if shap_vals else 0.1,
             )
             score_row.motivos_json = _json(enriched_motivos)
-            score_row.calculado_em = datetime.now(timezone.utc)
+            score_row.calculado_em = datetime.now(UTC)
 
             processed += 1
             if processed % batch_size == 0:

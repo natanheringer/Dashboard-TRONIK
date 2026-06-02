@@ -20,7 +20,18 @@ import contextlib
 from datetime import datetime
 
 from flask_login import UserMixin
-from sqlalchemy import Boolean, Column, DateTime, Float, ForeignKey, Index, Integer, String, Text, UniqueConstraint
+from sqlalchemy import (
+    Boolean,
+    Column,
+    DateTime,
+    Float,
+    ForeignKey,
+    Index,
+    Integer,
+    String,
+    Text,
+    UniqueConstraint,
+)
 from sqlalchemy.orm import declarative_base, relationship
 from werkzeug.security import check_password_hash, generate_password_hash
 

@@ -21,7 +21,7 @@ from typing import Any
 import numpy as np
 from sklearn.neighbors import BallTree
 
-from jobs.prospeccao.ranker_contract import FEATURE_NAMES, haversine_km
+from jobs.prospeccao.ranker_contract import FEATURE_NAMES
 
 logger = logging.getLogger(__name__)
 

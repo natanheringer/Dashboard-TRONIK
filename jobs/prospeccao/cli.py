@@ -414,8 +414,9 @@ def main(argv: list[str] | None = None) -> int:
 
     if args.cmd == "rfb-enrich":
         from pathlib import Path
-        from jobs.prospeccao.rfb_estabelecimentos_enrich import enrich_from_rfb_dump
+
         from jobs.prospeccao.db import session_scope
+        from jobs.prospeccao.rfb_estabelecimentos_enrich import enrich_from_rfb_dump
 
         with session_scope() as db:
             stats = enrich_from_rfb_dump(

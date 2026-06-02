@@ -22,7 +22,7 @@ import logging
 import re
 import unicodedata
 from dataclasses import dataclass, field
-from datetime import datetime, timezone
+from datetime import UTC, datetime
 from typing import Any
 
 from sqlalchemy import func
@@ -154,9 +154,7 @@ def _is_pipeline_won_status(value: str | None) -> bool:
     # Tolerate common free-text variants while keeping old exact matches.
     if ("fechado" in status and "ganho" in status) or ("closed" in status and "won" in status):
         return True
-    if status.endswith("_won") or status.startswith("won_"):
-        return True
-    return False
+    return status.endswith("_won") or status.startswith("won_")
 
 
 def _digits_only(text: str | None) -> str:
@@ -215,7 +213,7 @@ def build_internal_label_index(db: Session, cutoff_date: datetime | None = None)
     by_cnpj: dict[str, InternalSiteSignals] = {}
     by_pipeline_won: dict[str, InternalSiteSignals] = {}
     localizacao_digit_blobs: list[tuple[str, InternalSiteSignals]] = []
-    now = datetime.now(timezone.utc)
+    now = datetime.now(UTC)
     diagnostics: dict[str, int] = {
         "register_by_norm_name": 0,
         "register_by_norm_localizacao": 0,
@@ -437,7 +435,7 @@ def internal_relevance_continuous(
     if signals.volume_total_kg > 0:
         score += min(signals.volume_total_kg / 10.0, 25.0)
     if signals.last_coleta_at:
-        days = max(0, (datetime.now(timezone.utc) - signals.last_coleta_at).days)
+        days = max(0, (datetime.now(UTC) - signals.last_coleta_at).days)
         if days <= 30:
             score += 20.0
         elif days <= 90:

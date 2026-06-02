@@ -6,7 +6,7 @@ import json
 import logging
 import time
 from collections import Counter, defaultdict
-from datetime import datetime, timezone
+from datetime import UTC, datetime
 from statistics import median
 from typing import Any
 
@@ -435,7 +435,7 @@ def build_feature_snapshots(
             snapshot.label_ordinal = ordinals[idx]
             snapshot.features_json = _json(features)
             snapshot.feature_schema_json = schema_json
-            snapshot.criado_em = datetime.now(timezone.utc)
+            snapshot.criado_em = datetime.now(UTC)
 
         db.flush()
         db.commit()

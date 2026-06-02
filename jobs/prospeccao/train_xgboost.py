@@ -10,10 +10,9 @@ from __future__ import annotations
 
 import json
 import logging
-import random
 import sys
 from collections import defaultdict
-from datetime import datetime, timezone
+from datetime import UTC, datetime
 from typing import Any
 
 from sqlalchemy.orm import Session
@@ -372,7 +371,7 @@ def train_ranker(
     allow_baseline: bool = True,
 ) -> dict[str, Any]:
     rows = _load_training_rows(db, pipeline_version)
-    model_version = model_version or f"{pipeline_version}-{datetime.now(timezone.utc).strftime('%Y%m%d%H%M%S')}"
+    model_version = model_version or f"{pipeline_version}-{datetime.now(UTC).strftime('%Y%m%d%H%M%S')}"
     schema_json = rows[0].feature_schema_json if rows else _json(
         [{"name": name, "type": "float", "version": pipeline_version} for name in FEATURE_NAMES]
     )
@@ -660,7 +659,7 @@ def train_ranker(
         metricas_json=_json(metrics),
         artefato_path=artifact_path,
         ativo=should_activate,
-        treinado_em=datetime.now(timezone.utc),
+        treinado_em=datetime.now(UTC),
     )
     db.add(model)
     db.flush()

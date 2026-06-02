@@ -7,6 +7,7 @@ from __future__ import annotations
 import base64
 import contextlib
 import json
+import logging
 import os
 import re
 from datetime import date, datetime, time, timedelta
@@ -24,6 +25,8 @@ from banco_dados.services import (
     nik_validacao as val,
 )
 from banco_dados.utils.cache import obter_cache
+
+logger = logging.getLogger(__name__)
 
 _FALLBACK_RESUMO = (
     "Painel operacional carregado. Consulte os indicadores e o monitoramento para priorizar os coletores em atenção."

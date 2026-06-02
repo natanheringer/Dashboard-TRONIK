@@ -111,7 +111,7 @@ def verificar_alertas_sensores(db: Session) -> list[dict]:
             notificacoes_por_sensor[notif.sensor_id].append(notif)
 
         # Pré-carregar todos os coletores relevantes (evita N+1)
-        coletor_ids = list(set(s.coletor_id for s in sensores))
+        coletor_ids = list({s.coletor_id for s in sensores})
         coletores = db.query(Coletor).filter(Coletor.id.in_(coletor_ids)).all()
 
         # Criar dicionário {coletor_id: coletor} para lookup O(1)

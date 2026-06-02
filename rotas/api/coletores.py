@@ -97,7 +97,6 @@ def obter_lixeira(coletor_id):
             raise ErroNaoEncontrado("Coletor", coletor_id)
 
         # [SEGURANÇA] Verificar se o usuário tem acesso ao coletor deste parceiro
-        from flask_login import current_user
         parceiro_id = escopo_parceiro_id()
         if parceiro_id is not None and coletor.parceiro_id != parceiro_id:
             return jsonify({"erro": "Acesso negado"}), 403
