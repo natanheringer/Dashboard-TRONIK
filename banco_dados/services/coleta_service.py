@@ -120,14 +120,13 @@ def criar_coleta(db: Session, dados: dict) -> Coleta:
     )
 
     db.add(nova_coleta)
-    db.refresh(nova_coleta)
+    db.flush()
 
     # Atualizar última coleta da coletor
     coletor = db.query(Coletor).filter(Coletor.id == dados['coletor_id']).first()
     if coletor:
         coletor.ultima_coleta = data_hora
 
-    # Commit único para ambas operações
     db.commit()
 
     logger.info(f"Coleta criada: ID {nova_coleta.id} para coletor {dados['coletor_id']}")

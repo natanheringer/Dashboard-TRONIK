@@ -1,4 +1,4 @@
-"""Tests for ranker 19-feature vector and equal-frequency label binning."""
+"""Tests for ranker 20-feature vector and equal-frequency label binning."""
 
 from collections import Counter
 from datetime import datetime
@@ -73,22 +73,22 @@ class TestEqualFrequencyOrdinalLabels:
 
 class TestFeatureVectorContract:
     def test_feature_names_length(self):
-        assert len(FEATURE_NAMES) == 19
+        assert len(FEATURE_NAMES) == 20
 
     def test_reason_labels_mirror_feature_contract(self):
         assert set(FEATURE_REASON_LABELS) == set(FEATURE_NAMES)
 
     def test_schema_version_and_entries(self):
         schema = feature_schema()
-        assert len(schema) == 19
+        assert len(schema) == 20
         assert all(entry["name"] in FEATURE_NAMES for entry in schema)
         assert all(entry["version"] == FEATURE_SCHEMA_VERSION for entry in schema)
-        assert FEATURE_SCHEMA_VERSION == "prospeccao-ree-v3.3"
+        assert FEATURE_SCHEMA_VERSION == "prospeccao-ree-v3.4"
 
     def test_monotonic_constraints_aligned(self):
         assert len(MONOTONIC_CONSTRAINTS) == len(FEATURE_NAMES)
 
-    def test_build_feature_vector_has_nineteen_keys(self):
+    def test_build_feature_vector_has_twenty_keys(self):
         empresa = MockEmpresa()
         local = MockLocal()
         vec = build_feature_vector(
@@ -97,7 +97,7 @@ class TestFeatureVectorContract:
             neighborhood={"qid_total": 10, "qid_ree_compatible": 4},
         )
         assert set(vec.keys()) == set(FEATURE_NAMES)
-        assert len(vec) == 19
+        assert len(vec) == 20
         validate_feature_contract(vec)
 
     def test_enrichment_proxies_merged_when_provided(self):

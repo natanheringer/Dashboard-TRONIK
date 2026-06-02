@@ -22,7 +22,7 @@ import logging
 import re
 import unicodedata
 from dataclasses import dataclass, field
-from datetime import UTC, datetime
+from datetime import datetime
 from typing import Any
 
 from sqlalchemy import func
@@ -37,6 +37,7 @@ from banco_dados.modelos import (
     Parceiro,
     Pipeline,
 )
+from banco_dados.utils.datetime_utils import coerce_naive_utc, utc_now_naive
 
 logger = logging.getLogger(__name__)
 
@@ -213,7 +214,7 @@ def build_internal_label_index(db: Session, cutoff_date: datetime | None = None)
     by_cnpj: dict[str, InternalSiteSignals] = {}
     by_pipeline_won: dict[str, InternalSiteSignals] = {}
     localizacao_digit_blobs: list[tuple[str, InternalSiteSignals]] = []
-    now = datetime.now(UTC)
+    now = utc_now_naive()
     diagnostics: dict[str, int] = {
         "register_by_norm_name": 0,
         "register_by_norm_localizacao": 0,
@@ -435,7 +436,8 @@ def internal_relevance_continuous(
     if signals.volume_total_kg > 0:
         score += min(signals.volume_total_kg / 10.0, 25.0)
     if signals.last_coleta_at:
-        days = max(0, (datetime.now(UTC) - signals.last_coleta_at).days)
+        last = coerce_naive_utc(signals.last_coleta_at)
+        days = max(0, (utc_now_naive() - last).days)
         if days <= 30:
             score += 20.0
         elif days <= 90:

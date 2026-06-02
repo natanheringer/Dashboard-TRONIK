@@ -188,10 +188,11 @@ class TestLookupInternalScore:
         assert score is None
         assert meta == {"matched": False}
 
-    def test_pipeline_won_boosts_score(self):
+    def test_pipeline_won_excluded_from_training_score(self):
+        """pipeline_won is outcome data — must not leak into label continuous score."""
         plain = InternalSiteSignals(coleta_count=1)
         won = InternalSiteSignals(coleta_count=1, pipeline_won=True)
-        assert internal_relevance_continuous(won) > internal_relevance_continuous(plain)
+        assert internal_relevance_continuous(won) == internal_relevance_continuous(plain)
 
     def test_crm_persisted_link_boosts_score_when_enabled(self):
         key = normalize_org_name("Parceiro CRM")

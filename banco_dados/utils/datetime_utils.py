@@ -30,6 +30,15 @@ def utc_now_naive():
     return datetime.now(UTC).replace(tzinfo=None)
 
 
+def coerce_naive_utc(value: datetime | None) -> datetime | None:
+    """Normaliza datetime aware/naive para UTC naive (comparável com utc_now_naive)."""
+    if value is None:
+        return None
+    if value.tzinfo is not None:
+        return value.astimezone(UTC).replace(tzinfo=None)
+    return value
+
+
 def get_dias_uteis_mes(ano: int, mes: int) -> int:
     """
     Calcula o número de dias úteis em um mês (excluindo sábados e domingos).

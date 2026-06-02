@@ -88,9 +88,8 @@ class TestListwiseTrainingQid:
         empresa = MockEmpresa(bairro=None, cep=None, cnae_principal=None)
         local = MockLocal(bairro=None, cep=None)
         qid = listwise_training_qid(empresa, local)
-        # Sparse rows: zone, cep3 bucket, hash shard — never bare df:df
-        assert qid.startswith(('zone:', 'df:', 'cnae4:', 'ltr~'))
-        assert qid != 'df:df'
+        # Sparse rows without geo/address → dedicated bucket (not monolithic df:df)
+        assert qid == 'unlocated'
 
     def test_go_state_entorno(self):
         """GO state should generate entorno: prefix."""
