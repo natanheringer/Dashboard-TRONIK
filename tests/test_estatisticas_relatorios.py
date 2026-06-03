@@ -95,9 +95,9 @@ class TestEstatisticas:
 class TestRelatorios:
     """Testes do endpoint de relatórios"""
 
-    def test_obter_relatorios_empty(self, client, db_session):
+    def test_obter_relatorios_empty(self, auth_client, db_session):
         """Testa obter relatórios quando não há coletas"""
-        response = client.get('/api/relatorios')
+        response = auth_client.get('/api/relatorios')
         assert response.status_code == 200
         data = response.get_json()
         assert 'resumo' in data
@@ -105,7 +105,7 @@ class TestRelatorios:
         assert data['resumo']['total_coletas'] == 0
         assert data['resumo']['volume_total'] == 0.0
 
-    def test_obter_relatorios_with_data(self, client, db_session):
+    def test_obter_relatorios_with_data(self, auth_client, db_session):
         """Testa obter relatórios com dados"""
         # Criar coletor e coletas
         tipo_material = db_session.query(TipoMaterial).first()
@@ -154,7 +154,7 @@ class TestRelatorios:
         db_session.commit()
 
         # Obter relatórios
-        response = client.get('/api/relatorios')
+        response = auth_client.get('/api/relatorios')
         assert response.status_code == 200
         data = response.get_json()
         assert 'resumo' in data
@@ -166,7 +166,7 @@ class TestRelatorios:
         assert 'lucro_total' in resumo
         assert 'coletas_por_coletor' in resumo
 
-    def test_obter_relatorios_filter_by_date(self, client, db_session):
+    def test_obter_relatorios_filter_by_date(self, auth_client, db_session):
         """Testa filtrar relatórios por data"""
         # Criar coletor
         tipo_material = db_session.query(TipoMaterial).first()
@@ -199,13 +199,13 @@ class TestRelatorios:
         db_session.commit()
 
         # Filtrar por data
-        response = client.get('/api/relatorios?data_inicio=2025-11-20&data_fim=2025-11-20')
+        response = auth_client.get('/api/relatorios?data_inicio=2025-11-20&data_fim=2025-11-20')
         assert response.status_code == 200
         data = response.get_json()
         assert 'resumo' in data
         assert data['resumo']['total_coletas'] >= 1
 
-    def test_obter_relatorios_calculo_combustivel(self, client, db_session):
+    def test_obter_relatorios_calculo_combustivel(self, auth_client, db_session):
         """Testa cálculo correto de custo de combustível"""
         # Criar coletor e coleta
         tipo_material = db_session.query(TipoMaterial).first()
@@ -240,7 +240,7 @@ class TestRelatorios:
         db_session.commit()
 
         # Obter relatórios
-        response = client.get('/api/relatorios')
+        response = auth_client.get('/api/relatorios')
         assert response.status_code == 200
         data = response.get_json()
         assert 'resumo' in data
@@ -249,7 +249,7 @@ class TestRelatorios:
         # Verificar cálculo: (10 / 4) * 5.50 = 13.75
         assert abs(resumo['custo_combustivel_total'] - 13.75) < 0.01
 
-    def test_obter_relatorios_calculo_lucro(self, client, db_session):
+    def test_obter_relatorios_calculo_lucro(self, auth_client, db_session):
         """Testa cálculo correto de lucro total"""
         # Criar coletor e coleta
         tipo_material = db_session.query(TipoMaterial).first()
@@ -281,7 +281,7 @@ class TestRelatorios:
         db_session.commit()
 
         # Obter relatórios
-        response = client.get('/api/relatorios')
+        response = auth_client.get('/api/relatorios')
         assert response.status_code == 200
         data = response.get_json()
         assert 'resumo' in data
@@ -325,18 +325,18 @@ class TestRelatorios:
         assert math.isfinite(resultado['custo_combustivel_total'])
         assert math.isfinite(resultado['lucro_total'])
 
-    def test_obter_relatorios_paginacao_valida(self, client, db_session):
+    def test_obter_relatorios_paginacao_valida(self, auth_client, db_session):
         """Testa paginação válida em relatórios"""
-        response = client.get('/api/relatorios?pagina=1&por_pagina=10')
+        response = auth_client.get('/api/relatorios?pagina=1&por_pagina=10')
         assert response.status_code == 200
 
-    def test_obter_relatorios_paginacao_invalida(self, client):
+    def test_obter_relatorios_paginacao_invalida(self, auth_client):
         """Testa paginação inválida em relatórios (valores são ajustados)"""
-        response = client.get('/api/relatorios?pagina=0')
+        response = auth_client.get('/api/relatorios?pagina=0')
         assert response.status_code == 200
         # Página 0 é ajustada para 1
 
-        response = client.get('/api/relatorios?por_pagina=200')
+        response = auth_client.get('/api/relatorios?por_pagina=200')
         assert response.status_code == 200
         # por_pagina 200 é ajustado para o máximo
 

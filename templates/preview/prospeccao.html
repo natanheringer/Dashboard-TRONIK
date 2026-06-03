@@ -205,6 +205,53 @@
     font-weight: 600;
   }
 
+  .prosp-table th.prosp-sortable {
+    cursor: pointer;
+    user-select: none;
+    white-space: nowrap;
+  }
+
+  .prosp-table th.prosp-sortable:hover {
+    color: var(--ink-primary);
+  }
+
+  .prosp-sort-ind {
+    margin-left: 4px;
+    font-size: 10px;
+    opacity: 0.6;
+  }
+
+  .prosp-limite-row {
+    display: flex;
+    gap: var(--space-2);
+    align-items: center;
+  }
+
+  .prosp-limite-warn {
+    display: none;
+    margin-top: var(--space-2);
+    padding: var(--space-2) var(--space-3);
+    border-radius: var(--radius-md);
+    border: 1px solid var(--signal-warn);
+    background: var(--signal-warn-soft);
+    font-size: var(--text-xs);
+    color: var(--ink-secondary);
+  }
+
+  .prosp-limite-warn.is-visible {
+    display: block;
+  }
+
+  .prosp-limite-row input[type="number"] {
+    flex: 1;
+    min-width: 0;
+    padding: var(--space-2) var(--space-3);
+    border: 1px solid var(--line-default);
+    border-radius: var(--radius-md);
+    background: var(--paper-card);
+    font-size: var(--text-sm);
+  }
+
   @media (max-width: 1024px) {
     .rel-layout {
       grid-template-columns: 1fr;
@@ -252,13 +299,14 @@
         </select>
       </div>
       <div class="rel-filter-group">
-        <label for="prosp-limite">Limite</label>
-        <select id="prosp-limite" name="limite">
-          <option value="25">25</option>
-          <option value="50" selected>50</option>
-          <option value="100">100</option>
-          <option value="200">200</option>
-        </select>
+        <label for="prosp-limite">Quantidade</label>
+        <div class="prosp-limite-row">
+          <input type="number" id="prosp-limite" name="limite" min="1" max="1000" value="50" step="1">
+        </div>
+        <p class="rel-filter-help" style="margin-top:var(--space-2);">1–1000 linhas · acima de 200 pode demorar</p>
+        <p id="prosp-limite-warn" class="prosp-limite-warn" role="status">
+          Limite alto: a consulta pode levar dezenas de segundos com filas grandes.
+        </p>
       </div>
       <button type="submit" class="btn btn-primary rel-apply-btn">Atualizar fila</button>
     </form>
@@ -285,10 +333,10 @@
       <table class="prosp-table" aria-label="Candidatos à prospecção">
         <thead>
           <tr>
-            <th>Empresa</th>
-            <th>Score</th>
-            <th>Prioridade</th>
-            <th>QID</th>
+            <th class="prosp-sortable" data-sort="empresa" scope="col">Empresa <span class="prosp-sort-ind" aria-hidden="true"></span></th>
+            <th class="prosp-sortable" data-sort="score" scope="col">Score <span class="prosp-sort-ind" aria-hidden="true"></span></th>
+            <th class="prosp-sortable" data-sort="prioridade" scope="col">Prioridade <span class="prosp-sort-ind" aria-hidden="true"></span></th>
+            <th class="prosp-sortable" data-sort="qid" scope="col">QID <span class="prosp-sort-ind" aria-hidden="true"></span></th>
             <th>Motivos</th>
             <th>Mapa</th>
             <th>CRM</th>

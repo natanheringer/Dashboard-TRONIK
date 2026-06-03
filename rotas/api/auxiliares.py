@@ -209,7 +209,7 @@ def listar_tipos_coletor():
 
 
 @auxiliares_bp.route('/coletores/simular-niveis', methods=['POST'])
-@login_required
+@decorators.admin_required
 @decorators.rate_limit("10 per minute")
 def simular_niveis():
     """Endpoint para simular mudança de níveis de coletores"""

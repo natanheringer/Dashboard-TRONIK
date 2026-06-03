@@ -17,7 +17,7 @@ from math import atan2, cos, radians, sin, sqrt
 from typing import Any
 
 from sqlalchemy import func
-from sqlalchemy.orm import Session
+from sqlalchemy.orm import Session, joinedload
 
 from banco_dados.modelos import (
     Coleta,
@@ -304,6 +304,7 @@ def obter_ranking(db: Session, limite: int = 50) -> list[dict[str, Any]]:
     """
     scores = (
         db.query(TronikScore)
+        .options(joinedload(TronikScore.coletor).joinedload(Coletor.parceiro))
         .order_by(TronikScore.score.desc())
         .limit(limite)
         .all()
@@ -311,7 +312,7 @@ def obter_ranking(db: Session, limite: int = 50) -> list[dict[str, Any]]:
 
     ranking = []
     for i, ts in enumerate(scores, 1):
-        coletor = db.query(Coletor).filter(Coletor.id == ts.coletor_id).first()
+        coletor = ts.coletor
         if not coletor:
             continue
         ranking.append({

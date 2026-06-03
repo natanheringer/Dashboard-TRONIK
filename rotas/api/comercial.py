@@ -5,7 +5,7 @@ Endpoints para dashboard comercial e metas.
 """
 
 from flask import Blueprint, jsonify, request
-from flask_login import current_user, login_required
+from flask_login import current_user
 
 from banco_dados.modelos import MetaComercial, PreferenciaLayout
 from banco_dados.seguranca import validar_meta_comercial
@@ -13,6 +13,7 @@ from banco_dados.services.comercial_service import ComercialService
 from banco_dados.utils.db_session import get_db_session
 from banco_dados.utils.logger import obter_logger
 from rotas.api import decorators
+from rotas.api.decorators import admin_required
 
 logger = obter_logger(__name__)
 
@@ -20,7 +21,7 @@ comercial_bp = Blueprint('comercial_api', __name__, url_prefix='/comercial')
 
 
 @comercial_bp.route('/dashboard', methods=['GET'])
-@login_required
+@admin_required
 @decorators.rate_limit("30 per minute")
 def get_dashboard():
     """
@@ -63,7 +64,7 @@ def get_dashboard():
 
 
 @comercial_bp.route('/meta', methods=['GET'])
-@login_required
+@admin_required
 def get_meta_atual():
     """
     GET /api/comercial/meta
@@ -79,7 +80,7 @@ def get_meta_atual():
 
 
 @comercial_bp.route('/meta', methods=['PUT'])
-@login_required
+@admin_required
 @decorators.rate_limit("10 per minute")
 def atualizar_meta():
     """
@@ -164,7 +165,7 @@ def atualizar_meta():
 
 
 @comercial_bp.route('/meta/historico', methods=['GET'])
-@login_required
+@admin_required
 def get_historico_metas():
     """
     GET /api/comercial/meta/historico?limite=12&mes=11&ano=2025
@@ -212,7 +213,7 @@ def get_historico_metas():
 
 
 @comercial_bp.route('/atualizar', methods=['POST'])
-@login_required
+@admin_required
 def forcar_atualizacao():
     """
     POST /api/comercial/atualizar
@@ -228,7 +229,7 @@ def forcar_atualizacao():
 
 
 @comercial_bp.route('/metricas', methods=['GET'])
-@login_required
+@admin_required
 def get_metricas():
     """
     GET /api/comercial/metricas?mes=11&ano=2025
@@ -246,7 +247,7 @@ def get_metricas():
 
 
 @comercial_bp.route('/parceiros', methods=['GET'])
-@login_required
+@admin_required
 def get_analise_parceiros():
     """
     GET /api/comercial/parceiros?mes=11&ano=2025
@@ -264,7 +265,7 @@ def get_analise_parceiros():
 
 
 @comercial_bp.route('/comparar', methods=['GET'])
-@login_required
+@admin_required
 def comparar_meses():
     """
     GET /api/comercial/comparar
@@ -280,7 +281,7 @@ def comparar_meses():
 
 
 @comercial_bp.route('/layout', methods=['POST'])
-@login_required
+@admin_required
 def salvar_layout():
     """
     POST /api/comercial/layout
@@ -329,7 +330,7 @@ def salvar_layout():
 
 
 @comercial_bp.route('/layout', methods=['GET'])
-@login_required
+@admin_required
 def obter_layout():
     """
     GET /api/comercial/layout

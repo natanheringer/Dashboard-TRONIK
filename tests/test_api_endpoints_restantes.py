@@ -141,7 +141,7 @@ class TestSimularNiveis:
         usuario = Usuario(
             username='testuser_simular',
             email='testsimular@example.com',
-            admin=False,
+            admin=True,
             ativo=True
         )
         usuario.set_senha('TestPass123!')
@@ -204,7 +204,7 @@ class TestSimularNiveis:
         usuario = Usuario(
             username='testuser_simular2',
             email='testsimular2@example.com',
-            admin=False,
+            admin=True,
             ativo=True
         )
         usuario.set_senha('TestPass123!')

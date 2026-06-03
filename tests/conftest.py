@@ -172,6 +172,26 @@ def auth_client(client, db_session):
 
 
 @pytest.fixture
+def admin_client(client, db_session):
+    """Cliente Flask autenticado como administrador."""
+    admin = Usuario(
+        username="admin_api",
+        email="admin_api@test.local",
+        ativo=True,
+        admin=True,
+    )
+    admin.set_senha("AdminApi123!")
+    db_session.add(admin)
+    db_session.commit()
+    r = client.post(
+        "/auth/login",
+        json={"username": "admin_api", "senha": "AdminApi123!"},
+    )
+    assert r.status_code == 200, r.get_data(as_text=True)
+    return client
+
+
+@pytest.fixture
 def auth_headers(client, db_session):
     """Cria um usuário de teste e retorna headers de autenticação"""
     # Criar usuário de teste

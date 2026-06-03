@@ -89,7 +89,7 @@ class TestCriarLixeira:
         usuario = Usuario(
             username='testuser',
             email='test@example.com',
-            admin=False,
+            admin=True,
             ativo=True
         )
         usuario.set_senha('testpass123')
@@ -136,7 +136,7 @@ class TestCriarLixeira:
         usuario = Usuario(
             username='testuser',
             email='test@example.com',
-            admin=False,
+            admin=True,
             ativo=True
         )
         usuario.set_senha('testpass123')
@@ -162,7 +162,7 @@ class TestCriarLixeira:
         usuario = Usuario(
             username='testuser',
             email='test@example.com',
-            admin=False,
+            admin=True,
             ativo=True
         )
         usuario.set_senha('testpass123')
@@ -259,10 +259,10 @@ class TestObterLixeira:
         assert response.status_code == 200
         # por_pagina 200 é ajustado para o máximo
 
-    def test_criar_lixeira_coordenadas_invalidas(self, auth_client, auth_headers):
+    def test_criar_lixeira_coordenadas_invalidas(self, admin_client):
         """Testa criação com coordenadas inválidas"""
         # Latitude fora do range
-        response = auth_client.post('/api/coletor', json={
+        response = admin_client.post('/api/coletor', json={
             'localizacao': 'Teste',
             'nivel_preenchimento': 50.0,
             'latitude': 91.0,
@@ -271,7 +271,7 @@ class TestObterLixeira:
         assert response.status_code == 400
 
         # Longitude fora do range
-        response = auth_client.post('/api/coletor', json={
+        response = admin_client.post('/api/coletor', json={
             'localizacao': 'Teste',
             'nivel_preenchimento': 50.0,
             'latitude': -15.7942,
@@ -279,34 +279,34 @@ class TestObterLixeira:
         })
         assert response.status_code == 400
 
-    def test_criar_lixeira_tipo_invalido(self, auth_client, auth_headers):
+    def test_criar_lixeira_tipo_invalido(self, admin_client):
         """Testa criação com tipos inválidos"""
         # Nível como string
-        response = auth_client.post('/api/coletor', json={
+        response = admin_client.post('/api/coletor', json={
             'localizacao': 'Teste',
             'nivel_preenchimento': 'invalid'
         })
         assert response.status_code == 400
 
         # Latitude como string
-        response = auth_client.post('/api/coletor', json={
+        response = admin_client.post('/api/coletor', json={
             'localizacao': 'Teste',
             'nivel_preenchimento': 50.0,
             'latitude': 'invalid'
         })
         assert response.status_code == 400
 
-    def test_criar_lixeira_range_invalido(self, auth_client, auth_headers):
+    def test_criar_lixeira_range_invalido(self, admin_client):
         """Testa criação com ranges inválidos"""
         # Nível > 100
-        response = auth_client.post('/api/coletor', json={
+        response = admin_client.post('/api/coletor', json={
             'localizacao': 'Teste',
             'nivel_preenchimento': 150.0
         })
         assert response.status_code == 400
 
         # Nível < 0
-        response = auth_client.post('/api/coletor', json={
+        response = admin_client.post('/api/coletor', json={
             'localizacao': 'Teste',
             'nivel_preenchimento': -10.0
         })

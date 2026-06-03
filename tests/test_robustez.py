@@ -84,13 +84,13 @@ class TestValidacaoPaginacao:
         assert response.status_code == 200
         # por_pagina 200 é ajustado para o máximo
 
-    def test_paginacao_relatorios(self, client):
+    def test_paginacao_relatorios(self, auth_client):
         """Testa validação de paginação em relatórios"""
-        response = client.get('/api/relatorios?pagina=0')
+        response = auth_client.get('/api/relatorios?pagina=0')
         assert response.status_code == 200
         # Página 0 é ajustada para 1
 
-        response = client.get('/api/relatorios?por_pagina=200')
+        response = auth_client.get('/api/relatorios?por_pagina=200')
         assert response.status_code == 200
         # por_pagina 200 é ajustado para o máximo
 
@@ -190,7 +190,7 @@ class TestValidacaoNaNInfinity:
 class TestValidacaoCoordenadas:
     """Testes de validação de coordenadas"""
 
-    def test_coordenadas_validas(self, client, auth_headers):
+    def test_coordenadas_validas(self, client, admin_headers):
         """Testa criação de coletor com coordenadas válidas"""
         response = client.post('/api/coletor', json={
             'localizacao': 'Teste Coordenadas',
@@ -200,7 +200,7 @@ class TestValidacaoCoordenadas:
         })
         assert response.status_code in [201, 400]  # Pode ser 400 se precisar de mais campos
 
-    def test_coordenadas_latitude_fora_range(self, client, auth_headers):
+    def test_coordenadas_latitude_fora_range(self, client, admin_headers):
         """Testa que latitude fora do range retorna erro"""
         response = client.post('/api/coletor', json={
             'localizacao': 'Teste',
@@ -210,7 +210,7 @@ class TestValidacaoCoordenadas:
         })
         assert response.status_code == 400
 
-    def test_coordenadas_longitude_fora_range(self, client, auth_headers):
+    def test_coordenadas_longitude_fora_range(self, client, admin_headers):
         """Testa que longitude fora do range retorna erro"""
         response = client.post('/api/coletor', json={
             'localizacao': 'Teste',
@@ -509,7 +509,7 @@ class TestRetryEmails:
 class TestValidacaoEntradaAPI:
     """Testes de validação de entrada em APIs"""
 
-    def test_criar_lixeira_tipo_invalido(self, client, auth_headers):
+    def test_criar_lixeira_tipo_invalido(self, client, admin_headers):
         """Testa criação de coletor com tipos inválidos"""
         # Latitude como string
         response = client.post('/api/coletor', json={
@@ -519,7 +519,7 @@ class TestValidacaoEntradaAPI:
         })
         assert response.status_code == 400
 
-    def test_criar_lixeira_range_invalido(self, client, auth_headers):
+    def test_criar_lixeira_range_invalido(self, client, admin_headers):
         """Testa criação de coletor com ranges inválidos"""
         # Nível > 100
         response = client.post('/api/coletor', json={

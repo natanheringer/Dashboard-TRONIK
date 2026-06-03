@@ -34,3 +34,29 @@ def test_criar_pipeline_clears_stale_empresa_pipeline_fk():
     assert pipe is not None
     assert pipe.origem == "prospeccao_ree"
     db.close()
+
+
+def test_criar_pipeline_segunda_chamada_retorna_vinculado():
+    engine = create_engine("sqlite:///:memory:")
+    Base.metadata.create_all(engine)
+    Session = sessionmaker(bind=engine)
+    db = Session()
+
+    db.add(
+        EmpresaCandidata(
+            cnpj="12345678000196",
+            razao_social="Idempotente Ltda",
+        ),
+    )
+    db.commit()
+
+    empresa = db.query(EmpresaCandidata).first()
+    first = criar_pipeline_de_candidato(db, empresa.id, usuario_id=1)
+    second = criar_pipeline_de_candidato(db, empresa.id, usuario_id=1)
+
+    assert first is not None
+    assert second is not None
+    assert first["pipeline_id"] == second["pipeline_id"]
+    assert second.get("ja_vinculado") is True
+    assert db.query(Pipeline).count() == 1
+    db.close()

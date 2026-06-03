@@ -150,7 +150,10 @@ app.config['PREVIEW_SHOW_BADGE'] = os.getenv('PREVIEW_SHOW_BADGE', 'false').stri
 # Configurações básicas
 app.config['JSON_SORT_KEYS'] = False
 app.config['SESSION_COOKIE_HTTPONLY'] = True
-app.config['SESSION_COOKIE_SAMESITE'] = 'Lax'
+if FLASK_ENV == 'production':
+    app.config['SESSION_COOKIE_SAMESITE'] = 'Strict'
+else:
+    app.config['SESSION_COOKIE_SAMESITE'] = 'Lax'
 app.config['PERMANENT_SESSION_LIFETIME'] = 3600  # 1 hora
 
 # Configuração de CORS - Restrito a origens específicas
@@ -414,14 +417,13 @@ aplicar_compat_schema(engine)
 # Produção: flags inseguras — log ERROR (não derruba o processo)
 if FLASK_ENV == "production":
     if os.getenv("PREVIEW_PUBLIC", "").strip().lower() in {"1", "true", "yes"}:
-        logger.error(
-            "SEGURANCA: PREVIEW_PUBLIC=true em producao — /preview sem login. "
-            "Desligue antes de expor na Internet."
+        raise SystemExit(
+            "SEGURANCA: PREVIEW_PUBLIC=true em producao — desligue antes de iniciar o app."
         )
     if os.getenv("TELEMETRIA_ALLOW_NO_TOKEN", "").strip().lower() in {
         "1", "true", "yes"
     }:
-        logger.error(
+        raise SystemExit(
             "SEGURANCA: TELEMETRIA_ALLOW_NO_TOKEN=true em producao — "
             "telemetria aceita POST sem token. Desligue em ambientes expostos."
         )

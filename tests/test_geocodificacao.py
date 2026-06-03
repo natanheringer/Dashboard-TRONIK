@@ -167,7 +167,7 @@ class TestGeocodificacaoAutomatica:
         usuario = Usuario(
             username='testuser_auto_geo',
             email='testautogeo@example.com',
-            admin=False,
+            admin=True,
             ativo=True
         )
         usuario.set_senha('TestPass123!')

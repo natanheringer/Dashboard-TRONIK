@@ -66,8 +66,8 @@ def notificacoes():
 
 @paginas_bp.route('/comercial')
 def comercial():
-    """Redireciona para o dashboard comercial no preview v2."""
-    return redirect(url_for('preview.comercial'), code=301)
+    """Redireciona para o CRM no preview v2 (comercial unificado)."""
+    return redirect(url_for('preview.crm'), code=301)
 
 @paginas_bp.route('/crm')
 def crm():
@@ -76,5 +76,5 @@ def crm():
 
 @paginas_bp.route('/contratos')
 def contratos():
-    """Redireciona para contratos no preview v2."""
-    return redirect(url_for('preview.contratos'), code=301)
+    """Redireciona para o CRM no preview v2 (contratos unificados)."""
+    return redirect(url_for('preview.crm'), code=301)

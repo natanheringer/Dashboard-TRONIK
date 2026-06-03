@@ -20,7 +20,7 @@ from banco_dados.utils.erros import (
 from banco_dados.utils.logger import obter_logger
 from banco_dados.utils.validacao import validar_paginacao
 from rotas.api import decorators
-from rotas.api.decorators import get_db
+from rotas.api.decorators import escopo_parceiro_id, get_db
 
 logger = obter_logger(__name__)
 
@@ -42,7 +42,7 @@ def listar_coletas():
 
         # Filtros
         coletor_id = request.args.get('coletor_id', type=int)
-        parceiro_id = request.args.get('parceiro_id', type=int)
+        parceiro_id = escopo_parceiro_id(request.args.get('parceiro_id', type=int))
         tipo_operacao = request.args.get('tipo_operacao')
         data_inicio = request.args.get('data_inicio')
         data_fim = request.args.get('data_fim')
@@ -94,10 +94,13 @@ def obter_historico():
         data_inicio = data_filtro
         data_fim = data_filtro
 
+        parceiro_id = escopo_parceiro_id()
+
         coletas, total_count = obter_coletas_com_filtros(
             db,
             data_inicio=data_inicio,
             data_fim=data_fim,
+            parceiro_id=parceiro_id,
             pagina=pagina,
             por_pagina=por_pagina
         )

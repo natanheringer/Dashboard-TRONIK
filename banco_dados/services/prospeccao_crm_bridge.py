@@ -4,7 +4,7 @@ from __future__ import annotations
 
 from typing import Any
 
-from sqlalchemy import func
+from sqlalchemy import func, or_, text
 from sqlalchemy.orm import Session, joinedload
 
 from banco_dados.modelos import Coletor, EmpresaCandidata, LocalCandidato, Pipeline, ScoreProspeccao
@@ -17,10 +17,27 @@ from jobs.prospeccao.labels_internal import (
     normalize_org_name,
 )
 from jobs.prospeccao.publish_scores import (
-    percentile_map_for_qid,
+    _percentile_map_for_score_ids,
     resolve_model,
     serialize_published_score_row,
 )
+
+
+def _sync_pipeline_id_sequence(db: Session) -> None:
+    """Corrige sequence Postgres desalinhada após import/migração manual."""
+    if db.get_bind().dialect.name != "postgresql":
+        return
+    db.execute(
+        text(
+            """
+            SELECT setval(
+                pg_get_serial_sequence('pipeline', 'id'),
+                GREATEST(COALESCE((SELECT MAX(id) FROM pipeline), 0), 1),
+                true
+            )
+            """
+        )
+    )
 
 
 def _observacoes_pipeline_prospeccao(
@@ -37,6 +54,16 @@ def _observacoes_pipeline_prospeccao(
     return "\n".join(partes)[:1000]
 
 
+def _sql_like_contains(normalized: str) -> str:
+    """Pattern LIKE seguro (escapa % e _ após normalize_org_name)."""
+    escaped = (
+        normalized.replace("\\", "\\\\")
+        .replace("%", "\\%")
+        .replace("_", "\\_")
+    )
+    return f"%{escaped}%"
+
+
 def criar_pipeline_de_candidato(
     db: Session,
     empresa_id: int,
@@ -47,7 +74,12 @@ def criar_pipeline_de_candidato(
     status: str | None = None,
 ) -> dict[str, Any] | None:
     """Cria lead CRM a partir de ``EmpresaCandidata`` e vincula ``pipeline_id``."""
-    empresa = db.query(EmpresaCandidata).filter_by(id=empresa_id).first()
+    empresa = (
+        db.query(EmpresaCandidata)
+        .filter_by(id=empresa_id)
+        .with_for_update()
+        .first()
+    )
     if not empresa:
         return None
 
@@ -66,11 +98,26 @@ def criar_pipeline_de_candidato(
         empresa.atualizado_em = utc_now_naive()
         db.flush()
 
+    # Revalidar após lock — outra transação pode ter vinculado enquanto esperávamos
+    db.refresh(empresa)
+    if empresa.pipeline_id:
+        pipeline = db.query(Pipeline).filter_by(id=empresa.pipeline_id).first()
+        if pipeline:
+            return {
+                "pipeline_id": pipeline.id,
+                "empresa_id": empresa.id,
+                "status": pipeline.status,
+                "valor_estimado": float(pipeline.valor_estimado or 0),
+                "origem": pipeline.origem,
+                "ja_vinculado": True,
+            }
+
     status_final = (status or "lead").strip().lower()
     if status_final not in CRMService.STATUS_PROBABILIDADE:
         raise ValueError(f"Status inválido: {status_final}")
 
     valor = float(valor_estimado) if valor_estimado is not None else 0.0
+    _sync_pipeline_id_sequence(db)
     pipeline = Pipeline(
         status=status_final,
         valor_estimado=valor,
@@ -131,16 +178,36 @@ def _match_empresa_por_nome(
 
 
 def _attach_score_percentis(db: Session, model_id: int, rows: list[dict[str, Any]]) -> None:
-    cache: dict[str, dict[int, float]] = {}
+    score_ids = {int(r["id"]) for r in rows if r.get("id") is not None}
+    pct_map = _percentile_map_for_score_ids(db, model_id, score_ids)
     for row in rows:
-        qid = row.get("qid")
         sid = row.get("id")
-        if not qid or sid is None:
-            row["score_percentil"] = 0.0
-            continue
-        if qid not in cache:
-            cache[qid] = percentile_map_for_qid(db, model_id, str(qid))
-        row["score_percentil"] = cache[qid].get(int(sid), 0.0)
+        row["score_percentil"] = pct_map.get(int(sid), 0.0) if sid is not None else 0.0
+
+
+def _empresa_ids_por_busca(
+    db: Session,
+    busca_norm: str,
+    cnpjs_busca: set[str],
+    *,
+    limite: int = 80,
+) -> list[int]:
+    """Resolve candidatos por CNPJ ou nome sem varrer score_prospeccao inteiro."""
+    filtros = []
+    if cnpjs_busca:
+        filtros.append(EmpresaCandidata.cnpj.in_(list(cnpjs_busca)))
+    if busca_norm and len(busca_norm) >= 3:
+        like = _sql_like_contains(busca_norm)
+        filtros.append(
+            or_(
+                func.lower(EmpresaCandidata.razao_social).like(like),
+                func.lower(EmpresaCandidata.nome_fantasia).like(like),
+            )
+        )
+    if not filtros:
+        return []
+    q = db.query(EmpresaCandidata.id).filter(or_(*filtros)).limit(limite)
+    return [row[0] for row in q.all()]
 
 
 def buscar_candidatos_por_nome_empresa(
@@ -159,11 +226,21 @@ def buscar_candidatos_por_nome_empresa(
     if not model:
         return []
 
+    empresa_ids = _empresa_ids_por_busca(db, busca_norm, cnpjs_busca)
+    if not empresa_ids:
+        return []
+
+    fetch_cap = max(limite * 4, limite)
     rows = (
         db.query(ScoreProspeccao, EmpresaCandidata, LocalCandidato)
         .outerjoin(EmpresaCandidata, ScoreProspeccao.empresa_id == EmpresaCandidata.id)
         .outerjoin(LocalCandidato, ScoreProspeccao.local_id == LocalCandidato.id)
-        .filter(ScoreProspeccao.modelo_id == model.id)
+        .filter(
+            ScoreProspeccao.modelo_id == model.id,
+            ScoreProspeccao.empresa_id.in_(empresa_ids),
+        )
+        .order_by(ScoreProspeccao.score.desc())
+        .limit(fetch_cap)
         .all()
     )
 
@@ -264,7 +341,7 @@ def _pipelines_por_nome_empresa(db: Session, nome: str, *, limite: int = 3) -> l
     busca = normalize_org_name(nome)
     if len(busca) < 3:
         return []
-    like = f"%{busca}%"
+    like = _sql_like_contains(busca)
     rows = (
         db.query(Pipeline, Coletor)
         .outerjoin(Coletor, Pipeline.coletor_id == Coletor.id)

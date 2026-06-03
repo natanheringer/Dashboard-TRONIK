@@ -8,7 +8,6 @@ from __future__ import annotations
 
 import hashlib
 import os
-from collections import defaultdict
 from collections.abc import Sequence
 from dataclasses import dataclass
 from datetime import date, datetime, timedelta
@@ -18,6 +17,7 @@ from sqlalchemy import func
 from sqlalchemy.orm import Session, joinedload
 
 from banco_dados.modelos import Coleta, Coletor, Parceiro, Sensor
+from banco_dados.utils.cache import obter_cache
 
 # Alinhado a rotas/api/auxiliares (alerta >80) e sensores.LIMIAR_NIVEL_CHEIO
 NIVEL_ATENCAO = 80.0
@@ -118,40 +118,44 @@ def resumo_prospeccao(db: Session) -> dict[str, Any]:
 
 
 def estatisticas_resumo(db: Session) -> dict[str, Any]:
-    total = db.query(func.count(Coletor.id)).scalar()
-    hoje = date.today()
-    inicio_hoje = datetime.combine(hoje, datetime.min.time())
-    fim_hoje = inicio_hoje + timedelta(days=1)
-    coletas_hoje = (
-        db.query(Coleta)
-        .filter(Coleta.data_hora >= inicio_hoje, Coleta.data_hora < fim_hoje)
-        .count()
+    cache = obter_cache()
+
+    def calcular() -> dict[str, Any]:
+        total = db.query(func.count(Coletor.id)).scalar()
+        hoje = date.today()
+        inicio_hoje = datetime.combine(hoje, datetime.min.time())
+        fim_hoje = inicio_hoje + timedelta(days=1)
+        coletas_hoje = (
+            db.query(Coleta)
+            .filter(Coleta.data_hora >= inicio_hoje, Coleta.data_hora < fim_hoje)
+            .count()
+        )
+
+        alertas = db.query(func.count(Coletor.id)).filter(
+            Coletor.nivel_preenchimento >= NIVEL_ATENCAO
+        ).scalar()
+        criticos = db.query(func.count(Coletor.id)).filter(
+            Coletor.nivel_preenchimento >= NIVEL_CRITICO
+        ).scalar()
+
+        nivel_medio_raw = db.query(func.avg(Coletor.nivel_preenchimento)).scalar()
+        nivel_medio = round(float(nivel_medio_raw or 0), 1) if total else 0.0
+        bateria_baixa = db.query(func.count(Sensor.id)).filter(
+            Sensor.bateria < BATERIA_BAIXA
+        ).scalar()
+
+        return {
+            "total_coletores": total,
+            "alertas_ativos": alertas,
+            "criticos": criticos,
+            "nivel_medio": nivel_medio,
+            "coletas_hoje": coletas_hoje,
+            "sensores_bateria_baixa": bateria_baixa,
+        }
+
+    return cache.obter_ou_calcular(
+        "preview:estatisticas_resumo", calcular, ttl_segundos=60
     )
-
-    alertas = db.query(func.count(Coletor.id)).filter(
-        Coletor.nivel_preenchimento >= NIVEL_ATENCAO
-    ).scalar()
-    criticos = db.query(func.count(Coletor.id)).filter(
-        Coletor.nivel_preenchimento >= NIVEL_CRITICO
-    ).scalar()
-
-    # Para nível médio, ainda precisa carregar os valores
-    coletores = db.query(Coletor).all()
-    nivel_medio = (
-        round(sum(c.nivel_preenchimento for c in coletores) / total, 1) if total else 0.0
-    )
-    bateria_baixa = db.query(func.count(Sensor.id)).filter(
-        Sensor.bateria < BATERIA_BAIXA
-    ).scalar()
-
-    return {
-        "total_coletores": total,
-        "alertas_ativos": alertas,
-        "criticos": criticos,
-        "nivel_medio": nivel_medio,
-        "coletas_hoje": coletas_hoje,
-        "sensores_bateria_baixa": bateria_baixa,
-    }
 
 
 def coletores_monitoramento(db: Session) -> list[Coletor]:
@@ -443,68 +447,110 @@ def resumo_relatorios(
     periodo: PeriodoRelatorio,
     parceiro_id: int | None = None,
 ) -> dict[str, Any]:
+    """Agregações SQL — evita carregar todas as coletas do período em memória."""
+    from banco_dados.modelos import Coleta, Coletor, Parceiro
+
     t0 = datetime.combine(periodo.inicio, datetime.min.time())
     t1 = datetime.combine(periodo.fim + timedelta(days=1), datetime.min.time())
-    q = (
-        db.query(Coleta)
-        .options(joinedload(Coleta.coletor), joinedload(Coleta.parceiro))
-        .filter(Coleta.data_hora >= t0, Coleta.data_hora < t1)
-    )
+    filtros = [Coleta.data_hora >= t0, Coleta.data_hora < t1]
     if parceiro_id:
-        q = q.filter(Coleta.parceiro_id == parceiro_id)
-    coletas = q.all()
+        filtros.append(Coleta.parceiro_id == parceiro_id)
 
-    n = len(coletas)
-    vol = sum(float(c.volume_estimado or 0) for c in coletas)
-    km = sum(float(c.km_percorrido or 0) for c in coletas)
-    combustivel = sum(
-        float(c.km_percorrido or 0)
-        * float(c.preco_combustivel or 0)
-        / 4.0  # consumo medio placeholder (km/L) — so exibe ordem de grandeza
-        for c in coletas
-        if c.km_percorrido and c.preco_combustivel
+    n = db.query(func.count(Coleta.id)).filter(*filtros).scalar() or 0
+    vol = float(
+        db.query(func.coalesce(func.sum(Coleta.volume_estimado), 0.0))
+        .filter(*filtros)
+        .scalar()
+        or 0
     )
-    lucro_bruto = sum(
-        float(c.lucro_por_kg or 0) * float(c.volume_estimado or 0) for c in coletas
+    km = float(
+        db.query(func.coalesce(func.sum(Coleta.km_percorrido), 0.0))
+        .filter(*filtros)
+        .scalar()
+        or 0
+    )
+    combustivel = float(
+        db.query(
+            func.coalesce(
+                func.sum(
+                    Coleta.km_percorrido * Coleta.preco_combustivel / 4.0
+                ),
+                0.0,
+            )
+        )
+        .filter(
+            *filtros,
+            Coleta.km_percorrido.isnot(None),
+            Coleta.preco_combustivel.isnot(None),
+        )
+        .scalar()
+        or 0
+    )
+    lucro_bruto = float(
+        db.query(
+            func.coalesce(
+                func.sum(Coleta.lucro_por_kg * Coleta.volume_estimado),
+                0.0,
+            )
+        )
+        .filter(*filtros)
+        .scalar()
+        or 0
     )
 
-    por_dia: dict[date, int] = defaultdict(int)
-    for c in coletas:
-        if c.data_hora:
-            por_dia[c.data_hora.date()] += 1
-    dias_ordenados = sorted(por_dia.keys())
-    serie = [{"data": d.isoformat(), "count": por_dia[d]} for d in dias_ordenados]
+    serie_rows = (
+        db.query(func.date(Coleta.data_hora).label("dia"), func.count(Coleta.id))
+        .filter(*filtros)
+        .group_by(func.date(Coleta.data_hora))
+        .order_by(func.date(Coleta.data_hora))
+        .all()
+    )
+    serie = [
+        {"data": (d.isoformat() if hasattr(d, "isoformat") else str(d)), "count": int(cnt)}
+        for d, cnt in serie_rows
+    ]
 
-    # Top coletores por numero de coletas no periodo
-    por_coletor: dict[int, int] = defaultdict(int)
-    coletas_by_id: dict[int, Coleta] = {}
-    for c in coletas:
-        por_coletor[c.coletor_id] += 1
-        if c.coletor_id not in coletas_by_id:
-            coletas_by_id[c.coletor_id] = c
-    top_ids = sorted(por_coletor.keys(), key=lambda i: por_coletor[i], reverse=True)[:5]
+    top_rows = (
+        db.query(
+            Coleta.coletor_id,
+            func.count(Coleta.id).label("cnt"),
+            Coletor.localizacao,
+            Parceiro.nome,
+        )
+        .join(Coletor, Coleta.coletor_id == Coletor.id)
+        .outerjoin(Parceiro, Coleta.parceiro_id == Parceiro.id)
+        .filter(*filtros)
+        .group_by(Coleta.coletor_id, Coletor.localizacao, Parceiro.nome)
+        .order_by(func.count(Coleta.id).desc())
+        .limit(5)
+        .all()
+    )
     top_list = []
-    for rank, cid in enumerate(top_ids, start=1):
-        col = coletas_by_id.get(cid)
-        loc = col.coletor.localizacao if col and col.coletor else f"#{cid}"
+    for rank, (cid, cnt, loc, parc_nome) in enumerate(top_rows, start=1):
+        loc_s = loc or f"#{cid}"
         top_list.append(
             {
                 "rank": rank,
                 "id_fmt": f"L{cid:03d}",
-                "nome": loc[:40],
-                "sub": col.parceiro.nome if col and col.parceiro else "—",
-                "coletas": por_coletor[cid],
+                "nome": loc_s[:40],
+                "sub": parc_nome or "—",
+                "coletas": int(cnt),
             }
         )
 
-    # Volume por parceiro (substitui grafico ficticio de regiao)
-    por_parceiro_vol: dict[str, float] = defaultdict(float)
-    for c in coletas:
-        nome = c.parceiro.nome if c.parceiro else "Sem parceiro"
-        por_parceiro_vol[nome] += float(c.volume_estimado or 0)
-    parceiro_barras = sorted(
-        por_parceiro_vol.items(), key=lambda x: x[1], reverse=True
-    )[:6]
+    vol_parceiro_rows = (
+        db.query(
+            func.coalesce(Parceiro.nome, "Sem parceiro"),
+            func.coalesce(func.sum(Coleta.volume_estimado), 0.0),
+        )
+        .outerjoin(Parceiro, Coleta.parceiro_id == Parceiro.id)
+        .filter(*filtros)
+        .group_by(Parceiro.nome)
+        .order_by(func.sum(Coleta.volume_estimado).desc())
+        .limit(6)
+        .all()
+    )
+    parceiro_barras = [(nome, float(kg)) for nome, kg in vol_parceiro_rows]
 
     max_dia = max((s["count"] for s in serie), default=0) or 1
     kg_max = max((b[1] for b in parceiro_barras), default=0.0) or 1.0
@@ -602,6 +648,21 @@ def data_longa_pt(hoje: date | None = None) -> str:
         "Domingo",
     )
     return f"{dias[d.weekday()]}, {d.day} de {_MESES_PT[d.month - 1]} de {d.year}"
+
+
+def coletores_nomes_atencao(db: Session, limite: int = 4) -> list[str]:
+    """Top N coletores em atenção (>=80%) sem carregar a tabela inteira."""
+    rows = (
+        db.query(Coletor.localizacao)
+        .filter(
+            Coletor.nivel_preenchimento >= NIVEL_ATENCAO,
+            func.coalesce(Coletor.status, "OK") != "QUEBRADA",
+        )
+        .order_by(Coletor.nivel_preenchimento.desc())
+        .limit(limite)
+        .all()
+    )
+    return [loc for (loc,) in rows if loc]
 
 
 def nomes_coletores_atencao(coletores: Sequence[Coletor], limite: int = 4) -> list[str]:

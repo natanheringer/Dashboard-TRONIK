@@ -481,12 +481,25 @@ def obter_ultima_narrativa(
     db: Session, parceiro_id: int
 ) -> dict[str, Any] | None:
     """Retorna a última narrativa gerada para um parceiro."""
-    narrativa = (
+    batch = obter_ultimas_narrativas_batch(db, [parceiro_id])
+    return batch.get(parceiro_id)
+
+
+def obter_ultimas_narrativas_batch(
+    db: Session, parceiro_ids: list[int]
+) -> dict[int, dict[str, Any]]:
+    """Última narrativa por parceiro em uma única query (evita N+1 na página parceiro)."""
+    if not parceiro_ids:
+        return {}
+    rows = (
         db.query(NarrativaGerada)
-        .filter(NarrativaGerada.parceiro_id == parceiro_id)
-        .order_by(NarrativaGerada.gerado_em.desc())
-        .first()
+        .filter(NarrativaGerada.parceiro_id.in_(parceiro_ids))
+        .order_by(NarrativaGerada.parceiro_id, NarrativaGerada.gerado_em.desc())
+        .all()
     )
-    if not narrativa:
-        return None
-    return narrativa.to_dict()
+    out: dict[int, dict[str, Any]] = {}
+    for narrativa in rows:
+        pid = narrativa.parceiro_id
+        if pid not in out:
+            out[pid] = narrativa.to_dict()
+    return out

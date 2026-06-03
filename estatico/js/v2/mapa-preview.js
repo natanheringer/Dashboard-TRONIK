@@ -1,16 +1,15 @@
 /**
- * Mapa Leaflet preview v2 — cluster, sede opcional, atualização via WebSocket (PreviewMapa).
- * Limites de classificação alinhados a preview_service (80 / 95).
+ * Mapa Leaflet preview v2 — cluster, sede opcional, fetch lazy de marcadores, WebSocket.
  */
 (function () {
   var LIMIAR_ATENCAO = 80;
   var LIMIAR_CRITICO = 95;
 
-  var data = window.__PREVIEW_MAP__ || [];
   var selectedRaw = window.__PREVIEW_SELECTED__;
   var selectedId =
     selectedRaw === null || selectedRaw === undefined ? null : Number(selectedRaw);
   var sede = window.__PREVIEW_SEDE__ || null;
+  var lazyLoad = !!window.__PREVIEW_MAP_LAZY__;
 
   function corPin(classe) {
     if (classe === "crit") return "#9b2a1f";
@@ -47,42 +46,89 @@
         })
       : null;
 
+  if (cluster) {
+    map.addLayer(cluster);
+  }
+
+  var data = [];
   var markersById = {};
   var markers = [];
   var alvo = null;
 
-  data.forEach(function (m) {
-    var circle = L.circleMarker([m.lat, m.lng], {
-      radius: 9,
-      color: corPin(m.classe),
-      fillColor: corPin(m.classe),
-      fillOpacity: 0.85,
-      weight: 2,
-    });
-    circle.bindPopup(
-      "<strong>" +
-        (m.label || "") +
-        "</strong><br/>" +
-        m.nivel +
-        "% · " +
-        (m.parceiro || "")
-    );
-    circle.on("click", function () {
-      window.location.href =
-        "/preview/mapa?coletor_id=" + encodeURIComponent(m.id);
-    });
-    if (cluster) {
-      cluster.addLayer(circle);
+  function updateMarcadoresCount(filtrados, total) {
+    var countEl = document.getElementById("mapa-marcadores-count");
+    if (!countEl) return;
+    if (total != null && filtrados !== total) {
+      countEl.textContent = filtrados + " (" + total + " no total)";
     } else {
-      circle.addTo(map);
+      countEl.textContent = String(filtrados);
     }
-    markers.push(circle);
-    markersById[m.id] = circle;
-    if (selectedId !== null && Number(m.id) === selectedId) alvo = m;
-  });
+  }
 
-  if (cluster) {
-    map.addLayer(cluster);
+  function loadMarkers(mapData) {
+    data = mapData || [];
+    markers = [];
+    markersById = {};
+    alvo = null;
+
+    if (cluster) {
+      cluster.clearLayers();
+    }
+
+    data.forEach(function (m) {
+      var circle = L.circleMarker([m.lat, m.lng], {
+        radius: 9,
+        color: corPin(m.classe),
+        fillColor: corPin(m.classe),
+        fillOpacity: 0.85,
+        weight: 2,
+      });
+      circle.bindPopup(
+        "<strong>" +
+          (m.label || "") +
+          "</strong><br/>" +
+          m.nivel +
+          "% · " +
+          (m.parceiro || "")
+      );
+      circle.on("click", function () {
+        window.location.href =
+          "/preview/mapa?coletor_id=" + encodeURIComponent(m.id);
+      });
+      if (cluster) {
+        cluster.addLayer(circle);
+      } else {
+        circle.addTo(map);
+      }
+      markers.push(circle);
+      markersById[m.id] = circle;
+      if (selectedId !== null && Number(m.id) === selectedId) alvo = m;
+    });
+
+    applyView();
+    reflowSoon();
+  }
+
+  function fetchMapData() {
+    var f = window.__PREVIEW_MAP_FILTERS__ || {};
+    var params = new URLSearchParams();
+    if (f.nivel && f.nivel !== "todos") params.set("nivel", f.nivel);
+    if (f.parceiro_id != null && f.parceiro_id !== "") {
+      params.set("parceiro_id", String(f.parceiro_id));
+    }
+    if (f.q) params.set("q", f.q);
+    var qs = params.toString();
+    return fetch("/api/coletores/mapa" + (qs ? "?" + qs : ""), {
+      credentials: "same-origin",
+    })
+      .then(function (r) {
+        if (!r.ok) throw new Error("HTTP " + r.status);
+        return r.json();
+      })
+      .then(function (body) {
+        updateMarcadoresCount(body.filtrados, body.total);
+        return body.marcadores || [];
+      });
   }
 
   if (sede && typeof sede.lat === "number" && typeof sede.lng === "number") {
@@ -118,15 +164,13 @@
       } catch (_e) {
         map.setView([-15.793889, -47.882778], 11);
       }
-    } else {
+    } else if (!window.__PROSPECCAO_PIN__) {
       map.setView([-15.793889, -47.882778], 11);
     }
     if (alvo) {
       map.setView([alvo.lat, alvo.lng], 14);
     }
   }
-
-  applyView();
 
   function reflowMap() {
     map.invalidateSize();
@@ -143,8 +187,10 @@
     }
   }
 
-  requestAnimationFrame(reflowMap);
-  setTimeout(reflowMap, 250);
+  function reflowSoon() {
+    requestAnimationFrame(reflowMap);
+    setTimeout(reflowMap, 250);
+  }
 
   function updateMarker(row) {
     if (!row || row.id === undefined || row.id === null) return;
@@ -187,26 +233,36 @@
     updateMarker: updateMarker,
   };
 
-  // ── Camada de prospecção REE ────────────────────────────────────────────────
+  if (lazyLoad) {
+    fetchMapData()
+      .then(loadMarkers)
+      .catch(function () {
+        updateMarcadoresCount(0, 0);
+        loadMarkers([]);
+      });
+  } else {
+    var inline = window.__PREVIEW_MAP__ || [];
+    updateMarcadoresCount(inline.length, inline.length);
+    loadMarkers(inline);
+  }
+
   var prospPin = window.__PROSPECCAO_PIN__;
   if (prospPin && typeof prospPin.lat === "number" && typeof prospPin.lon === "number") {
-    // Marcador destacado para o candidato focado
     var starIcon = L.divIcon({
       className: "",
       html: '<div style="width:20px;height:20px;background:#1a5d3a;border:3px solid #fff;border-radius:50%;box-shadow:0 2px 8px rgba(0,0,0,0.4);"></div>',
       iconSize: [20, 20],
       iconAnchor: [10, 10],
     });
-    var prospMarker = L.marker([prospPin.lat, prospPin.lon], { icon: starIcon, zIndexOffset: 1000 })
+    L.marker([prospPin.lat, prospPin.lon], { icon: starIcon, zIndexOffset: 1000 })
       .addTo(map)
       .bindPopup(
         "<strong>" + (prospPin.label || "Candidato REE") + "</strong>" +
         "<br/><em style='color:#1a5d3a;font-size:11px;'>Prospecção REE</em>"
-      );
-    prospMarker.openPopup();
+      )
+      .openPopup();
     map.setView([prospPin.lat, prospPin.lon], 15);
 
-    // Carregar outros candidatos da fila como pinos menores
     fetch("/api/prospeccao/candidatos?limite=50", { credentials: "same-origin" })
       .then(function (r) { return r.json(); })
       .then(function (body) {
@@ -219,7 +275,6 @@
           if (!loc || loc.latitude == null || loc.longitude == null) return;
           var empresa = cand.empresa || {};
           var nome = empresa.razao_social || empresa.nome_fantasia || "Candidato REE";
-          // Pular o candidato que já está marcado (evitar duplicar)
           var isFocused = Math.abs(loc.latitude - prospPin.lat) < 0.0001 &&
                           Math.abs(loc.longitude - prospPin.lon) < 0.0001;
           if (isFocused) return;

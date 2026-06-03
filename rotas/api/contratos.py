@@ -14,10 +14,35 @@ from banco_dados.services.contrato_service import ContratoService
 from banco_dados.utils.db_session import get_db_session
 from banco_dados.utils.logger import obter_logger
 from rotas.api import decorators
+from rotas.api.decorators import escopo_parceiro_id
 
 logger = obter_logger(__name__)
 
 contratos_bp = Blueprint('contratos_api', __name__, url_prefix='/contratos')
+
+
+def _filtrar_contratos_parceiro(db, contratos, parceiro_id: int | None):
+    """Restringe contratos ao parceiro do usuário quando aplicável."""
+    if parceiro_id is None:
+        return contratos
+    coletor_ids = {c.coletor_id for c in contratos}
+    if not coletor_ids:
+        return []
+    permitidos = {
+        row[0]
+        for row in db.query(Coletor.id).filter(
+            Coletor.id.in_(coletor_ids),
+            Coletor.parceiro_id == parceiro_id,
+        ).all()
+    }
+    return [c for c in contratos if c.coletor_id in permitidos]
+
+
+def _coletor_acessivel(db, coletor_id: int, parceiro_id: int | None) -> bool:
+    if parceiro_id is None:
+        return True
+    coletor = db.query(Coletor).filter_by(id=coletor_id).first()
+    return coletor is not None and coletor.parceiro_id == parceiro_id
 
 
 @contratos_bp.route('/', methods=['GET'])
@@ -39,6 +64,10 @@ def listar_contratos():
         status = request.args.get('status')
         coletor_id = request.args.get('coletor_id', type=int)
         apenas_ativos = request.args.get('apenas_ativos', 'false').lower() == 'true'
+        parceiro_escopo = escopo_parceiro_id()
+
+        if coletor_id and not _coletor_acessivel(db, coletor_id, parceiro_escopo):
+            return jsonify([]), 200
 
         if apenas_ativos:
             contratos = ContratoService.listar_contratos_ativos()
@@ -49,9 +78,10 @@ def listar_contratos():
             if status:
                 query = query.filter_by(status=status)
             contratos = query.order_by(ContratoRecorrente.data_inicio.desc()).all()
-            # Expurgar objetos
             for c in contratos:
                 db.expunge(c)
+
+        contratos = _filtrar_contratos_parceiro(db, contratos, parceiro_escopo)
 
         return jsonify([c.to_dict() for c in contratos]), 200
     except Exception as e:
@@ -152,6 +182,10 @@ def obter_contrato(contrato_id):
     try:
         contrato = db.query(ContratoRecorrente).filter_by(id=contrato_id).first()
         if not contrato:
+            return jsonify({'erro': 'Contrato não encontrado'}), 404
+
+        parceiro_escopo = escopo_parceiro_id()
+        if not _coletor_acessivel(db, contrato.coletor_id, parceiro_escopo):
             return jsonify({'erro': 'Contrato não encontrado'}), 404
 
         db.expunge(contrato)
