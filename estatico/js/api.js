@@ -9,6 +9,16 @@ Usa sistema de retry automático e cache.
 // Configuração base da API
 const API_BASE_URL = '/api';
 
+function _mensagemErroApi(body, status) {
+    if (body && body.erro) return body.erro;
+    if (body && Array.isArray(body.erros) && body.erros[0] && body.erros[0].mensagem) {
+        return body.erros[0].mensagem;
+    }
+    if (status === 401) return 'Autenticacao necessaria — faca login novamente.';
+    if (status === 403) return 'Acesso negado.';
+    return `Erro HTTP: ${status}`;
+}
+
 // Função auxiliar para fazer requisições com retry automático
 async function fazerRequisicao(endpoint, options = {}) {
     // Timeout de 30 segundos
@@ -22,6 +32,7 @@ async function fazerRequisicao(endpoint, options = {}) {
             return await window.Retry.executarComRetry(
                 async () => {
                     const response = await fetch(`${API_BASE_URL}${endpoint}`, {
+                        credentials: 'same-origin',
                         headers: {
                             'Content-Type': 'application/json',
                             ...options.headers
@@ -33,8 +44,9 @@ async function fazerRequisicao(endpoint, options = {}) {
                     clearTimeout(timeoutId);
                     
                     if (!response.ok) {
-                        const erro = await response.json().catch(() => ({ erro: 'Erro desconhecido' }));
-                        const errorObj = new Error(erro.erro || `Erro HTTP: ${response.status}`);
+                        const erro = await response.json().catch(() => ({}));
+                        const msg = _mensagemErroApi(erro, response.status);
+                        const errorObj = new Error(msg);
                         errorObj.status = response.status;
                         throw errorObj;
                     }
@@ -44,7 +56,10 @@ async function fazerRequisicao(endpoint, options = {}) {
                 {
                     maxTentativas: 3,
                     delayInicial: 1000,
-                    deveTentar: (erro) => window.Retry.deveRetentarErroRede(erro)
+                    deveTentar: (erro) => {
+                        if (erro && (erro.status === 401 || erro.status === 403)) return false;
+                        return window.Retry.deveRetentarErroRede(erro);
+                    }
                 }
             );
         } catch (error) {
@@ -60,6 +75,7 @@ async function fazerRequisicao(endpoint, options = {}) {
         // Fallback sem retry
         try {
             const response = await fetch(`${API_BASE_URL}${endpoint}`, {
+                credentials: 'same-origin',
                 headers: {
                     'Content-Type': 'application/json',
                     ...options.headers
@@ -71,8 +87,10 @@ async function fazerRequisicao(endpoint, options = {}) {
             clearTimeout(timeoutId);
             
             if (!response.ok) {
-                const erro = await response.json().catch(() => ({ erro: 'Erro desconhecido' }));
-                throw new Error(erro.erro || `Erro HTTP: ${response.status}`);
+                const erro = await response.json().catch(() => ({}));
+                const httpErr = new Error(_mensagemErroApi(erro, response.status));
+                httpErr.status = response.status;
+                throw httpErr;
             }
             
             return await response.json();
@@ -123,7 +141,8 @@ async function obterTodosColetores() {
         return Array.isArray(resultado) ? resultado : [];
     } catch (error) {
         console.error('Erro ao obter coletores:', error);
-        return [];  // Retornar array vazio em caso de erro
+        if (error.status === 401 || error.status === 403) throw error;
+        return [];
     }
 }
 
@@ -132,12 +151,20 @@ async function obterColetor(id) {
     return await fazerRequisicao(`/coletor/${id}`);
 }
 
+function invalidarCacheColetores() {
+    if (window.CacheFrontend) {
+        window.CacheFrontend.invalidar('api:/coletores');
+    }
+}
+
 // Função para criar novo coletor
 async function criarColetor(dados) {
-    return await fazerRequisicao('/coletor', {
+    const res = await fazerRequisicao('/coletor', {
         method: 'POST',
         body: JSON.stringify(dados)
     });
+    invalidarCacheColetores();
+    return res;
 }
 
 // Função para atualizar coletor
@@ -150,9 +177,11 @@ async function atualizarColetor(id, dados) {
 
 // Função para deletar coletor
 async function deletarColetor(id) {
-    return await fazerRequisicao(`/coletor/${id}`, {
+    const res = await fazerRequisicao(`/coletor/${id}`, {
         method: 'DELETE'
     });
+    invalidarCacheColetores();
+    return res;
 }
 
 // Função para obter estatísticas (com cache)
@@ -337,6 +366,17 @@ async function obterStatusAgendamento() {
     return await fazerRequisicao('/notificacoes/status-agendamento');
 }
 
+async function obterSolicitacoes() {
+    return await fazerRequisicao('/solicitacoes');
+}
+
+async function atualizarStatusSolicitacao(id, status) {
+    return await fazerRequisicao(`/solicitacoes/${id}/status`, {
+        method: 'POST',
+        body: JSON.stringify({ status })
+    });
+}
+
 // Exportar funções (para uso em outros scripts)
 if (typeof module !== 'undefined' && module.exports) {
     module.exports = {
@@ -371,6 +411,9 @@ if (typeof module !== 'undefined' && module.exports) {
         processarAlertas,
         marcarNotificacaoLida,
         obterNotificacoesPendentesCount,
-        obterStatusAgendamento
+        obterStatusAgendamento,
+        obterSolicitacoes,
+        atualizarStatusSolicitacao,
+        invalidarCacheColetores
     };
 }

@@ -193,6 +193,7 @@
   <button class="gestao-tab active" data-tab="coletores">Coletores</button>
   <button class="gestao-tab" data-tab="sensores">Sensores</button>
   <button class="gestao-tab" data-tab="coletas">Coletas</button>
+  <button class="gestao-tab" data-tab="solicitacoes">Solicitações</button>
 </div>
 
 <!-- ABA COLETORES -->
@@ -231,19 +232,16 @@
             </div>
           </div>
           
-          <div class="form-grid-v2">
-            <div class="form-group-v2">
-              <label for="nivel_preenchimento">Nível (%)</label>
-              <input type="number" id="nivel_preenchimento" name="nivel_preenchimento" class="form-input-v2" min="0" max="100" step="0.1" value="0">
-            </div>
-            <div class="form-group-v2">
-              <label for="status">Status</label>
-              <select id="status" name="status" class="form-input-v2">
-                <option value="OK">OK</option>
-                <option value="CHEIA">CHEIA</option>
-                <option value="QUEBRADA">QUEBRADA</option>
-              </select>
-            </div>
+          <div class="form-group-v2">
+            <label for="status">Status operacional</label>
+            <select id="status" name="status" class="form-input-v2">
+              <option value="OK">OK — em operação</option>
+              <option value="QUEBRADA">QUEBRADA — fora de serviço</option>
+            </select>
+            <p class="home-subtitle" style="margin:0;">
+              O nível de enchimento (%) vem da telemetria do sensor (ESP32), não do cadastro.
+              &quot;CHEIA&quot; é definido automaticamente quando o nível passa de 80%.
+            </p>
           </div>
           
           <div class="form-grid-v2">
@@ -279,6 +277,9 @@
   <aside class="side-panel-gestao">
     <div class="config-card">
       <h2>Novo Sensor</h2>
+      <p class="home-subtitle" style="margin:0 0 var(--space-4);">
+        Cadastre o sensor no coletor antes de configurar o ESP32 (<code>sensor_id</code> / <code>coletor_id</code>).
+      </p>
       <form id="form-novo-sensor">
         <div style="display:flex; flex-direction:column; gap:var(--space-4);">
           <div class="form-group-v2">
@@ -294,8 +295,9 @@
             </select>
           </div>
           <div class="form-group-v2">
-            <label for="sensor-bateria">Bateria (%)</label>
+            <label for="sensor-bateria">Bateria inicial (%)</label>
             <input type="number" id="sensor-bateria" name="bateria" class="form-input-v2" min="0" max="100" value="100">
+            <p class="home-subtitle" style="margin:0;">Atualizada pela telemetria do ESP32 após o primeiro POST.</p>
           </div>
           
           <button type="submit" class="btn btn-primary" style="width:100%; justify-content:center; margin-top:var(--space-2);">Adicionar Sensor</button>
@@ -372,7 +374,36 @@
         <div class="alert-title">Dica operacional</div>
       </div>
       <p class="alert-text">
-        Registrar coletas manuais ajuda a recalibrar o nível médio e manter o histórico de eficiência do parceiro.
+        Registro de esvaziamento (volume, data, custos). O nível de enchimento do coletor vem do sensor (VL53), não deste formulário.
+      </p>
+    </div>
+  </aside>
+</div>
+
+<!-- ABA SOLICITAÇÕES (landing) -->
+<div id="tab-solicitacoes" class="tab-content">
+  <section class="gestao-grid">
+    <div class="config-card">
+      <h2>Solicitações da landing</h2>
+      <p class="home-subtitle" style="margin:0 0 var(--space-4);">
+        Pedidos públicos via <code>/preview/solicitar-coletor</code>. Aprove e cadastre o coletor na aba Coletores.
+      </p>
+      <div id="lista-solicitacoes" class="gestao-list">
+        <p class="home-subtitle">Carregando...</p>
+      </div>
+    </div>
+  </section>
+  <aside class="side-panel-gestao">
+    <div class="alert-card" style="margin:0;">
+      <div class="alert-head">
+        <div class="alert-icon">i</div>
+        <div class="alert-title">Fluxo recomendado</div>
+      </div>
+      <p class="alert-text">
+        1. Aprovar solicitação<br>
+        2. Criar coletor com a mesma localização<br>
+        3. Criar sensor no coletor<br>
+        4. Configurar ESP32 com os IDs
       </p>
     </div>
   </aside>
