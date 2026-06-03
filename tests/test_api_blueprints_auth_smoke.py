@@ -32,6 +32,7 @@ PROTECTED_GET_PATHS = [
     "/api/crm/tarefas",
     "/api/coletores",
     "/api/coletas",
+    "/api/relatorios",
     "/api/comercial/dashboard",
     "/api/estatisticas",
     "/api/parceiros",

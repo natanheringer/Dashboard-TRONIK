@@ -13,7 +13,7 @@ from flask_login import current_user, login_required
 
 from banco_dados.services import nik_service as nik, nik_tools
 from banco_dados.services.nik_service import NIK_IMAGEM_MAX_BYTES
-from rotas.api.decorators import admin_required, get_db
+from rotas.api.decorators import admin_required, escopo_parceiro_id, get_db
 
 nik_bp = Blueprint("nik", __name__, url_prefix="/nik")
 
@@ -156,7 +156,7 @@ def ops_analisar_imagem():
 
 
 @nik_bp.route("/ops/conversa", methods=["POST"])
-@login_required
+@admin_required
 def ops_conversa():
     # [SEGURANÇA] Validação de tamanho de mensagem
     MAX_MENSAGEM = 50_000
@@ -211,7 +211,7 @@ def ops_conversas():
 def maiara_relatorio():
     inicio = request.args.get("inicio")
     fim = request.args.get("fim")
-    parceiro_id = request.args.get("parceiro_id", type=int)
+    parceiro_id = escopo_parceiro_id(request.args.get("parceiro_id", type=int))
     formato = request.args.get("formato", "executivo")
     db = get_db()
     try:
@@ -226,7 +226,12 @@ def exportar_maiara_relatorio(relatorio_id: int):
     formato = (request.args.get("formato") or "json").strip().lower()
     db = get_db()
     try:
-        relatorio = nik.obter_relatorio_maiara(db, relatorio_id)
+        relatorio = nik.obter_relatorio_maiara(
+            db,
+            relatorio_id,
+            usuario_id=current_user.id,
+            admin=bool(current_user.admin),
+        )
         if not relatorio:
             return jsonify({"erro": "Relatório não encontrado"}), 404
         titulo = relatorio.get("titulo", "relatorio_nik").replace(" ", "_")

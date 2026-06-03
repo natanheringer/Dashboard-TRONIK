@@ -6,6 +6,7 @@ Gerencia login, logout e registro de usuários.
 """
 
 import logging
+from urllib.parse import urlparse
 
 from flask import Blueprint, flash, jsonify, redirect, render_template, request, url_for
 from flask_login import current_user, login_required, login_user, logout_user
@@ -19,6 +20,18 @@ logger = logging.getLogger(__name__)
 
 # Criar blueprint de autenticação
 auth_bp = Blueprint('auth', __name__, url_prefix='/auth')
+
+
+def _redirect_pos_login_seguro(next_page: str | None, default_url: str):
+    """Evita open redirect via parâmetro `next`."""
+    if not next_page:
+        return redirect(default_url)
+    if not next_page.startswith("/") or next_page.startswith("//"):
+        return redirect(default_url)
+    parsed = urlparse(next_page)
+    if parsed.scheme or parsed.netloc:
+        return redirect(default_url)
+    return redirect(next_page)
 
 
 def _destino_pos_login(usuario=None):
@@ -112,9 +125,10 @@ def login():
                 resposta.headers['Expires'] = '0'
                 return resposta
 
-            # Redirecionar para página solicitada ou dashboard
             next_page = request.args.get('next')
-            return redirect(next_page or _destino_pos_login(usuario))
+            return _redirect_pos_login_seguro(
+                next_page, _destino_pos_login(usuario)
+            )
 
         finally:
             db.close()

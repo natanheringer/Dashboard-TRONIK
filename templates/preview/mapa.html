@@ -13,7 +13,7 @@
       <div class="page-header">
         <div class="page-title-group">
           <h1>Mapa operacional</h1>
-          <p>{{ stats.total_coletores }} coletores · {{ marcadores|length }} marcadores{% if marcadores_total is defined and marcadores_total != marcadores|length %} ({{ marcadores_total }} antes dos filtros){% endif %}</p>
+          <p>{{ stats.total_coletores }} coletores · <span id="mapa-marcadores-count">carregando…</span> marcadores</p>
         </div>
         <div class="page-actions">
           <a class="btn" href="{{ url_for('preview.mapa') }}">Limpar filtros</a>
@@ -100,8 +100,15 @@
       </p>
 {% endblock %}
 {% block scripts_extra %}
+<script src="https://cdn.jsdelivr.net/npm/socket.io-client@4.7.0/dist/socket.io.min.js" crossorigin="anonymous" defer></script>
 <script>
   window.__PREVIEW_MAP__ = {{ marcadores|tojson }};
+  window.__PREVIEW_MAP_LAZY__ = {{ mapa_lazy_load|default(false)|tojson }};
+  window.__PREVIEW_MAP_FILTERS__ = {
+    nivel: {{ filtro_mapa_nivel|tojson }},
+    parceiro_id: {{ filtro_mapa_parceiro_id|tojson }},
+    q: {{ filtro_mapa_q|tojson }}
+  };
   window.__PREVIEW_SELECTED__ = {{ coletor_selecionado_id or 'null' }};
   window.__PREVIEW_SEDE__ = {{ sede_mapa|tojson }};
   window.__PROSPECCAO_PIN__ = {{ prosp_pin|tojson if prosp_pin else 'null' }};

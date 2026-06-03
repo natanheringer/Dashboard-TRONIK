@@ -8,14 +8,14 @@ from banco_dados.services import prospeccao_xgb_service
 from jobs.prospeccao.pipeline_health import build_pipeline_health_report
 
 
-def _login_user(client, db_session, username="user_saude_prosp"):
+def _login_admin(client, db_session, username="admin_saude_prosp"):
     from banco_dados.modelos import Usuario
 
-    u = Usuario(username=username, email=f"{username}@test.local", ativo=True)
-    u.set_senha("UserSaude123!")
+    u = Usuario(username=username, email=f"{username}@test.local", ativo=True, admin=True)
+    u.set_senha("AdminSaude123!")
     db_session.add(u)
     db_session.commit()
-    r = client.post("/auth/login", json={"username": username, "senha": "UserSaude123!"})
+    r = client.post("/auth/login", json={"username": username, "senha": "AdminSaude123!"})
     assert r.status_code == 200, r.get_data(as_text=True)
     return client
 
@@ -78,7 +78,7 @@ def test_saude_endpoint_autenticado(client, db_session):
     )
     db_session.commit()
 
-    authed = _login_user(client, db_session, username="user_saude_api")
+    authed = _login_admin(client, db_session, username="admin_saude_api")
     resp = authed.get("/api/prospeccao/saude")
     assert resp.status_code == 200
     body = resp.get_json()

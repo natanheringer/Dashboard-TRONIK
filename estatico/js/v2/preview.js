@@ -252,33 +252,15 @@
       const view = this.getCurrentView();
       if (!view || (view !== "monit" && view !== "mapa")) return;
 
-      // Update KPI stats if visible
       if (view === "monit") {
-        this.updateKpiIfVisible("monit", data);
         this.updateColetorCard(data);
       } else if (view === "mapa") {
         this.updateMapMarker(data);
       }
     },
 
-    updateKpiIfVisible: function (view, coletorData) {
-      // Re-fetch stats and update KPI bars
-      // This is conservative - only update if coletor belongs to current filters
-      if (view === "monit") {
-        const q = document.querySelector('input[name="q"]');
-        const nivel = document.querySelector('button.filter-chip.active[name="nivel"]');
-        const shouldUpdate =
-          !q ||
-          !q.value ||
-          this.matchesFilter(coletorData, q.value, nivel ? nivel.value : "todos");
-        if (shouldUpdate) {
-          console.log("[Preview] Coletor matches filter, triggering refresh");
-          const form = document.getElementById("form-monit");
-          if (form && window.htmx) {
-            htmx.trigger(form, "submit");
-          }
-        }
-      }
+    updateKpiIfVisible: function (_view, _coletorData) {
+      /* KPIs atualizam no próximo refresh manual ou HTMX de filtros — evita storm no WebSocket */
     },
 
     matchesFilter: function (coletorData, searchText, nivelFilter) {

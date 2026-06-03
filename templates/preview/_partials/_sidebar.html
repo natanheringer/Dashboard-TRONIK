@@ -1,4 +1,4 @@
-{# Sidebar do preview v2. current = home|monit|mapa|relatorios|parceiro|nik|prospeccao|gestao|crm|comercial|contratos|landing_preview #}
+{# Sidebar do preview v2. current = home|monit|mapa|relatorios|parceiro|nik|prospeccao|gestao|crm|landing_preview #}
 {% set current = current|default('home') %}
 <aside class="sidebar" id="sidebar">
   <div class="brand">
@@ -38,14 +38,6 @@
     <a class="nav-item {% if current == 'crm' %}active{% endif %}" href="{{ url_for('preview.crm') }}">
       <i data-lucide="users" class="icon nav-icon"></i>
       CRM
-    </a>
-    <a class="nav-item {% if current == 'comercial' %}active{% endif %}" href="{{ url_for('preview.comercial') }}">
-      <i data-lucide="briefcase" class="icon nav-icon"></i>
-      Comercial
-    </a>
-    <a class="nav-item {% if current == 'contratos' %}active{% endif %}" href="{{ url_for('preview.contratos') }}">
-      <i data-lucide="file-check" class="icon nav-icon"></i>
-      Contratos
     </a>
   </nav>
   {% endif %}

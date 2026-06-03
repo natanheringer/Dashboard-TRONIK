@@ -77,6 +77,45 @@ def test_parceiro_api_coletores_escopo(parceiro_client, db_session):
     assert resp_outro.get_json()["paginacao"]["total"] == 2
 
 
+def test_parceiro_post_coletor_403(parceiro_client):
+    resp = parceiro_client.post("/api/coletor", json={"localizacao": "X", "nivel_preenchimento": 50})
+    assert resp.status_code == 403
+
+
+def test_parceiro_api_coletas_escopo(parceiro_client, db_session):
+    from banco_dados.modelos import Coleta, TipoColetor
+    from banco_dados.utils import utc_now_naive
+
+    p1_id = db_session.query(Parceiro.id).filter_by(nome="Parceiro A").scalar()
+    p2_id = db_session.query(Parceiro.id).filter_by(nome="Parceiro B").scalar()
+    c1 = _criar_coletor(db_session, "Coleta A", p1_id)
+    c2 = _criar_coletor(db_session, "Coleta B", p2_id)
+    tipo_coletor = db_session.query(TipoColetor).first()
+    for coletor in (c1, c2):
+        db_session.add(Coleta(
+            coletor_id=coletor.id,
+            data_hora=utc_now_naive(),
+            volume_estimado=10.0,
+            parceiro_id=coletor.parceiro_id,
+            tipo_coletor_id=tipo_coletor.id if tipo_coletor else None,
+        ))
+    db_session.commit()
+
+    resp = parceiro_client.get("/api/coletas")
+    assert resp.status_code == 200
+    locais = {item["coletor_id"] for item in resp.get_json()["dados"]}
+    assert locais == {c1.id}
+
+    resp_outro = parceiro_client.get(f"/api/coletas?parceiro_id={p2_id}")
+    assert resp_outro.status_code == 200
+    assert {item["coletor_id"] for item in resp_outro.get_json()["dados"]} == {c1.id}
+
+
+def test_parceiro_api_comercial_403(parceiro_client):
+    resp = parceiro_client.get("/api/comercial/dashboard")
+    assert resp.status_code == 403
+
+
 def test_parceiro_api_estatisticas_escopo(parceiro_client, db_session):
     p1_id = db_session.query(Parceiro.id).filter_by(nome="Parceiro A").scalar()
 

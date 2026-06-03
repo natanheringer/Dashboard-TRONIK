@@ -43,6 +43,31 @@ def resumo_coletores():
         db.close()
 
 
+@coletores_bp.route('/coletores/mapa', methods=['GET'])
+@admin_required
+@decorators.rate_limit("60 per minute")
+def coletores_mapa_preview():
+    """Marcadores leves para o mapa preview (fetch client-side)."""
+    from banco_dados.services import preview_service as pv
+
+    db = get_db()
+    try:
+        raw = pv.coletores_geojson(db)
+        nivel = request.args.get('nivel')
+        parceiro_id = request.args.get('parceiro_id', type=int)
+        q = request.args.get('q')
+        marcadores = pv.filtrar_marcadores_mapa(raw, nivel, parceiro_id, q)
+        return jsonify({
+            'marcadores': marcadores,
+            'total': len(raw),
+            'filtrados': len(marcadores),
+        }), 200
+    except Exception as e:
+        return tratar_erro_api(e)
+    finally:
+        db.close()
+
+
 @coletores_bp.route('/coletores', methods=['GET'])
 @login_required
 def listar_coletores():
@@ -109,7 +134,7 @@ def obter_lixeira(coletor_id):
 
 
 @coletores_bp.route('/coletor', methods=['POST'])
-@login_required
+@admin_required
 @decorators.rate_limit("10 per minute")
 def criar_coletor_endpoint():
     """Endpoint para criar uma nova coletor"""

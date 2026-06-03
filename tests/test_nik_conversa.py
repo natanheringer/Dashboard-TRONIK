@@ -510,7 +510,7 @@ def test_remove_links_texto():
     assert "www." not in limpo.lower()
 
 
-def test_nik_conversa_api(auth_client, monkeypatch):
+def test_nik_conversa_api(admin_client, monkeypatch):
     monkeypatch.setattr(
         nik_service,
         "conversar_ops_thread",
@@ -525,7 +525,7 @@ def test_nik_conversa_api(auth_client, monkeypatch):
             "thread_id": thread_id or "main",
         },
     )
-    resp = auth_client.post("/api/nik/ops/conversa", json={"mensagem": "Oi, Nik", "thread_id": "maiara"})
+    resp = admin_client.post("/api/nik/ops/conversa", json={"mensagem": "Oi, Nik", "thread_id": "maiara"})
     assert resp.status_code == 200
     assert resp.get_json()["texto"] == "Resposta para: Oi, Nik"
     assert resp.get_json()["thread_id"] == "maiara"
@@ -588,7 +588,7 @@ def test_nik_maiara_export_markdown(auth_client, monkeypatch):
     monkeypatch.setattr(
         nik_service,
         "obter_relatorio_maiara",
-        lambda db, relatorio_id: {
+        lambda db, relatorio_id, **kwargs: {
             "conteudo": {"titulo": "Relatório"},
             "conteudo_markdown": "# Relatório",
         },

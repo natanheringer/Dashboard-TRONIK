@@ -2,6 +2,25 @@
 {% set current = 'crm' %}
 {% block title %}CRM · Pipeline de Vendas · Tronik{% endblock %}
 
+{% block head_extra %}
+<style>
+  /* crm.js usa PNGs legados; sem crm.css no preview os ícones ficam enormes */
+  .crm-container img.inline-icon,
+  .crm-container img.modal-icon,
+  .crm-container img.status-icon-small {
+    width: 16px;
+    height: 16px;
+    object-fit: contain;
+    vertical-align: middle;
+  }
+  .page-actions .icon,
+  .page-actions [data-lucide] svg {
+    width: 18px;
+    height: 18px;
+  }
+</style>
+{% endblock %}
+
 {% block conteudo %}
 <div class="page-header">
   <div class="page-title-group">
@@ -253,6 +272,5 @@
 {% endblock %}
 
 {% block scripts_extra %}
-<script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.0/dist/chart.umd.min.js"></script>
 <script src="{{ url_for('static', filename='js/crm.js') }}"></script>
 {% endblock %}

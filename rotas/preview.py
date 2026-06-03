@@ -24,6 +24,7 @@ from flask import (
 from flask_login import current_user, login_required
 
 from banco_dados.services import nik_service, preview_service as pv
+from banco_dados.utils.cache import obter_cache
 from rotas.api._limiter import limiter
 from rotas.api.decorators import get_db
 
@@ -89,12 +90,34 @@ def _nome_usuario() -> str:
     return "Visitante"
 
 
+_SOLICITAR_COLETOR_LIMITE = 10
+_SOLICITAR_COLETOR_JANELA_SEG = 60
+
+
+def _solicitar_coletor_dentro_limite() -> bool:
+    """Rate limit local para POST público (blueprint preview isento do Limiter)."""
+    ip = request.remote_addr or "unknown"
+    chave = f"rl:solicitar_coletor:{ip}"
+    cache = obter_cache()
+    atual = cache.obter(chave, _SOLICITAR_COLETOR_JANELA_SEG) or 0
+    if atual >= _SOLICITAR_COLETOR_LIMITE:
+        return False
+    cache.definir(chave, atual + 1)
+    return True
+
+
 @preview_bp.route("/solicitar-coletor", methods=["POST"])
 def solicitar_coletor():
     """Rota pública para receber solicitações de novos coletores da landing."""
     from flask import jsonify
 
     from banco_dados.modelos import SolicitacaoColetor
+
+    if not _solicitar_coletor_dentro_limite():
+        return jsonify({
+            "ok": False,
+            "erro": "Muitas solicitações. Tente novamente em alguns minutos.",
+        }), 429
 
     try:
         dados = request.get_json()
@@ -148,7 +171,6 @@ def dashboard_home():
     db = get_db()
     try:
         stats = pv.estatisticas_resumo(db)
-        coletores = pv.coletores_monitoramento(db)
         ctx = {
             "current": "home",
             "total_coletores": stats["total_coletores"],
@@ -158,7 +180,7 @@ def dashboard_home():
             "data_longa": pv.data_longa_pt(),
             "usuario_nome": _nome_usuario(),
             "home_subtitulo": pv.texto_home_subtitulo(
-                stats, pv.nomes_coletores_atencao(coletores)
+                stats, pv.coletores_nomes_atencao(db)
             ),
         }
         return render_template("preview/home.html", **ctx)
@@ -241,13 +263,18 @@ def mapa():
     db = get_db()
     try:
         stats = pv.estatisticas_resumo(db)
-        raw = pv.coletores_geojson(db)
+        from sqlalchemy import func
+
+        from banco_dados.modelos import Coletor
+
+        total_coletores_mapa = db.query(func.count(Coletor.id)).scalar() or 0
         nivel_f = (request.args.get("nivel") or "todos").strip().lower()
         if nivel_f not in {"todos", "crit", "warn", "ok", "neutral"}:
             nivel_f = "todos"
         parceiro_f = request.args.get("parceiro_id", type=int)
         q_f = (request.args.get("q") or "").strip()
-        marcadores = pv.filtrar_marcadores_mapa(raw, nivel_f, parceiro_f, q_f)
+        marcadores: list = []
+
         parceiros = pv.listar_parceiros_select(db)
         sede = pv.coordenadas_sede_mapa()
 
@@ -267,7 +294,8 @@ def mapa():
             "total_coletores": stats["total_coletores"],
             "stats": stats,
             "marcadores": marcadores,
-            "marcadores_total": len(raw),
+            "marcadores_total": total_coletores_mapa,
+            "mapa_lazy_load": True,
             "parceiros": parceiros,
             "filtro_mapa_nivel": nivel_f,
             "filtro_mapa_parceiro_id": parceiro_f,
@@ -320,9 +348,13 @@ def parceiro():
         if current_user.is_authenticated and not current_user.admin and getattr(current_user, 'parceiro_id', None):
             parceiros_rows = [p for p in parceiros_rows if p['id'] == current_user.parceiro_id]
 
-        # --- ML: Narrativa de impacto (Módulo 3) ---
+        from banco_dados.services.ml_narrativa import obter_ultimas_narrativas_batch
+
+        narrativas_map = obter_ultimas_narrativas_batch(
+            db, [p['id'] for p in parceiros_rows if p.get('id')]
+        )
         for p in parceiros_rows:
-            p['narrativa'] = _obter_narrativa_parceiro(db, p.get('id'))
+            p['narrativa'] = narrativas_map.get(p.get('id'))
 
         ctx = {
             "current": "parceiro",
@@ -373,15 +405,11 @@ def crm():
 
 
 @preview_bp.route("/comercial")
-@admin_preview
-def comercial():
-    return render_template("preview/comercial.html", **_ctx_admin_shell("comercial"))
-
-
 @preview_bp.route("/contratos")
 @admin_preview
-def contratos():
-    return render_template("preview/contratos.html", **_ctx_admin_shell("contratos"))
+def comercial_contratos_redirect():
+    """Páginas legadas unificadas no CRM."""
+    return redirect(url_for("preview.crm"))
 
 
 @preview_bp.route("/gestao")

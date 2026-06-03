@@ -70,3 +70,17 @@ def test_legacy_crm_redirects_to_preview(admin_preview_client):
     assert resp.status_code == 301
     location = resp.headers.get("Location", "")
     assert "/preview/crm" in location
+
+
+def test_preview_comercial_contratos_redirect_to_crm(admin_preview_client):
+    for path in ("/preview/comercial", "/preview/contratos"):
+        resp = admin_preview_client.get(path, follow_redirects=False)
+        assert resp.status_code == 302
+        assert "/preview/crm" in resp.headers.get("Location", "")
+
+
+def test_legacy_comercial_contratos_redirect_to_preview_crm(admin_preview_client):
+    for path in ("/comercial", "/contratos"):
+        resp = admin_preview_client.get(path, follow_redirects=False)
+        assert resp.status_code == 301
+        assert "/preview/crm" in resp.headers.get("Location", "")

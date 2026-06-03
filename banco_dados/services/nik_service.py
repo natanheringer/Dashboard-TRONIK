@@ -1956,6 +1956,16 @@ def gerar_relatorio_maiara(
     return _cache_set(cache_key, resultado)
 
 
-def obter_relatorio_maiara(db: Session, relatorio_id: int) -> dict[str, Any] | None:
+def obter_relatorio_maiara(
+    db: Session,
+    relatorio_id: int,
+    *,
+    usuario_id: int | None = None,
+    admin: bool = False,
+) -> dict[str, Any] | None:
     row = db.get(NikRelatorioGerado, relatorio_id)
-    return row.to_dict() if row else None
+    if not row:
+        return None
+    if usuario_id is not None and not admin and row.usuario_id != usuario_id:
+        return None
+    return row.to_dict()

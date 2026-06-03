@@ -6,24 +6,48 @@
 
 let pipelineData = [];
 let tarefasData = [];
-let funilData = {};
 let estatisticasData = {};
+
+function refreshLucideIcons() {
+    if (window.lucide && typeof window.lucide.createIcons === 'function') {
+        window.lucide.createIcons();
+    }
+}
 
 // Inicialização
 document.addEventListener('DOMContentLoaded', () => {
-    carregarEstatisticas();
-    carregarPipeline();
-    carregarTarefas();
-    carregarFunil();
+    refreshLucideIcons();
+    carregarDashboard();
     
     // Atualizar a cada 5 minutos
     setInterval(() => {
-        carregarEstatisticas();
-        carregarPipeline();
-        carregarTarefas();
-        carregarFunil();
+        carregarDashboard();
     }, 5 * 60 * 1000);
 });
+
+async function carregarDashboard() {
+    try {
+        const response = await fetch('/api/crm/dashboard?per_page=200');
+        if (!response.ok) {
+            throw new Error('Erro ao carregar dashboard CRM');
+        }
+        const body = await response.json();
+        estatisticasData = body.estatisticas || {};
+        pipelineData = body.pipeline || [];
+        tarefasData = body.tarefas || [];
+        renderizarEstatisticas();
+        renderizarPipeline();
+        renderizarFunil();
+        renderizarTarefas();
+    } catch (erro) {
+        console.error('Erro ao carregar dashboard CRM:', erro);
+        await Promise.all([
+            carregarEstatisticas(),
+            carregarPipeline(),
+            carregarTarefas(),
+        ]);
+    }
+}
 
 // Carregar estatísticas
 async function carregarEstatisticas() {
@@ -103,25 +127,6 @@ async function carregarTarefas() {
         if (container) {
             container.innerHTML = '<p style="text-align: center; color: #ef4444; padding: 2rem;">Erro ao carregar tarefas. Tente atualizar a página.</p>';
         }
-    }
-}
-
-// Carregar funil
-async function carregarFunil() {
-    try {
-        const response = await fetch('/api/crm/funil');
-        if (!response.ok) {
-            console.error('Erro HTTP ao carregar funil:', response.status, response.statusText);
-            throw new Error('Erro ao carregar funil');
-        }
-        
-        funilData = await response.json();
-        console.log('Funil carregado:', funilData);
-        // O funil é renderizado junto com o pipeline
-        // renderizarFunil() é chamado em carregarPipeline()
-    } catch (erro) {
-        console.error('Erro ao carregar funil:', erro);
-        // O funil será renderizado vazio se não houver dados
     }
 }
 
@@ -338,6 +343,7 @@ function renderizarPipeline(dados = null) {
             </div>
         </div>
     `).join('');
+    refreshLucideIcons();
 }
 
 // Renderizar funil filtrado
@@ -427,9 +433,7 @@ async function criarPipeline(event) {
         mostrarSucesso('Pipeline criado com sucesso!');
         fecharModalNovoPipeline();
         await Promise.all([
-            carregarEstatisticas(),
-            carregarPipeline(),
-            carregarFunil()
+            carregarDashboard(),
         ]);
     } catch (erro) {
         console.error('Erro ao criar pipeline:', erro);
@@ -507,12 +511,7 @@ window.fecharModalNovaTarefa = function() {
 // Ações
 // Função global para atualizar pipeline
 window.atualizarPipeline = async function() {
-    await Promise.all([
-        carregarEstatisticas(),
-        carregarPipeline(),
-        carregarTarefas(),
-        carregarFunil()
-    ]);
+    await carregarDashboard();
     mostrarSucesso('Dados atualizados!');
 };
 

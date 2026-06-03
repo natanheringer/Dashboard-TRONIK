@@ -18,8 +18,10 @@ class TestBuscarCandidatosPorNomeEmpresa:
         assert prospeccao_crm_bridge.buscar_candidatos_por_nome_empresa(db, "Eco Recicla") == []
 
     @patch("banco_dados.services.prospeccao_crm_bridge.resolve_model")
-    def test_filtra_por_nome_normalizado(self, mock_resolve):
+    @patch("banco_dados.services.prospeccao_crm_bridge._percentile_map_for_score_ids")
+    def test_filtra_por_nome_normalizado(self, mock_pct, mock_resolve):
         mock_resolve.return_value = MagicMock(id=1)
+        mock_pct.return_value = {1: 100.0}
 
         empresa_match = EmpresaCandidata(
             id=10,
@@ -44,21 +46,11 @@ class TestBuscarCandidatosPorNomeEmpresa:
             prioridade="alta",
             motivos_json='["cnae_ree"]',
         )
-        score_outro = ScoreProspeccao(
-            id=2,
-            snapshot_id=1,
-            modelo_id=1,
-            empresa_id=11,
-            qid="bairro:teste",
-            score=0.5,
-            ranking_contexto=2,
-            prioridade="media",
-        )
 
         db = MagicMock()
-        db.query.return_value.outerjoin.return_value.outerjoin.return_value.filter.return_value.all.return_value = [
+        db.query.return_value.filter.return_value.limit.return_value.all.return_value = [(10,)]
+        db.query.return_value.outerjoin.return_value.outerjoin.return_value.filter.return_value.order_by.return_value.limit.return_value.all.return_value = [
             (score_match, empresa_match, None),
-            (score_outro, empresa_outra, None),
         ]
 
         resultado = prospeccao_crm_bridge.buscar_candidatos_por_nome_empresa(
@@ -68,6 +60,11 @@ class TestBuscarCandidatosPorNomeEmpresa:
         assert resultado[0]["id"] == 1
         assert resultado[0]["match_source"] == "razao_social"
         assert resultado[0]["empresa"]["razao_social"] == "Eco Recicla Ltda"
+
+
+class TestSqlLikeEscape:
+    def test_escapa_curingas_like(self):
+        assert prospeccao_crm_bridge._sql_like_contains("100%_off") == "%100\\%\\_off%"
 
 
 class TestBuscarScoresParaPipeline:
@@ -116,7 +113,7 @@ def test_pipeline_prospeccao_exige_login(client):
     assert resp.status_code in {302, 401}
 
 
-def test_pipeline_prospeccao_autenticado(auth_client, monkeypatch):
+def test_pipeline_prospeccao_autenticado(admin_client, monkeypatch):
     monkeypatch.setattr(
         "rotas.api.crm.buscar_scores_para_pipeline",
         lambda db, pipeline_id, model_version=None: {
@@ -138,7 +135,7 @@ def test_pipeline_prospeccao_autenticado(auth_client, monkeypatch):
             "hints": [{"score_id": 1, "explicacao": ["cnae_ree"]}],
         },
     )
-    resp = auth_client.get("/api/crm/pipeline/42/prospeccao")
+    resp = admin_client.get("/api/crm/pipeline/42/prospeccao")
     assert resp.status_code == 200
     body = resp.get_json()
     assert body["ok"] is True
@@ -157,11 +154,11 @@ def test_pipeline_prospeccao_autenticado(auth_client, monkeypatch):
     assert candidato["qid"] == "bairro:teste"
 
 
-def test_pipeline_prospeccao_nao_encontrado(auth_client, monkeypatch):
+def test_pipeline_prospeccao_nao_encontrado(admin_client, monkeypatch):
     monkeypatch.setattr(
         "rotas.api.crm.buscar_scores_para_pipeline",
         lambda db, pipeline_id, model_version=None: None,
     )
-    resp = auth_client.get("/api/crm/pipeline/99/prospeccao")
+    resp = admin_client.get("/api/crm/pipeline/99/prospeccao")
     assert resp.status_code == 404
     assert resp.get_json()["erro"] == "Pipeline não encontrado"

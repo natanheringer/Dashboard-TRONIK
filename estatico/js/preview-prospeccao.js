@@ -9,6 +9,12 @@
   var CRM_PREVIEW_URL = "/preview/crm";
   var TOP_MOTIVOS = 3;
   var COLSPAN = 7;
+  var LIMITE_MIN = 1;
+  var LIMITE_MAX = 1000;
+  var LIMITE_WARN = 200;
+  var candidatosCache = [];
+  var sortCol = "score";
+  var sortDir = "desc";
 
   function $(id) {
     return document.getElementById(id);
@@ -176,6 +182,64 @@
     if (spin) spin.style.display = loading ? "block" : "none";
   }
 
+  function prioridadeRank(p) {
+    var v = (p || "media").toLowerCase();
+    if (v === "alta") return 0;
+    if (v === "media") return 1;
+    if (v === "baixa") return 2;
+    return 3;
+  }
+
+  function empresaNome(item) {
+    var e = item.empresa || {};
+    return (e.razao_social || e.nome_fantasia || "").toLowerCase();
+  }
+
+  function sortCandidatos(list) {
+    var col = sortCol;
+    var dir = sortDir === "asc" ? 1 : -1;
+    return list.slice().sort(function (a, b) {
+      var av;
+      var bv;
+      if (col === "empresa") {
+        av = empresaNome(a);
+        bv = empresaNome(b);
+        return av < bv ? -dir : av > bv ? dir : 0;
+      }
+      if (col === "score") {
+        av = Number(a.score);
+        bv = Number(b.score);
+        if (Number.isNaN(av)) av = dir < 0 ? Infinity : -Infinity;
+        if (Number.isNaN(bv)) bv = dir < 0 ? Infinity : -Infinity;
+        return av < bv ? -dir : av > bv ? dir : 0;
+      }
+      if (col === "prioridade") {
+        av = prioridadeRank(a.prioridade);
+        bv = prioridadeRank(b.prioridade);
+        return av < bv ? -dir : av > bv ? dir : 0;
+      }
+      if (col === "qid") {
+        av = (a.qid || "").toLowerCase();
+        bv = (b.qid || "").toLowerCase();
+        return av < bv ? -dir : av > bv ? dir : 0;
+      }
+      return 0;
+    });
+  }
+
+  function updateSortIndicators() {
+    document.querySelectorAll(".prosp-sortable").forEach(function (th) {
+      var col = th.getAttribute("data-sort");
+      var ind = th.querySelector(".prosp-sort-ind");
+      if (!ind) return;
+      if (col === sortCol) {
+        ind.textContent = sortDir === "asc" ? "▲" : "▼";
+      } else {
+        ind.textContent = "";
+      }
+    });
+  }
+
   function renderRows(candidatos) {
     var tbody = $("prosp-tbody");
     if (!tbody) return;
@@ -254,12 +318,26 @@
     }
   }
 
+  function updateLimiteWarn() {
+    var warn = $("prosp-limite-warn");
+    if (!warn) return;
+    warn.classList.toggle("is-visible", parseLimite() > LIMITE_WARN);
+  }
+
+  function parseLimite() {
+    var el = $("prosp-limite");
+    var n = el ? parseInt(el.value, 10) : 50;
+    if (Number.isNaN(n)) n = 50;
+    return Math.min(LIMITE_MAX, Math.max(LIMITE_MIN, n));
+  }
+
   function buildQuery() {
     var form = $("form-prosp-filtros");
     if (!form) return "";
     var params = new URLSearchParams(new FormData(form));
     var prioridade = params.get("prioridade");
     if (!prioridade) params.delete("prioridade");
+    params.set("limite", String(parseLimite()));
     return params.toString();
   }
 
@@ -293,9 +371,11 @@
         throw new Error(msg);
       }
 
-      var candidatos = body.dados || [];
-      renderRows(candidatos);
-      updateMeta(candidatos);
+      candidatosCache = body.dados || [];
+      var sorted = sortCandidatos(candidatosCache);
+      renderRows(sorted);
+      updateMeta(sorted);
+      updateSortIndicators();
     } catch (err) {
       var heroEl = $("prosp-hero-text");
       if (heroEl) {
@@ -405,6 +485,22 @@
         carregarFila();
       });
     }
+    document.querySelectorAll(".prosp-sortable").forEach(function (th) {
+      th.addEventListener("click", function () {
+        var col = th.getAttribute("data-sort");
+        if (!col) return;
+        if (sortCol === col) {
+          sortDir = sortDir === "asc" ? "desc" : "asc";
+        } else {
+          sortCol = col;
+          sortDir = col === "empresa" || col === "qid" ? "asc" : "desc";
+        }
+        if (!candidatosCache.length) return;
+        var sorted = sortCandidatos(candidatosCache);
+        renderRows(sorted);
+        updateSortIndicators();
+      });
+    });
     var tbody = $("prosp-tbody");
     if (tbody) {
       tbody.addEventListener("click", function (e) {
@@ -413,6 +509,13 @@
         criarLeadCrm(btn.getAttribute("data-empresa-id"), btn);
       });
     }
+    var limiteEl = $("prosp-limite");
+    if (limiteEl) {
+      limiteEl.addEventListener("input", updateLimiteWarn);
+      limiteEl.addEventListener("change", updateLimiteWarn);
+    }
+    updateLimiteWarn();
+    updateSortIndicators();
     carregarModelo();
     carregarFila();
   }

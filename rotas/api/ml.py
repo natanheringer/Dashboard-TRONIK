@@ -14,7 +14,7 @@ from datetime import datetime
 from flask import Blueprint, jsonify, request
 from flask_login import login_required
 
-from rotas.api.decorators import get_db
+from rotas.api.decorators import admin_required, get_db
 
 logger = logging.getLogger(__name__)
 
@@ -66,7 +66,7 @@ def predicao_coletor(coletor_id: int):
 
 
 @ml_bp.route("/predicao/recalcular", methods=["POST"])
-@login_required
+@admin_required
 def recalcular_predicoes():
     """Força recálculo de predições para todos os coletores.
 
@@ -121,7 +121,7 @@ def ranking_coletores():
 
 
 @ml_bp.route("/score/recalcular", methods=["POST"])
-@login_required
+@admin_required
 def recalcular_scores():
     """Força recálculo de TRONIK Score para todos os coletores.
 
@@ -201,7 +201,7 @@ def narrativa_parceiro(parceiro_id: int):
 # ==============================================================
 
 @ml_bp.route("/retreinar", methods=["POST"])
-@login_required
+@admin_required
 def retreinar_modelos():
     """Força recálculo de todos os modelos ML.
 

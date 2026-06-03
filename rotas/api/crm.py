@@ -6,7 +6,7 @@ Endpoints para CRM e pipeline de vendas.
 
 
 from flask import Blueprint, jsonify, request
-from flask_login import current_user, login_required
+from flask_login import current_user
 
 from banco_dados.modelos import Pipeline
 from banco_dados.services.crm_service import CRMService
@@ -21,7 +21,7 @@ crm_bp = Blueprint('crm_api', __name__, url_prefix='/crm')
 
 
 @crm_bp.route('/pipeline', methods=['GET'])
-@login_required
+@decorators.admin_required
 @decorators.rate_limit("30 per minute")
 def listar_pipeline():
     """
@@ -54,6 +54,28 @@ def listar_pipeline():
         if coletor_id:
             query = query.filter_by(coletor_id=coletor_id)
 
+        page = request.args.get('page', type=int)
+        per_page = request.args.get('per_page', type=int)
+
+        if page is not None:
+            per_page = min(200, max(1, per_page or 50))
+            total = query.count()
+            pipelines = (
+                query.order_by(Pipeline.criado_em.desc())
+                .offset((page - 1) * per_page)
+                .limit(per_page)
+                .all()
+            )
+            resultado = [p.to_dict() for p in pipelines]
+            for p in pipelines:
+                db.expunge(p)
+            return jsonify({
+                'items': resultado,
+                'total': total,
+                'page': page,
+                'per_page': per_page,
+            }), 200
+
         pipelines = query.order_by(Pipeline.criado_em.desc()).all()
 
         # Expurgar objetos após serializar
@@ -70,7 +92,7 @@ def listar_pipeline():
 
 
 @crm_bp.route('/pipeline', methods=['POST'])
-@login_required
+@decorators.admin_required
 @decorators.rate_limit("10 per minute")
 def criar_pipeline():
     """
@@ -127,7 +149,7 @@ def criar_pipeline():
 
 
 @crm_bp.route('/pipeline/<int:pipeline_id>', methods=['GET'])
-@login_required
+@decorators.admin_required
 @decorators.rate_limit("30 per minute")
 def obter_pipeline(pipeline_id):
     """GET /api/crm/pipeline/<id> - Obtém detalhes de um pipeline"""
@@ -161,7 +183,7 @@ def obter_pipeline(pipeline_id):
 
 
 @crm_bp.route('/pipeline/<int:pipeline_id>/prospeccao', methods=['GET'])
-@login_required
+@decorators.admin_required
 @decorators.rate_limit("30 per minute")
 def pipeline_prospeccao(pipeline_id):
     """GET /api/crm/pipeline/<id>/prospeccao — scores de prospecção ligados ao lead.
@@ -194,7 +216,7 @@ def pipeline_prospeccao(pipeline_id):
 
 
 @crm_bp.route('/pipeline/<int:pipeline_id>/status', methods=['PUT'])
-@login_required
+@decorators.admin_required
 @decorators.rate_limit("20 per minute")
 def atualizar_status_pipeline(pipeline_id):
     """
@@ -248,7 +270,7 @@ def atualizar_status_pipeline(pipeline_id):
 
 
 @crm_bp.route('/pipeline/<int:pipeline_id>/interacoes', methods=['POST'])
-@login_required
+@decorators.admin_required
 @decorators.rate_limit("20 per minute")
 def registrar_interacao(pipeline_id):
     """
@@ -308,8 +330,55 @@ def registrar_interacao(pipeline_id):
         return jsonify({'erro': 'Erro ao registrar interação'}), 500
 
 
+@crm_bp.route('/dashboard', methods=['GET'])
+@decorators.admin_required
+@decorators.rate_limit("30 per minute")
+def dashboard_crm():
+    """GET /api/crm/dashboard — KPIs + pipeline paginado + tarefas (carga inicial única)."""
+    db = get_db_session()
+    try:
+        from sqlalchemy.orm import joinedload
+
+        page = max(1, request.args.get('page', 1, type=int))
+        per_page = min(200, max(1, request.args.get('per_page', 100, type=int)))
+
+        estatisticas = CRMService.get_estatisticas_gerais()
+
+        q_pipe = db.query(Pipeline).options(
+            joinedload(Pipeline.coletor),
+            joinedload(Pipeline.responsavel),
+        )
+        total_pipeline = q_pipe.count()
+        pipelines = (
+            q_pipe.order_by(Pipeline.criado_em.desc())
+            .offset((page - 1) * per_page)
+            .limit(per_page)
+            .all()
+        )
+        pipeline_items = [p.to_dict() for p in pipelines]
+        for p in pipelines:
+            db.expunge(p)
+
+        usuario_id = current_user.id if current_user.is_authenticated else None
+        tarefas = CRMService.get_tarefas_pendentes(usuario_id)
+
+        return jsonify({
+            'estatisticas': estatisticas,
+            'pipeline': pipeline_items,
+            'pipeline_total': total_pipeline,
+            'pipeline_page': page,
+            'pipeline_per_page': per_page,
+            'tarefas': [t.to_dict() for t in tarefas],
+        }), 200
+    except Exception as e:
+        logger.error(f"Erro no dashboard CRM: {str(e)}", exc_info=True)
+        return jsonify({'erro': 'Erro ao carregar dashboard CRM'}), 500
+    finally:
+        db.close()
+
+
 @crm_bp.route('/funil', methods=['GET'])
-@login_required
+@decorators.admin_required
 @decorators.rate_limit("30 per minute")
 def get_funil_vendas():
     """GET /api/crm/funil - Retorna dados do funil de vendas"""
@@ -322,7 +391,7 @@ def get_funil_vendas():
 
 
 @crm_bp.route('/estatisticas', methods=['GET'])
-@login_required
+@decorators.admin_required
 @decorators.rate_limit("30 per minute")
 def get_estatisticas():
     """GET /api/crm/estatisticas - Retorna estatísticas gerais do CRM"""
@@ -335,7 +404,7 @@ def get_estatisticas():
 
 
 @crm_bp.route('/tarefas', methods=['GET'])
-@login_required
+@decorators.admin_required
 @decorators.rate_limit("30 per minute")
 def listar_tarefas():
     """
@@ -367,7 +436,7 @@ def listar_tarefas():
 
 
 @crm_bp.route('/tarefas', methods=['POST'])
-@login_required
+@decorators.admin_required
 @decorators.rate_limit("10 per minute")
 def criar_tarefa():
     """
@@ -424,7 +493,7 @@ def criar_tarefa():
 
 
 @crm_bp.route('/tarefas/<int:tarefa_id>/concluir', methods=['POST'])
-@login_required
+@decorators.admin_required
 @decorators.rate_limit("20 per minute")
 def concluir_tarefa(tarefa_id):
     """POST /api/crm/tarefas/<id>/concluir - Marca tarefa como concluída"""

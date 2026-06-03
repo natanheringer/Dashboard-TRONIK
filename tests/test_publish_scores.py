@@ -120,4 +120,5 @@ def test_listwise_qid_orders_by_ranking_contexto():
 
     rows = list_published_scores(db, limite=10, qid="ctx:x")
     assert [r["ranking_contexto"] for r in rows] == [1, 2]
+    assert rows[0].get("score_percentil") is not None
     db.close()
