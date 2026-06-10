@@ -185,8 +185,7 @@
           reconnectionDelay: 1000,
           reconnectionDelayMax: 5000,
           reconnectionAttempts: 5,
-          transports: ["polling"],
-          upgrade: false,
+          transports: ["websocket", "polling"],
         });
 
         this.attachHandlers();
@@ -234,7 +233,9 @@
       const view = this.getCurrentView();
       if (view === "monit") {
         this.socket.emit("subscribe_lixeiras");
-        console.log("[Preview] Subscribed to coletores updates");
+        this.socket.emit("subscribe_sensores");
+        this.socket.emit("subscribe_notificacoes");
+        console.log("[Preview] Subscribed to monitoramento updates");
       } else if (view === "mapa") {
         this.socket.emit("subscribe_lixeiras");
         console.log("[Preview] Subscribed to coletores updates (mapa)");
@@ -286,23 +287,37 @@
       // Find and update card element if visible
       const card = document.querySelector(`[data-coletor-id="${coletorData.id}"]`);
       if (card) {
+        const nivel = Number(coletorData.nivel_preenchimento) || 0;
+        const status = String(coletorData.status || "OK").toUpperCase();
+        const statusClasse =
+          status === "QUEBRADA" || status === "MANUTENCAO" || status === "MANUTENÇÃO"
+            ? "neutral"
+            : nivel >= 95
+              ? "crit"
+              : nivel >= 80
+                ? "warn"
+                : "ok";
+
         // Update nivel percentage and bar
         const levelValue = card.querySelector(".level-value");
         const levelFill = card.querySelector(".level-fill");
         if (levelValue) {
-          levelValue.textContent = Math.round(coletorData.nivel_preenchimento) + "%";
+          levelValue.textContent = Math.round(nivel) + "%";
         }
         if (levelFill) {
-          levelFill.setAttribute("data-pct", coletorData.nivel_preenchimento);
-          levelFill.style.width = Math.min(100, coletorData.nivel_preenchimento) + "%";
+          levelFill.setAttribute("data-pct", nivel);
+          levelFill.style.width = Math.min(100, nivel) + "%";
         }
         // Update status badge
         const badge = card.querySelector(".badge");
-        if (badge && coletorData.status_classe) {
+        if (badge) {
           badge.classList.remove("crit", "warn", "ok", "neutral");
-          badge.classList.add(coletorData.status_classe);
-          badge.textContent = this.getBadgeLabel(coletorData.status_classe);
+          badge.classList.add(statusClasse);
+          badge.textContent = this.getBadgeLabel(statusClasse);
         }
+        card.classList.remove("crit", "warn", "ok", "neutral");
+        card.classList.add(statusClasse);
+        card.setAttribute("data-coletor-nivel", nivel);
       }
     },
 
@@ -339,9 +354,13 @@
     },
   };
 
-  // Initialize WebSocket on page load
+  // WebSocket após paint / fetch do mapa (evita competir com /api/coletores/mapa no reload)
   document.addEventListener("DOMContentLoaded", function () {
-    window.PreviewSocket.init();
+    if (typeof io === "undefined") return;
+    var delayMs = document.getElementById("leaflet-map") ? 900 : 0;
+    setTimeout(function () {
+      window.PreviewSocket.init();
+    }, delayMs);
   });
 
   // Re-subscribe when view changes via HTMX

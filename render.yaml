@@ -62,4 +62,3 @@ services:
     plan: starter  # ou free, starter, standard
     databaseName: tronik
     databaseUser: tronik_user
-

@@ -24,15 +24,14 @@ socketio = None
 
 
 def _origens_socket_io():
-    """Alinha CORS do Engine.IO a ``CORS_ORIGINS`` (mesma lista da API)."""
-    raw = os.getenv(
-        "CORS_ORIGINS",
-        "http://localhost:5000,http://127.0.0.1:5000",
-    )
+    """Retorna origens cross-origin extras; ``None`` mantém same-origin seguro.
+
+    Socket.IO não deve herdar ``CORS_ORIGINS`` da API: um valor legado nessa
+    variável bloqueia até o dashboard servido pelo próprio domínio.
+    """
+    raw = os.getenv("SOCKETIO_CORS_ORIGINS", "")
     partes = [p.strip() for p in raw.split(",") if p.strip()]
-    if not partes:
-        return ["http://localhost:5000"]
-    return partes
+    return partes or None
 
 
 def inicializar_websocket(app):

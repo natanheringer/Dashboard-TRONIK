@@ -54,6 +54,30 @@
   var markersById = {};
   var markers = [];
   var alvo = null;
+  var emptyOverlayDismissed = false;
+
+  function setEmptyOverlay(visible) {
+    var overlay = document.getElementById("map-empty-overlay");
+    if (!overlay) return;
+    if (!visible || emptyOverlayDismissed) {
+      overlay.classList.add("is-hidden");
+      overlay.setAttribute("hidden", "");
+    } else {
+      overlay.classList.remove("is-hidden");
+      overlay.removeAttribute("hidden");
+      if (typeof lucide !== "undefined" && lucide.createIcons) {
+        lucide.createIcons();
+      }
+    }
+  }
+
+  var closeEmpty = document.getElementById("map-empty-close");
+  if (closeEmpty) {
+    closeEmpty.addEventListener("click", function () {
+      emptyOverlayDismissed = true;
+      setEmptyOverlay(false);
+    });
+  }
 
   function updateMarcadoresCount(filtrados, total) {
     var countEl = document.getElementById("mapa-marcadores-count");
@@ -105,6 +129,7 @@
       if (selectedId !== null && Number(m.id) === selectedId) alvo = m;
     });
 
+    setEmptyOverlay(data.length === 0);
     applyView();
     reflowSoon();
   }
@@ -234,11 +259,13 @@
   };
 
   if (lazyLoad) {
+    setEmptyOverlay(false);
     fetchMapData()
       .then(loadMarkers)
       .catch(function () {
         updateMarcadoresCount(0, 0);
         loadMarkers([]);
+        setEmptyOverlay(true);
       });
   } else {
     var inline = window.__PREVIEW_MAP__ || [];

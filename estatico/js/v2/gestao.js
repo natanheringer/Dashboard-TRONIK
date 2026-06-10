@@ -2,6 +2,20 @@
  * Gestão v2 — cadastro de coletores, sensores, coletas e solicitações da landing.
  */
 
+let _coletoresGestaoCache = null;
+
+async function obterColetoresGestao() {
+    if (_coletoresGestaoCache) return _coletoresGestaoCache;
+    if (!window.obterTodosColetores) return [];
+    _coletoresGestaoCache = await window.obterTodosColetores();
+    return _coletoresGestaoCache;
+}
+
+function invalidarColetoresGestao() {
+    _coletoresGestaoCache = null;
+    if (window.invalidarCacheColetores) window.invalidarCacheColetores();
+}
+
 document.addEventListener('DOMContentLoaded', async function () {
     setupTabs();
 
@@ -11,7 +25,9 @@ document.addEventListener('DOMContentLoaded', async function () {
     }
 
     try {
-        await carregarDropdowns();
+        const coletores = await obterColetoresGestao();
+        await carregarDropdowns(coletores);
+        await carregarListaColetores(coletores);
     } catch (err) {
         console.error('Erro ao carregar selects:', err);
         const msg = formatGestaoError(err);
@@ -23,11 +39,7 @@ document.addEventListener('DOMContentLoaded', async function () {
         });
     }
 
-    await Promise.all([
-        carregarListaColetores(),
-        carregarListaSensores(),
-        carregarSolicitacoes(),
-    ]);
+    await Promise.all([carregarListaSensores(), carregarSolicitacoes()]);
 
     setupFormHandlers();
 });
@@ -87,12 +99,14 @@ function showStatus(el, text, type, durationMs) {
     }, ms);
 }
 
-async function carregarDropdowns() {
+async function carregarDropdowns(coletoresPrecarregados) {
     const [tiposMaterial, parceiros, tiposSensor, coletores] = await Promise.all([
         window.obterTiposMaterial ? window.obterTiposMaterial() : [],
         window.obterParceiros ? window.obterParceiros() : [],
         window.obterTiposSensor ? window.obterTiposSensor() : [],
-        window.obterTodosColetores ? window.obterTodosColetores() : [],
+        coletoresPrecarregados != null
+            ? coletoresPrecarregados
+            : obterColetoresGestao(),
     ]);
 
     const selMat = document.getElementById('tipo_material_id');
@@ -119,12 +133,15 @@ async function carregarDropdowns() {
     });
 }
 
-async function carregarListaColetores() {
+async function carregarListaColetores(coletoresPrecarregados) {
     const listEl = document.getElementById('lista-coletores');
     if (!listEl) return;
 
     try {
-        const coletores = await window.obterTodosColetores();
+        const coletores =
+            coletoresPrecarregados != null
+                ? coletoresPrecarregados
+                : await obterColetoresGestao();
         if (!coletores || coletores.length === 0) {
             listEl.innerHTML = '<p class="home-subtitle">Nenhum coletor cadastrado. Use o formulário ao lado.</p>';
             return;
@@ -328,8 +345,10 @@ function setupFormHandlers() {
                 const statusEl = document.getElementById('status');
                 if (statusEl) statusEl.value = 'OK';
 
-                await carregarListaColetores();
-                await carregarDropdowns();
+                invalidarColetoresGestao();
+                const coletores = await obterColetoresGestao();
+                await carregarListaColetores(coletores);
+                await carregarDropdowns(coletores);
             } catch (err) {
                 showStatus(msgEl, formatGestaoError(err), 'error');
             } finally {
@@ -433,8 +452,10 @@ async function handleDeleteColetor(id) {
     }
     try {
         await window.deletarColetor(id);
-        await carregarListaColetores();
-        await carregarDropdowns();
+        invalidarColetoresGestao();
+        const coletores = await obterColetoresGestao();
+        await carregarListaColetores(coletores);
+        await carregarDropdowns(coletores);
         await carregarListaSensores();
     } catch (err) {
         alert(formatGestaoError(err));

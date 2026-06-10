@@ -263,11 +263,6 @@ def mapa():
     db = get_db()
     try:
         stats = pv.estatisticas_resumo(db)
-        from sqlalchemy import func
-
-        from banco_dados.modelos import Coletor
-
-        total_coletores_mapa = db.query(func.count(Coletor.id)).scalar() or 0
         nivel_f = (request.args.get("nivel") or "todos").strip().lower()
         if nivel_f not in {"todos", "crit", "warn", "ok", "neutral"}:
             nivel_f = "todos"
@@ -294,7 +289,7 @@ def mapa():
             "total_coletores": stats["total_coletores"],
             "stats": stats,
             "marcadores": marcadores,
-            "marcadores_total": total_coletores_mapa,
+            "marcadores_total": stats["total_coletores"],
             "mapa_lazy_load": True,
             "parceiros": parceiros,
             "filtro_mapa_nivel": nivel_f,
@@ -496,30 +491,48 @@ def nik_assets(filename: str):
 
 def _obter_ranking_ml(db):
     """Retorna ranking do TRONIK Score, ou [] se tabela não existir."""
-    try:
-        from banco_dados.services.ml_score import obter_ranking
-        return obter_ranking(db, limite=50)
-    except Exception:
-        return []
+    from banco_dados.utils.cache import obter_cache
+
+    cache = obter_cache()
+
+    def calcular():
+        try:
+            from banco_dados.services.ml_score import obter_ranking
+
+            return obter_ranking(db, limite=50)
+        except Exception:
+            return []
+
+    return cache.obter_ou_calcular("preview:ranking_ml", calcular, ttl_segundos=60)
 
 
 def _obter_predicoes_map(db):
     """Retorna dict {coletor_id: predicao_dict} com predições ativas."""
-    try:
-        from banco_dados.modelos import PredicaoEnchimento
-        preds = db.query(PredicaoEnchimento).filter(
-            PredicaoEnchimento.dados_suficientes.is_(True)
-        ).all()
-        result = {}
-        for p in preds:
-            result[p.coletor_id] = {
-                'horas_restantes': p.horas_restantes,
-                'velocidade': p.velocidade_enchimento,
-                'modelo': p.modelo_usado,
-            }
-        return result
-    except Exception:
-        return {}
+    from banco_dados.utils.cache import obter_cache
+
+    cache = obter_cache()
+
+    def calcular():
+        try:
+            from banco_dados.modelos import PredicaoEnchimento
+
+            preds = db.query(PredicaoEnchimento).filter(
+                PredicaoEnchimento.dados_suficientes.is_(True)
+            ).all()
+            result = {}
+            for p in preds:
+                result[p.coletor_id] = {
+                    "horas_restantes": p.horas_restantes,
+                    "velocidade": p.velocidade_enchimento,
+                    "modelo": p.modelo_usado,
+                }
+            return result
+        except Exception:
+            return {}
+
+    return cache.obter_ou_calcular(
+        "preview:predicoes_map", calcular, ttl_segundos=60
+    )
 
 
 def _obter_narrativa_parceiro(db, parceiro_id):

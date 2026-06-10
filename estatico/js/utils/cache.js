@@ -8,6 +8,7 @@ const CacheFrontend = (function() {
     'use strict';
     
     const cache = new Map();
+    const pending = new Map();
     const TTL_PADRAO = 5 * 60 * 1000; // 5 minutos
     
     /**
@@ -96,11 +97,20 @@ const CacheFrontend = (function() {
         if (valor !== null) {
             return valor;
         }
-        
-        // Calcular e armazenar
-        const novoValor = await calcularFn();
-        definir(chave, novoValor, ttl);
-        return novoValor;
+        if (pending.has(chave)) {
+            return pending.get(chave);
+        }
+        const promessa = (async function () {
+            try {
+                const novoValor = await calcularFn();
+                definir(chave, novoValor, ttl);
+                return novoValor;
+            } finally {
+                pending.delete(chave);
+            }
+        })();
+        pending.set(chave, promessa);
+        return promessa;
     }
     
     return {

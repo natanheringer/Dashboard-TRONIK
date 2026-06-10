@@ -49,12 +49,40 @@
   place-items: center;
   padding: var(--space-6);
   pointer-events: none;
+  background: rgba(250, 248, 244, 0.55);
+}
+
+.map-empty-overlay.is-hidden {
+  display: none !important;
 }
 
 .map-empty-overlay .empty-state {
   pointer-events: auto;
   max-width: min(440px, 94%);
   margin: 0 auto;
+  position: relative;
+}
+
+.map-empty-overlay__close {
+  position: absolute;
+  top: var(--space-4);
+  right: var(--space-4);
+  z-index: 360;
+  pointer-events: auto;
+  width: 36px;
+  height: 36px;
+  border: 1px solid var(--line-default);
+  border-radius: var(--radius-md);
+  background: var(--paper-elevated);
+  color: var(--ink-secondary);
+  font-size: 1.25rem;
+  line-height: 1;
+  cursor: pointer;
+}
+
+.map-empty-overlay__close:hover {
+  background: var(--tronik-ghost);
+  color: var(--ink-primary);
 }
 
 .preview-map-toolbar {

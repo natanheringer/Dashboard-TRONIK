@@ -57,16 +57,15 @@
         <div id="mapa-preview" class="mapa-fake mapa-fake--live mapa-preview-live">
           <div id="leaflet-map" class="leaflet-map-host"></div>
 
-          {% if not marcadores %}
-          <div class="map-empty-overlay" aria-live="polite">
+          <div id="map-empty-overlay" class="map-empty-overlay is-hidden" aria-live="polite" hidden>
+            <button type="button" class="map-empty-overlay__close" id="map-empty-close" aria-label="Fechar aviso">×</button>
             {% set estado_vazio = true %}
             {% set titulo = "Nenhum marcador para exibir" %}
-            {% set descricao = "Ajuste os filtros ou cadastre latitude/longitude nos coletores." %}
-            {% set sugestao = "Marcadores continuam disponíveis no conjunto total se remover filtros restritivos." %}
+            {% set descricao = "Ajuste os filtros ou cadastre latitude/longitude nos coletores (Gestão)." %}
+            {% set sugestao = "Use «Limpar filtros» ou feche este aviso para interagir com o mapa." %}
             {% set icon_type = "mapa" %}
             {% include 'preview/_partials/_empty_state.html' %}
           </div>
-          {% endif %}
 
           {% if detalhe %}
           <div class="mapa-detail mapa-detail-front">
@@ -115,9 +114,9 @@
 </script>
 <script src="https://cdn.jsdelivr.net/npm/leaflet@1.9.4/dist/leaflet.js"
         integrity="sha256-20nQCchB9co0qIjJZRGuk2/Z9VM+kNiyxNV1lvTlZBo="
-        crossorigin=""></script>
-<script src="https://cdn.jsdelivr.net/npm/leaflet.markercluster@1.5.3/dist/leaflet.markercluster.js" crossorigin=""></script>
-<script src="{{ url_for('static', filename='js/v2/mapa-preview.js') }}?v={{ cache_version }}"></script>
+        crossorigin="" defer></script>
+<script src="https://cdn.jsdelivr.net/npm/leaflet.markercluster@1.5.3/dist/leaflet.markercluster.js" crossorigin="" defer></script>
+<script src="{{ url_for('static', filename='js/v2/mapa-preview.js') }}?v={{ cache_version }}" defer></script>
 {% if detalhe %}
 <script>
   document.addEventListener("DOMContentLoaded", function () {

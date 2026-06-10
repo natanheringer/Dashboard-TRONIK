@@ -66,3 +66,11 @@ def test_limiter_singleton_respects_enabled_env(monkeypatch):
     monkeypatch.setenv("RATELIMIT_ENABLED", "true")
     importlib.reload(limiter_mod)
     assert limiter_mod.limiter.enabled is True
+
+
+def test_response_expoe_tempo_do_app(client):
+    response = client.get("/api/health")
+
+    assert response.status_code == 200
+    assert response.headers["Server-Timing"].startswith("app;dur=")
+    assert float(response.headers["X-Response-Time-Ms"]) >= 0

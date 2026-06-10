@@ -412,6 +412,7 @@
 {% endblock %}
 
 {% block scripts_extra %}
+<script src="{{ url_for('static', filename='js/utils/cache.js') }}?v={{ cache_version }}"></script>
 <script src="{{ url_for('static', filename='js/api.js') }}?v={{ cache_version }}"></script>
 <script src="{{ url_for('static', filename='js/v2/gestao.js') }}?v={{ cache_version }}" defer></script>
 {% endblock %}

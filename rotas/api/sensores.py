@@ -13,9 +13,14 @@ from sqlalchemy.orm import joinedload
 
 from banco_dados.modelos import Sensor
 from banco_dados.seguranca import validar_sensor
-from banco_dados.serializers import sensor_para_dict
+from banco_dados.serializers import (
+    coletor_para_dict,
+    notificacao_para_dict,
+    sensor_para_dict,
+)
 from banco_dados.telemetria_auth import validar_telemetria
 from banco_dados.utils import utc_now_naive
+from banco_dados.utils.cache import obter_cache
 from banco_dados.utils.erros import (
     ErroNaoEncontrado,
     ErroValidacao,
@@ -253,7 +258,7 @@ def receber_telemetria():
 
         validar_telemetria(sensor, payload.api_key)
 
-        notificacoes_criadas = 0
+        notificacoes = []
         limite_tempo = utc_now_naive() - timedelta(hours=JANELA_DEDUP_HORAS)
 
         coletor.nivel_preenchimento = payload.nivel_preenchimento
@@ -270,7 +275,7 @@ def receber_telemetria():
                 .first()
             )
             if not ja_existe:
-                criar_notificacao(
+                notificacoes.append(criar_notificacao(
                     db=db,
                     tipo="lixeira_cheia",
                     titulo=f"Coletor #{coletor.id} - Nivel Alto",
@@ -279,8 +284,9 @@ def receber_telemetria():
                         f"{coletor.nivel_preenchimento:.1f}% de preenchimento."
                     ),
                     coletor_id=coletor.id,
-                )
-                notificacoes_criadas += 1
+                    commit=False,
+                    emitir=False,
+                ))
         elif payload.nivel_preenchimento <= LIMIAR_NIVEL_CHEIO and coletor.status == "CHEIA":
             coletor.status = "OK"
 
@@ -297,7 +303,7 @@ def receber_telemetria():
                 .first()
             )
             if not ja_existe:
-                criar_notificacao(
+                notificacoes.append(criar_notificacao(
                     db=db,
                     tipo="bateria_baixa",
                     titulo=f"Sensor #{sensor.id} - Bateria Baixa",
@@ -307,10 +313,50 @@ def receber_telemetria():
                     ),
                     sensor_id=sensor.id,
                     coletor_id=coletor.id,
-                )
-                notificacoes_criadas += 1
+                    commit=False,
+                    emitir=False,
+                ))
 
         db.commit()
+
+        # Dados derivados precisam refletir a leitura já no próximo GET/F5.
+        cache = obter_cache()
+        cache.invalidar("estatisticas")
+        if coletor.parceiro_id is not None:
+            cache.invalidar(f"estatisticas:{coletor.parceiro_id}")
+        cache.invalidar("preview:estatisticas_resumo")
+        cache.invalidar("preview:coletores_geojson")
+
+        # Emitir somente depois do commit: o cliente nunca recebe estado ainda
+        # não persistido e a telemetria passa a atualizar o dashboard em tempo real.
+        try:
+            from rotas.websocket import (
+                emitir_atualizacao_coletor,
+                emitir_atualizacao_sensor,
+                emitir_nova_notificacao,
+            )
+
+            emissoes = [
+                ("coletor", emitir_atualizacao_coletor, coletor_para_dict, coletor),
+                ("sensor", emitir_atualizacao_sensor, sensor_para_dict, sensor),
+                *[
+                    ("notificacao", emitir_nova_notificacao, notificacao_para_dict, notificacao)
+                    for notificacao in notificacoes
+                ],
+            ]
+        except Exception as emit_error:
+            logger.warning("Erro ao preparar emissoes da telemetria: %s", emit_error)
+            emissoes = []
+
+        for tipo_evento, emitir, serializar, objeto in emissoes:
+            try:
+                emitir(serializar(objeto))
+            except Exception as emit_error:
+                logger.warning(
+                    "Erro ao emitir %s da telemetria via WebSocket: %s",
+                    tipo_evento,
+                    emit_error,
+                )
 
         resposta = TelemetriaOut(
             mensagem="Telemetria registrada com sucesso",
@@ -319,7 +365,7 @@ def receber_telemetria():
             nivel_preenchimento=coletor.nivel_preenchimento,
             status_coletor=coletor.status,
             bateria=sensor.bateria,
-            notificacoes_criadas=notificacoes_criadas,
+            notificacoes_criadas=len(notificacoes),
         )
         return jsonify(resposta.model_dump(mode="json")), 200
 

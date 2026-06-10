@@ -28,8 +28,7 @@ const WebSocketClient = (function() {
         
         try {
             socket = io({
-                transports: ['polling'],
-                upgrade: false,
+                transports: ['websocket', 'polling'],
                 reconnection: true,
                 reconnectionDelay: DELAY_RECONEXAO,
                 reconnectionAttempts: MAX_TENTATIVAS
@@ -198,4 +197,3 @@ const WebSocketClient = (function() {
 
 // Exportar globalmente
 window.WebSocketClient = WebSocketClient;
-

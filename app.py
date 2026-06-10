@@ -13,7 +13,7 @@ import secrets
 from pathlib import Path
 
 from dotenv import load_dotenv
-from flask import Flask, request
+from flask import Flask, g, request
 from flask_cors import CORS
 from flask_login import LoginManager
 from flask_talisman import Talisman
@@ -98,12 +98,47 @@ def health_check():
 import time
 
 
+@app.before_request
+def iniciar_medicao_requisicao():
+    """Marca o inicio para expor latencia real do app em producao."""
+    g.request_started_at = time.perf_counter()
+
+
+@app.after_request
+def adicionar_tempo_resposta(response):
+    started_at = getattr(g, "request_started_at", None)
+    if started_at is None:
+        return response
+
+    duracao_ms = (time.perf_counter() - started_at) * 1000
+    response.headers["Server-Timing"] = f"app;dur={duracao_ms:.1f}"
+    response.headers["X-Response-Time-Ms"] = f"{duracao_ms:.1f}"
+
+    try:
+        limite_ms = float(os.getenv("SLOW_REQUEST_MS", "1000"))
+    except ValueError:
+        limite_ms = 1000.0
+    if duracao_ms >= limite_ms and not request.path.startswith("/socket.io/"):
+        logger.warning(
+            "Requisicao lenta: method=%s path=%s status=%s duracao_ms=%.1f",
+            request.method,
+            request.path,
+            response.status_code,
+            duracao_ms,
+        )
+    return response
+
+
 @app.context_processor
 def inject_cache_bust():
     """Adiciona versão aos arquivos estáticos para evitar cache"""
     # Em desenvolvimento, usar timestamp para forçar atualização
     # Em produção, usar versão fixa (pode ser atualizada manualmente)
-    cache_version = int(time.time()) if FLASK_ENV == 'development' else '1.0.0'
+    cache_version = int(time.time()) if FLASK_ENV == 'development' else (
+        os.getenv("STATIC_VERSION")
+        or os.getenv("RAILWAY_GIT_COMMIT_SHA")
+        or "1.0.1"
+    )[:12]
     preview_demo_banner = os.getenv('PREVIEW_DEMO_BANNER', 'false').strip().lower() in (
         '1',
         'true',

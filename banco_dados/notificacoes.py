@@ -140,7 +140,10 @@ def criar_notificacao(
     titulo: str,
     mensagem: str,
     coletor_id: int | None = None,
-    sensor_id: int | None = None
+    sensor_id: int | None = None,
+    *,
+    commit: bool = True,
+    emitir: bool = True,
 ) -> Notificacao:
     """
     Cria uma nova notificação no banco de dados.
@@ -166,18 +169,21 @@ def criar_notificacao(
     )
 
     db.add(notificacao)
-    db.commit()
-    db.refresh(notificacao)
+    if commit:
+        db.commit()
+        db.refresh(notificacao)
+    else:
+        db.flush()
 
     logger.info(f"Notificação criada: {tipo} - {titulo}")
 
-    # Emitir atualização via WebSocket
-    try:
-        from banco_dados.serializers import notificacao_para_dict
-        from rotas.websocket import emitir_nova_notificacao
-        emitir_nova_notificacao(notificacao_para_dict(notificacao))
-    except Exception as e:
-        logger.warning(f"Erro ao emitir notificação via WebSocket: {e}")
+    if emitir:
+        try:
+            from banco_dados.serializers import notificacao_para_dict
+            from rotas.websocket import emitir_nova_notificacao
+            emitir_nova_notificacao(notificacao_para_dict(notificacao))
+        except Exception as e:
+            logger.warning(f"Erro ao emitir notificação via WebSocket: {e}")
 
     return notificacao
 
@@ -359,6 +365,5 @@ def processar_alertas(db: Session) -> dict[str, int]:
         logger.error(f"Erro ao processar alertas: {e}")
         stats['erros'] += 1
         return stats
-
 
 

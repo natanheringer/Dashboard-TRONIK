@@ -158,6 +158,33 @@ def estatisticas_resumo(db: Session) -> dict[str, Any]:
     )
 
 
+def _media_bateria_por_coletor(db: Session) -> dict[int, float]:
+    """Média de bateria por coletor em uma query (evita joinedload de sensores no mapa)."""
+    rows = (
+        db.query(Sensor.coletor_id, func.avg(Sensor.bateria))
+        .group_by(Sensor.coletor_id)
+        .all()
+    )
+    return {
+        int(cid): round(float(avg), 1)
+        for cid, avg in rows
+        if cid is not None and avg is not None
+    }
+
+
+def coletores_para_mapa(db: Session) -> list[Coletor]:
+    """Lista leve para marcadores: sem eager load de sensores."""
+    return (
+        db.query(Coletor)
+        .options(
+            joinedload(Coletor.parceiro),
+            joinedload(Coletor.tipo_material),
+        )
+        .order_by(Coletor.id)
+        .all()
+    )
+
+
 def coletores_monitoramento(db: Session) -> list[Coletor]:
     return (
         db.query(Coletor)
@@ -312,29 +339,35 @@ def coletas_recentes(db: Session, limite: int = 8) -> list[dict[str, Any]]:
 
 
 def coletores_geojson(db: Session) -> list[dict[str, Any]]:
-    coletores = coletores_monitoramento(db)
-    feats = []
-    for c in coletores:
-        lat, lng = _coords_mapa(c)
-        cls = classificacao_ui(float(c.nivel_preenchimento or 0), c.status)
-        feats.append(
-            {
-                "id": c.id,
-                "lat": lat,
-                "lng": lng,
-                "label": c.localizacao,
-                "nivel": round(float(c.nivel_preenchimento or 0), 1),
-                "classe": cls,
-                "parceiro_id": c.parceiro_id,
-                "parceiro": c.parceiro.nome if c.parceiro else "—",
-                "tipo": c.tipo_material.nome if c.tipo_material else "—",
-                "bateria": round(_media_bateria(c.sensores or []), 1)
-                if c.sensores
-                else None,
-                "ultima_coleta": _fmt_data(c.ultima_coleta),
-            }
-        )
-    return feats
+    cache = obter_cache()
+
+    def calcular() -> list[dict[str, Any]]:
+        coletores = coletores_para_mapa(db)
+        baterias = _media_bateria_por_coletor(db)
+        feats: list[dict[str, Any]] = []
+        for c in coletores:
+            lat, lng = _coords_mapa(c)
+            cls = classificacao_ui(float(c.nivel_preenchimento or 0), c.status)
+            feats.append(
+                {
+                    "id": c.id,
+                    "lat": lat,
+                    "lng": lng,
+                    "label": c.localizacao,
+                    "nivel": round(float(c.nivel_preenchimento or 0), 1),
+                    "classe": cls,
+                    "parceiro_id": c.parceiro_id,
+                    "parceiro": c.parceiro.nome if c.parceiro else "—",
+                    "tipo": c.tipo_material.nome if c.tipo_material else "—",
+                    "bateria": baterias.get(c.id),
+                    "ultima_coleta": _fmt_data(c.ultima_coleta),
+                }
+            )
+        return feats
+
+    return cache.obter_ou_calcular(
+        "preview:coletores_geojson", calcular, ttl_segundos=20
+    )
 
 
 def filtrar_marcadores_mapa(
@@ -592,13 +625,20 @@ def parceiros_tabela(db: Session) -> list[dict[str, Any]]:
 
 
 def listar_parceiros_select(db: Session) -> list[dict[str, Any]]:
-    rows = (
-        db.query(Parceiro)
-        .filter(Parceiro.ativo.is_(True))
-        .order_by(Parceiro.nome)
-        .all()
+    cache = obter_cache()
+
+    def calcular() -> list[dict[str, Any]]:
+        rows = (
+            db.query(Parceiro)
+            .filter(Parceiro.ativo.is_(True))
+            .order_by(Parceiro.nome)
+            .all()
+        )
+        return [{"id": p.id, "nome": p.nome} for p in rows]
+
+    return cache.obter_ou_calcular(
+        "preview:parceiros_select", calcular, ttl_segundos=600
     )
-    return [{"id": p.id, "nome": p.nome} for p in rows]
 
 
 def texto_home_subtitulo(stats: dict[str, Any], nomes_atencao: list[str]) -> str:
