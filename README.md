@@ -159,7 +159,7 @@ dashboard-tronik/
 │   └── ...
 ├── app.py                              # Flask application
 ├── requirements.txt
-├── run_pipeline.ps1                    # PowerShell orchestration script
+├── scripts/run_pipeline.ps1            # PowerShell orchestration script
 └── README.md
 ```
 

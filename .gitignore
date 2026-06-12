@@ -122,3 +122,7 @@ nik_bot/*
 # === Ingestão prospecção (artefatos locais; podem ser GB) ===
 data/raw/prospeccao/**/*
 !data/raw/prospeccao/.gitkeep
+
+# === Diffs avulsos e locks do LibreOffice ===
+*.diff
+.~lock.*#

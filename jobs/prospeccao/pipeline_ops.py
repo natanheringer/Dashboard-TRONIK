@@ -57,9 +57,9 @@ def _run_powershell_pipeline(
     skip_internal_labels: bool,
     build_limit: int | None,
 ) -> dict[str, Any]:
-    ps1 = _REPO_ROOT / "run_pipeline.ps1"
+    ps1 = _REPO_ROOT / "scripts" / "run_pipeline.ps1"
     if not ps1.is_file():
-        return {"ok": False, "error": f"run_pipeline.ps1 not found at {ps1}"}
+        return {"ok": False, "error": f"scripts/run_pipeline.ps1 not found at {ps1}"}
 
     args = [
         "powershell",

@@ -14,7 +14,6 @@ extend-exclude = [
     "db_tronik",
     "deploy",
     "docs",
-    "diagrama_arquitetura_dashboard.svg",
 ]
 
 [tool.ruff.lint]
@@ -63,11 +62,21 @@ target-version = ["py311", "py312"]
 extend-exclude = "documentacao_legado|db_tronik|deploy|docs"
 
 # ----------------------------------------------------------------------------
-# Pytest (complementa pytest.ini existente)
+# Pytest (config única; o antigo pytest.ini foi fundido aqui)
 # ----------------------------------------------------------------------------
 [tool.pytest.ini_options]
 testpaths = ["tests"]
 python_files = ["test_*.py"]
+python_classes = ["Test*"]
+python_functions = ["test_*"]
+addopts = "-v --tb=short --strict-markers --disable-warnings"
+markers = [
+    "slow: testes que demoram mais tempo",
+    "integration: testes de integração",
+    "unit: testes unitários",
+    "auth: testes de autenticação",
+    "api: testes de API",
+]
 filterwarnings = [
     "ignore::DeprecationWarning:flask_limiter.*",
     "ignore::DeprecationWarning:sqlalchemy.*",

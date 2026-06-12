@@ -2,7 +2,7 @@
 
 Documento alinhado ao repositório atual (preview v2, API modular, telemetria, ML parcial, jobs de ingestão). Diagramas em Mermaid (GitHub / VS Code / MkDocs).
 
-**Relacionados:** [DIAGRAMAS.md](DIAGRAMAS.md) (índice + **SVG/PNG**) · [PLANO_ML_TRONIK.md](../PLANO_ML_TRONIK.md) · [jobs/prospeccao/README.md](../jobs/prospeccao/README.md) · [ESTADO_ATUAL_PROJETO.md](ESTADO_ATUAL_PROJETO.md)
+**Relacionados:** [DIAGRAMAS.md](DIAGRAMAS.md) (índice + **SVG/PNG**) · [PLANO_ML_TRONIK.md](PLANO_ML_TRONIK.md) · [jobs/prospeccao/README.md](../jobs/prospeccao/README.md) · [ESTADO_ATUAL_PROJETO.md](ESTADO_ATUAL_PROJETO.md)
 
 ---
 

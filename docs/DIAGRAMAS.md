@@ -2,7 +2,7 @@
 
 Índice com **imagens exportadas** (SVG + PNG) e fontes Mermaid editáveis. Todos os diagramas produzidos no desenvolvimento do projeto (arquitetura, prospecção REE, Nik agentic, CRM, fases 0–4).
 
-**Relacionados:** [ARQUITETURA.md](ARQUITETURA.md) · [PLANO_ML_TRONIK.md](../PLANO_ML_TRONIK.md) · [nik_bot/spec_nik_agent.md](../nik_bot/spec_nik_agent.md)
+**Relacionados:** [ARQUITETURA.md](ARQUITETURA.md) · [PLANO_ML_TRONIK.md](PLANO_ML_TRONIK.md) · [nik_bot/spec_nik_agent.md](../nik_bot/spec_nik_agent.md)
 
 **Última consolidação:** maio/2026
 
@@ -149,8 +149,8 @@ Downloads: [01 SVG](diagramas/svg/01-sistema-tres-camadas.svg) · [02](diagramas
 
 | Ficheiro | Nota |
 |----------|------|
-| [`diagrama_arquitetura_dashboard.svg`](../diagrama_arquitetura_dashboard.svg) | Dashboard antigo (pré-preview v2) |
-| [`arquitetura.mmd`](../arquitetura.mmd) | Monólito legado |
+| [`diagrama_arquitetura_dashboard.svg`](diagramas/legado/diagrama_arquitetura_dashboard.svg) | Dashboard antigo (pré-preview v2) |
+| [`arquitetura.mmd`](diagramas/legado/arquitetura.mmd) | Monólito legado |
 
 ---
 
