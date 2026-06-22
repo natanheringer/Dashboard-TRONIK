@@ -165,9 +165,13 @@ def ops_export_download(token: str):
     payload = cache.obter(f"nik:export:{token}", ttl_segundos=3600)
     if not payload or not isinstance(payload, dict):
         return jsonify({"erro": "Exportação expirada ou inválida."}), 404
-    if payload.get("usuario_id") is not None and current_user.is_authenticated:
-        if payload["usuario_id"] != current_user.id and not current_user.admin:
-            return jsonify({"erro": "Sem permissão para este arquivo."}), 403
+    if (
+        payload.get("usuario_id") is not None
+        and current_user.is_authenticated
+        and payload["usuario_id"] != current_user.id
+        and not current_user.admin
+    ):
+        return jsonify({"erro": "Sem permissão para este arquivo."}), 403
     csv_text = payload.get("csv") or ""
     filename = payload.get("filename") or "coletas.csv"
     return Response(

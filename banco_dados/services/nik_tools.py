@@ -40,8 +40,8 @@ from banco_dados.services import (
     prospeccao_crm_bridge as crm_bridge,
     prospeccao_xgb_service as prospeccao_svc,
 )
-from banco_dados.services.relatorio_service import lucro_liquido_total_coleta
 from banco_dados.services.crm_service import CRMService
+from banco_dados.services.relatorio_service import lucro_liquido_total_coleta
 from banco_dados.utils.cache import obter_cache
 from jobs.prospeccao.publish_scores import resolve_model
 
