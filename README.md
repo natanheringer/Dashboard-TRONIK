@@ -1,224 +1,197 @@
-# dashboard-tronik
+# Dashboard-TRONIK
 
-E-waste prospection system for the Federal District of Brazil. Identifies and ranks commercial leads (waste electronics generators) through Learning to Rank on 534k candidates enriched from eight public data sources.
+Dashboard para controle e monitoramento da reciclagem inteligente de resíduos eletrônicos, desenvolvido para a **TRONIK RECICLA**. O sistema integra monitoramento operacional de coletores, CRM comercial, APIs REST e um pipeline de prospecção de leads (REE) no Distrito Federal com *Learning to Rank* sobre ~534 mil candidatos enriquecidos a partir de oito fontes públicas.
 
-## Problem Statement
+Documentação detalhada do dashboard: [`docs/DOCUMENTAÇÃO_COMPLETA.md`](docs/DOCUMENTAÇÃO_COMPLETA.md) · Pipeline de prospecção: [`jobs/prospeccao/README.md`](jobs/prospeccao/README.md)
 
-Tronik Recicla operates e-waste collection in the Federal District (DF). Efficient growth requires scalable lead generation: identifying companies likely to generate electronics waste, prioritizing outreach by commercial value. Manual CRM processes do not scale. This system automates discovery and ranking via machine learning on open government datasets.
+## Visão geral
 
-## Architecture
+| Módulo | Descrição |
+|--------|-----------|
+| **Dashboard web** | Monitoramento de coletores, coletas, rotas, relatórios e notificações |
+| **API REST** | Endpoints Flask para coletores, CRM, comercial, prospecção e integrações |
+| **Nik (assistente)** | Agente conversacional integrado ao dashboard |
+| **Prospecção REE** | Ingestão de dados abertos, engenharia de features e ranking com XGBRanker |
 
-1. **Harvest** — Ingest public data (CNPJ dump from Receita Federal, IBAMA CTF, IBGE CNEFE, ANEEL SAMP, INEP Censo Escolar, PNCP, OpenStreetMap)
-2. **Receita Parse** — Parse 50M+ establishments from Receita Federal CNPJ registry; extract CNPJ, legal name, primary CNAE
-3. **RFB Enrich** — Supplement with secondary CNAEs, complete address, postal code, and registration status from RFB Estabelecimentos
-4. **Normalize** — Deduplication, geocoding via IBGE CNEFE (106M address index), assignment of RA (Administrative Region), generation of Qualification IDs (QID) for listwise grouping
-5. **Build Features** — Engineer 20-dimensional feature vectors for 534k candidates (CNAE fit, geocode quality, company size, spatial proximity via BallTree, contact richness, institutional proxies)
-6. **Train Ranker** — Fit XGBRanker with listwise (rank:ndcg) objective on geographic QID groups, apply monotonic constraints, temporal train/val split, pre-training quality gates
-7. **Score Candidates** — Apply trained ranker; compute percentile rank within each geographic group; publish scores to CRM API
+## Contexto do problema
 
-## Why Learning to Rank
+A Tronik Recicla opera coleta de resíduos eletrônicos no Distrito Federal (DF). O crescimento comercial exige prospecção escalável: identificar empresas com maior probabilidade de gerar REE e priorizar abordagens por valor relativo. Processos manuais de CRM não escalam. O pipeline de prospecção automatiza descoberta e ranking via aprendizado de máquina sobre bases governamentais abertas.
 
-Lead ranking differs from classification: the absolute quality threshold is unknown, and commercial value is relative within local geographic markets. Listwise ranking (Learning to Rank) addresses both:
+## Arquitetura da prospecção
 
-- **Relative ranking within markets:** XGBRanker trained with NDCG@20 objective ensures companies are ranked relative to peers in the same RA, not globally. A strong candidate in Brasília's tech sector may rank differently than a similar company in a remote area.
-- **Cross-group generalization:** Temporal train/val split (holdout recent QID groups) prevents data leakage and measures model robustness to unseen geographic/temporal distributions.
-- **Monotonic constraints:** Guardrails on feature contributions (e.g., active status, geocoding confirmation, data completeness always improve rank) inject domain knowledge without rigid thresholds.
-- **Scalability:** Tree-based LTR handles non-linear interactions; early stopping and hyperparameter search avoid overfitting on 534k candidates across 100 QID groups.
+1. **Harvest** — Ingestão de dados públicos (dump CNPJ da Receita Federal, IBAMA CTF, IBGE CNEFE, ANEEL SAMP, INEP Censo Escolar, PNCP, OpenStreetMap)
+2. **Receita Parse** — Parse de 50M+ estabelecimentos do cadastro CNPJ; extração de CNPJ, razão social e CNAE principal
+3. **RFB Enrich** — Complemento com CNAEs secundários, endereço completo, CEP e situação cadastral (Estabelecimentos RFB)
+4. **Normalize** — Deduplicação, geocodificação via IBGE CNEFE (índice de 106M endereços), atribuição de RA (Região Administrativa) e geração de QIDs para agrupamento listwise
+5. **Build Features** — Vetores de 20 dimensões para ~534k candidatos (fit de CNAE, qualidade de geocode, porte, proximidade espacial via BallTree, riqueza de contato, proxies institucionais)
+6. **Train Ranker** — XGBRanker com objetivo listwise (`rank:ndcg`), restrições monotônicas, split temporal treino/val e *quality gates* pré-treino
+7. **Score Candidates** — Inferência, percentil por grupo geográfico (QID) e publicação de scores na API/CRM
 
-## Data Sources
+## Por que Learning to Rank
 
-| Source | Data Extracted | Use in Pipeline |
-|--------|-----------------|-----------------|
-| Receita Federal (CNPJ dump) | ~50M establishments: CNPJ, razão social, CNAE | Primary candidate pool; company registration status |
-| RFB Estabelecimentos | Secondary CNAEs, complete address, CEP, foundation date | Enrichment: CNAE fit scoring, age, data completeness |
-| IBGE CNEFE | 106M geocoded addresses; region/sector/subsector hierarchy | Geocoding (latitude/longitude, RA assignment) |
-| IBAMA CTF | Electronic waste collection permits, licensed companies | Proxy: public_proxy_fit signal (institutional alignment) |
-| ANEEL SAMP | Electricity meter data; equipment consumption profiles | Logistics proximity: BallTree neighbor density |
-| INEP Censo Escolar | Schools; institution density by municipality | Territorial proxy: inep_institution_proxy feature |
-| CNES (Sistema de Saúde) | Health establishments; facility density | Territorial proxy: cnes_health_proxy feature |
-| OpenStreetMap (Geofabrik) | POI density; amenities tagged electronics/repair | Spatial: osm_poi_ree_density feature |
+O ranking de leads difere de classificação: o limiar absoluto de qualidade é desconhecido e o valor comercial é relativo dentro de mercados geográficos locais. O ranking listwise (*Learning to Rank*) trata ambos os aspectos:
 
-## Key Technical Decisions
+- **Ranking relativo por mercado:** o XGBRanker com NDCG@20 ranqueia empresas em relação aos pares na mesma RA, não globalmente.
+- **Generalização entre grupos:** split temporal (holdout dos QIDs mais recentes) evita vazamento e mede robustez a distribuições geográficas/temporais novas.
+- **Restrições monotônicas:** *guardrails* em features (situação ativa, geocode confirmado, completude de dados) injetam conhecimento de domínio sem limiares rígidos.
+- **Escala:** LTR baseado em árvores lida com interações não lineares; early stopping e busca de hiperparâmetros reduzem overfitting em ~534k candidatos em ~100 grupos QID.
 
-- **Listwise LTR with geo-first QID grouping:** Companies ranked within their Administrative Region (RA), not globally. Respects geographic heterogeneity of DF (Brasília's tech sector vs. Entorno suburbs behave differently). Prevents out-of-distribution overfitting.
+## Fontes de dados
 
-- **Monotonic constraints on XGBoost:** FEATURE_NAMES[i] maps to MONOTONIC_CONSTRAINTS[i] (1 = monotonically increasing). Active status, has_geocode, and data_tier always contribute positively. Context-dependent features (age, neighborhood density) left unconstrained; tree decides.
+| Fonte | Dados extraídos | Uso no pipeline |
+|-------|-----------------|-----------------|
+| Receita Federal (dump CNPJ) | ~50M estabelecimentos: CNPJ, razão social, CNAE | Pool principal de candidatos; situação cadastral |
+| RFB Estabelecimentos | CNAEs secundários, endereço, CEP, data de abertura | Enriquecimento: fit de CNAE, idade, completude |
+| IBGE CNEFE | 106M endereços geocodificados; hierarquia região/setor | Geocodificação (lat/lng, atribuição de RA) |
+| IBAMA CTF | Licenças de coleta de REE | Proxy: sinal `public_proxy_fit` |
+| ANEEL SAMP | Medidores e perfis de consumo | Proximidade logística: densidade de vizinhos (BallTree) |
+| INEP Censo Escolar | Escolas por município | Proxy territorial: `inep_institution_proxy` |
+| CNES | Estabelecimentos de saúde | Proxy territorial: `cnes_health_proxy` |
+| OpenStreetMap (Geofabrik) | Densidade de POIs (eletrônicos/reparo) | Espacial: `osm_poi_ree_density` |
 
-- **Temporal train/val split:** Holdout most recent 20% of QID groups by snapshot ID (proxy for creation timestamp). Prevents data leakage; measures generalization to new candidates and time periods.
+## Decisões técnicas
 
-- **Quality gate pre-training:** Abort if (a) <8 QIDs with size >= 2 (insufficient listwise diversity), or (b) largest QID >50% of training set (risk of label collapse). Post-training: block activation if val NDCG < 0.30 or < active model NDCG.
-
-- **BallTree with haversine metric:** O(log N) nearest-neighbor lookup for OSM POI density and ANEEL proximity features instead of O(N²) pairwise distance. 534k candidates, 100ms latency target.
-
-- **Engine singleton + pool_pre_ping:** Reuse database connection pools across batch jobs. SQLite WAL mode (concurrent reads with writes), 60s timeout, PostgreSQL pool_pre_ping (skip stale connections after network blips). Railway.app production target.
-
-- **Atomic parquet writes (.tmp + rename):** Feature snapshots written to .tmp, renamed on success. Prevents partial reads if process crashes mid-write; consistent views for training jobs.
-
-- **Fallback geocoding chain:** If CNEFE match fails, fallback to RA centroid (lat/lng of region center). Ensures all 534k candidates have usable coordinates; has_geocode binary flag signals confidence level to ranker.
+- **LTR listwise com QID geo-first:** empresas ranqueadas dentro da RA, respeitando heterogeneidade do DF (setor tech de Brasília vs. Entorno).
+- **Restrições monotônicas no XGBoost:** `FEATURE_NAMES[i]` mapeia para `MONOTONIC_CONSTRAINTS[i]` (1 = monotonicamente crescente).
+- **Split temporal treino/val:** holdout dos 20% QIDs mais recentes por snapshot; mede generalização temporal.
+- **Quality gate pré-treino:** aborta se (a) &lt;8 QIDs com tamanho ≥ 2, ou (b) maior QID &gt;50% do treino. Pós-treino: bloqueia ativação se NDCG val &lt; 0,30 ou abaixo do modelo ativo.
+- **BallTree com métrica haversine:** vizinho mais próximo em O(log N) para features OSM/ANEEL (~100 ms em 534k candidatos).
+- **Engine singleton + pool_pre_ping:** pools reutilizados entre jobs; SQLite WAL (dev), PostgreSQL com `pool_pre_ping` (prod, ex.: Railway).
+- **Escrita atômica de parquet (.tmp + rename):** evita leituras parciais em crash.
+- **Cadeia de fallback de geocodificação:** CNEFE → centróide da RA; flag `has_geocode` sinaliza confiança ao ranker.
 
 ## Stack
 
 - **Core:** Python 3.11+, SQLAlchemy 2.0+, SQLite (dev) / PostgreSQL (prod)
-- **ML:** XGBoost (XGBRanker, rank:ndcg objective), scikit-learn (ndcg_score metric, BallTree), pandas, joblib (model serialization)
-- **Data:** Parquet (feature snapshots), pandas DataFrames, numpy arrays
-- **Scheduling:** APScheduler (cron job orchestration), PowerShell (Windows pipeline runner)
-- **Ingest:** CKAN API, IBGE Geoportal, HTTP batch downloads (Geofabrik, Receita Federal)
-- **Geocoding:** IBGE CNEFE library (internal), fallback to RA centroid
-- **Database Models:** SQLAlchemy ORM (EmpresaCandidata, FeatureSnapshotProspeccao, ModeloProspeccao, LocalCandidato)
+- **ML:** XGBoost (XGBRanker, `rank:ndcg`), scikit-learn (NDCG, BallTree), pandas, joblib
+- **Web:** Flask, Flask-Login, APScheduler, Leaflet (frontend)
+- **Dados:** Parquet, pandas, numpy
+- **Ingestão:** CKAN, Geoportal IBGE, downloads HTTP (Geofabrik, Receita Federal)
+- **Modelos ORM:** `EmpresaCandidata`, `FeatureSnapshotProspeccao`, `ModeloProspeccao`, `LocalCandidato` (ver `banco_dados/modelos.py`)
 
-## Running the Pipeline
+## Executando o pipeline de prospecção
 
-### Full Pipeline (end-to-end)
+### Pipeline completo (ponta a ponta)
 
 ```powershell
-# Activate Python environment
+# Ativar ambiente Python
 .\.venv\Scripts\Activate.ps1
 
-# Run harvest -> normalize -> build-features -> train-ranker -> score-candidates
-python -m jobs.prospeccao cli run-pipeline \
-  --pipeline-version "prospeccao-ree-v3.4" \
-  --model-version "v3.4-$(Get-Date -Format yyyyMMddHHmmss)" \
+# harvest → normalize → build-features → train-ranker → score-candidates
+python -m jobs.prospeccao cli run-pipeline `
+  --pipeline-version "prospeccao-ree-v3.4" `
+  --model-version "v3.4-$(Get-Date -Format yyyyMMddHHmmss)" `
   --log-level DEBUG
 
-# Check results
+# Conferir resultados
 python -m jobs.prospeccao cli monitor-ranker --show-top 20
 ```
 
-### Individual Steps
+Linux/macOS:
 
-```powershell
-# Ingest CNPJ dump, parse, enrich
+```bash
+source .venv/bin/activate
+python -m jobs.prospeccao cli run-pipeline \
+  --pipeline-version "prospeccao-ree-v3.4" \
+  --model-version "v3.4-$(date +%Y%m%d%H%M%S)" \
+  --log-level DEBUG
+```
+
+### Etapas individuais
+
+```bash
 python -m jobs.prospeccao harvest
-
-# Normalize and geocode
 python -m jobs.prospeccao normalize-candidates
-
-# Build feature snapshots
 python -m jobs.prospeccao build-features --version "prospeccao-ree-v3.4"
-
-# Train XGBRanker (with hyperparameter search)
 python -m jobs.prospeccao train-xgboost --allow-baseline
-
-# Score all candidates and publish to CRM
 python -m jobs.prospeccao score-candidates --publish-crm
 ```
 
-### Configuration
+### Configuração
 
-Environment variables (`.env` or Railway):
+Variáveis de ambiente (`.env` ou Railway):
 
 ```
-DATABASE_URL=postgresql://user:pass@host/dbname  # PostgreSQL in prod
+DATABASE_URL=postgresql://user:pass@host/dbname
 TRONIK_SEDE_LAT=-15.7942
 TRONIK_SEDE_LNG=-47.8822
 LOG_LEVEL=INFO
 ```
 
-## Project Structure
+## Estrutura do projeto
 
 ```
-dashboard-tronik/
-├── jobs/prospeccao/                    # ML/prospection pipeline
-│   ├── cli.py                          # Command-line interface
-│   ├── config.py                       # Paths, constants
-│   ├── db.py                           # Database session factory (singleton pool)
-│   ├── ranker_contract.py              # Feature schema, CNAE weights, monotonic constraints
-│   ├── build_features.py               # Feature engineering (20 dimensions)
-│   ├── train_xgboost.py                # XGBRanker training, hyperparameter search
-│   ├── score_candidates.py             # Inference, percentile ranking by QID
-│   ├── enrichment_proxies.py           # Territorial proxies (INEP, CNES, OSM)
-│   ├── normalize_candidates.py         # Dedup, geocoding, QID assignment
-│   ├── *_ingest.py                     # Data source ingestion (Receita, IBAMA, IBGE, ANEEL, INEP, CNES, Geofabrik)
-│   ├── paths.py                        # Filesystem paths (data/, models/)
-│   └── __main__.py                     # Entry point
-├── banco_dados/                        # Core database & API models
-│   ├── modelos.py                      # SQLAlchemy ORM (57k lines)
-│   ├── services/                       # Business logic layer
-│   │   ├── account_service.py
-│   │   ├── coleta_service.py
-│   │   ├── comercial_service.py        # Commercial dashboard services
-│   │   ├── crm_service.py
-│   │   ├── contrato_service.py
-│   │   └── ...
-│   ├── utils/
-│   │   ├── db_session.py               # SQLAlchemy session management
-│   │   ├── constantes.py
-│   │   └── ...
-│   ├── geocodificacao.py
-│   ├── notificacoes.py
-│   └── serializers.py
-├── rotas/api/                          # REST endpoints
-│   ├── coletores.py
-│   ├── coletas.py
-│   ├── comercial.py
-│   ├── crm.py
-│   └── ...
-├── tests/                              # Pytest (120+)
-├── data/
-│   ├── ml/prospeccao/                  # Feature snapshots (.parquet), trained models (.joblib)
-│   └── ...
-├── app.py                              # Flask application
-├── requirements.txt
-├── scripts/run_pipeline.ps1            # PowerShell orchestration script
-└── README.md
+Dashboard-TRONIK/
+├── app.py                              # Aplicação Flask
+├── jobs/prospeccao/                    # Pipeline ML / prospecção
+│   ├── cli.py
+│   ├── ranker_contract.py              # Schema de features e restrições monotônicas
+│   ├── build_features.py
+│   ├── train_xgboost.py
+│   ├── score_candidates.py
+│   └── *_ingest.py                     # Ingestão por fonte
+├── banco_dados/                        # ORM e serviços de negócio
+│   ├── modelos.py
+│   └── services/
+├── rotas/api/                          # Endpoints REST
+├── nik_bot/                            # Assistente Nik
+├── templates/ / estatico/              # Frontend
+├── tests/                              # Pytest (120+ testes)
+├── docs/                               # Documentação estendida
+├── data/ml/prospeccao/                 # Snapshots (.parquet) e modelos (.joblib)
+└── requirements.txt
 ```
 
-## Development
+## Desenvolvimento
 
 ### Setup
 
 ```bash
-git clone <repo>
-cd dashboard-tronik
+git clone https://github.com/natanheringer/Dashboard-TRONIK.git
+cd Dashboard-TRONIK
 python -m venv .venv
-source .venv/bin/activate  # Linux/Mac; Windows: .venv\Scripts\Activate.ps1
+source .venv/bin/activate   # Windows: .venv\Scripts\Activate.ps1
 pip install -r requirements.txt
-python app.py  # Flask dev server
+python app.py               # Servidor Flask em desenvolvimento
 ```
 
-### Code Style
+### Estilo e testes
 
-- Python: PEP 8, type hints
-- SQL: Standard SQLAlchemy ORM
-- Commits: Conventional Commits (feat, fix, refactor, etc.)
-
-### Testing
+- Python: PEP 8, type hints onde aplicável
+- Commits: [Conventional Commits](https://www.conventionalcommits.org/) (`feat`, `fix`, `refactor`, …)
 
 ```bash
 pytest tests/ -v --cov=jobs --cov=banco_dados
 ```
 
-## Monitoring & Operations
-
-### Ranker Health
+## Monitoramento e operações
 
 ```powershell
 python -m jobs.prospeccao cli monitor-ranker --show-top 50
 ```
 
-Outputs active model version, NDCG metrics, feature importance (gain, weight, cover), validation holdout performance.
+Exibe versão do modelo ativo, métricas NDCG, importância de features e desempenho no holdout de validação.
 
-### Feature Snapshot Inspection
+Snapshots de features são versionados e imutáveis (`FeatureSnapshotProspeccao` por `pipeline_version` e `qid`). Jobs em lote registram logs estruturados em stdout e `logs/prospeccao.log`.
 
-All feature snapshots are versioned and immutable. Query `FeatureSnapshotProspeccao` by `pipeline_version` and `qid`.
+## Referências
 
-### Pipeline Logs
+- **Schema de features:** `jobs/prospeccao/ranker_contract.py` (`FEATURE_NAMES`, `MONOTONIC_CONSTRAINTS`)
+- **Pesos CNAE:** `REE_CNAE_PREFIX_WEIGHTS` em `ranker_contract.py`
+- **Agrupamento QID:** cadeia RA → bairro → CEP5 → CNAE4 → zone em `build_features.py`
+- **Busca de hiperparâmetros:** `_ranker_param_candidates()` em `train_xgboost.py`
 
-Batch jobs emit structured logs (JSON) to stdout and `logs/prospeccao.log`. Each ingest, normalize, build-features, and train-ranker step is logged separately.
+## Licença
 
-## References
-
-- **Feature Schema:** `jobs/prospeccao/ranker_contract.py` (FEATURE_NAMES, MONOTONIC_CONSTRAINTS)
-- **CNAE Scoring:** REE_CNAE_PREFIX_WEIGHTS in ranker_contract.py (primary + secondary CNAE fit)
-- **Listwise Grouping:** QID fallback chain in `build_features.py` (RA → bairro → CEP5 → CNAE4 → zone)
-- **Hyperparameter Search:** _ranker_param_candidates() in train_xgboost.py (8 XGBRanker configurations)
-
-## License
-
-GPL-2.0. See LICENSE file.
+[GPL-2.0](LICENSE)
 
 ---
 
-**Maintained by:** Natan Heringer  
-**Last Updated:** May 2026  
-**Repository:** https://github.com/TronikRecicla/dashboard-tronik
+**Autor e mantenedor:** [Natan Heringer](https://github.com/natanheringer) (@natanheringer)
+
+**Mantenedores:** [Pedro Gabryel Oliveira](https://github.com/ySpecks) · [Gabriel Oliveira de Araújo](https://github.com/gabrieloliveiraetb) · [Ruan Costa](https://github.com/Ruan25-coder) · [Thales Leão](https://github.com/tleaoribeironeves-max)
+
+Lista completa: [`docs/CONTRIBUTORS.md`](docs/CONTRIBUTORS.md)
+
+**Última atualização:** junho de 2026  
+**Repositório:** https://github.com/natanheringer/Dashboard-TRONIK
