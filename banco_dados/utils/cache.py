@@ -70,6 +70,22 @@ class CacheMemoria:
             if chave in self._cache:
                 del self._cache[chave]
 
+    def invalidar_por_prefixo(self, prefixo: str) -> int:
+        """Remove entradas cujo nome começa com ``prefixo``. Retorna quantidade removida."""
+        with self._lock:
+            chaves = [k for k in self._cache if k.startswith(prefixo)]
+            for chave in chaves:
+                del self._cache[chave]
+            return len(chaves)
+
+    def invalidar_por_substring(self, trecho: str) -> int:
+        """Remove entradas cujo nome contém ``trecho``. Retorna quantidade removida."""
+        with self._lock:
+            chaves = [k for k in self._cache if trecho in k]
+            for chave in chaves:
+                del self._cache[chave]
+            return len(chaves)
+
     def limpar(self) -> None:
         """Limpa todo o cache"""
         with self._lock:

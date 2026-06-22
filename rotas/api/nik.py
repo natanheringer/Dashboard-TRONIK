@@ -13,6 +13,7 @@ from flask_login import current_user, login_required
 
 from banco_dados.services import nik_service as nik, nik_tools
 from banco_dados.services.nik_service import NIK_IMAGEM_MAX_BYTES
+from banco_dados.utils.cache import obter_cache
 from rotas.api.decorators import admin_required, escopo_parceiro_id, get_db
 
 nik_bp = Blueprint("nik", __name__, url_prefix="/nik")
@@ -56,7 +57,7 @@ def ops_relatorio():
 
     inicio = request.args.get("inicio", "").strip()
     fim = request.args.get("fim", "").strip()
-    parceiro_id = request.args.get("parceiro_id", type=int)
+    parceiro_id = escopo_parceiro_id(request.args.get("parceiro_id", type=int))
 
     # Validar tamanho dos parâmetros de data
     if len(inicio) > MAX_PARAM or len(fim) > MAX_PARAM:
@@ -153,6 +154,27 @@ def ops_analisar_imagem():
         return jsonify(resultado)
     finally:
         db.close()
+
+
+@nik_bp.route("/ops/export/<token>")
+@login_required
+@admin_required
+def ops_export_download(token: str):
+    """Download de CSV gerado pela ferramenta exportar_coletas_csv."""
+    cache = obter_cache()
+    payload = cache.obter(f"nik:export:{token}", ttl_segundos=3600)
+    if not payload or not isinstance(payload, dict):
+        return jsonify({"erro": "Exportação expirada ou inválida."}), 404
+    if payload.get("usuario_id") is not None and current_user.is_authenticated:
+        if payload["usuario_id"] != current_user.id and not current_user.admin:
+            return jsonify({"erro": "Sem permissão para este arquivo."}), 403
+    csv_text = payload.get("csv") or ""
+    filename = payload.get("filename") or "coletas.csv"
+    return Response(
+        csv_text,
+        mimetype="text/csv; charset=utf-8",
+        headers={"Content-Disposition": f'attachment; filename="{filename}"'},
+    )
 
 
 @nik_bp.route("/ops/conversa", methods=["POST"])

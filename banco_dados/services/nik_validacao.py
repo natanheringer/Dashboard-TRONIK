@@ -8,9 +8,29 @@ import json
 import re
 from typing import Any
 
+_EMOJI_RE = re.compile(
+    "["
+    "\U0001F600-\U0001F64F"
+    "\U0001F300-\U0001F5FF"
+    "\U0001F680-\U0001F6FF"
+    "\U0001F1E0-\U0001F1FF"
+    "\U00002702-\U000027B0"
+    "\U000024C2-\U0001F251"
+    "]+",
+    flags=re.UNICODE,
+)
+_NUMERO_TEXTO_RE = re.compile(r"\b\d{1,3}(?:[.,]\d+)?\b")
+_ANOS_PERMITIDOS = {str(y) for y in range(2020, 2036)}
 
-def sanitizar_texto(texto: str, max_chars: int = 2000) -> str:
+
+def remover_emojis(texto: str) -> str:
+    return _EMOJI_RE.sub("", texto or "").strip()
+
+
+def sanitizar_texto(texto: str, max_chars: int = 2000, *, remover_emoji: bool = False) -> str:
     limpo = re.sub(r"<[^>]+>", "", texto or "")
+    if remover_emoji:
+        limpo = remover_emojis(limpo)
     limpo = re.sub(r"\s+", " ", limpo).strip()
     if len(limpo) > max_chars:
         limpo = limpo[:max_chars].rsplit(" ", 1)[0].rstrip() + "..."
@@ -55,18 +75,144 @@ def extrair_json_do_output(texto: str) -> dict[str, Any] | None:
             return None
 
 
+def _normalizar_numero(valor: Any) -> set[str]:
+    out: set[str] = set()
+    if valor is None:
+        return out
+    if isinstance(valor, bool):
+        return out
+    if isinstance(valor, int):
+        out.add(str(valor))
+        out.add(f"{valor:.1f}")
+        return out
+    if isinstance(valor, float):
+        if valor != valor or abs(valor) == float("inf"):
+            return out
+        out.add(str(int(valor)) if valor == int(valor) else str(valor))
+        out.add(f"{valor:.1f}".rstrip("0").rstrip("."))
+        out.add(f"{valor:.2f}".rstrip("0").rstrip("."))
+        return out
+    if isinstance(valor, str):
+        bruto = valor.strip().replace(",", ".")
+        if bruto:
+            out.add(bruto)
+            try:
+                f = float(bruto)
+                out |= _normalizar_numero(f)
+            except ValueError:
+                pass
+        return out
+    return out
+
+
+def extrair_numeros_contexto(contexto: Any) -> set[str]:
+    """Coleta todos os números presentes no contexto JSON."""
+    nums: set[str] = set()
+    if isinstance(contexto, dict):
+        for v in contexto.values():
+            nums |= extrair_numeros_contexto(v)
+    elif isinstance(contexto, list):
+        for item in contexto:
+            nums |= extrair_numeros_contexto(item)
+    elif isinstance(contexto, (int, float)):
+        nums |= _normalizar_numero(contexto)
+    elif isinstance(contexto, str):
+        nums |= _normalizar_numero(contexto)
+    return nums
+
+
+def _numero_permitido_sem_contexto(token: str) -> bool:
+    if token in _ANOS_PERMITIDOS:
+        return True
+    try:
+        n = float(token.replace(",", "."))
+    except ValueError:
+        return False
+    if n == int(n) and 0 <= int(n) <= 31:
+        return True
+    return False
+
+
+def _numeros_por_sufixo_contexto(contexto: Any, sufixos_chave: tuple[str, ...]) -> set[str]:
+    nums: set[str] = set()
+    if isinstance(contexto, dict):
+        for k, v in contexto.items():
+            kl = str(k).lower()
+            if any(s in kl for s in sufixos_chave):
+                nums |= extrair_numeros_contexto(v)
+            else:
+                nums |= _numeros_por_sufixo_contexto(v, sufixos_chave)
+    elif isinstance(contexto, list):
+        for item in contexto:
+            nums |= _numeros_por_sufixo_contexto(item, sufixos_chave)
+    return nums
+
+
+def validar_unidades_resposta(texto: str, contexto: dict[str, Any] | None) -> bool:
+    """Bloqueia uso de km para valores que só existem como kg (e vice-versa)."""
+    if not texto or not contexto:
+        return True
+    nums_kg = _numeros_por_sufixo_contexto(contexto, ("volume", "kg", "peso"))
+    nums_km = _numeros_por_sufixo_contexto(contexto, ("km", "quilometr", "distanc", "meta_km"))
+    for match in re.finditer(r"\b(\d{1,3}(?:[.,]\d+)?)\s*km\b", texto, flags=re.I):
+        token = match.group(1).replace(",", ".")
+        if token not in nums_km and not any(token in p or p in token for p in nums_km if p):
+            if token in nums_kg or any(token in p or p in token for p in nums_kg if p):
+                return False
+    for match in re.finditer(r"\b(\d{1,3}(?:[.,]\d+)?)\s*kg\b", texto, flags=re.I):
+        token = match.group(1).replace(",", ".")
+        if token not in nums_kg and not any(token in p or p in token for p in nums_kg if p):
+            if token in nums_km or any(token in p or p in token for p in nums_km if p):
+                return False
+    return True
+
+
+def validar_grounding_numeros(texto: str, contexto: dict[str, Any] | None) -> bool:
+    """
+    True se todos os números citados na resposta existem no contexto.
+    Ignora anos, dias do mês (0-31) e números de 1 dígito comuns em listas.
+    """
+    if not texto or not contexto:
+        return True
+    permitidos = extrair_numeros_contexto(contexto)
+    for match in _NUMERO_TEXTO_RE.finditer(texto):
+        token = match.group(0).replace(",", ".")
+        if token in permitidos:
+            continue
+        if any(token in p or p in token for p in permitidos if len(p) >= 2):
+            continue
+        if _numero_permitido_sem_contexto(token):
+            continue
+        try:
+            val = float(token)
+            if val == int(val) and 1 <= int(val) <= 9:
+                continue
+        except ValueError:
+            pass
+        return False
+    return True
+
+
 def validar_resposta_ops(
     texto: str,
     fallback: str,
     max_chars: int = 3200,
     *,
     preservar_paragrafos: bool = False,
+    contexto: dict[str, Any] | None = None,
 ) -> str:
     if preservar_paragrafos:
         limpo = sanitizar_texto_paragrafos(texto, max_chars=max_chars)
+        limpo = remover_emojis(limpo)
     else:
-        limpo = sanitizar_texto(texto, max_chars=max_chars)
-    return limpo if len(limpo) >= 20 else fallback
+        limpo = sanitizar_texto(texto, max_chars=max_chars, remover_emoji=True)
+    if len(limpo) < 20:
+        return fallback
+    if contexto is not None and not validar_unidades_resposta(limpo, contexto):
+        return fallback
+    if contexto is not None and not validar_grounding_numeros(limpo, contexto):
+        return fallback
+    return limpo
 
 
 def validar_resposta_landing(texto: str, tipo_bloco: str) -> dict[str, Any] | None:

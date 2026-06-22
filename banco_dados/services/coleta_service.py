@@ -129,6 +129,10 @@ def criar_coleta(db: Session, dados: dict) -> Coleta:
 
     db.commit()
 
+    from banco_dados.services.nik_cache import invalidar_cache_apos_coleta
+
+    invalidar_cache_apos_coleta(data_hora, parceiro_id=nova_coleta.parceiro_id)
+
     logger.info(f"Coleta criada: ID {nova_coleta.id} para coletor {dados['coletor_id']}")
     return nova_coleta
 

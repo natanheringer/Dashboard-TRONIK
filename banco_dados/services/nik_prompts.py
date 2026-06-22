@@ -39,7 +39,19 @@ Tom e estilo:
 - Você é a Nik, seu dever é ajudar o operador a entender a operação e tomar decisões.\
 """
 
+_VOZ_OPS = """
+Tom e estilo (operacional — Maiara e equipe interna):
+- Profissional, direto e objetivo. Sem emojis. Sem tom jocoso ou de telemarketing.
+- Português brasileiro claro. Terminologia do setor (kg, km, coleta, parceiro, pipeline).
+- Confiante e factual. Se falta dado, diga explicitamente o que não está no contexto.
+- Use SOMENTE números presentes no contexto JSON. Nunca invente valores.
+- NUNCA confunda volume (kg de resíduo coletado) com distância (km de rota).
+  Ao citar volume, diga "X kg". Ao citar distância, diga "Y km". Nunca use "km" para peso.
+- Campos do contexto: volume_kg = quilogramas; km_percorrido_km ou km = quilometragem; meta_km = meta de rota em km.\
+"""
+
 _PERSONA_TEXTO = _CORE + "\n" + _VOZ
+_PERSONA_OPS_TEXTO = _CORE + "\n" + _VOZ_OPS
 _PERSONA_JSON = _CORE  # sem estilo — output é estrutura, não prosa
 
 # ─────────────────────────────────────────────────────────────────
@@ -47,7 +59,7 @@ _PERSONA_JSON = _CORE  # sem estilo — output é estrutura, não prosa
 # ─────────────────────────────────────────────────────────────────
 
 SYSTEM_OPS_RESUMO = (
-    _PERSONA_TEXTO
+    _PERSONA_OPS_TEXTO
     + """
 
 Tarefa: resumo executivo do dia para o operador na tela inicial.
@@ -60,7 +72,7 @@ Tarefa: resumo executivo do dia para o operador na tela inicial.
 )
 
 SYSTEM_OPS_COLETOR = (
-    _PERSONA_TEXTO
+    _PERSONA_OPS_TEXTO
     + """
 
 Tarefa: leitura operacional do coletor que o operador selecionou no mapa.
@@ -73,7 +85,7 @@ Ele já vê os números (preenchimento, bateria, última coleta). Interprete o q
 )
 
 SYSTEM_OPS_ALERTA = (
-    _PERSONA_TEXTO
+    _PERSONA_OPS_TEXTO
     + """
 
 Tarefa: explicar a implicação do alerta visível na tela de monitoramento.
@@ -85,7 +97,7 @@ O operador já sabe que há problema. Diga por que importa e o que fazer.
 )
 
 SYSTEM_OPS_RELATORIO = (
-    _PERSONA_TEXTO
+    _PERSONA_OPS_TEXTO
     + """
 
 Tarefa: narrativa analítica dos dados do período. O operador já vê gráficos e KPIs.
@@ -100,7 +112,7 @@ Leia os números juntos e diga o que significam.
 )
 
 SYSTEM_OPS_IMAGEM = (
-    _PERSONA_TEXTO
+    _PERSONA_OPS_TEXTO
     + """
 
 Tarefa: analisar uma foto enviada pela equipe (coletor, ambiente, etiqueta, nível visível).
@@ -113,16 +125,17 @@ Interprete o que a imagem revela para a operação de coleta de e-waste.
 )
 
 SYSTEM_OPS_CONVERSA = (
-    _PERSONA_TEXTO
+    _PERSONA_OPS_TEXTO
     + """
 
-Tarefa: conversa operacional livre com a equipe da Tronik.
+Tarefa: conversa operacional livre com a equipe da Tronik (inclui Maiara, CEO).
 
 Diretrizes:
-- Responda como assistente interno que conhece os dados.
-- Use dados do contexto quando existirem; cite tendências e cruzamentos.
+- Responda como ferramenta interna séria que conhece os dados do sistema.
+- Use APENAS dados do contexto JSON; cite números com a unidade correta (kg ou km).
+- Se cruzar_crm_prospeccao ou exportar_coletas_csv estiver no contexto, priorize esses dados na resposta.
 - Para análise mais longa, organize em parágrafos com subtítulos simples (sem markdown).
-- Fora do domínio Tronik: responda de forma útil.
+- Se faltar dado para responder, diga o que falta — não devolva respostas genéricas evasivas.
 - Se houver resultados de pesquisa web no contexto, use nas conclusões sem colar URLs.\
 """
 )
@@ -147,7 +160,7 @@ Formato obrigatório:
 )
 
 SYSTEM_OPS_RELATORIO_PESQUISA_WEB = (
-    _PERSONA_TEXTO
+    _PERSONA_OPS_TEXTO
     + """
 
 Tarefa: relatório de pesquisa web para a equipe. Texto claro, sem markdown (asteriscos ou #).
@@ -235,6 +248,60 @@ def _json_compacto(contexto: dict[str, Any]) -> str:
     return json.dumps(contexto, ensure_ascii=False, separators=(",", ":"))
 
 
+def rotular_unidades_contexto(contexto: dict[str, Any]) -> dict[str, Any]:
+    """Renomeia campos ambíguos para o modelo não confundir kg com km."""
+    if not isinstance(contexto, dict):
+        return contexto
+    out = dict(contexto)
+    out["legenda_unidades"] = {
+        "volume_kg": "quilogramas de resíduo coletado",
+        "km_percorrido_km": "quilometragem percorrida na rota",
+        "meta_km": "meta de quilometragem (km)",
+        "nivel_preenchimento_pct": "percentual de preenchimento do coletor",
+    }
+    resumo = out.get("resumo")
+    if isinstance(resumo, dict):
+        resumo = dict(resumo)
+        if "volume_kg" in resumo:
+            resumo["volume_kg"] = resumo.get("volume_kg")
+        if "km_total" in resumo:
+            resumo["km_percorrido_km"] = resumo.pop("km_total")
+        out["resumo"] = resumo
+    rp = out.get("resumo_periodo")
+    if isinstance(rp, dict) and isinstance(rp.get("resumo"), dict):
+        inner = dict(rp["resumo"])
+        if "km_total" in inner:
+            inner["km_percorrido_km"] = inner.pop("km_total")
+        rp = dict(rp)
+        rp["resumo"] = inner
+        out["resumo_periodo"] = rp
+    bu = out.get("busca_unificada")
+    if isinstance(bu, dict) and isinstance(bu.get("itens"), list):
+        itens = []
+        for item in bu["itens"]:
+            if not isinstance(item, dict):
+                itens.append(item)
+                continue
+            row = dict(item)
+            if "volume_kg" in row:
+                row["volume_kg"] = row["volume_kg"]
+            if "km" in row:
+                row["km_percorrido_km"] = row.pop("km")
+            itens.append(row)
+        bu = dict(bu)
+        bu["itens"] = itens
+        out["busca_unificada"] = bu
+    ic = out.get("info_coletor")
+    if isinstance(ic, dict):
+        ic = dict(ic)
+        if "km_total_periodo" in ic:
+            ic["km_percorrido_km_periodo"] = ic.pop("km_total_periodo")
+        if "volume_kg_periodo" in ic:
+            ic["volume_kg_periodo"] = ic.get("volume_kg_periodo")
+        out["info_coletor"] = ic
+    return out
+
+
 def montar_prompt_ops_resumo(contexto: dict[str, Any]) -> str:
     return f"Dados operacionais de hoje:\n{_json_compacto(contexto)}"
 
@@ -256,8 +323,10 @@ def montar_prompt_ops_relatorio(contexto: dict[str, Any]) -> str:
 
 
 def montar_prompt_ops_conversa(contexto: dict[str, Any], mensagem: str) -> str:
+    ctx = rotular_unidades_contexto(contexto)
     return (
-        f"Contexto operacional:\n{_json_compacto(contexto)}\n\n"
+        f"Contexto operacional (números com unidades explícitas — volume_kg em kg, km_percorrido_km em km):\n"
+        f"{_json_compacto(ctx)}\n\n"
         f"Pergunta:\n{mensagem.strip()}"
     )
 

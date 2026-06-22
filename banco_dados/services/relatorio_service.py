@@ -17,6 +17,36 @@ from banco_dados.utils.constantes import CONSUMO_KM_POR_LITRO, LUCRO_BRUTO_POR_K
 logger = logging.getLogger(__name__)
 
 
+def lucro_liquido_total_coleta(
+    volume_estimado: float | None,
+    km_percorrido: float | None,
+    preco_combustivel: float | None,
+) -> float:
+    """Fonte única de lucro por coleta (R$ 1/kg − custo combustível rateado)."""
+    return calcular_lucro_liquido_total(
+        volume_estimado or 0,
+        km_percorrido or 0,
+        preco_combustivel or 0,
+    )
+
+
+def sqlalchemy_soma_lucro_liquido_coletas():
+    """Expressão SQLAlchemy para SUM(lucro líquido) — mesma fórmula de ``lucro_liquido_total_coleta``."""
+    from sqlalchemy import case, func
+
+    vol = Coleta.volume_estimado
+    km = func.coalesce(Coleta.km_percorrido, 0.0)
+    preco = func.coalesce(Coleta.preco_combustivel, 0.0)
+    linha = case(
+        (
+            vol > 0,
+            vol * LUCRO_BRUTO_POR_KG - (km / float(CONSUMO_KM_POR_LITRO)) * preco,
+        ),
+        else_=0.0,
+    )
+    return func.coalesce(func.sum(linha), 0.0)
+
+
 def calcular_lucro_liquido_por_kg(
     volume_estimado: float,
     km_percorrido: float,

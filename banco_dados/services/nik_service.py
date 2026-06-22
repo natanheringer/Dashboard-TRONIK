@@ -686,6 +686,8 @@ def _mensagem_pede_cruzar_crm_prospeccao(mensagem: str) -> bool:
             "pipeline e prospeccao",
             "lead no ranker",
             "lead no ranking",
+            "leads do crm",
+            "leads no crm",
             "está no ranker",
             "esta no ranker",
             "está no ranking ree",
@@ -694,10 +696,94 @@ def _mensagem_pede_cruzar_crm_prospeccao(mensagem: str) -> bool:
             "score do crm",
             "crm com prospecção",
             "crm com prospeccao",
+            "crm com ree",
+            "crm x ree",
+            "crm e ree",
+            "carteira",
+            "minha carteira",
+            "na carteira",
+            "clientes ree",
+            "clientes do ree",
+            "prospecção ree",
+            "prospeccao ree",
+            "diferença entre crm",
+            "diferenca entre crm",
+            "não estão no crm",
+            "nao estao no crm",
+            "fora do crm",
+            "fora da carteira",
+            "prioridade ree",
+            "prioridade de prospecção",
         ]
     ):
         return True
-    return ("crm" in msg or "pipeline" in msg) and "prospec" in msg
+    if any(k in msg for k in ["compare", "comparar", "comparação", "comparacao", "diferença", "diferenca"]):
+        if "crm" in msg and any(k in msg for k in ["ree", "score", "prospec", "ranking", "lead", "carteira"]):
+            return True
+    if any(k in msg for k in ["carteira", "clientes"]) and any(
+        k in msg for k in ["ree", "prospec", "ranking", "score", "crm"]
+    ):
+        return True
+    return ("crm" in msg or "pipeline" in msg or "lead" in msg) and any(
+        k in msg for k in ["prospec", "ree", "score", "ranking"]
+    )
+
+
+def _mensagem_pede_exportar_csv(mensagem: str) -> bool:
+    msg = (mensagem or "").lower()
+    gatilhos_arquivo = [
+        "csv",
+        "xlsx",
+        "excel",
+        "planilha",
+        "arquivo",
+        "exportar",
+        "exportação",
+        "exportacao",
+        "baixar",
+        "download",
+        "me envie",
+        "me mande",
+        "me manda",
+        "enviar o arquivo",
+        "enviar arquivo",
+        "puxar os dados",
+    ]
+    return any(g in msg for g in gatilhos_arquivo)
+
+
+def _mensagem_pede_coleta_hoje(mensagem: str) -> bool:
+    msg = (mensagem or "").lower().strip()
+    return msg in {"coleta de hoje", "coletas de hoje", "coleta hoje", "coletas hoje"} or (
+        "coleta" in msg and "hoje" in msg and len(msg) < 40
+    )
+
+
+def _extrair_coletor_id(mensagem: str) -> int | None:
+    msg = (mensagem or "").strip()
+    for pattern in (
+        r"#L0*(\d{1,4})\b",
+        r"\b[lL]\s*0*(\d{1,4})\b",
+        r"\bcoletor\s*#?\s*0*(\d{1,4})\b",
+    ):
+        m = re.search(pattern, msg, flags=re.I)
+        if m:
+            try:
+                return int(m.group(1))
+            except ValueError:
+                continue
+    return None
+
+
+def _extrair_nomes_parceiros(db: Session, mensagem: str) -> list[str]:
+    msg = (mensagem or "").lower()
+    nomes: list[str] = []
+    rows = db.query(Parceiro.nome).filter(Parceiro.ativo.is_(True)).all()
+    for (nome,) in sorted(rows, key=lambda r: len(r[0] or ""), reverse=True):
+        nome_l = (nome or "").strip().lower()
+        if nome_l and nome_l in msg:
+            nomes.append(nome.strip())
+    return nomes
 
 
 def _extrair_pipeline_id(mensagem: str) -> int | None:
@@ -946,14 +1032,17 @@ def _planejar_ferramentas(mensagem: str) -> list[dict[str, Any]]:
     if pede_prospeccao:
         plano.append({"nome": "listar_candidatos_prospeccao", "kwargs": _extrair_filtros_prospeccao(mensagem)})
     if pede_cruzar_crm:
-        kwargs_cruzar: dict[str, Any] = {}
+        kwargs_cruzar: dict[str, Any] = {"modo_global": True}
         pipeline_id = _extrair_pipeline_id(mensagem)
         if pipeline_id is not None:
             kwargs_cruzar["pipeline_id"] = pipeline_id
+            kwargs_cruzar["modo_global"] = False
         empresa_nome = _extrair_empresa_crm(mensagem)
         if empresa_nome:
             kwargs_cruzar["empresa"] = empresa_nome
+            kwargs_cruzar["modo_global"] = False
         plano.append({"nome": "cruzar_crm_prospeccao", "kwargs": kwargs_cruzar})
+        plano.append({"nome": "listar_candidatos_prospeccao", "kwargs": {"limite": 15, "prioridade": "alta"}})
     if pede_comparar:
         kwargs_cmp: dict[str, Any] = {}
         score_ids = _extrair_score_ids(mensagem)
@@ -1014,6 +1103,14 @@ def _planejar_ferramentas(mensagem: str) -> list[dict[str, Any]]:
         plano.append({"nome": "impacto_geral", "kwargs": {"ano_inicio": ano_inicio, "ano_fim": ano_fim}})
     if "relatório" in msg or "relatorio" in msg:
         plano.append({"nome": "resumo_periodo", "kwargs": {}})
+    coletor_id = _extrair_coletor_id(mensagem)
+    if coletor_id is not None:
+        plano.append({"nome": "info_coletor", "kwargs": {"coletor_id": coletor_id}})
+    if _mensagem_pede_exportar_csv(mensagem):
+        plano.append({"nome": "exportar_coletas_csv", "kwargs": {}})
+    if _mensagem_pede_coleta_hoje(mensagem):
+        hoje = date.today().isoformat()
+        plano.append({"nome": "resumo_periodo", "kwargs": {"inicio": hoje, "fim": hoje}})
     # Dedupe mantendo ordem (evita chamadas repetidas)
     vistos: set[str] = set()
     final: list[dict[str, Any]] = []
@@ -1111,6 +1208,29 @@ def _extrair_parceiro_id_por_texto(db: Session, mensagem: str) -> int | None:
     return int(m.group(1)) if m else None
 
 
+def _extrair_intervalo_meses(texto: str) -> tuple[date, date] | None:
+    meses = {
+        "janeiro": 1, "fevereiro": 2, "marco": 3, "março": 3, "abril": 4, "maio": 5, "junho": 6,
+        "julho": 7, "agosto": 8, "setembro": 9, "outubro": 10, "novembro": 11, "dezembro": 12,
+    }
+    msg = (texto or "").lower()
+    m = re.search(
+        r"\b(janeiro|fevereiro|marco|março|abril|maio|junho|julho|agosto|setembro|outubro|novembro|dezembro)"
+        r"\s+a\s+"
+        r"(janeiro|fevereiro|marco|março|abril|maio|junho|julho|agosto|setembro|outubro|novembro|dezembro)"
+        r"(?:\s+de)?\s+(20\d{2})\b",
+        msg,
+    )
+    if not m:
+        return None
+    mes_ini = meses[m.group(1)]
+    mes_fim = meses[m.group(2)]
+    ano = int(m.group(3))
+    if mes_ini > mes_fim:
+        mes_ini, mes_fim = mes_fim, mes_ini
+    return date(ano, mes_ini, 1), _fim_mes(ano, mes_fim)
+
+
 def _inferir_consulta_usuario(db: Session, mensagem: str) -> dict[str, Any]:
     msg = (mensagem or "").lower()
     limites = nik_tools.ferramenta_limites_historico(db)
@@ -1119,13 +1239,17 @@ def _inferir_consulta_usuario(db: Session, mensagem: str) -> dict[str, Any]:
     anos = _extrair_anos(msg)
     mes_ano = _extrair_mes_ano(msg)
     parceiro_id = _extrair_parceiro_id_por_texto(db, mensagem)
+    parceiro_nomes = _extrair_nomes_parceiros(db, mensagem)
+    intervalo_meses = _extrair_intervalo_meses(mensagem)
 
     inicio: date | None = None
     fim: date | None = None
     ano_inicio: int | None = None
     ano_fim: int | None = None
 
-    if len(datas) >= 2:
+    if intervalo_meses:
+        inicio, fim = intervalo_meses
+    elif len(datas) >= 2:
         inicio, fim = datas[0], datas[-1]
     elif len(datas) == 1:
         inicio = datas[0]
@@ -1172,6 +1296,7 @@ def _inferir_consulta_usuario(db: Session, mensagem: str) -> dict[str, Any]:
         "ano_inicio": ano_inicio,
         "ano_fim": ano_fim,
         "parceiro_id": parceiro_id,
+        "parceiro_nomes": parceiro_nomes,
     }
 
 
@@ -1198,11 +1323,15 @@ def _executar_plano_ferramentas(
         "comparar_candidatos": nik_tools.ferramenta_comparar_candidatos,
         "gerar_roteiro_contato": nik_tools.ferramenta_gerar_roteiro_contato,
         "criar_tarefa_comercial": nik_tools.ferramenta_criar_tarefa_comercial,
+        "info_coletor": nik_tools.ferramenta_info_coletor,
+        "exportar_coletas_csv": nik_tools.ferramenta_exportar_coletas_csv,
     }
     for item in plano:
         nome = item.get("nome")
         kwargs = dict(item.get("kwargs", {}) or {})
         if nome == "criar_tarefa_comercial" and usuario_id is not None:
+            kwargs["usuario_id"] = usuario_id
+        if nome == "exportar_coletas_csv" and usuario_id is not None:
             kwargs["usuario_id"] = usuario_id
         fn = mapa.get(nome)
         if not fn:
@@ -1523,6 +1652,100 @@ def _nik_agent_loop_habilitado() -> bool:
     return os.getenv("NIK_AGENT_LOOP", "false").strip().lower() in {"1", "true", "yes"}
 
 
+def _formatar_resposta_crm_ree(payload: dict[str, Any]) -> str:
+    if payload.get("modo") == "global":
+        linhas = [payload.get("resumo", "Cruzamento CRM ↔ REE.")]
+        cruz = payload.get("cruzamentos") or []
+        if cruz:
+            linhas.append("\nLeads CRM com score REE:")
+            for item in cruz[:12]:
+                linhas.append(
+                    f"- Pipeline #{item.get('pipeline_id')} ({item.get('status_crm')}): "
+                    f"score REE {item.get('score_ree', '—')} ({item.get('prioridade_ree', '—')}). "
+                    f"{item.get('situacao', '')}"
+                )
+        sem_crm = payload.get("ree_alta_prioridade_sem_crm") or []
+        if sem_crm:
+            linhas.append("\nAlta prioridade REE sem lead no CRM:")
+            for item in sem_crm[:8]:
+                linhas.append(
+                    f"- {item.get('empresa', '—')}: score {item.get('score_ree', '—')} "
+                    f"(rank {item.get('ranking_ree', '—')}). {item.get('situacao', '')}"
+                )
+        return "\n".join(linhas)
+    return str(payload.get("resumo") or "Cruzamento CRM ↔ REE concluído.")
+
+
+def _formatar_resposta_export_csv(payload: dict[str, Any]) -> str:
+    if payload.get("status") != "ok":
+        return str(payload.get("resumo") or "Não foi possível gerar o arquivo.")
+    url = payload.get("download_url", "")
+    return (
+        f"Arquivo pronto: {payload.get('total_linhas', 0)} coleta(s) "
+        f"de {payload.get('periodo', {}).get('inicio', '?')} a {payload.get('periodo', {}).get('fim', '?')}. "
+        f"Baixe em {url} ({payload.get('filename', 'coletas.csv')})."
+    )
+
+
+def _formatar_resposta_coletor(payload: dict[str, Any]) -> str | None:
+    if not payload.get("encontrado"):
+        return str(payload.get("resumo") or "Coletor não encontrado.")
+    return (
+        f"Coletor {payload.get('id_fmt')} — {payload.get('nome', '—')} "
+        f"(parceiro: {payload.get('parceiro', '—')}). "
+        f"No período {payload.get('periodo', {}).get('inicio')} a {payload.get('periodo', {}).get('fim')}: "
+        f"{payload.get('total_coletas', 0)} coleta(s), "
+        f"volume {payload.get('volume_kg_periodo', 0)} kg, "
+        f"quilometragem {payload.get('km_percorrido_km_periodo', 0)} km. "
+        f"Preenchimento: {payload.get('nivel_preenchimento_pct', '—')}%."
+    )
+
+
+def _formatar_resposta_coleta_hoje(payload: dict[str, Any]) -> str | None:
+    resumo = payload.get("resumo") if isinstance(payload.get("resumo"), dict) else {}
+    periodo = payload.get("periodo") if isinstance(payload.get("periodo"), dict) else {}
+    total = resumo.get("total_coletas", 0)
+    vol = resumo.get("volume_kg", 0)
+    km = resumo.get("km_total") or resumo.get("km_percorrido_km") or 0
+    return (
+        f"Coletas de hoje ({periodo.get('inicio', date.today().isoformat())}): "
+        f"{total} coleta(s), {vol} kg movimentados, {km} km percorridos."
+    )
+
+
+def _tentar_resposta_deterministica(mensagem: str, contexto: dict[str, Any]) -> str | None:
+    """Respostas 100% ancoradas nos dados das ferramentas — sem passar pelo LLM."""
+    if _mensagem_pede_exportar_csv(mensagem):
+        exp = contexto.get("exportar_coletas_csv")
+        if isinstance(exp, dict) and exp.get("status") == "ok":
+            return _formatar_resposta_export_csv(exp)
+
+    if _mensagem_pede_cruzar_crm_prospeccao(mensagem):
+        cruz = contexto.get("cruzar_crm_prospeccao")
+        if isinstance(cruz, dict) and (
+            cruz.get("modo") == "global"
+            or cruz.get("encontrado")
+            or cruz.get("cruzamentos")
+            or cruz.get("scores_prospeccao")
+        ):
+            return _formatar_resposta_crm_ree(cruz)
+
+    coletor_id = _extrair_coletor_id(mensagem)
+    if coletor_id is not None:
+        info = contexto.get("info_coletor")
+        if isinstance(info, dict):
+            return _formatar_resposta_coletor(info)
+
+    if _mensagem_pede_coleta_hoje(mensagem):
+        rp = contexto.get("resumo_periodo")
+        if isinstance(rp, dict):
+            txt = _formatar_resposta_coleta_hoje(rp)
+            if txt:
+                return txt
+
+    return None
+
+
 def conversar_ops_thread(
     db: Session,
     mensagem: str,
@@ -1537,6 +1760,30 @@ def conversar_ops_thread(
     pediu_web = _mensagem_pede_web(mensagem)
     pediu_documento = _mensagem_pede_documento(mensagem)
 
+    from banco_dados.services import nik_coleta_chat
+
+    fluxo_coleta = nik_coleta_chat.processar_mensagem_coleta(db, mensagem, usuario_id, thread)
+    if fluxo_coleta:
+        planner_fields = {"planner_mode": "coleta_transacional"}
+        return {
+            "texto": fluxo_coleta["texto"],
+            "fonte": "transacional",
+            "modelo": None,
+            "routing_mode": "cadastro_coleta",
+            "routing_model": None,
+            "modo_contexto": "real",
+            "used_tools": ["cadastro_coleta"],
+            "data_sources": ["cadastro_coleta"],
+            "tool_trace": [{"tool": "cadastro_coleta", "status": fluxo_coleta.get("status"), "kwargs": {}}],
+            "citacoes": [],
+            "fontes_web": [],
+            "thread_id": thread,
+            "web_status": "n/a",
+            "coleta_pendente": bool(fluxo_coleta.get("pendente")),
+            "coleta_id": fluxo_coleta.get("coleta_id"),
+            **planner_fields,
+        }
+
     if _nik_agent_loop_habilitado() and not pediu_web and not pediu_documento:
         from banco_dados.services import nik_agent_loop
 
@@ -1544,6 +1791,27 @@ def conversar_ops_thread(
 
     contexto = _montar_contexto_conversa_integrada(db, mensagem, usuario_id=usuario_id, thread_id=thread)
     planner_fields = _planner_mode_resposta(contexto)
+    contexto_modelo = prompts.rotular_unidades_contexto(_contexto_para_modelo(contexto))
+
+    texto_det = _tentar_resposta_deterministica(mensagem, contexto)
+    if texto_det:
+        return {
+            "texto": texto_det,
+            "fonte": "ferramentas",
+            "modelo": None,
+            "routing_mode": "deterministic",
+            "routing_model": None,
+            "modo_contexto": contexto.get("modo", "real"),
+            "used_tools": contexto.get("used_tools", []),
+            "data_sources": contexto.get("data_sources", []),
+            "tool_trace": contexto.get("tool_trace", []),
+            "citacoes": [],
+            "fontes_web": [],
+            "thread_id": thread,
+            "web_status": "n/a",
+            **planner_fields,
+        }
+
     modo_routing = "web_research_report" if pediu_web else "chat_ops"
     modelo_conversa_groq = _modelo_tarefa("conversa", mensagem)
     use_nv_chat = (
@@ -1628,8 +1896,9 @@ def conversar_ops_thread(
         }
 
     fallback = (
-        "Ainda não consegui interpretar essa pergunta com confiança. "
-        "Se quiser, pergunte sobre operação do dia, alertas, coletores ou o impacto geral da Tronik."
+        "Não consegui montar uma resposta confiável com os dados disponíveis. "
+        "Tente reformular com período (ex.: janeiro a maio de 2026), nome do parceiro "
+        "ou peça exportação CSV (ex.: 'me envie o arquivo do Instituto Arapoti de jan a mai')."
     )
     if pediu_web:
         resposta = provider.chamar_modelo(
@@ -1642,7 +1911,7 @@ def conversar_ops_thread(
     else:
         resposta = provider.chamar_modelo(
             prompts.SYSTEM_OPS_CONVERSA,
-            prompts.montar_prompt_ops_conversa(_contexto_para_modelo(contexto), mensagem),
+            prompts.montar_prompt_ops_conversa(contexto_modelo, mensagem),
             modelo=modelo_chat_nvidia if use_nv_chat else modelo_planejado,
             max_tokens=_ttl("NIK_MAX_TOKENS_CONVERSA", max(_ttl("NIK_MAX_TOKENS_OPS", 512), 420)),
             temperature=float(os.getenv("NIK_TEMPERATURE_OPS", "0.55")),
@@ -1674,6 +1943,7 @@ def conversar_ops_thread(
         fallback,
         max_chars=max_chars,
         preservar_paragrafos=pediu_web,
+        contexto=contexto_modelo,
     )
     if fontes_web:
         texto = _remover_links_texto(texto)
@@ -1728,6 +1998,17 @@ def _montar_contexto_conversa_integrada(
                 item["kwargs"]["ano_fim"] = consulta["ano_fim"]
             if consulta.get("parceiro_id"):
                 item["kwargs"]["parceiro_id"] = consulta["parceiro_id"]
+        if nome == "exportar_coletas_csv":
+            if consulta.get("inicio"):
+                item["kwargs"]["inicio"] = consulta["inicio"]
+            if consulta.get("fim"):
+                item["kwargs"]["fim"] = consulta["fim"]
+            if consulta.get("parceiro_id"):
+                item["kwargs"]["parceiro_ids"] = [consulta["parceiro_id"]]
+            if consulta.get("parceiro_nomes"):
+                item["kwargs"]["parceiro_nomes"] = consulta["parceiro_nomes"]
+        if nome == "cruzar_crm_prospeccao" and not item.get("kwargs"):
+            item["kwargs"] = {"modo_global": True}
 
     if consulta.get("inicio") and consulta.get("fim") and not any(i.get("nome") == "resumo_periodo" for i in plano):
         plano.append({"nome": "resumo_periodo", "kwargs": {"inicio": consulta["inicio"], "fim": consulta["fim"], "parceiro_id": consulta.get("parceiro_id")}})

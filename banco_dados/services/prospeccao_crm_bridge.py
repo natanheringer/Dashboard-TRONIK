@@ -466,3 +466,101 @@ def cruzar_crm_prospeccao(
             else "Nenhum vínculo encontrado entre CRM e ranker REE."
         ),
     }
+
+
+def _classificar_cruzamento(pipeline: Pipeline | None, melhor_score: dict[str, Any] | None) -> str:
+    tem_crm = pipeline is not None
+    tem_ree = melhor_score is not None
+    prioridade = str((melhor_score or {}).get("prioridade") or "").lower()
+    if tem_ree and prioridade == "alta" and not tem_crm:
+        return "Prioridade alta: score REE alto, ainda sem lead ativo no CRM"
+    if tem_ree and prioridade == "alta" and tem_crm:
+        return "Alinhado: score REE alto com lead no CRM"
+    if tem_crm and not tem_ree:
+        return "Revisar: lead no CRM sem score REE publicado"
+    if tem_ree and not tem_crm:
+        return "Oportunidade: score REE disponível, sem pipeline CRM"
+    return "Sem vínculo claro CRM ↔ REE"
+
+
+def listar_cruzamento_crm_ree_global(
+    db: Session,
+    *,
+    limite_pipelines: int = 40,
+    limite_ree_sem_crm: int = 15,
+    model_version: str | None = None,
+) -> dict[str, Any]:
+    """Cruza pipelines CRM com scores REE e lista candidatos REE fora do CRM."""
+    limite_pipelines = max(5, min(int(limite_pipelines or 40), 80))
+    limite_ree_sem_crm = max(5, min(int(limite_ree_sem_crm or 15), 30))
+
+    rows = (
+        db.query(Pipeline, Coletor)
+        .outerjoin(Coletor, Pipeline.coletor_id == Coletor.id)
+        .order_by(Pipeline.atualizado_em.desc())
+        .limit(limite_pipelines)
+        .all()
+    )
+
+    cruzamentos: list[dict[str, Any]] = []
+    for pipe, coletor in rows:
+        cruzado = buscar_scores_para_pipeline(db, int(pipe.id), model_version=model_version)
+        scores = (cruzado or {}).get("scores") or []
+        melhor = scores[0] if scores else None
+        empresa = (melhor.get("empresa") or {}) if isinstance(melhor, dict) else {}
+        cruzamentos.append(
+            {
+                "pipeline_id": pipe.id,
+                "status_crm": pipe.status,
+                "probabilidade_crm_pct": int(pipe.probabilidade or 0),
+                "coletor": coletor.localizacao if coletor else None,
+                "score_ree": melhor.get("score") if melhor else None,
+                "prioridade_ree": melhor.get("prioridade") if melhor else None,
+                "ranking_ree": melhor.get("ranking_contexto") if melhor else None,
+                "empresa_ree": empresa.get("razao_social") or empresa.get("nome_fantasia"),
+                "tem_score_ree": bool(scores),
+                "situacao": _classificar_cruzamento(pipe, melhor),
+            }
+        )
+
+    candidatos = prospeccao_xgb_service.buscar_candidatos_prospeccao(
+        db,
+        limite=limite_ree_sem_crm * 3,
+        prioridade="alta",
+        model_version=model_version,
+    )
+    ree_sem_crm: list[dict[str, Any]] = []
+    for cand in candidatos:
+        emp = cand.get("empresa") if isinstance(cand.get("empresa"), dict) else {}
+        emp_id = emp.get("id") or cand.get("empresa_id")
+        pipeline_id = None
+        if emp_id:
+            row = db.query(EmpresaCandidata.pipeline_id).filter(EmpresaCandidata.id == emp_id).first()
+            pipeline_id = row[0] if row else None
+        if pipeline_id:
+            continue
+        ree_sem_crm.append(
+            {
+                "score_id": cand.get("id"),
+                "empresa": emp.get("razao_social") or emp.get("nome_fantasia"),
+                "score_ree": cand.get("score"),
+                "prioridade_ree": cand.get("prioridade"),
+                "ranking_ree": cand.get("ranking_contexto"),
+                "situacao": "Prioridade alta: score REE alto, ainda sem lead ativo no CRM",
+            }
+        )
+        if len(ree_sem_crm) >= limite_ree_sem_crm:
+            break
+
+    com_ree = sum(1 for c in cruzamentos if c.get("tem_score_ree"))
+    return {
+        "modo": "global",
+        "total_pipelines_crm": len(cruzamentos),
+        "pipelines_com_score_ree": com_ree,
+        "cruzamentos": cruzamentos,
+        "ree_alta_prioridade_sem_crm": ree_sem_crm,
+        "resumo": (
+            f"Cruzamento CRM ↔ REE: {len(cruzamentos)} pipeline(s) CRM analisado(s), "
+            f"{com_ree} com score REE; {len(ree_sem_crm)} candidato(s) REE de alta prioridade sem CRM."
+        ),
+    }

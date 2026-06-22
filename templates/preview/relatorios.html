@@ -86,7 +86,7 @@
                 {% endif %}
               </div>
               <div class="rel-hero-footnote">
-                Lucro bruto estimado (lucro/kg × volume) R$ {{ '%.2f'|format(resumo.lucro_bruto) }} ·
+                Lucro líquido estimado (R$ 1/kg − combustível) R$ {{ '%.2f'|format(resumo.lucro_liquido_estimado) }} ·
                 Combustível estimado R$ {{ '%.2f'|format(resumo.custo_combustivel_est) }} (km × preço/L ÷ 4)
               </div>
             </div>
@@ -107,8 +107,8 @@
                 <div class="rel-metric-hint">média {{ resumo.media_km_coleta }} km/coleta</div>
               </div>
               <div class="rel-metric">
-                <div class="rel-metric-label">Lucro bruto (est.)</div>
-                <div class="rel-metric-value">R$ {{ '%.0f'|format(resumo.lucro_bruto) }}</div>
+                <div class="rel-metric-label">Lucro líquido (est.)</div>
+                <div class="rel-metric-value">R$ {{ '%.0f'|format(resumo.lucro_liquido_estimado) }}</div>
               </div>
             </div>
 

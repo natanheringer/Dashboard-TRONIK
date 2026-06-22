@@ -26,7 +26,7 @@ from flask_login import current_user, login_required
 from banco_dados.services import nik_service, preview_service as pv
 from banco_dados.utils.cache import obter_cache
 from rotas.api._limiter import limiter
-from rotas.api.decorators import get_db
+from rotas.api.decorators import escopo_parceiro_id, get_db
 
 preview_bp = Blueprint("preview", __name__, url_prefix="/preview")
 limiter.exempt(preview_bp)
@@ -316,7 +316,7 @@ def relatorios():
             request.args.get("inicio"),
             request.args.get("fim"),
         )
-        parceiro_id = request.args.get("parceiro_id", type=int)
+        parceiro_id = escopo_parceiro_id(request.args.get("parceiro_id", type=int))
         resumo = pv.resumo_relatorios(db, periodo, parceiro_id=parceiro_id)
         ctx = {
             "current": "relatorios",

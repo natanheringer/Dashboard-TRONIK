@@ -1,4 +1,4 @@
-from banco_dados.services import nik_prompts, nik_provider as nik_provider_module, nik_service
+from banco_dados.services import nik_prompts, nik_provider as nik_provider_module, nik_service, nik_validacao as val
 from banco_dados.services.nik_provider import NikResposta
 
 
@@ -54,6 +54,58 @@ def test_planejador_aciona_status_modelo_prospeccao():
     plano = nik_service._planejar_ferramentas("qual a versão do modelo de prospecção e as métricas?")
     nomes = [p["nome"] for p in plano]
     assert "status_modelo_prospeccao" in nomes
+
+
+def test_planejador_aciona_cruzar_crm_compare_leads():
+    plano = nik_service._planejar_ferramentas(
+        "Compare os leads do CRM com os scores de prospecção REE"
+    )
+    nomes = [p["nome"] for p in plano]
+    assert "cruzar_crm_prospeccao" in nomes
+    item = next(p for p in plano if p["nome"] == "cruzar_crm_prospeccao")
+    assert item["kwargs"].get("modo_global") is True
+    assert "listar_candidatos_prospeccao" in nomes
+
+
+def test_planejador_aciona_export_csv():
+    plano = nik_service._planejar_ferramentas(
+        "me envie o arquivo do Instituto Arapoti de janeiro a maio de 2026"
+    )
+    nomes = [p["nome"] for p in plano]
+    assert "exportar_coletas_csv" in nomes
+
+
+def test_grounding_bloqueia_numero_inventado():
+    ctx = {"resumo": {"volume_kg": 5, "km_percorrido_km": 30}}
+    texto = val.validar_resposta_ops(
+        "O volume total é de 5 km para o parceiro.",
+        "fallback",
+        contexto=nik_prompts.rotular_unidades_contexto(ctx),
+    )
+    assert texto == "fallback"
+
+
+def test_grounding_aceita_numero_do_contexto():
+    ctx = {"resumo": {"volume_kg": 5, "km_percorrido_km": 30}}
+    texto = val.validar_resposta_ops(
+        "Volume coletado: 5 kg. Quilometragem: 30 km.",
+        "fallback",
+        contexto=nik_prompts.rotular_unidades_contexto(ctx),
+    )
+    assert texto != "fallback"
+    assert "5 kg" in texto
+
+
+def test_sanitizar_remove_emojis_ops():
+    assert "😂" not in val.sanitizar_texto("Resultado ok 😂", remover_emoji=True)
+
+
+def test_planejador_aciona_cruzar_crm_carteira():
+    plano = nik_service._planejar_ferramentas(
+        "Quais clientes do REE não estão na minha carteira?"
+    )
+    nomes = [p["nome"] for p in plano]
+    assert "cruzar_crm_prospeccao" in nomes
 
 
 def test_planejador_aciona_cruzar_crm_prospeccao_crm_e_prospeccao():

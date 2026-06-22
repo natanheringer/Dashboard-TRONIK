@@ -8,11 +8,14 @@ quais fontes foram usadas.
 
 from __future__ import annotations
 
+import csv
+import io
 import json
 import os
 import random
+import secrets
 import time
-from datetime import date, datetime
+from datetime import date, datetime, timedelta
 from ipaddress import ip_address
 from typing import Any
 from urllib.error import HTTPError, URLError
@@ -20,7 +23,7 @@ from urllib.parse import urlparse
 from urllib.request import Request, urlopen
 
 from sqlalchemy import func
-from sqlalchemy.orm import Session
+from sqlalchemy.orm import Session, joinedload
 
 from banco_dados.modelos import (
     Coleta,
@@ -37,6 +40,7 @@ from banco_dados.services import (
     prospeccao_crm_bridge as crm_bridge,
     prospeccao_xgb_service as prospeccao_svc,
 )
+from banco_dados.services.relatorio_service import lucro_liquido_total_coleta
 from banco_dados.services.crm_service import CRMService
 from banco_dados.utils.cache import obter_cache
 from jobs.prospeccao.publish_scores import resolve_model
@@ -386,8 +390,18 @@ def ferramenta_cruzar_crm_prospeccao(
     empresa: str | None = None,
     limite_scores: int = 5,
     model_version: str | None = None,
+    modo_global: bool = False,
 ) -> dict[str, Any]:
-    """Cruza pipeline CRM com scores do ranker REE (pipeline_id ou nome da empresa)."""
+    """Cruza pipeline CRM com scores REE; modo_global lista todos os pipelines."""
+    if db is None:
+        return {"encontrado": False, "resumo": "Informe pipeline_id ou nome da empresa para cruzar CRM e prospecção."}
+    if modo_global or (pipeline_id is None and not (empresa or "").strip()):
+        return crm_bridge.listar_cruzamento_crm_ree_global(
+            db,
+            limite_pipelines=40,
+            limite_ree_sem_crm=15,
+            model_version=model_version,
+        )
     return crm_bridge.cruzar_crm_prospeccao(
         db,
         pipeline_id=pipeline_id,
@@ -395,6 +409,160 @@ def ferramenta_cruzar_crm_prospeccao(
         limite_scores=max(1, min(int(limite_scores or 5), 20)),
         model_version=model_version,
     )
+
+
+def ferramenta_info_coletor(
+    db: Session,
+    coletor_id: int,
+    *,
+    dias: int = 90,
+) -> dict[str, Any]:
+    """Detalhe do coletor + totais de coletas recentes com unidades explícitas."""
+    detalhe = ctx.contexto_coletor(db, coletor_id)
+    if not detalhe:
+        return {"encontrado": False, "coletor_id": coletor_id, "resumo": f"Coletor #{coletor_id} não encontrado."}
+    fim = date.today()
+    inicio = fim - timedelta(days=max(1, min(int(dias or 90), 365)) - 1)
+    t0 = datetime.combine(inicio, datetime.min.time())
+    total = db.query(Coleta).filter(Coleta.coletor_id == coletor_id, Coleta.data_hora >= t0).count()
+    vol = float(
+        db.query(func.coalesce(func.sum(Coleta.volume_estimado), 0.0))
+        .filter(Coleta.coletor_id == coletor_id, Coleta.data_hora >= t0)
+        .scalar()
+        or 0
+    )
+    km = float(
+        db.query(func.coalesce(func.sum(Coleta.km_percorrido), 0.0))
+        .filter(Coleta.coletor_id == coletor_id, Coleta.data_hora >= t0)
+        .scalar()
+        or 0
+    )
+    coletor = detalhe.get("coletor") or {}
+    return {
+        "encontrado": True,
+        "coletor_id": coletor_id,
+        "id_fmt": coletor.get("id_fmt") or f"#L{coletor_id:03d}",
+        "nome": coletor.get("nome") or coletor.get("localizacao"),
+        "parceiro": coletor.get("parceiro"),
+        "nivel_preenchimento_pct": coletor.get("nivel"),
+        "bateria_pct": coletor.get("bateria"),
+        "periodo": {"inicio": inicio.isoformat(), "fim": fim.isoformat()},
+        "total_coletas": total,
+        "volume_kg_periodo": round(vol, 2),
+        "km_percorrido_km_periodo": round(km, 2),
+        "resumo": (
+            f"Coletor {coletor.get('id_fmt', coletor_id)} ({coletor.get('nome', '—')}): "
+            f"{total} coleta(s), {round(vol, 2)} kg e {round(km, 2)} km no período."
+        ),
+    }
+
+
+def _resolver_parceiro_ids(
+    db: Session,
+    parceiro_ids: list[int] | None = None,
+    parceiro_nomes: list[str] | None = None,
+) -> list[int]:
+    ids: set[int] = set()
+    for pid in parceiro_ids or []:
+        if pid:
+            ids.add(int(pid))
+    nomes = [n.strip().lower() for n in (parceiro_nomes or []) if n and str(n).strip()]
+    if nomes:
+        for p in db.query(Parceiro.id, Parceiro.nome).filter(Parceiro.ativo.is_(True)).all():
+            nome_l = (p.nome or "").strip().lower()
+            if any(n in nome_l or nome_l in n for n in nomes):
+                ids.add(int(p.id))
+    return sorted(ids)
+
+
+def ferramenta_exportar_coletas_csv(
+    db: Session,
+    *,
+    inicio: str | None = None,
+    fim: str | None = None,
+    parceiro_ids: list[int] | None = None,
+    parceiro_nomes: list[str] | None = None,
+    usuario_id: int | None = None,
+) -> dict[str, Any]:
+    """Exporta coletas filtradas para CSV (sem limite de linhas) e retorna link de download."""
+    periodo = pv.resolver_periodo(inicio, fim)
+    ids_parceiro = _resolver_parceiro_ids(db, parceiro_ids, parceiro_nomes)
+
+    t0 = datetime.combine(periodo.inicio, datetime.min.time())
+    t1 = datetime.combine(periodo.fim, datetime.max.time())
+    q = (
+        db.query(Coleta)
+        .options(
+            joinedload(Coleta.coletor),
+            joinedload(Coleta.parceiro),
+            joinedload(Coleta.tipo_coletor),
+        )
+        .filter(Coleta.data_hora >= t0, Coleta.data_hora <= t1)
+    )
+    if ids_parceiro:
+        q = q.filter(Coleta.parceiro_id.in_(ids_parceiro))
+    coletas = q.order_by(Coleta.data_hora.desc()).all()
+
+    buf = io.StringIO()
+    writer = csv.writer(buf)
+    writer.writerow(
+        [
+            "data_hora",
+            "coletor_id",
+            "coletor_localizacao",
+            "parceiro_id",
+            "parceiro_nome",
+            "volume_kg",
+            "km_percorrido_km",
+            "preco_combustivel",
+            "lucro_liquido_estimado",
+            "tipo_operacao",
+        ]
+    )
+    for c in coletas:
+        vol = c.volume_estimado or 0
+        km = c.km_percorrido or 0
+        preco = c.preco_combustivel or 0
+        writer.writerow(
+            [
+                c.data_hora.isoformat() if c.data_hora else "",
+                c.coletor_id,
+                c.coletor.localizacao if c.coletor else "",
+                c.parceiro_id,
+                c.parceiro.nome if c.parceiro else "",
+                vol,
+                km,
+                preco,
+                lucro_liquido_total_coleta(vol, km, preco),
+                c.tipo_operacao,
+            ]
+        )
+
+    token = secrets.token_urlsafe(24)
+    nome_arquivo = f"coletas_{periodo.inicio.isoformat()}_{periodo.fim.isoformat()}.csv"
+    obter_cache().definir(
+        f"nik:export:{token}",
+        {
+            "csv": buf.getvalue(),
+            "filename": nome_arquivo,
+            "usuario_id": usuario_id,
+            "total_linhas": len(coletas),
+            "periodo": {"inicio": periodo.inicio.isoformat(), "fim": periodo.fim.isoformat()},
+            "parceiro_ids": ids_parceiro,
+        },
+    )
+    return {
+        "status": "ok",
+        "total_linhas": len(coletas),
+        "periodo": {"inicio": periodo.inicio.isoformat(), "fim": periodo.fim.isoformat()},
+        "parceiro_ids": ids_parceiro,
+        "download_url": f"/api/nik/ops/export/{token}",
+        "filename": nome_arquivo,
+        "resumo": (
+            f"Exportação pronta: {len(coletas)} coleta(s) de "
+            f"{periodo.inicio.isoformat()} a {periodo.fim.isoformat()}."
+        ),
+    }
 
 
 def _resumo_candidato_comparacao(payload: dict[str, Any]) -> dict[str, Any]:
@@ -1083,7 +1251,15 @@ def catalogo_ferramentas() -> list[dict[str, Any]]:
         },
         {
             "nome": "cruzar_crm_prospeccao",
-            "descricao": "Cruza pipeline CRM com scores REE por pipeline_id ou nome da empresa.",
+            "descricao": "Cruza leads CRM com scores REE (global ou por pipeline/empresa).",
+        },
+        {
+            "nome": "info_coletor",
+            "descricao": "Detalhes e totais (volume_kg, km) de um coletor por ID.",
+        },
+        {
+            "nome": "exportar_coletas_csv",
+            "descricao": "Exporta coletas filtradas por período/parceiro para CSV (download).",
         },
         {
             "nome": "comparar_candidatos",
@@ -1160,6 +1336,17 @@ _PARAMETROS_OPENAI: dict[str, dict[str, Any]] = {
         empresa={"type": "string", "description": "Nome da empresa para cruzar."},
         limite_scores={"type": "integer", "description": "Máximo de scores retornados."},
         model_version={"type": "string", "description": "Versão do modelo REE (opcional)."},
+        modo_global={"type": "boolean", "description": "Cruzar todos os pipelines CRM com REE."},
+    ),
+    "info_coletor": _schema_props(
+        coletor_id={"type": "integer", "description": "ID numérico do coletor.", "required": True},
+        dias={"type": "integer", "description": "Janela de dias para totais (padrão 90)."},
+    ),
+    "exportar_coletas_csv": _schema_props(
+        inicio={"type": "string", "description": "Data início ISO (YYYY-MM-DD)."},
+        fim={"type": "string", "description": "Data fim ISO (YYYY-MM-DD)."},
+        parceiro_ids={"type": "array", "items": {"type": "integer"}, "description": "IDs de parceiros."},
+        parceiro_nomes={"type": "array", "items": {"type": "string"}, "description": "Nomes de parceiros."},
     ),
     "comparar_candidatos": _schema_props(
         score_ids={

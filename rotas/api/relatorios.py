@@ -95,7 +95,7 @@ def exportar_relatorio_pdf():
             parceiro_id=parceiro_id,
             tipo_operacao=tipo_operacao,
             pagina=1,
-            por_pagina=50  # Limitar a 50 para PDF
+            por_pagina=10000,
         )
 
         resumo = relatorio['resumo']
@@ -163,7 +163,7 @@ def exportar_relatorio_pdf():
 
             detalhes_data = [['Data', 'Coletor', 'Volume (kg)', 'KM', 'Lucro (R$)']]
 
-            for coleta in detalhes[:50]:
+            for coleta in detalhes[:200]:
                 data_str = coleta.get('data_hora', 'N/A')
                 if data_str and data_str != 'N/A':
                     try:
@@ -184,8 +184,8 @@ def exportar_relatorio_pdf():
 
                 detalhes_data.append([data_str, lixeira_nome, volume, km, lucro])
 
-            if len(detalhes) > 50:
-                detalhes_data.append(['...', f'({len(detalhes) - 50} coletas adicionais)', '', '', ''])
+            if len(detalhes) > 200:
+                detalhes_data.append(['...', f'({len(detalhes) - 200} coletas adicionais)', '', '', ''])
 
             detalhes_table = Table(detalhes_data, colWidths=[1.2*inch, 2*inch, 1*inch, 0.8*inch, 1*inch])
             detalhes_table.setStyle(TableStyle([

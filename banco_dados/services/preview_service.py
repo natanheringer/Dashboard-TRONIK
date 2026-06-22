@@ -482,6 +482,7 @@ def resumo_relatorios(
 ) -> dict[str, Any]:
     """Agregações SQL — evita carregar todas as coletas do período em memória."""
     from banco_dados.modelos import Coleta, Coletor, Parceiro
+    from banco_dados.services.relatorio_service import sqlalchemy_soma_lucro_liquido_coletas
 
     t0 = datetime.combine(periodo.inicio, datetime.min.time())
     t1 = datetime.combine(periodo.fim + timedelta(days=1), datetime.min.time())
@@ -519,13 +520,8 @@ def resumo_relatorios(
         .scalar()
         or 0
     )
-    lucro_bruto = float(
-        db.query(
-            func.coalesce(
-                func.sum(Coleta.lucro_por_kg * Coleta.volume_estimado),
-                0.0,
-            )
-        )
+    lucro_liquido = float(
+        db.query(sqlalchemy_soma_lucro_liquido_coletas())
         .filter(*filtros)
         .scalar()
         or 0
@@ -592,7 +588,8 @@ def resumo_relatorios(
         "total_coletas": n,
         "volume_kg": round(vol, 1),
         "km_total": round(km, 1),
-        "lucro_bruto": round(lucro_bruto, 2),
+        "lucro_liquido_estimado": round(lucro_liquido, 2),
+        "lucro_bruto": round(lucro_liquido, 2),
         "custo_combustivel_est": round(combustivel, 2),
         "media_kg_coleta": round(vol / n, 1) if n else 0.0,
         "media_km_coleta": round(km / n, 1) if n else 0.0,
