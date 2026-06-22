@@ -6,21 +6,19 @@ A LLM/heurística só extrai campos; o INSERT usa coleta_service.criar_coleta().
 
 from __future__ import annotations
 
+import contextlib
 import logging
 import os
 import re
-from datetime import date, datetime, timedelta
+from datetime import date, timedelta
 from typing import Any
 
 from sqlalchemy.orm import Session
 
 from banco_dados.modelos import Coletor, Parceiro, Usuario
-from banco_dados.services import coleta_service
-from banco_dados.services import nik_provider as provider
-from banco_dados.services import nik_validacao as val
+from banco_dados.services import coleta_service, nik_provider as provider, nik_validacao as val
 from banco_dados.services.relatorio_service import lucro_liquido_total_coleta
 from banco_dados.utils.cache import obter_cache
-from banco_dados.utils import utc_now_naive
 
 logger = logging.getLogger(__name__)
 
@@ -98,9 +96,7 @@ def mensagem_pede_cadastrar_coleta(mensagem: str) -> bool:
     ]
     if any(v in msg for v in verbos):
         return True
-    if "coleta" in msg and any(v in msg for v in ["cadastra", "adiciona", "registra", "insere", "lança", "lancar", "lançar"]):
-        return True
-    return False
+    return bool("coleta" in msg and any(v in msg for v in ["cadastra", "adiciona", "registra", "insere", "lança", "lancar", "lançar"]))
 
 
 def _extrair_volume_kg(texto: str) -> float | None:
@@ -302,15 +298,11 @@ def _mesclar_extracao(
             out["parceiro_id"] = pid
             out["parceiro_nome"] = pnome
     if out.get("volume_kg") is None and llm.get("volume_kg") is not None:
-        try:
+        with contextlib.suppress(TypeError, ValueError):
             out["volume_kg"] = float(llm["volume_kg"])
-        except (TypeError, ValueError):
-            pass
     if out.get("km_percorrido_km") is None and llm.get("km_percorrido_km") is not None:
-        try:
+        with contextlib.suppress(TypeError, ValueError):
             out["km_percorrido_km"] = float(llm["km_percorrido_km"])
-        except (TypeError, ValueError):
-            pass
     ref = llm.get("coletor_ref")
     if out.get("coletor_id") is None and ref:
         m = re.search(r"(\d+)", str(ref))
@@ -324,17 +316,13 @@ def _mesclar_extracao(
         if raw == "hoje":
             out["data_coleta"] = date.today().isoformat()
         else:
-            try:
+            with contextlib.suppress(ValueError):
                 out["data_coleta"] = date.fromisoformat(raw[:10]).isoformat()
-            except ValueError:
-                pass
     if llm.get("tipo_operacao"):
         out["tipo_operacao"] = str(llm["tipo_operacao"])[:50]
     if llm.get("preco_combustivel") is not None:
-        try:
+        with contextlib.suppress(TypeError, ValueError):
             out["preco_combustivel"] = float(llm["preco_combustivel"])
-        except (TypeError, ValueError):
-            pass
     out["fonte_extracao"] = "heuristica+llm" if llm else out.get("fonte_extracao")
     if out.get("coletor_id") is None and out.get("parceiro_id"):
         cid, cnome = _resolver_coletor_id(db, coletor_ref=None, parceiro_id=out["parceiro_id"])

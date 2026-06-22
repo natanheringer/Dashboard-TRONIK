@@ -114,9 +114,7 @@ def extrair_numeros_contexto(contexto: Any) -> set[str]:
     elif isinstance(contexto, list):
         for item in contexto:
             nums |= extrair_numeros_contexto(item)
-    elif isinstance(contexto, (int, float)):
-        nums |= _normalizar_numero(contexto)
-    elif isinstance(contexto, str):
+    elif isinstance(contexto, (int, float, str)):
         nums |= _normalizar_numero(contexto)
     return nums
 
@@ -128,9 +126,7 @@ def _numero_permitido_sem_contexto(token: str) -> bool:
         n = float(token.replace(",", "."))
     except ValueError:
         return False
-    if n == int(n) and 0 <= int(n) <= 31:
-        return True
-    return False
+    return bool(n == int(n) and 0 <= int(n) <= 31)
 
 
 def _numeros_por_sufixo_contexto(contexto: Any, sufixos_chave: tuple[str, ...]) -> set[str]:
@@ -156,13 +152,19 @@ def validar_unidades_resposta(texto: str, contexto: dict[str, Any] | None) -> bo
     nums_km = _numeros_por_sufixo_contexto(contexto, ("km", "quilometr", "distanc", "meta_km"))
     for match in re.finditer(r"\b(\d{1,3}(?:[.,]\d+)?)\s*km\b", texto, flags=re.I):
         token = match.group(1).replace(",", ".")
-        if token not in nums_km and not any(token in p or p in token for p in nums_km if p):
-            if token in nums_kg or any(token in p or p in token for p in nums_kg if p):
-                return False
+        if (
+            token not in nums_km
+            and not any(token in p or p in token for p in nums_km if p)
+            and (token in nums_kg or any(token in p or p in token for p in nums_kg if p))
+        ):
+            return False
     for match in re.finditer(r"\b(\d{1,3}(?:[.,]\d+)?)\s*kg\b", texto, flags=re.I):
         token = match.group(1).replace(",", ".")
-        if token not in nums_kg and not any(token in p or p in token for p in nums_kg if p):
-            if token in nums_km or any(token in p or p in token for p in nums_km if p):
+        if (
+            token not in nums_kg
+            and not any(token in p or p in token for p in nums_kg if p)
+            and (token in nums_km or any(token in p or p in token for p in nums_km if p))
+        ):
                 return False
     return True
 

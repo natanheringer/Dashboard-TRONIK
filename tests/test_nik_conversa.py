@@ -1,4 +1,9 @@
-from banco_dados.services import nik_prompts, nik_provider as nik_provider_module, nik_service, nik_validacao as val
+from banco_dados.services import (
+    nik_prompts,
+    nik_provider as nik_provider_module,
+    nik_service,
+    nik_validacao as val,
+)
 from banco_dados.services.nik_provider import NikResposta
 
 

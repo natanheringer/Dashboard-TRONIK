@@ -717,9 +717,12 @@ def _mensagem_pede_cruzar_crm_prospeccao(mensagem: str) -> bool:
         ]
     ):
         return True
-    if any(k in msg for k in ["compare", "comparar", "comparação", "comparacao", "diferença", "diferenca"]):
-        if "crm" in msg and any(k in msg for k in ["ree", "score", "prospec", "ranking", "lead", "carteira"]):
-            return True
+    if (
+        any(k in msg for k in ["compare", "comparar", "comparação", "comparacao", "diferença", "diferenca"])
+        and "crm" in msg
+        and any(k in msg for k in ["ree", "score", "prospec", "ranking", "lead", "carteira"])
+    ):
+        return True
     if any(k in msg for k in ["carteira", "clientes"]) and any(
         k in msg for k in ["ree", "prospec", "ranking", "score", "crm"]
     ):
