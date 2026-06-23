@@ -1211,24 +1211,54 @@ def _extrair_parceiro_id_por_texto(db: Session, mensagem: str) -> int | None:
     return int(m.group(1)) if m else None
 
 
-def _extrair_intervalo_meses(texto: str) -> tuple[date, date] | None:
-    meses = {
-        "janeiro": 1, "fevereiro": 2, "marco": 3, "março": 3, "abril": 4, "maio": 5, "junho": 6,
-        "julho": 7, "agosto": 8, "setembro": 9, "outubro": 10, "novembro": 11, "dezembro": 12,
-    }
-    msg = (texto or "").lower()
+_MES_PARA_NUM: dict[str, int] = {
+    "janeiro": 1,
+    "jan": 1,
+    "fevereiro": 2,
+    "fev": 2,
+    "marco": 3,
+    "março": 3,
+    "mar": 3,
+    "abril": 4,
+    "abr": 4,
+    "maio": 5,
+    "mai": 5,
+    "junho": 6,
+    "jun": 6,
+    "julho": 7,
+    "jul": 7,
+    "agosto": 8,
+    "ago": 8,
+    "setembro": 9,
+    "set": 9,
+    "outubro": 10,
+    "out": 10,
+    "novembro": 11,
+    "nov": 11,
+    "dezembro": 12,
+    "dez": 12,
+}
+
+
+def _normalizar_token_mes(token: str) -> str:
+    return (token or "").strip().lower().rstrip(".")
+
+
+def _extrair_intervalo_meses(texto: str, ano_default: int | None = None) -> tuple[date, date] | None:
+    ano_ref = ano_default or date.today().year
+    msg = (texto or "").lower().strip().strip("'\"")
+    meses_alt = "|".join(re.escape(k) for k in sorted(_MES_PARA_NUM.keys(), key=len, reverse=True))
     m = re.search(
-        r"\b(janeiro|fevereiro|marco|março|abril|maio|junho|julho|agosto|setembro|outubro|novembro|dezembro)"
-        r"\s+a\s+"
-        r"(janeiro|fevereiro|marco|março|abril|maio|junho|julho|agosto|setembro|outubro|novembro|dezembro)"
-        r"(?:\s+de)?\s+(20\d{2})\b",
+        rf"(?:de\s+)?({meses_alt})\s+(?:a|at[eé]|-)\s+({meses_alt})(?:\s+de)?(?:\s+(20\d{{2}}))?",
         msg,
     )
     if not m:
         return None
-    mes_ini = meses[m.group(1)]
-    mes_fim = meses[m.group(2)]
-    ano = int(m.group(3))
+    mes_ini = _MES_PARA_NUM.get(_normalizar_token_mes(m.group(1)))
+    mes_fim = _MES_PARA_NUM.get(_normalizar_token_mes(m.group(2)))
+    if mes_ini is None or mes_fim is None:
+        return None
+    ano = int(m.group(3)) if m.group(3) else ano_ref
     if mes_ini > mes_fim:
         mes_ini, mes_fim = mes_fim, mes_ini
     return date(ano, mes_ini, 1), _fim_mes(ano, mes_fim)
@@ -1243,7 +1273,7 @@ def _inferir_consulta_usuario(db: Session, mensagem: str) -> dict[str, Any]:
     mes_ano = _extrair_mes_ano(msg)
     parceiro_id = _extrair_parceiro_id_por_texto(db, mensagem)
     parceiro_nomes = _extrair_nomes_parceiros(db, mensagem)
-    intervalo_meses = _extrair_intervalo_meses(mensagem)
+    intervalo_meses = _extrair_intervalo_meses(mensagem, ano_default=data_max.year)
 
     inicio: date | None = None
     fim: date | None = None
@@ -1716,6 +1746,67 @@ def _formatar_resposta_coleta_hoje(payload: dict[str, Any]) -> str | None:
     )
 
 
+def _formatar_resposta_fila_ree(payload: dict[str, Any]) -> str:
+    candidatos = payload.get("candidatos") or []
+    if not candidatos:
+        return str(payload.get("resumo") or "Nenhum candidato REE publicado na fila.")
+    linhas = [str(payload.get("resumo") or f"Top {len(candidatos)} candidato(s) REE:")]
+    for idx, cand in enumerate(candidatos[:15], 1):
+        if not isinstance(cand, dict):
+            continue
+        empresa = cand.get("empresa") if isinstance(cand.get("empresa"), dict) else {}
+        nome = empresa.get("razao_social") or empresa.get("nome_fantasia") or "—"
+        local = cand.get("local") if isinstance(cand.get("local"), dict) else {}
+        bairro = local.get("bairro") or empresa.get("bairro") or ""
+        local_txt = f" ({bairro})" if bairro else ""
+        linhas.append(
+            f"{idx}. {nome}{local_txt}: score {cand.get('score', '—')} "
+            f"(prioridade {cand.get('prioridade', '—')}, rank {cand.get('ranking_contexto', '—')})."
+        )
+    return "\n".join(linhas)
+
+
+def _formatar_resposta_status_modelo(payload: dict[str, Any]) -> str:
+    if not payload.get("encontrado"):
+        return str(payload.get("resumo") or "Nenhum modelo de prospecção ativo encontrado.")
+    modelo = payload.get("modelo") if isinstance(payload.get("modelo"), dict) else {}
+    metricas = payload.get("metricas") if isinstance(payload.get("metricas"), dict) else {}
+    prioridade = payload.get("prioridade") if isinstance(payload.get("prioridade"), dict) else {}
+    ndcg = metricas.get("validation_ndcg_mean") or metricas.get("train_ndcg_mean")
+    ndcg_txt = f" NDCG validação: {ndcg:.4f}." if isinstance(ndcg, (int, float)) else ""
+    pri_txt = ""
+    if prioridade:
+        pri_txt = (
+            f" Prioridades publicadas: alta {prioridade.get('alta', 0)}, "
+            f"média {prioridade.get('media', 0)}, baixa {prioridade.get('baixa', 0)}."
+        )
+    return (
+        f"{payload.get('resumo', 'Modelo ativo.')}"
+        f" Features: {modelo.get('feature_count', '—')}.{ndcg_txt}{pri_txt}"
+    )
+
+
+def _anexos_resposta_from_contexto(contexto: dict[str, Any]) -> dict[str, Any]:
+    exp = contexto.get("exportar_coletas_csv")
+    if isinstance(exp, dict) and exp.get("status") == "ok" and exp.get("download_url"):
+        return {
+            "arquivo_export": {
+                "url": exp["download_url"],
+                "filename": exp.get("filename", "coletas.csv"),
+                "total_linhas": exp.get("total_linhas", 0),
+                "periodo": exp.get("periodo"),
+            }
+        }
+    return {}
+
+
+def _payload_resposta_ops(base: dict[str, Any], contexto: dict[str, Any] | None = None) -> dict[str, Any]:
+    payload = dict(base)
+    if contexto:
+        payload.update(_anexos_resposta_from_contexto(contexto))
+    return payload
+
+
 def _tentar_resposta_deterministica(mensagem: str, contexto: dict[str, Any]) -> str | None:
     """Respostas 100% ancoradas nos dados das ferramentas — sem passar pelo LLM."""
     if _mensagem_pede_exportar_csv(mensagem):
@@ -1745,6 +1836,16 @@ def _tentar_resposta_deterministica(mensagem: str, contexto: dict[str, Any]) -> 
             txt = _formatar_resposta_coleta_hoje(rp)
             if txt:
                 return txt
+
+    if _mensagem_pede_status_modelo(mensagem):
+        status = contexto.get("status_modelo_prospeccao")
+        if isinstance(status, dict):
+            return _formatar_resposta_status_modelo(status)
+
+    if _mensagem_pede_prospeccao(mensagem) and not _mensagem_pede_cruzar_crm_prospeccao(mensagem):
+        fila = contexto.get("listar_candidatos_prospeccao")
+        if isinstance(fila, dict) and isinstance(fila.get("candidatos"), list):
+            return _formatar_resposta_fila_ree(fila)
 
     return None
 
@@ -1798,22 +1899,25 @@ def conversar_ops_thread(
 
     texto_det = _tentar_resposta_deterministica(mensagem, contexto)
     if texto_det:
-        return {
-            "texto": texto_det,
-            "fonte": "ferramentas",
-            "modelo": None,
-            "routing_mode": "deterministic",
-            "routing_model": None,
-            "modo_contexto": contexto.get("modo", "real"),
-            "used_tools": contexto.get("used_tools", []),
-            "data_sources": contexto.get("data_sources", []),
-            "tool_trace": contexto.get("tool_trace", []),
-            "citacoes": [],
-            "fontes_web": [],
-            "thread_id": thread,
-            "web_status": "n/a",
-            **planner_fields,
-        }
+        return _payload_resposta_ops(
+            {
+                "texto": texto_det,
+                "fonte": "ferramentas",
+                "modelo": None,
+                "routing_mode": "deterministic",
+                "routing_model": None,
+                "modo_contexto": contexto.get("modo", "real"),
+                "used_tools": contexto.get("used_tools", []),
+                "data_sources": contexto.get("data_sources", []),
+                "tool_trace": contexto.get("tool_trace", []),
+                "citacoes": [],
+                "fontes_web": [],
+                "thread_id": thread,
+                "web_status": "n/a",
+                **planner_fields,
+            },
+            contexto,
+        )
 
     modo_routing = "web_research_report" if pediu_web else "chat_ops"
     modelo_conversa_groq = _modelo_tarefa("conversa", mensagem)
@@ -1951,22 +2055,25 @@ def conversar_ops_thread(
     if fontes_web:
         texto = _remover_links_texto(texto)
     citacoes = _gerar_citacoes_por_bloco(texto, contexto)
-    return {
-        "texto": texto,
-        "fonte": "modelo" if resposta.sucesso and texto != fallback else "fallback",
-        "modelo": resposta.modelo_usado if resposta.sucesso else None,
-        "routing_mode": modo_routing,
-        "routing_model": modelo_planejado,
-        "modo_contexto": contexto.get("modo", "real"),
-        "used_tools": contexto.get("used_tools", []),
-        "data_sources": contexto.get("data_sources", []),
-        "tool_trace": contexto.get("tool_trace", []),
-        "citacoes": citacoes,
-        "fontes_web": fontes_web,
-        "thread_id": thread,
-        "web_status": web_status or ("ok" if fontes_web else "n/a"),
-        **planner_fields,
-    }
+    return _payload_resposta_ops(
+        {
+            "texto": texto,
+            "fonte": "modelo" if resposta.sucesso and texto != fallback else "fallback",
+            "modelo": resposta.modelo_usado if resposta.sucesso else None,
+            "routing_mode": modo_routing,
+            "routing_model": modelo_planejado,
+            "modo_contexto": contexto.get("modo", "real"),
+            "used_tools": contexto.get("used_tools", []),
+            "data_sources": contexto.get("data_sources", []),
+            "tool_trace": contexto.get("tool_trace", []),
+            "citacoes": citacoes,
+            "fontes_web": fontes_web,
+            "thread_id": thread,
+            "web_status": web_status or ("ok" if fontes_web else "n/a"),
+            **planner_fields,
+        },
+        contexto,
+    )
 
 
 def _extrair_anos(texto: str) -> list[int]:
@@ -1981,6 +2088,8 @@ def _montar_contexto_conversa_integrada(
     thread_id: str = "main",
 ) -> dict[str, Any]:
     consulta = _inferir_consulta_usuario(db, mensagem)
+    limites_hist = nik_tools.ferramenta_limites_historico(db)
+    data_max = date.fromisoformat(limites_hist["fim"]) if limites_hist.get("fim") else date.today()
     plano, planner_mode = _planejar_ferramentas_completo(mensagem)
 
     for item in plano:
@@ -2010,6 +2119,9 @@ def _montar_contexto_conversa_integrada(
                 item["kwargs"]["parceiro_ids"] = [consulta["parceiro_id"]]
             if consulta.get("parceiro_nomes"):
                 item["kwargs"]["parceiro_nomes"] = consulta["parceiro_nomes"]
+            if not item["kwargs"].get("inicio") or not item["kwargs"].get("fim"):
+                item["kwargs"]["inicio"] = date(data_max.year, 1, 1).isoformat()
+                item["kwargs"]["fim"] = data_max.isoformat()
         if nome == "cruzar_crm_prospeccao" and not item.get("kwargs"):
             item["kwargs"] = {"modo_global": True}
 

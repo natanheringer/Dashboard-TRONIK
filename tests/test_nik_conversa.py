@@ -1,3 +1,5 @@
+from datetime import date
+
 from banco_dados.services import (
     nik_prompts,
     nik_provider as nik_provider_module,
@@ -653,3 +655,76 @@ def test_nik_maiara_export_markdown(auth_client, monkeypatch):
     resp = auth_client.get("/api/nik/maiara/relatorio/7/export?formato=md")
     assert resp.status_code == 200
     assert "# Relatório" in resp.get_data(as_text=True)
+
+
+def test_extrair_intervalo_meses_abreviado_sem_ano():
+    ini, fim = nik_service._extrair_intervalo_meses(
+        "me envie o arquivo do Instituto Arapoti de jan a mai'",
+        ano_default=2026,
+    )
+    assert ini == date(2026, 1, 1)
+    assert fim == date(2026, 5, 31)
+
+
+def test_resposta_deterministica_fila_ree():
+    contexto = {
+        "listar_candidatos_prospeccao": {
+            "total": 2,
+            "resumo": "Fila de prospecção com 2 candidato(s) ranqueado(s).",
+            "candidatos": [
+                {
+                    "score": -0.001,
+                    "prioridade": "alta",
+                    "ranking_contexto": 1,
+                    "empresa": {"razao_social": "Empresa Alpha"},
+                    "local": {"bairro": "Asa Norte"},
+                },
+                {
+                    "score": -0.002,
+                    "prioridade": "alta",
+                    "ranking_contexto": 2,
+                    "empresa": {"razao_social": "Empresa Beta"},
+                    "local": {},
+                },
+            ],
+        }
+    }
+    txt = nik_service._tentar_resposta_deterministica(
+        "Liste os top candidatos REE da fila de prospecção",
+        contexto,
+    )
+    assert txt is not None
+    assert "Empresa Alpha" in txt
+    assert "rank 1" in txt
+
+
+def test_resposta_deterministica_status_modelo():
+    contexto = {
+        "status_modelo_prospeccao": {
+            "encontrado": True,
+            "resumo": "Modelo ativo v1 (100 scores publicados).",
+            "modelo": {"versao": "v1", "feature_count": 42},
+            "metricas": {"validation_ndcg_mean": 0.8123},
+            "prioridade": {"alta": 10, "media": 5, "baixa": 2},
+        }
+    }
+    txt = nik_service._tentar_resposta_deterministica("Status do modelo REE", contexto)
+    assert txt is not None
+    assert "Modelo ativo v1" in txt
+    assert "NDCG" in txt
+
+
+def test_payload_resposta_inclui_arquivo_export():
+    contexto = {
+        "exportar_coletas_csv": {
+            "status": "ok",
+            "download_url": "/api/nik/ops/export/token123",
+            "filename": "coletas_2026-01-01_2026-05-31.csv",
+            "total_linhas": 12,
+            "periodo": {"inicio": "2026-01-01", "fim": "2026-05-31"},
+        }
+    }
+    payload = nik_service._payload_resposta_ops({"texto": "ok"}, contexto)
+    assert payload["arquivo_export"]["url"] == "/api/nik/ops/export/token123"
+    assert payload["arquivo_export"]["total_linhas"] == 12
+

@@ -639,6 +639,23 @@
           "</div>";
 
       var attachmentsHtml = "";
+      if (agentMeta && agentMeta.arquivo_export && agentMeta.arquivo_export.url) {
+        var ex = agentMeta.arquivo_export;
+        var exNome = ex.filename || "coletas.csv";
+        var exLinhas = ex.total_linhas != null ? ex.total_linhas + " coleta(s)" : "CSV";
+        var exPeriodo =
+          ex.periodo && ex.periodo.inicio && ex.periodo.fim
+            ? ex.periodo.inicio + " a " + ex.periodo.fim
+            : "Exportação pronta";
+        attachmentsHtml += `
+          <a class="nik-attachment-card" href="${esc(ex.url)}" download="${esc(exNome)}">
+            <div class="nik-attachment-icon"><i data-lucide="download" class="icon" style="width: 16px; height: 16px;"></i></div>
+            <div class="nik-attachment-info">
+              <div class="nik-attachment-title">${esc(exNome)}</div>
+              <div class="nik-attachment-meta">${esc(exLinhas)} · ${esc(exPeriodo)}</div>
+            </div>
+          </a>`;
+      }
       if (fontesWeb && fontesWeb.length > 0) {
         attachmentsHtml = '<div class="nik-message-attachments">';
         fontesWeb.forEach(function(src) {
@@ -807,7 +824,8 @@
             tool_trace: data.tool_trace,
             routing_model: plannedModel,
             routing_mode: routeMode,
-            planner_mode: data.planner_mode
+            planner_mode: data.planner_mode,
+            arquivo_export: data.arquivo_export || null
           }
         );
         var usedModel = data.modelo || plannedModel;
