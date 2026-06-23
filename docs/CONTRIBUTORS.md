@@ -5,10 +5,13 @@
 
 ## Mantenedores
 <!-- Adicione seu nome aqui -->
-- Pedro Gabryel Oliveira(@ySpecks) 
-- Gabriel Oliveira de Araújo (@gabrieloliveiraetb)
-- Ruan Costa (@Ruan25-code)
+- Yves Jorge (@yveshjorge)
+- Rafael Caputo (@rafaelcaputo2324)
 - Thales Leão (@tleaoribeironeves-max)
+- Gabriel Oliveira de Araújo (@gabrieloliveiraetb)
+- Mateus de Jesus Carvalho do Nascimento (@mateusjcn)
+- Pedro Gabryel Oliveira (@ySpecks)
+- Ruan Costa (@Ruan25-coder)
 
 ## Como adicionar seu nome
 1. Edite este arquivo

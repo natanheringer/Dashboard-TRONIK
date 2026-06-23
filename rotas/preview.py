@@ -448,6 +448,8 @@ def nik():
     current_app.config["NIK_AGENT_PLANNER"] = planner_cfg
     mm = os.getenv("NIK_MULTIMODAL_ENABLED", "false").strip().lower() in {"1", "true", "yes"}
     current_app.config["NIK_MULTIMODAL_ENABLED"] = mm
+    debug_ui = os.getenv("NIK_DEBUG_UI", "false").strip().lower() in {"1", "true", "yes"}
+    current_app.config["NIK_DEBUG_UI"] = debug_ui
     return render_template(
         "preview/nik.html",
         current="nik",

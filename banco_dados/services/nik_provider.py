@@ -22,6 +22,7 @@ import random
 import re
 import threading
 import time
+from collections.abc import Iterator
 from dataclasses import dataclass, field
 from typing import Any
 
@@ -54,6 +55,17 @@ class NikResposta:
     sucesso: bool
     erro: str | None = None
     tool_calls: list[NikToolCall] = field(default_factory=list)
+
+
+@dataclass
+class NikStreamEvent:
+    kind: str  # "token" | "done" | "error"
+    texto: str = ""
+    modelo_usado: str = ""
+    tokens_prompt: int = 0
+    tokens_resposta: int = 0
+    latencia_ms: int = 0
+    erro: str | None = None
 
 
 _client_lock = threading.Lock()
@@ -524,6 +536,239 @@ def _executar_uma_chamada(
         )
 
     raise ultima_exc or RuntimeError("Falha sem exceção registrada")
+
+
+def _executar_uma_chamada_stream(
+    client: Any,
+    tentativa_modelo: str,
+    system_prompt: str,
+    user_prompt: str,
+    max_tokens: int,
+    temperature: float,
+    extra_body: dict[str, Any] | None = None,
+) -> Iterator[NikStreamEvent]:
+    inicio = time.perf_counter()
+    retries = _network_retry_count()
+    ultima_exc: Exception | None = None
+
+    for attempt in range(retries + 1):
+        _sleep_backoff_tentativa(attempt)
+        kwargs: dict[str, Any] = {
+            "model": tentativa_modelo,
+            "messages": [
+                {"role": "system", "content": system_prompt},
+                {"role": "user", "content": user_prompt},
+            ],
+            "max_tokens": max_tokens,
+            "temperature": temperature,
+            "stream": True,
+        }
+        if extra_body:
+            kwargs["extra_body"] = extra_body
+        try:
+            stream_resp = client.chat.completions.create(**kwargs)
+            acumulado = ""
+            tokens_prompt = 0
+            tokens_resposta = 0
+            for chunk in stream_resp:
+                delta = ""
+                if chunk.choices:
+                    delta = chunk.choices[0].delta.content or ""
+                if delta:
+                    acumulado += delta
+                    yield NikStreamEvent(kind="token", texto=delta, modelo_usado=tentativa_modelo)
+                usage = getattr(chunk, "usage", None)
+                if usage:
+                    tokens_prompt = getattr(usage, "prompt_tokens", 0) or 0
+                    tokens_resposta = getattr(usage, "completion_tokens", 0) or 0
+            latencia_ms = int((time.perf_counter() - inicio) * 1000)
+            yield NikStreamEvent(
+                kind="done",
+                texto=acumulado,
+                modelo_usado=tentativa_modelo,
+                tokens_prompt=tokens_prompt,
+                tokens_resposta=tokens_resposta,
+                latencia_ms=latencia_ms,
+            )
+            return
+        except Exception as exc:
+            ultima_exc = exc
+            msg = str(exc)
+            if attempt < retries and _is_transient_network_error(msg):
+                logger.warning(
+                    "Nik provider stream rede transitória (modelo=%s tentativa=%s/%s): %s",
+                    tentativa_modelo,
+                    attempt + 1,
+                    retries + 1,
+                    exc,
+                )
+                continue
+            yield NikStreamEvent(kind="error", modelo_usado=tentativa_modelo, erro=msg)
+            return
+
+    yield NikStreamEvent(
+        kind="error",
+        modelo_usado=tentativa_modelo,
+        erro=str(ultima_exc or "Falha sem exceção registrada"),
+    )
+
+
+def chamar_modelo_stream(
+    system_prompt: str,
+    user_prompt: str,
+    modelo: str | None = None,
+    max_tokens: int = 512,
+    temperature: float = 0.3,
+    *,
+    prefer_nvidia_integrate_first: bool = False,
+    modelo_primario_se_sem_nv: str | None = None,
+) -> Iterator[NikStreamEvent]:
+    """Streaming do modelo; espelha chamar_modelo sem response_format."""
+    global _RATE_LIMIT_UNTIL_TS_PRIMARY
+    modelo_principal = modelo or os.getenv("NIK_MODELO_OPS", "llama-3.1-8b-instant")
+    modelo_fallback = os.getenv("NIK_MODELO_FALLBACK", "llama-3.1-8b-instant")
+    ultimo_erro = "Falha desconhecida"
+    tokens_emitted = False
+
+    def _emit_tentativa(client: Any, tentativa_modelo: str, extra_body: dict[str, Any] | None = None) -> Iterator[NikStreamEvent]:
+        nonlocal tokens_emitted, ultimo_erro
+        for ev in _executar_uma_chamada_stream(
+            client,
+            tentativa_modelo,
+            system_prompt,
+            user_prompt,
+            max_tokens,
+            temperature,
+            extra_body=extra_body,
+        ):
+            if ev.kind == "token":
+                tokens_emitted = True
+                yield ev
+            elif ev.kind == "done":
+                if ev.texto.strip() or tokens_emitted:
+                    yield ev
+                    return "ok"
+                ultimo_erro = "Resposta vazia do modelo"
+                return "retry"
+            elif ev.kind == "error":
+                ultimo_erro = ev.erro or ultimo_erro
+                if tokens_emitted:
+                    yield ev
+                    return "stop"
+                return "retry"
+        return "retry"
+
+    if prefer_nvidia_integrate_first and _nvidia_integrate_ok():
+        logger.info(
+            "Nik provider stream: NVIDIA Integrate primeiro (modelo=%s, base=%s)",
+            modelo_principal,
+            _nvidia_integrate_base_url(),
+        )
+        try:
+            extra_nv = _nemotron_extra_body()
+            status = yield from _emit_tentativa(_cliente_nvidia_integrate(), modelo_principal, extra_body=extra_nv)
+            if status == "ok" or status == "stop":
+                return
+        except Exception as exc:  # pragma: no cover
+            ultimo_erro = str(exc)
+            logger.warning("Nik provider stream (NVIDIA Integrate / chat): %s", exc)
+            if tokens_emitted:
+                yield NikStreamEvent(kind="error", modelo_usado=modelo_principal, erro=ultimo_erro)
+                return
+    elif prefer_nvidia_integrate_first and not _nvidia_integrate_ok():
+        logger.warning(
+            "NIK_CHAT_USE_NVIDIA ativo mas falta chave Integrate (nvapi): "
+            "NIK_NVAPI_KEY / NIK_API_FALLBACK_KEY, ou NVIDIA_API_KEY com prefixo nvapi-."
+        )
+
+    api_key = _strip_bearer(os.getenv("NVIDIA_API_KEY") or "")
+
+    if not api_key:
+        yield NikStreamEvent(
+            kind="error",
+            modelo_usado=modelo_principal,
+            erro="NVIDIA_API_KEY ausente (provedor primario)",
+        )
+        return
+
+    agora = time.time()
+    em_cooldown_primario = agora < _RATE_LIMIT_UNTIL_TS_PRIMARY
+    if em_cooldown_primario and not _fallback_provedor_ok():
+        restante = int(_RATE_LIMIT_UNTIL_TS_PRIMARY - agora)
+        yield NikStreamEvent(
+            kind="error",
+            modelo_usado=modelo_principal,
+            erro=f"Provedor primario em cooldown por rate limit. Tente novamente em ~{restante}s.",
+        )
+        return
+
+    start_primary = (
+        modelo_primario_se_sem_nv
+        if (prefer_nvidia_integrate_first and modelo_primario_se_sem_nv)
+        else modelo_principal
+    )
+    modelos_tentativa = [start_primary]
+    if modelo_fallback and modelo_fallback != start_primary:
+        modelos_tentativa.append(modelo_fallback)
+
+    if not em_cooldown_primario:
+        for tentativa_modelo in modelos_tentativa:
+            if tokens_emitted:
+                break
+            try:
+                status = yield from _emit_tentativa(_cliente_primario(), tentativa_modelo)
+                if status == "ok" or status == "stop":
+                    return
+            except Exception as exc:  # pragma: no cover
+                ultimo_erro = str(exc)
+                logger.warning("Nik provider stream falhou para %s: %s", tentativa_modelo, exc)
+                if tokens_emitted:
+                    yield NikStreamEvent(kind="error", modelo_usado=tentativa_modelo, erro=ultimo_erro)
+                    return
+                if _is_rate_limit_error(ultimo_erro):
+                    retry_secs = _parse_retry_seconds(ultimo_erro)
+                    if retry_secs is None:
+                        retry_secs = int(os.getenv("NIK_RATE_LIMIT_COOLDOWN_SECONDS", "900") or "900")
+                    _RATE_LIMIT_UNTIL_TS_PRIMARY = time.time() + max(30, retry_secs)
+                    try_fallback = os.getenv("NIK_TRY_FALLBACK_ON_RATE_LIMIT", "true").strip().lower() in {
+                        "1",
+                        "true",
+                        "yes",
+                    }
+                    if (
+                        try_fallback
+                        and tentativa_modelo != (modelo_fallback or "")
+                        and modelo_fallback
+                        and modelo_fallback != tentativa_modelo
+                        and _is_compound_tpd_error(ultimo_erro)
+                    ):
+                        continue
+                    break
+
+    if not tokens_emitted and _fallback_provedor_ok():
+        fb_key = _strip_bearer(os.getenv("NIK_API_FALLBACK_KEY", "") or "")
+        fb_base = (os.getenv("NIK_API_FALLBACK_BASE_URL") or "").strip().rstrip("/")
+        modelo_nv = _modelo_nvidia_fallback()
+        try:
+            status = yield from _emit_tentativa(
+                _cliente_para_cached("fallback_nvidia_stream", fb_base, fb_key),
+                modelo_nv,
+            )
+            if status == "ok" or status == "stop":
+                return
+        except Exception as exc:  # pragma: no cover
+            ultimo_erro = str(exc)
+            logger.warning("Nik provider stream (fallback NVIDIA) falhou para %s: %s", modelo_nv, exc)
+            if tokens_emitted:
+                yield NikStreamEvent(kind="error", modelo_usado=modelo_nv, erro=ultimo_erro)
+                return
+
+    if not tokens_emitted:
+        yield NikStreamEvent(
+            kind="error",
+            modelo_usado=modelo_fallback or modelo_principal,
+            erro=ultimo_erro,
+        )
 
 
 def chamar_modelo(

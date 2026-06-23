@@ -189,7 +189,7 @@ Snapshots de features são versionados e imutáveis (`FeatureSnapshotProspeccao`
 
 **Autor e mantenedor:** [Natan Heringer](https://github.com/natanheringer) (@natanheringer)
 
-**Mantenedores:** [Pedro Gabryel Oliveira](https://github.com/ySpecks) · [Gabriel Oliveira de Araújo](https://github.com/gabrieloliveiraetb) · [Ruan Costa](https://github.com/Ruan25-coder) · [Thales Leão](https://github.com/tleaoribeironeves-max)
+**Mantenedores:** [Yves Jorge](https://github.com/yveshjorge) · [Rafael Caputo](https://github.com/rafaelcaputo2324) · [Thales Leão](https://github.com/tleaoribeironeves-max) · [Gabriel Oliveira de Araújo](https://github.com/gabrieloliveiraetb) · [Mateus de Jesus Carvalho do Nascimento](https://github.com/mateusjcn) · [Pedro Gabryel Oliveira](https://github.com/ySpecks) · [Ruan Costa](https://github.com/Ruan25-coder)
 
 Lista completa: [`docs/CONTRIBUTORS.md`](docs/CONTRIBUTORS.md)
 

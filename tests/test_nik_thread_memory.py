@@ -151,3 +151,4 @@ def test_schema_compat_adds_resumo_thread_column():
     aplicar_compat_schema(engine)
     cols = {c["name"] for c in inspect(engine).get_columns("nik_conversas")}
     assert "resumo_thread" in cols
+    assert "meta_resposta" in cols

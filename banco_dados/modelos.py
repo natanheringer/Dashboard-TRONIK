@@ -17,6 +17,7 @@ Modelos implementados:
 """
 
 import contextlib
+import json
 from datetime import datetime
 
 from flask_login import UserMixin
@@ -961,17 +962,18 @@ class NikConversa(Base):
     usuario_id = Column(Integer, ForeignKey("usuarios.id"), nullable=True, index=True)
     thread_id = Column(String(80), default='main', index=True)
     pergunta = Column(String(4000), nullable=False)
-    resposta = Column(String(8000), nullable=False)
+    resposta = Column(Text, nullable=False)
     contexto_modo = Column(String(20), default='real')
     modelo_usado = Column(String(120))
     fonte = Column(String(20), default='modelo')
     resumo_thread = Column(Text, nullable=True)
+    meta_resposta = Column(Text, nullable=True)
     criado_em = Column(DateTime, default=utc_now_naive, index=True)
 
     usuario = relationship("Usuario", backref="nik_conversas")
 
     def to_dict(self):
-        return {
+        base = {
             'id': self.id,
             'usuario_id': self.usuario_id,
             'thread_id': self.thread_id,
@@ -983,6 +985,22 @@ class NikConversa(Base):
             'resumo_thread': self.resumo_thread,
             'criado_em': self.criado_em.isoformat() if self.criado_em else None,
         }
+        meta = {}
+        if self.meta_resposta:
+            try:
+                meta = json.loads(self.meta_resposta) or {}
+            except (ValueError, TypeError):
+                meta = {}
+        for chave in (
+            'fontes_web', 'documento', 'arquivo_export', 'web_status',
+            'planner_mode', 'coleta_pendente', 'coleta_id', 'coletor_id',
+            'used_tools', 'tool_trace', 'data_sources', 'citacoes',
+            'routing_mode', 'routing_model', 'agent_loop', 'agent_rounds', 'imagem',
+            'import_pendente', 'import_stats', 'turno',
+        ):
+            if chave in meta:
+                base[chave] = meta[chave]
+        return base
 
 
 # ----------------------------------------------------------

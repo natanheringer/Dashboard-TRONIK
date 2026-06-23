@@ -6,15 +6,16 @@ from __future__ import annotations
 
 import base64
 import contextlib
+import json
 import re
 
-from flask import Blueprint, Response, jsonify, request
+from flask import Blueprint, Response, jsonify, request, stream_with_context
 from flask_login import current_user, login_required
 
 from banco_dados.services import nik_service as nik, nik_tools
 from banco_dados.services.nik_service import NIK_IMAGEM_MAX_BYTES
 from banco_dados.utils.cache import obter_cache
-from rotas.api.decorators import admin_required, escopo_parceiro_id, get_db
+from rotas.api.decorators import admin_required, escopo_parceiro_id, get_db, rate_limit
 
 nik_bp = Blueprint("nik", __name__, url_prefix="/nik")
 
@@ -142,6 +143,12 @@ def ops_analisar_imagem():
     if not _validar_magic_bytes_imagem(image_bytes):
         return jsonify({"erro": "Arquivo não é uma imagem válida (JPEG, PNG, GIF ou WebP)"}), 400
 
+    thread_id = (
+        request.form.get("thread_id")
+        or request.args.get("thread_id")
+        or (request.get_json(silent=True) or {}).get("thread_id")
+        or "main"
+    )
     db = get_db()
     try:
         resultado = nik.analisar_imagem_coletor(
@@ -151,6 +158,102 @@ def ops_analisar_imagem():
             mime=mime,
             pergunta=pergunta,
         )
+        uid = current_user.id if current_user.is_authenticated else None
+        pergunta_persist = ((pergunta or "Analise esta imagem do coletor.").strip() + " [imagem anexada]")
+        payload_persist = {
+            **resultado,
+            "modo_contexto": "imagem",
+            "turno": "imagem",
+            "imagem": {"mime": mime, "marcador": "[imagem anexada]"},
+        }
+        salvo = nik.salvar_conversa_ops(db, uid, pergunta_persist, payload_persist, thread_id=thread_id)
+        resultado["historico_id"] = salvo.get("historico_id")
+        resultado["thread_id"] = thread_id
+        return jsonify(resultado)
+    finally:
+        db.close()
+
+
+@nik_bp.route("/ops/upload", methods=["POST"])
+@login_required
+@admin_required
+@rate_limit("10 per minute")
+def ops_upload():
+    """Upload de CSV/PDF: mode=analyze (análise) ou mode=import_coletas (importação)."""
+    from banco_dados.services import nik_coleta_import, nik_file_service as fsvc
+
+    arquivo = request.files.get("file") or request.files.get("arquivo")
+    if not arquivo:
+        return jsonify({"erro": "Envie um arquivo no campo 'file'."}), 400
+    data = arquivo.read()
+    if not data:
+        return jsonify({"erro": "Arquivo vazio."}), 400
+    if len(data) > fsvc.NIK_ARQUIVO_MAX_BYTES:
+        limite_mb = fsvc.NIK_ARQUIVO_MAX_BYTES // (1024 * 1024)
+        return jsonify({"erro": f"Arquivo excede o limite de {limite_mb} MB."}), 413
+
+    filename = arquivo.filename or "arquivo"
+    tipo = fsvc.detectar_tipo(filename, data)
+    if tipo is None:
+        return jsonify({"erro": "Tipo não suportado. Envie um CSV ou PDF válido."}), 400
+
+    mode = (request.form.get("mode") or "analyze").strip()
+    thread_id = request.form.get("thread_id") or request.args.get("thread_id") or "main"
+    pergunta = (request.form.get("pergunta") or request.form.get("mensagem") or "").strip() or None
+    uid = current_user.id if current_user.is_authenticated else None
+    db = get_db()
+    try:
+        if mode == "import_coletas":
+            if tipo != "csv":
+                return jsonify({"erro": "Importação aceita apenas arquivos CSV."}), 400
+            linhas = fsvc.ler_linhas_csv(data)
+            resultado = nik_coleta_import.preparar_import_coletas(
+                db, linhas, usuario_id=uid, thread_id=thread_id, filename=filename
+            )
+            payload_persist = {
+                "texto": resultado["texto"],
+                "fonte": "transacional",
+                "modo_contexto": "real",
+                "import_pendente": bool(resultado.get("pendente")),
+                "import_stats": resultado.get("stats"),
+                "turno": "import",
+            }
+            salvo = nik.salvar_conversa_ops(db, uid, f"[upload] {filename}", payload_persist, thread_id=thread_id)
+            return jsonify({**resultado, "mode": "import_coletas", "filename": filename,
+                            "thread_id": thread_id, "historico_id": salvo.get("historico_id")}), 201
+
+        # modo analyze
+        texto = fsvc.extrair_texto_pdf(data) if tipo == "pdf" else fsvc.extrair_texto_csv(data)
+        resultado = fsvc.analisar_arquivo_conversa(texto_extraido=texto, pergunta=pergunta, filename=filename)
+        payload_persist = {
+            **resultado,
+            "modo_contexto": "arquivo",
+            "turno": "arquivo",
+            "imagem": None,
+        }
+        salvo = nik.salvar_conversa_ops(
+            db, uid, f"[arquivo] {filename}: {pergunta or 'analisar'}", payload_persist, thread_id=thread_id
+        )
+        return jsonify({**resultado, "mode": "analyze", "filename": filename,
+                        "thread_id": thread_id, "historico_id": salvo.get("historico_id")}), 201
+    finally:
+        db.close()
+
+
+@nik_bp.route("/ops/upload/confirm", methods=["POST"])
+@login_required
+@admin_required
+@rate_limit("5 per minute")
+def ops_upload_confirm():
+    """Confirma a importação pendente (alternativa a digitar CONFIRMAR no chat)."""
+    from banco_dados.services import nik_coleta_import
+
+    payload = request.get_json(silent=True) or {}
+    thread_id = payload.get("thread_id") or request.args.get("thread_id") or "main"
+    uid = current_user.id if current_user.is_authenticated else None
+    db = get_db()
+    try:
+        resultado = nik_coleta_import.executar_import_coletas(db, uid, thread_id)
         return jsonify(resultado)
     finally:
         db.close()
@@ -181,6 +284,10 @@ def ops_export_download(token: str):
     )
 
 
+def _sse_pack(event: str, data: dict) -> str:
+    return f"event: {event}\ndata: {json.dumps(data, ensure_ascii=False)}\n\n"
+
+
 @nik_bp.route("/ops/conversa", methods=["POST"])
 @admin_required
 def ops_conversa():
@@ -200,17 +307,44 @@ def ops_conversa():
 
     thread_id = payload.get("thread_id") or request.args.get("thread_id") or "main"
     reenviar_de_id = payload.get("reenviar_de_id")
+    stream = (
+        bool(payload.get("stream"))
+        or request.args.get("stream") == "1"
+        or "text/event-stream" in (request.headers.get("Accept") or "")
+    )
+
     db = get_db()
-    try:
-        uid = current_user.id if current_user.is_authenticated else None
-        if reenviar_de_id is not None:
-            tid = nik.truncar_thread_a_partir_de(db, uid, int(reenviar_de_id))
-            if tid:
-                thread_id = tid
-        resposta = nik.conversar_ops_thread(db, mensagem, thread_id=thread_id, usuario_id=uid)
-        return jsonify(nik.salvar_conversa_ops(db, uid, mensagem, resposta, thread_id=thread_id))
-    finally:
-        db.close()
+    uid = current_user.id if current_user.is_authenticated else None
+    if reenviar_de_id is not None:
+        tid = nik.truncar_thread_a_partir_de(db, uid, int(reenviar_de_id))
+        if tid:
+            thread_id = tid
+
+    if not stream:
+        try:
+            resposta = nik.conversar_ops_thread(db, mensagem, thread_id=thread_id, usuario_id=uid)
+            return jsonify(nik.salvar_conversa_ops(db, uid, mensagem, resposta, thread_id=thread_id))
+        finally:
+            db.close()
+
+    def generate():
+        try:
+            for item in nik.conversar_ops_thread_stream(db, mensagem, thread_id=thread_id, usuario_id=uid):
+                ev = item["event"]
+                data = item["data"]
+                if ev == "done":
+                    saved = nik.salvar_conversa_ops(db, uid, mensagem, data, thread_id=thread_id)
+                    yield _sse_pack("done", saved)
+                else:
+                    yield _sse_pack(ev, data)
+        finally:
+            db.close()
+
+    return Response(
+        stream_with_context(generate()),
+        mimetype="text/event-stream",
+        headers={"Cache-Control": "no-cache", "X-Accel-Buffering": "no"},
+    )
 
 
 @nik_bp.route("/ops/ferramentas")

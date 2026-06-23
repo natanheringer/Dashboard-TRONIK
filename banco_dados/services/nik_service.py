@@ -11,6 +11,7 @@ import logging
 import os
 import re
 import secrets
+from collections.abc import Iterator
 from datetime import date, datetime, time, timedelta
 from typing import Any
 
@@ -1298,7 +1299,11 @@ def _inferir_consulta_usuario(db: Session, mensagem: str) -> dict[str, Any]:
         dias = int(re.search(r"\bultim[oa]s?\s+(\d{1,3})\s+dias\b", msg).group(1))
         fim = data_max
         inicio = fim - timedelta(days=max(1, dias) - 1)
-    elif "ultima semana" in msg or "última semana" in msg:
+    elif (
+        re.search(r"ultim[oa]s?\s+dias\b", msg)
+        or "ultima semana" in msg
+        or "última semana" in msg
+    ):
         fim = data_max
         inicio = fim - timedelta(days=6)
     elif "ultimo trimestre" in msg or "último trimestre" in msg:
@@ -1683,6 +1688,139 @@ def _planner_mode_resposta(contexto: dict[str, Any]) -> dict[str, str]:
     return {"planner_mode": str(contexto.get("planner_mode") or "heuristic")}
 
 
+def _deterministic_ops_habilitado() -> bool:
+    """Modo legado: respostas fixas sem LLM. Desligado por padrão — só cadastro de coleta permanece transacional."""
+    return os.getenv("NIK_DETERMINISTIC_OPS", "false").strip().lower() in {"1", "true", "yes"}
+
+
+def _grounding_estrito() -> bool:
+    return os.getenv("NIK_GROUNDING_STRICT", "false").strip().lower() in {"1", "true", "yes"}
+
+
+def _mensagem_pede_relatorio(mensagem: str) -> bool:
+    msg = (mensagem or "").lower()
+    return any(
+        k in msg
+        for k in [
+            "relatório",
+            "relatorio",
+            "resumo operacional",
+            "resumo da tronik",
+            "resumo da operação",
+            "resumo da operacao",
+            "como está a operação",
+            "como esta a operacao",
+        ]
+    )
+
+
+def _fallback_conversacional(mensagem: str, contexto: dict[str, Any]) -> str:
+    """Fallback que orienta ou pergunta — não manda 'reformule'."""
+    consulta = contexto.get("consulta_interpretada") if isinstance(contexto.get("consulta_interpretada"), dict) else {}
+    msg = (mensagem or "").lower()
+    if consulta.get("periodo_nao_especificado") or (
+        not consulta.get("inicio") and _mensagem_pede_relatorio(mensagem)
+    ):
+        return (
+            "Consigo montar o relatório — só preciso do período. "
+            "Quer os últimos 7 dias, o mês atual, ou um intervalo específico (ex.: janeiro a maio de 2026)?"
+        )
+    rp = contexto.get("resumo_periodo")
+    if isinstance(rp, dict):
+        resumo = rp.get("resumo") if isinstance(rp.get("resumo"), dict) else {}
+        periodo = rp.get("periodo") if isinstance(rp.get("periodo"), dict) else {}
+        if resumo.get("total_coletas", 0) == 0 and periodo.get("inicio"):
+            return (
+                f"No período de {periodo.get('inicio')} a {periodo.get('fim')} não há coletas registradas "
+                f"(0 kg, 0 km). Quer ampliar o intervalo ou filtrar por parceiro?"
+            )
+    if any(k in msg for k in ["parceiro", "instituto", "cliente"]) and not consulta.get("parceiro_id"):
+        return "Qual parceiro devo considerar? Informe o nome ou peça o consolidado de todos."
+    return (
+        "Não consegui fechar a resposta com os dados atuais. "
+        "Pode detalhar período, parceiro ou o que exatamente quer ver (relatório, fila REE, exportação)?"
+    )
+
+
+def _enriquecer_orientacao_contexto(contexto: dict[str, Any], mensagem: str) -> None:
+    consulta = contexto.get("consulta_interpretada")
+    if not isinstance(consulta, dict):
+        consulta = {}
+        contexto["consulta_interpretada"] = consulta
+
+    pede_relatorio = _mensagem_pede_relatorio(mensagem) or _mensagem_pede_exportar_csv(mensagem)
+    if pede_relatorio and not consulta.get("inicio"):
+        consulta["periodo_nao_especificado"] = True
+
+    rp = contexto.get("resumo_periodo")
+    if isinstance(rp, dict):
+        resumo = rp.get("resumo") if isinstance(rp.get("resumo"), dict) else {}
+        periodo = rp.get("periodo") if isinstance(rp.get("periodo"), dict) else {}
+        if resumo.get("total_coletas") == 0:
+            contexto["dados_periodo_vazio"] = {
+                "periodo": periodo,
+                "total_coletas": 0,
+                "volume_kg": resumo.get("volume_kg", 0),
+                "km_total": resumo.get("km_total", 0),
+            }
+
+
+def _resposta_publica(payload: dict[str, Any]) -> dict[str, Any]:
+    """Remove metadados de engenharia do payload enviado ao frontend."""
+    if os.getenv("NIK_DEBUG_UI", "false").strip().lower() in {"1", "true", "yes"}:
+        return payload
+    publico = dict(payload)
+    for chave in (
+        "routing_mode",
+        "routing_model",
+        "planner_mode",
+        "used_tools",
+        "tool_trace",
+        "data_sources",
+        "citacoes",
+    ):
+        publico.pop(chave, None)
+    if publico.get("texto"):
+        publico["texto"] = val.sanitizar_resposta_usuario(str(publico["texto"]))
+    return publico
+
+
+_META_RESPOSTA_KEYS = (
+    "fontes_web",
+    "documento",
+    "arquivo_export",
+    "web_status",
+    "planner_mode",
+    "coleta_pendente",
+    "coleta_id",
+    "coletor_id",
+    "used_tools",
+    "tool_trace",
+    "data_sources",
+    "citacoes",
+    "routing_mode",
+    "routing_model",
+    "agent_loop",
+    "agent_rounds",
+    "imagem",
+    "import_pendente",
+    "import_stats",
+    "turno",
+)
+
+
+def _extrair_meta_resposta(payload: dict[str, Any]) -> dict[str, Any]:
+    """Coleta apenas os campos ricos que valem persistir para rehidratar o histórico."""
+    meta: dict[str, Any] = {"v": 1}
+    for chave in _META_RESPOSTA_KEYS:
+        valor = payload.get(chave)
+        if valor in (None, [], {}, ""):
+            continue
+        meta[chave] = valor
+    meta.setdefault("turno", "ops")
+    return meta
+
+
 def _nik_agent_loop_habilitado() -> bool:
     return os.getenv("NIK_AGENT_LOOP", "false").strip().lower() in {"1", "true", "yes"}
 
@@ -1852,6 +1990,55 @@ def _tentar_resposta_deterministica(mensagem: str, contexto: dict[str, Any]) -> 
     return None
 
 
+def _finalizar_resposta_ops_chat(
+    texto_bruto: str,
+    *,
+    sucesso: bool,
+    modelo_usado: str | None,
+    contexto: dict[str, Any],
+    contexto_modelo: dict[str, Any],
+    fallback: str,
+    fontes_web: list[Any],
+    modo_routing: str,
+    modelo_planejado: str,
+    thread: str,
+    web_status: str,
+    planner_fields: dict[str, Any],
+    pediu_web: bool = False,
+) -> dict[str, Any]:
+    max_chars = _ttl("NIK_MAX_CHARS_WEB_RELATORIO", 7200) if pediu_web else _ttl("NIK_MAX_CHARS_CONVERSA", 3200)
+    texto = val.validar_resposta_ops(
+        texto_bruto if sucesso else "",
+        fallback,
+        max_chars=max_chars,
+        preservar_paragrafos=pediu_web,
+        contexto=contexto_modelo,
+        grounding_estrito=_grounding_estrito(),
+    )
+    if fontes_web:
+        texto = _remover_links_texto(texto)
+    citacoes = _gerar_citacoes_por_bloco(texto, contexto)
+    return _payload_resposta_ops(
+        {
+            "texto": texto,
+            "fonte": "modelo" if sucesso and texto != fallback else "fallback",
+            "modelo": modelo_usado if sucesso else None,
+            "routing_mode": modo_routing,
+            "routing_model": modelo_planejado,
+            "modo_contexto": contexto.get("modo", "real"),
+            "used_tools": contexto.get("used_tools", []),
+            "data_sources": contexto.get("data_sources", []),
+            "tool_trace": contexto.get("tool_trace", []),
+            "citacoes": citacoes,
+            "fontes_web": fontes_web,
+            "thread_id": thread,
+            "web_status": web_status or ("ok" if fontes_web else "n/a"),
+            **planner_fields,
+        },
+        contexto,
+    )
+
+
 def conversar_ops_thread(
     db: Session,
     mensagem: str,
@@ -1866,7 +2053,28 @@ def conversar_ops_thread(
     pediu_web = _mensagem_pede_web(mensagem)
     pediu_documento = _mensagem_pede_documento(mensagem)
 
-    from banco_dados.services import nik_coleta_chat
+    from banco_dados.services import nik_coleta_chat, nik_coleta_import
+
+    fluxo_import = nik_coleta_import.processar_mensagem_import(db, mensagem, usuario_id, thread)
+    if fluxo_import:
+        return {
+            "texto": fluxo_import["texto"],
+            "fonte": "transacional",
+            "modelo": None,
+            "routing_mode": "import_coletas",
+            "routing_model": None,
+            "modo_contexto": "real",
+            "used_tools": ["import_coletas_csv"],
+            "data_sources": ["import_coletas_csv"],
+            "tool_trace": [{"tool": "import_coletas_csv", "status": fluxo_import.get("status"), "kwargs": {}}],
+            "citacoes": [],
+            "fontes_web": [],
+            "thread_id": thread,
+            "web_status": "n/a",
+            "import_pendente": bool(fluxo_import.get("pendente")),
+            "import_stats": fluxo_import.get("stats"),
+            "planner_mode": "import_transacional",
+        }
 
     fluxo_coleta = nik_coleta_chat.processar_mensagem_coleta(db, mensagem, usuario_id, thread)
     if fluxo_coleta:
@@ -1896,30 +2104,32 @@ def conversar_ops_thread(
         return nik_agent_loop.executar_loop_agente(db, mensagem, usuario_id, thread)
 
     contexto = _montar_contexto_conversa_integrada(db, mensagem, usuario_id=usuario_id, thread_id=thread)
+    _enriquecer_orientacao_contexto(contexto, mensagem)
     planner_fields = _planner_mode_resposta(contexto)
     contexto_modelo = prompts.rotular_unidades_contexto(_contexto_para_modelo(contexto))
 
-    texto_det = _tentar_resposta_deterministica(mensagem, contexto)
-    if texto_det:
-        return _payload_resposta_ops(
-            {
-                "texto": texto_det,
-                "fonte": "ferramentas",
-                "modelo": None,
-                "routing_mode": "deterministic",
-                "routing_model": None,
-                "modo_contexto": contexto.get("modo", "real"),
-                "used_tools": contexto.get("used_tools", []),
-                "data_sources": contexto.get("data_sources", []),
-                "tool_trace": contexto.get("tool_trace", []),
-                "citacoes": [],
-                "fontes_web": [],
-                "thread_id": thread,
-                "web_status": "n/a",
-                **planner_fields,
-            },
-            contexto,
-        )
+    if _deterministic_ops_habilitado():
+        texto_det = _tentar_resposta_deterministica(mensagem, contexto)
+        if texto_det:
+            return _payload_resposta_ops(
+                {
+                    "texto": texto_det,
+                    "fonte": "ferramentas",
+                    "modelo": None,
+                    "routing_mode": "deterministic",
+                    "routing_model": None,
+                    "modo_contexto": contexto.get("modo", "real"),
+                    "used_tools": contexto.get("used_tools", []),
+                    "data_sources": contexto.get("data_sources", []),
+                    "tool_trace": contexto.get("tool_trace", []),
+                    "citacoes": [],
+                    "fontes_web": [],
+                    "thread_id": thread,
+                    "web_status": "n/a",
+                    **planner_fields,
+                },
+                contexto,
+            )
 
     modo_routing = "web_research_report" if pediu_web else "chat_ops"
     modelo_conversa_groq = _modelo_tarefa("conversa", mensagem)
@@ -2004,11 +2214,7 @@ def conversar_ops_thread(
             **planner_fields,
         }
 
-    fallback = (
-        "Não consegui montar uma resposta confiável com os dados disponíveis. "
-        "Tente reformular com período (ex.: janeiro a maio de 2026), nome do parceiro "
-        "ou peça exportação CSV (ex.: 'me envie o arquivo do Instituto Arapoti de jan a mai')."
-    )
+    fallback = _fallback_conversacional(mensagem, contexto)
     if pediu_web:
         resposta = provider.chamar_modelo(
             prompts.SYSTEM_OPS_RELATORIO_PESQUISA_WEB,
@@ -2046,36 +2252,147 @@ def conversar_ops_thread(
             **planner_fields,
         }
 
-    max_chars = _ttl("NIK_MAX_CHARS_WEB_RELATORIO", 7200) if pediu_web else _ttl("NIK_MAX_CHARS_CONVERSA", 3200)
-    texto = val.validar_resposta_ops(
+    return _finalizar_resposta_ops_chat(
         resposta.texto if resposta.sucesso else "",
-        fallback,
-        max_chars=max_chars,
-        preservar_paragrafos=pediu_web,
-        contexto=contexto_modelo,
+        sucesso=resposta.sucesso,
+        modelo_usado=resposta.modelo_usado if resposta.sucesso else None,
+        contexto=contexto,
+        contexto_modelo=contexto_modelo,
+        fallback=fallback,
+        fontes_web=fontes_web,
+        modo_routing=modo_routing,
+        modelo_planejado=modelo_planejado,
+        thread=thread,
+        web_status=web_status or ("ok" if fontes_web else "n/a"),
+        planner_fields=planner_fields,
+        pediu_web=pediu_web,
     )
-    if fontes_web:
-        texto = _remover_links_texto(texto)
-    citacoes = _gerar_citacoes_por_bloco(texto, contexto)
-    return _payload_resposta_ops(
-        {
-            "texto": texto,
-            "fonte": "modelo" if resposta.sucesso and texto != fallback else "fallback",
-            "modelo": resposta.modelo_usado if resposta.sucesso else None,
-            "routing_mode": modo_routing,
-            "routing_model": modelo_planejado,
-            "modo_contexto": contexto.get("modo", "real"),
-            "used_tools": contexto.get("used_tools", []),
-            "data_sources": contexto.get("data_sources", []),
-            "tool_trace": contexto.get("tool_trace", []),
-            "citacoes": citacoes,
-            "fontes_web": fontes_web,
-            "thread_id": thread,
-            "web_status": web_status or ("ok" if fontes_web else "n/a"),
-            **planner_fields,
-        },
-        contexto,
+
+
+def conversar_ops_thread_stream(
+    db: Session,
+    mensagem: str,
+    thread_id: str | None = None,
+    usuario_id: int | None = None,
+) -> Iterator[dict[str, Any]]:
+    """
+    Gera eventos SSE para chat ops com streaming de tokens.
+
+    Rotas nao-streamable (import, coleta, agent loop, deterministico, web,
+    documento) delegam para conversar_ops_thread() e emitem um unico done.
+    """
+    mensagem = (mensagem or "").strip()
+    thread = _normalizar_thread_id(thread_id)
+    pediu_web = _mensagem_pede_web(mensagem)
+    pediu_documento = _mensagem_pede_documento(mensagem)
+
+    from banco_dados.services import nik_coleta_chat, nik_coleta_import
+
+    if not mensagem:
+        yield {"event": "done", "data": conversar_ops_thread(db, mensagem, thread_id=thread, usuario_id=usuario_id)}
+        return
+
+    if nik_coleta_import.processar_mensagem_import(db, mensagem, usuario_id, thread):
+        yield {"event": "done", "data": conversar_ops_thread(db, mensagem, thread_id=thread, usuario_id=usuario_id)}
+        return
+
+    if nik_coleta_chat.processar_mensagem_coleta(db, mensagem, usuario_id, thread):
+        yield {"event": "done", "data": conversar_ops_thread(db, mensagem, thread_id=thread, usuario_id=usuario_id)}
+        return
+
+    if _nik_agent_loop_habilitado() and not pediu_web and not pediu_documento:
+        yield {"event": "done", "data": conversar_ops_thread(db, mensagem, thread_id=thread, usuario_id=usuario_id)}
+        return
+
+    if pediu_web or pediu_documento:
+        yield {"event": "done", "data": conversar_ops_thread(db, mensagem, thread_id=thread, usuario_id=usuario_id)}
+        return
+
+    yield {"event": "status", "data": {"phase": "context"}}
+    contexto = _montar_contexto_conversa_integrada(db, mensagem, usuario_id=usuario_id, thread_id=thread)
+    _enriquecer_orientacao_contexto(contexto, mensagem)
+    planner_fields = _planner_mode_resposta(contexto)
+    contexto_modelo = prompts.rotular_unidades_contexto(_contexto_para_modelo(contexto))
+
+    if _deterministic_ops_habilitado():
+        texto_det = _tentar_resposta_deterministica(mensagem, contexto)
+        if texto_det:
+            payload = _payload_resposta_ops(
+                {
+                    "texto": texto_det,
+                    "fonte": "ferramentas",
+                    "modelo": None,
+                    "routing_mode": "deterministic",
+                    "routing_model": None,
+                    "modo_contexto": contexto.get("modo", "real"),
+                    "used_tools": contexto.get("used_tools", []),
+                    "data_sources": contexto.get("data_sources", []),
+                    "tool_trace": contexto.get("tool_trace", []),
+                    "citacoes": [],
+                    "fontes_web": [],
+                    "thread_id": thread,
+                    "web_status": "n/a",
+                    **planner_fields,
+                },
+                contexto,
+            )
+            yield {"event": "done", "data": payload}
+            return
+
+    modo_routing = "chat_ops"
+    modelo_conversa_groq = _modelo_tarefa("conversa", mensagem)
+    use_nv_chat = os.getenv("NIK_CHAT_USE_NVIDIA", "").strip().lower() in {"1", "true", "yes"}
+    modelo_chat_nvidia = (os.getenv("NIK_MODELO_CHAT_NVIDIA") or "nvidia/nemotron-3-super-120b-a12b").strip()
+    modelo_planejado = (
+        f"{modelo_chat_nvidia} -> {modelo_conversa_groq}" if use_nv_chat else modelo_conversa_groq
     )
+    web_payload = contexto.get("busca_web") if isinstance(contexto.get("busca_web"), dict) else {}
+    web_status = str((web_payload or {}).get("status") or "").strip().lower()
+    fontes_web = _fontes_web_contexto(contexto)
+    fallback = _fallback_conversacional(mensagem, contexto)
+
+    texto_bruto = ""
+    sucesso = False
+    modelo_usado: str | None = None
+
+    for ev in provider.chamar_modelo_stream(
+        prompts.SYSTEM_OPS_CONVERSA,
+        prompts.montar_prompt_ops_conversa(contexto_modelo, mensagem),
+        modelo=modelo_chat_nvidia if use_nv_chat else modelo_planejado,
+        max_tokens=_ttl("NIK_MAX_TOKENS_CONVERSA", max(_ttl("NIK_MAX_TOKENS_OPS", 512), 420)),
+        temperature=float(os.getenv("NIK_TEMPERATURE_OPS", "0.55")),
+        prefer_nvidia_integrate_first=use_nv_chat,
+        modelo_primario_se_sem_nv=modelo_conversa_groq if use_nv_chat else None,
+    ):
+        if ev.kind == "token":
+            texto_bruto += ev.texto
+            yield {"event": "token", "data": {"delta": ev.texto}}
+        elif ev.kind == "done":
+            texto_bruto = ev.texto or texto_bruto
+            sucesso = bool(texto_bruto.strip())
+            modelo_usado = ev.modelo_usado or modelo_usado
+        elif ev.kind == "error":
+            yield {"event": "error", "data": {"erro": ev.erro or "Falha no modelo"}}
+            sucesso = False
+            break
+
+    final = _finalizar_resposta_ops_chat(
+        texto_bruto,
+        sucesso=sucesso,
+        modelo_usado=modelo_usado,
+        contexto=contexto,
+        contexto_modelo=contexto_modelo,
+        fallback=fallback,
+        fontes_web=fontes_web,
+        modo_routing=modo_routing,
+        modelo_planejado=modelo_planejado,
+        thread=thread,
+        web_status=web_status or ("ok" if fontes_web else "n/a"),
+        planner_fields=planner_fields,
+    )
+    if final.get("texto") != texto_bruto:
+        yield {"event": "replace", "data": {"texto": final["texto"], "motivo": "validacao"}}
+    yield {"event": "done", "data": final}
 
 
 def _extrair_anos(texto: str) -> list[int]:
@@ -2092,6 +2409,12 @@ def _montar_contexto_conversa_integrada(
     consulta = _inferir_consulta_usuario(db, mensagem)
     limites_hist = nik_tools.ferramenta_limites_historico(db)
     data_max = date.fromisoformat(limites_hist["fim"]) if limites_hist.get("fim") else date.today()
+    if _mensagem_pede_relatorio(mensagem) and not consulta.get("inicio"):
+        msg_l = (mensagem or "").lower()
+        if any(k in msg_l for k in ["ultim", "recente", "hoje", "semana", "dias", "mês", "mes"]):
+            consulta["inicio"] = (data_max - timedelta(days=6)).isoformat()
+            consulta["fim"] = data_max.isoformat()
+            consulta["periodo_inferido"] = "ultimos_7_dias"
     plano, planner_mode = _planejar_ferramentas_completo(mensagem)
 
     for item in plano:
@@ -2158,21 +2481,28 @@ def salvar_conversa_ops(
     resposta_payload: dict[str, Any],
     thread_id: str | None = None,
 ) -> dict[str, Any]:
+    texto_resposta = val.sanitizar_resposta_usuario(str(resposta_payload.get("texto", "")))
+    meta = _extrair_meta_resposta(resposta_payload)
+    meta_json = None
+    if len(meta) > 1:  # além da chave "v"
+        with contextlib.suppress(TypeError, ValueError):
+            meta_json = json.dumps(meta, ensure_ascii=False)
     registro = NikConversa(
         usuario_id=usuario_id,
         thread_id=_normalizar_thread_id(thread_id),
         pergunta=(pergunta or "").strip(),
-        resposta=resposta_payload.get("texto", ""),
+        resposta=texto_resposta,
         contexto_modo=resposta_payload.get("modo_contexto", "real"),
         modelo_usado=resposta_payload.get("modelo"),
         fonte=resposta_payload.get("fonte", "modelo"),
+        meta_resposta=meta_json,
     )
     db.add(registro)
     db.commit()
     db.refresh(registro)
     saida = dict(resposta_payload)
     saida["historico_id"] = registro.id
-    return saida
+    return _resposta_publica(saida)
 
 
 def listar_conversas_ops(db: Session, usuario_id: int | None, limite: int = 20) -> list[dict[str, Any]]:
@@ -2194,7 +2524,7 @@ def listar_conversas_thread(
     if usuario_id is not None:
         q = q.filter(NikConversa.usuario_id == usuario_id)
     rows = q.order_by(NikConversa.criado_em.asc()).limit(max(1, min(limite, 100))).all()
-    return [row.to_dict() for row in rows]
+    return [_resposta_publica(row.to_dict()) for row in rows]
 
 
 def criar_thread_id() -> str:
@@ -2247,9 +2577,10 @@ def excluir_thread_ops(db: Session, usuario_id: int | None, thread_id: str) -> i
         .delete(synchronize_session=False)
     )
     db.commit()
-    from banco_dados.services import nik_coleta_chat
+    from banco_dados.services import nik_coleta_chat, nik_coleta_import
 
     nik_coleta_chat._limpar_pending(usuario_id, tid)
+    nik_coleta_import.limpar_pending_import(usuario_id, tid)
     return int(removidos or 0)
 
 
@@ -2282,9 +2613,10 @@ def truncar_thread_a_partir_de(db: Session, usuario_id: int | None, conversa_id:
         .delete(synchronize_session=False)
     )
     db.commit()
-    from banco_dados.services import nik_coleta_chat
+    from banco_dados.services import nik_coleta_chat, nik_coleta_import
 
     nik_coleta_chat._limpar_pending(usuario_id, tid)
+    nik_coleta_import.limpar_pending_import(usuario_id, tid)
     return tid
 
 

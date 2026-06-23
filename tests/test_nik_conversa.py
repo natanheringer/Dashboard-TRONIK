@@ -88,6 +88,7 @@ def test_grounding_bloqueia_numero_inventado():
         "O volume total é de 5 km para o parceiro.",
         "fallback",
         contexto=nik_prompts.rotular_unidades_contexto(ctx),
+        grounding_estrito=True,
     )
     assert texto == "fallback"
 
@@ -796,6 +797,19 @@ def test_truncar_thread_a_partir_de(db_session):
     assert restantes[0].pergunta == "Um"
 
 
+def test_fallback_conversacional_pergunta_periodo():
+    ctx = {"consulta_interpretada": {"periodo_nao_especificado": True}}
+    txt = nik_service._fallback_conversacional("me faça um relatório", ctx)
+    assert "período" in txt.lower()
+    assert "reformule" not in txt.lower()
+
+
+def test_sanitizar_resposta_usuario_remove_url_export():
+    raw = "Arquivo pronto. Baixe em /api/nik/ops/export/abc123 (coletas.csv)."
+    out = val.sanitizar_resposta_usuario(raw)
+    assert "/api/nik/ops/export/" not in out
+
+
 def test_api_threads_e_delete(auth_client, monkeypatch):
     monkeypatch.setattr(nik_service, "listar_threads_ops", lambda db, uid, limite=40: [{"thread_id": "chat-x", "titulo": "Teste"}])
     resp = auth_client.get("/api/nik/ops/threads")
@@ -811,4 +825,56 @@ def test_api_threads_e_delete(auth_client, monkeypatch):
     resp3 = auth_client.delete("/api/nik/ops/threads/chat-x")
     assert resp3.status_code == 200
     assert resp3.get_json()["removidos"] == 2
+
+
+def test_salvar_conversa_persiste_metadata_rica(db_session):
+    payload = {
+        "texto": "Exportei as coletas do período.",
+        "fonte": "ferramentas",
+        "modelo": None,
+        "modo_contexto": "real",
+        "arquivo_export": {
+            "url": "/api/nik/ops/export/tok999",
+            "filename": "coletas_2026-01-01_2026-05-31.csv",
+            "total_linhas": 7,
+            "periodo": {"inicio": "2026-01-01", "fim": "2026-05-31"},
+        },
+        "fontes_web": [{"titulo": "Fonte X", "url": "https://exemplo.com"}],
+        "used_tools": ["exportar_coletas_csv"],
+        "tool_trace": [{"tool": "exportar_coletas_csv", "status": "ok"}],
+    }
+    salvo = nik_service.salvar_conversa_ops(db_session, 5, "exporta coletas", payload, thread_id="chat-meta")
+    assert salvo["historico_id"]
+
+    itens = nik_service.listar_conversas_thread(db_session, 5, "chat-meta")
+    assert len(itens) == 1
+    item = itens[0]
+    assert item["arquivo_export"]["url"] == "/api/nik/ops/export/tok999"
+    assert item["arquivo_export"]["total_linhas"] == 7
+    assert item["fontes_web"][0]["titulo"] == "Fonte X"
+    # campos de debug ficam ocultos no payload público (sem NIK_DEBUG_UI)
+    assert "tool_trace" not in item
+    assert "used_tools" not in item
+
+
+def test_salvar_conversa_sem_metadata_nao_quebra(db_session):
+    payload = {"texto": "Olá, em que posso ajudar?", "fonte": "modelo"}
+    salvo = nik_service.salvar_conversa_ops(db_session, 6, "oi", payload, thread_id="chat-simples")
+    assert salvo["historico_id"]
+    itens = nik_service.listar_conversas_thread(db_session, 6, "chat-simples")
+    assert itens[0]["resposta"].startswith("Olá")
+    assert "arquivo_export" not in itens[0]
+
+
+def test_extrair_meta_resposta_ignora_vazios():
+    meta = nik_service._extrair_meta_resposta({
+        "texto": "x",
+        "fontes_web": [],
+        "documento": None,
+        "arquivo_export": {"url": "/api/nik/ops/export/t"},
+    })
+    assert "fontes_web" not in meta
+    assert "documento" not in meta
+    assert meta["arquivo_export"]["url"] == "/api/nik/ops/export/t"
+    assert meta["v"] == 1
 

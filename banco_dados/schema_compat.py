@@ -9,6 +9,7 @@ aplica ``ALTER TABLE ... ADD COLUMN`` só quando a tabela já existe sem a colun
 
 from __future__ import annotations
 
+import contextlib
 import logging
 
 from sqlalchemy import inspect, text
@@ -127,6 +128,30 @@ def aplicar_compat_schema(engine) -> None:
         _add_column_if_missing("nik_conversas", "resumo_thread", "TEXT NULL")
     else:
         _add_column_if_missing("nik_conversas", "resumo_thread", "TEXT")
+
+    # Metadados ricos da resposta (anexos, documento, fontes, traços) em JSON
+    if is_pg:
+        _add_column_if_missing("nik_conversas", "meta_resposta", "TEXT NULL")
+    else:
+        _add_column_if_missing("nik_conversas", "meta_resposta", "TEXT")
+
+    # Relatórios longos podem exceder o antigo VARCHAR(8000); migrar para TEXT no PG
+    if is_pg and "nik_conversas" in insp.get_table_names():
+        with contextlib.suppress(Exception):
+            col_resposta = next(
+                (c for c in insp.get_columns("nik_conversas") if c["name"] == "resposta"),
+                None,
+            )
+            tipo_atual = str(col_resposta["type"]).lower() if col_resposta else ""
+            if col_resposta is not None and "text" not in tipo_atual:
+                with engine.begin() as conn:
+                    conn.execute(
+                        text(
+                            "ALTER TABLE nik_conversas "
+                            "ALTER COLUMN resposta TYPE TEXT USING resposta::text"
+                        )
+                    )
+                logger.info("Schema compat: nik_conversas.resposta migrada para TEXT.")
 
     # Prospecção: vínculo persistido empresa_candidata -> pipeline CRM (ganho/fechado)
     if "empresa_candidata" in insp.get_table_names():

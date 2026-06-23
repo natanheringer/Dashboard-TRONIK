@@ -256,6 +256,86 @@
   border-color: var(--line-default);
 }
 
+.nik-msg-action-btn--ok {
+  color: var(--tronik);
+  border-color: var(--tronik);
+}
+
+/* Ações da resposta do assistente (copiar/regenerar) */
+.nik-message-actions--assistant {
+  margin-top: 10px;
+}
+
+.nik-message.assistant:hover .nik-message-actions--assistant,
+.nik-message.assistant:focus-within .nik-message-actions--assistant {
+  opacity: 1;
+}
+
+@media (hover: none) {
+  .nik-message-actions--assistant {
+    opacity: 1;
+  }
+}
+
+/* Botões inline de confirmar/cancelar (coleta/import pendente) */
+.nik-stream-live::after {
+  content: "▍";
+  display: inline-block;
+  margin-left: 1px;
+  color: var(--tronik);
+  animation: nik-stream-blink 1s steps(2, start) infinite;
+}
+
+@keyframes nik-stream-blink {
+  to { visibility: hidden; }
+}
+
+.nik-pending-actions {
+  display: flex;
+  gap: 8px;
+  margin-top: 12px;
+  flex-wrap: wrap;
+}
+
+.nik-pending-btn {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 6px;
+  padding: 7px 16px;
+  border-radius: var(--radius-md);
+  font-family: var(--font-mono);
+  font-size: 11px;
+  font-weight: 600;
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+  cursor: pointer;
+  transition: all 150ms ease;
+}
+
+.nik-pending-btn--confirm {
+  background: var(--tronik);
+  border: 1px solid var(--tronik);
+  color: #fff;
+}
+
+.nik-pending-btn--confirm:hover {
+  filter: brightness(1.06);
+  box-shadow: var(--shadow-sm);
+}
+
+.nik-pending-btn--cancel {
+  background: transparent;
+  border: 1px solid var(--line-default);
+  color: var(--ink-secondary);
+}
+
+.nik-pending-btn--cancel:hover {
+  border-color: var(--line-strong);
+  color: var(--ink-primary);
+  background: var(--paper-sunk);
+}
+
 .nik-sidebar-footer {
   padding: var(--space-4);
   border-top: 1px solid var(--line-subtle);
@@ -734,6 +814,134 @@
 .nik-message-text--rich strong {
   font-weight: 600;
   color: var(--ink-primary);
+}
+
+/* ---- Markdown real (marked + DOMPurify) ---- */
+.nik-message-text--rich h1,
+.nik-message-text--rich h2,
+.nik-message-text--rich h3,
+.nik-message-text--rich h4 {
+  margin: 1em 0 0.5em;
+  line-height: 1.35;
+  font-weight: 600;
+  color: var(--ink-primary);
+}
+
+.nik-message-text--rich h1:first-child,
+.nik-message-text--rich h2:first-child,
+.nik-message-text--rich h3:first-child,
+.nik-message-text--rich h4:first-child {
+  margin-top: 0;
+}
+
+.nik-message-text--rich h1 { font-size: 19px; }
+.nik-message-text--rich h2 { font-size: 17px; }
+.nik-message-text--rich h3 { font-size: 16px; }
+.nik-message-text--rich h4 { font-size: 15px; }
+
+.nik-message-text--rich p {
+  margin: 0 0 0.95em;
+  line-height: 1.7;
+}
+
+.nik-message-text--rich p:last-child {
+  margin-bottom: 0;
+}
+
+.nik-message-text--rich ul,
+.nik-message-text--rich ol {
+  margin: 0.5em 0 1em;
+  padding-left: 1.5rem;
+}
+
+.nik-message-text--rich li {
+  margin: 0.35em 0;
+  line-height: 1.6;
+}
+
+.nik-message-text--rich li > ul,
+.nik-message-text--rich li > ol {
+  margin: 0.35em 0 0.35em;
+}
+
+.nik-message-text--rich a {
+  color: var(--tronik);
+  text-decoration: underline;
+  text-underline-offset: 2px;
+  word-break: break-word;
+}
+
+.nik-message-text--rich a:hover {
+  text-decoration: none;
+}
+
+.nik-message-text--rich code {
+  font-family: var(--font-mono, monospace);
+  font-size: 0.88em;
+  background: var(--paper-sunk);
+  border: 1px solid var(--line-subtle);
+  border-radius: 4px;
+  padding: 0.12em 0.4em;
+}
+
+.nik-message-text--rich pre {
+  margin: 0.6em 0 1em;
+  padding: 12px 14px;
+  background: var(--paper-sunk);
+  border: 1px solid var(--line-subtle);
+  border-radius: var(--radius-md);
+  overflow-x: auto;
+}
+
+.nik-message-text--rich pre code {
+  background: none;
+  border: none;
+  padding: 0;
+  font-size: 12.5px;
+  line-height: 1.55;
+  color: var(--ink-primary);
+}
+
+.nik-message-text--rich blockquote {
+  margin: 0.6em 0 1em;
+  padding: 0.2em 0 0.2em 0.9rem;
+  border-left: 3px solid var(--tronik-soft);
+  color: var(--ink-secondary);
+}
+
+.nik-message-text--rich table {
+  border-collapse: collapse;
+  width: 100%;
+  margin: 0.6em 0 1em;
+  font-size: 13.5px;
+  display: block;
+  overflow-x: auto;
+}
+
+.nik-message-text--rich th,
+.nik-message-text--rich td {
+  border: 1px solid var(--line-default);
+  padding: 7px 10px;
+  text-align: left;
+  vertical-align: top;
+}
+
+.nik-message-text--rich th {
+  background: var(--paper-sunk);
+  font-weight: 600;
+  color: var(--ink-primary);
+}
+
+.nik-message-text--rich hr {
+  border: none;
+  border-top: 1px solid var(--line-subtle);
+  margin: 1em 0;
+}
+
+.nik-message-text--rich img {
+  max-width: 100%;
+  height: auto;
+  border-radius: var(--radius-sm);
 }
 
 .user .nik-message-text {

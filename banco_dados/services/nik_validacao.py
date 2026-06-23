@@ -202,6 +202,7 @@ def validar_resposta_ops(
     *,
     preservar_paragrafos: bool = False,
     contexto: dict[str, Any] | None = None,
+    grounding_estrito: bool = False,
 ) -> str:
     if preservar_paragrafos:
         limpo = sanitizar_texto_paragrafos(texto, max_chars=max_chars)
@@ -210,11 +211,20 @@ def validar_resposta_ops(
         limpo = sanitizar_texto(texto, max_chars=max_chars, remover_emoji=True)
     if len(limpo) < 20:
         return fallback
-    if contexto is not None and not validar_unidades_resposta(limpo, contexto):
+    if grounding_estrito and contexto is not None and not validar_unidades_resposta(limpo, contexto):
         return fallback
-    if contexto is not None and not validar_grounding_numeros(limpo, contexto):
+    if grounding_estrito and contexto is not None and not validar_grounding_numeros(limpo, contexto):
         return fallback
     return limpo
+
+
+def sanitizar_resposta_usuario(texto: str) -> str:
+    """Remove URLs de export internas e blocos de debug que não devem ir ao chat."""
+    if not texto:
+        return texto
+    out = re.sub(r"/api/nik/ops/export/\S+", "", texto)
+    out = re.sub(r"\n---+\n.*", "", out, flags=re.DOTALL)
+    return out.strip()
 
 
 def validar_resposta_landing(texto: str, tipo_bloco: str) -> dict[str, Any] | None:
