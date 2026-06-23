@@ -10,9 +10,11 @@ import json
 import logging
 import os
 import re
+import secrets
 from datetime import date, datetime, time, timedelta
 from typing import Any
 
+from sqlalchemy import func
 from sqlalchemy.orm import Session
 
 from banco_dados.modelos import NikConversa, NikRelatorioGerado, Parceiro
@@ -2191,8 +2193,99 @@ def listar_conversas_thread(
     q = db.query(NikConversa).filter(NikConversa.thread_id == tid)
     if usuario_id is not None:
         q = q.filter(NikConversa.usuario_id == usuario_id)
-    rows = q.order_by(NikConversa.criado_em.desc()).limit(max(1, min(limite, 100))).all()
+    rows = q.order_by(NikConversa.criado_em.asc()).limit(max(1, min(limite, 100))).all()
     return [row.to_dict() for row in rows]
+
+
+def criar_thread_id() -> str:
+    return f"chat-{secrets.token_urlsafe(8).lower()}"
+
+
+def listar_threads_ops(db: Session, usuario_id: int | None, limite: int = 40) -> list[dict[str, Any]]:
+    """Lista conversas (threads) do usuário com título derivado da primeira pergunta."""
+    if usuario_id is None:
+        return []
+    limite_efetivo = max(1, min(int(limite or 40), 80))
+    agregados = (
+        db.query(
+            NikConversa.thread_id,
+            func.max(NikConversa.criado_em).label("atualizado_em"),
+            func.count(NikConversa.id).label("total_mensagens"),
+            func.min(NikConversa.id).label("primeira_id"),
+        )
+        .filter(NikConversa.usuario_id == usuario_id)
+        .group_by(NikConversa.thread_id)
+        .order_by(func.max(NikConversa.criado_em).desc())
+        .limit(limite_efetivo)
+        .all()
+    )
+    threads: list[dict[str, Any]] = []
+    for thread_id, atualizado_em, total, primeira_id in agregados:
+        titulo = str(thread_id or "main")
+        if primeira_id:
+            first = db.get(NikConversa, int(primeira_id))
+            if first and first.pergunta:
+                titulo = first.pergunta.strip()[:72]
+        threads.append(
+            {
+                "thread_id": thread_id,
+                "titulo": titulo,
+                "total_mensagens": int(total or 0),
+                "atualizado_em": atualizado_em.isoformat() if atualizado_em else None,
+            }
+        )
+    return threads
+
+
+def excluir_thread_ops(db: Session, usuario_id: int | None, thread_id: str) -> int:
+    if usuario_id is None:
+        return 0
+    tid = _normalizar_thread_id(thread_id)
+    removidos = (
+        db.query(NikConversa)
+        .filter(NikConversa.usuario_id == usuario_id, NikConversa.thread_id == tid)
+        .delete(synchronize_session=False)
+    )
+    db.commit()
+    from banco_dados.services import nik_coleta_chat
+
+    nik_coleta_chat._limpar_pending(usuario_id, tid)
+    return int(removidos or 0)
+
+
+def excluir_mensagem_ops(db: Session, usuario_id: int | None, conversa_id: int) -> bool:
+    if usuario_id is None:
+        return False
+    row = db.get(NikConversa, int(conversa_id))
+    if not row or row.usuario_id != usuario_id:
+        return False
+    db.delete(row)
+    db.commit()
+    return True
+
+
+def truncar_thread_a_partir_de(db: Session, usuario_id: int | None, conversa_id: int) -> str | None:
+    """Remove a mensagem indicada e tudo que veio depois na mesma thread."""
+    if usuario_id is None:
+        return None
+    row = db.get(NikConversa, int(conversa_id))
+    if not row or row.usuario_id != usuario_id:
+        return None
+    tid = _normalizar_thread_id(row.thread_id)
+    (
+        db.query(NikConversa)
+        .filter(
+            NikConversa.usuario_id == usuario_id,
+            NikConversa.thread_id == tid,
+            NikConversa.id >= row.id,
+        )
+        .delete(synchronize_session=False)
+    )
+    db.commit()
+    from banco_dados.services import nik_coleta_chat
+
+    nik_coleta_chat._limpar_pending(usuario_id, tid)
+    return tid
 
 
 def _fallback_relatorio_maiara(contexto: dict[str, Any], formato: str) -> dict[str, Any]:

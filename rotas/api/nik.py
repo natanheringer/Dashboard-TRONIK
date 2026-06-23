@@ -199,9 +199,14 @@ def ops_conversa():
         return jsonify({"erro": f"Mensagem excede limite de {MAX_MENSAGEM} caracteres"}), 413
 
     thread_id = payload.get("thread_id") or request.args.get("thread_id") or "main"
+    reenviar_de_id = payload.get("reenviar_de_id")
     db = get_db()
     try:
         uid = current_user.id if current_user.is_authenticated else None
+        if reenviar_de_id is not None:
+            tid = nik.truncar_thread_a_partir_de(db, uid, int(reenviar_de_id))
+            if tid:
+                thread_id = tid
         resposta = nik.conversar_ops_thread(db, mensagem, thread_id=thread_id, usuario_id=uid)
         return jsonify(nik.salvar_conversa_ops(db, uid, mensagem, resposta, thread_id=thread_id))
     finally:
@@ -228,6 +233,47 @@ def ops_conversas():
         else:
             itens = nik.listar_conversas_ops(db, current_user.id, limite=limite)
         return jsonify({"itens": itens, "thread_id": thread_id or None})
+    finally:
+        db.close()
+
+
+@nik_bp.route("/ops/threads", methods=["GET", "POST"])
+@login_required
+def ops_threads():
+    db = get_db()
+    try:
+        if request.method == "POST":
+            thread_id = nik.criar_thread_id()
+            return jsonify({"thread_id": thread_id, "titulo": "Nova conversa"}), 201
+        limite = request.args.get("limite", 40, type=int)
+        threads = nik.listar_threads_ops(db, current_user.id, limite=limite)
+        return jsonify({"threads": threads})
+    finally:
+        db.close()
+
+
+@nik_bp.route("/ops/threads/<thread_id>", methods=["DELETE"])
+@login_required
+def ops_thread_delete(thread_id: str):
+    db = get_db()
+    try:
+        removidos = nik.excluir_thread_ops(db, current_user.id, thread_id)
+        if removidos <= 0:
+            return jsonify({"erro": "Conversa não encontrada ou já vazia."}), 404
+        return jsonify({"ok": True, "thread_id": thread_id, "removidos": removidos})
+    finally:
+        db.close()
+
+
+@nik_bp.route("/ops/conversas/<int:conversa_id>", methods=["DELETE"])
+@login_required
+def ops_conversa_delete(conversa_id: int):
+    db = get_db()
+    try:
+        ok = nik.excluir_mensagem_ops(db, current_user.id, conversa_id)
+        if not ok:
+            return jsonify({"erro": "Mensagem não encontrada."}), 404
+        return jsonify({"ok": True, "id": conversa_id})
     finally:
         db.close()
 

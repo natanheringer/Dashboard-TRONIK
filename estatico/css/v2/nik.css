@@ -188,6 +188,72 @@
   white-space: nowrap;
   overflow: hidden;
   text-overflow: ellipsis;
+  flex: 1;
+  min-width: 0;
+}
+
+.nik-sidebar-item {
+  position: relative;
+}
+
+.nik-thread-delete-btn {
+  margin-left: auto;
+  flex-shrink: 0;
+  background: none;
+  border: none;
+  color: var(--ink-tertiary);
+  cursor: pointer;
+  padding: 4px;
+  border-radius: 4px;
+  opacity: 0;
+  transition: opacity 150ms ease, color 150ms ease, background 150ms ease;
+}
+
+.nik-sidebar-item:hover .nik-thread-delete-btn,
+.nik-sidebar-item:focus-within .nik-thread-delete-btn {
+  opacity: 1;
+}
+
+.nik-thread-delete-btn:hover {
+  color: #b42318;
+  background: rgba(180, 35, 24, 0.08);
+}
+
+.nik-sidebar-empty {
+  padding: 8px 10px;
+  font-size: var(--text-sm);
+  color: var(--ink-tertiary);
+}
+
+.nik-message-actions {
+  display: flex;
+  gap: 6px;
+  margin-top: 8px;
+  opacity: 0;
+  transition: opacity 150ms ease;
+}
+
+.nik-message.user:hover .nik-message-actions,
+.nik-message.user:focus-within .nik-message-actions {
+  opacity: 1;
+}
+
+.nik-msg-action-btn {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 28px;
+  height: 28px;
+  border: 1px solid var(--line-subtle);
+  border-radius: 6px;
+  background: var(--paper-elevated);
+  color: var(--ink-secondary);
+  cursor: pointer;
+}
+
+.nik-msg-action-btn:hover {
+  color: var(--ink-primary);
+  border-color: var(--line-default);
 }
 
 .nik-sidebar-footer {

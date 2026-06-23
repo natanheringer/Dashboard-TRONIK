@@ -728,3 +728,87 @@ def test_payload_resposta_inclui_arquivo_export():
     assert payload["arquivo_export"]["url"] == "/api/nik/ops/export/token123"
     assert payload["arquivo_export"]["total_linhas"] == 12
 
+
+def test_listar_threads_ops(db_session):
+    from banco_dados.modelos import NikConversa
+
+    db_session.add(
+        NikConversa(
+            usuario_id=1,
+            thread_id="chat-a",
+            pergunta="Primeira pergunta longa sobre coletas",
+            resposta="Resposta A",
+        )
+    )
+    db_session.add(
+        NikConversa(
+            usuario_id=1,
+            thread_id="chat-b",
+            pergunta="Outra thread",
+            resposta="Resposta B",
+        )
+    )
+    db_session.commit()
+    threads = nik_service.listar_threads_ops(db_session, usuario_id=1)
+    assert len(threads) == 2
+    assert threads[0]["thread_id"] in {"chat-a", "chat-b"}
+
+
+def test_excluir_thread_e_mensagem(db_session):
+    from banco_dados.modelos import NikConversa
+
+    row = NikConversa(
+        usuario_id=2,
+        thread_id="chat-del",
+        pergunta="Apagar",
+        resposta="Ok",
+    )
+    db_session.add(row)
+    db_session.commit()
+    assert nik_service.excluir_mensagem_ops(db_session, 2, row.id) is True
+    assert db_session.get(NikConversa, row.id) is None
+
+    db_session.add(
+        NikConversa(usuario_id=2, thread_id="chat-del2", pergunta="A", resposta="B")
+    )
+    db_session.commit()
+    n = nik_service.excluir_thread_ops(db_session, 2, "chat-del2")
+    assert n == 1
+
+
+def test_truncar_thread_a_partir_de(db_session):
+    from banco_dados.modelos import NikConversa
+
+    rows = [
+        NikConversa(usuario_id=3, thread_id="chat-edit", pergunta="Um", resposta="1"),
+        NikConversa(usuario_id=3, thread_id="chat-edit", pergunta="Dois", resposta="2"),
+    ]
+    db_session.add_all(rows)
+    db_session.commit()
+    tid = nik_service.truncar_thread_a_partir_de(db_session, 3, rows[1].id)
+    assert tid == "chat-edit"
+    restantes = (
+        db_session.query(NikConversa)
+        .filter(NikConversa.usuario_id == 3, NikConversa.thread_id == "chat-edit")
+        .all()
+    )
+    assert len(restantes) == 1
+    assert restantes[0].pergunta == "Um"
+
+
+def test_api_threads_e_delete(auth_client, monkeypatch):
+    monkeypatch.setattr(nik_service, "listar_threads_ops", lambda db, uid, limite=40: [{"thread_id": "chat-x", "titulo": "Teste"}])
+    resp = auth_client.get("/api/nik/ops/threads")
+    assert resp.status_code == 200
+    assert resp.get_json()["threads"][0]["thread_id"] == "chat-x"
+
+    monkeypatch.setattr(nik_service, "criar_thread_id", lambda: "chat-novo")
+    resp2 = auth_client.post("/api/nik/ops/threads")
+    assert resp2.status_code == 201
+    assert resp2.get_json()["thread_id"] == "chat-novo"
+
+    monkeypatch.setattr(nik_service, "excluir_thread_ops", lambda db, uid, tid: 2)
+    resp3 = auth_client.delete("/api/nik/ops/threads/chat-x")
+    assert resp3.status_code == 200
+    assert resp3.get_json()["removidos"] == 2
+
