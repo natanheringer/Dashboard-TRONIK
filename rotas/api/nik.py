@@ -275,8 +275,14 @@ def ops_export_download(token: str):
         and not current_user.admin
     ):
         return jsonify({"erro": "Sem permissão para este arquivo."}), 403
-    csv_text = payload.get("csv") or ""
     filename = payload.get("filename") or "coletas.csv"
+    if payload.get("conteudo_bytes") is not None and payload.get("mime"):
+        return Response(
+            payload["conteudo_bytes"],
+            mimetype=payload["mime"],
+            headers={"Content-Disposition": f'attachment; filename="{filename}"'},
+        )
+    csv_text = payload.get("csv") or ""
     return Response(
         csv_text,
         mimetype="text/csv; charset=utf-8",

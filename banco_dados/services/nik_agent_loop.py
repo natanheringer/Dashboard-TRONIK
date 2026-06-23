@@ -44,7 +44,17 @@ Use as ferramentas quando precisar de números, filas de prospecção, buscas ou
 Quando tiver dados suficientes, responda em texto claro ao usuário (sem JSON de plano).
 Para cadastrar uma coleta operacional, chame cadastrar_coleta SOMENTE quando o usuário pedir
 explicitamente registrar/cadastrar/lançar uma coleta com dados (parceiro, kg, km).
-Para relatórios, consultas e listagens use ferramentas de leitura ou responda em texto — nunca cadastrar_coleta.\
+Para relatórios, consultas e listagens use ferramentas de leitura ou responda em texto — nunca cadastrar_coleta.
+
+Formatação: use Markdown limpo — títulos (##), listas com bullets e, para dados tabulares,
+uma tabela Markdown com linha em branco antes e depois e separador de cabeçalho | --- |.
+
+Roteamento de ferramentas:
+- Quando o usuário pedir "empresas cadastradas", "parceiros" ou "clientes" no sistema, use listar_parceiros (NÃO coletas).
+- Quando pedir "relatório", "documento", "exportar" ou "pdf" de coletas, chame gerar_relatorio_coletas,
+  produza o download e resuma brevemente os KPIs retornados.
+- NUNCA invente números operacionais — cite apenas dados devolvidos pelas ferramentas.
+  Se uma ferramenta retornar vazio, diga isso claramente.\
 """
 )
 
@@ -237,7 +247,7 @@ def executar_loop_agente(
     }
     citacoes = svc._gerar_citacoes_por_bloco(texto, contexto_citacoes)
 
-    return {
+    payload: dict[str, Any] = {
         "texto": texto,
         "fonte": "modelo" if sucesso_modelo and texto != fallback else "fallback",
         "modelo": modelo_usado if sucesso_modelo else None,
@@ -255,3 +265,5 @@ def executar_loop_agente(
         "agent_loop": True,
         "agent_rounds": len({t.get("round") for t in tool_trace if t.get("round")}) or (1 if sucesso_modelo else 0),
     }
+    payload.update(svc._anexos_resposta_from_contexto(contexto_exec))
+    return payload

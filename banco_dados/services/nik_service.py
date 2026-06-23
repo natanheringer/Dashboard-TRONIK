@@ -758,6 +758,55 @@ def _mensagem_pede_exportar_csv(mensagem: str) -> bool:
     return any(g in msg for g in gatilhos_arquivo)
 
 
+def _mensagem_pede_listar_parceiros(mensagem: str) -> bool:
+    msg = (mensagem or "").lower()
+    if any(
+        k in msg
+        for k in [
+            "empresas cadastradas",
+            "empresas no sistema",
+            "todas as empresas",
+            "empresa cadastrada",
+            "parceiros cadastrados",
+            "parceiros no sistema",
+            "clientes cadastrados",
+            "clientes no sistema",
+            "listar parceiros",
+            "listar clientes",
+            "listar empresas",
+        ]
+    ):
+        return True
+    if "parceiro" in msg and any(k in msg for k in ["listar", "cadastrad", "quais", "todas", "sistema"]):
+        return True
+    return "clientes" in msg and any(k in msg for k in ["cadastrad", "sistema", "listar", "quais"])
+
+
+def _mensagem_pede_listar_empresas_prospeccao(mensagem: str) -> bool:
+    msg = (mensagem or "").lower()
+    if any(k in msg for k in ["empresas candidatas", "empresa candidata", "prospecção empresas", "prospeccao empresas"]):
+        return True
+    return "candidatas" in msg and "empresa" in msg
+
+
+def _mensagem_pede_gerar_relatorio_coletas(mensagem: str) -> bool:
+    if _mensagem_pede_listar_parceiros(mensagem):
+        return False
+    if _mensagem_pede_exportar_csv(mensagem):
+        return True
+    msg = (mensagem or "").lower()
+    gatilhos = ["relatório", "relatorio", "documento", "pdf", "exportar", "exportação", "exportacao"]
+    if not any(g in msg for g in gatilhos):
+        return False
+    if any(k in msg for k in ["coleta", "coletas", "operacional"]):
+        return True
+    if any(k in msg for k in ["documento", "pdf"]):
+        return True
+    return ("relatório" in msg or "relatorio" in msg) and not any(
+        k in msg for k in ["empresa cadastrada", "empresas cadastradas", "parceiro", "cliente"]
+    )
+
+
 def _mensagem_pede_coleta_hoje(mensagem: str) -> bool:
     msg = (mensagem or "").lower().strip()
     return msg in {"coleta de hoje", "coletas de hoje", "coleta hoje", "coletas hoje"} or (
@@ -1283,12 +1332,27 @@ def _planejar_ferramentas(mensagem: str) -> list[dict[str, Any]]:
         plano.append({"nome": "timeline_anual", "kwargs": {"ano_inicio": ano_inicio, "ano_fim": ano_fim}})
     if any(k in msg for k in ["impacto", "completo", "ostensivo", "estratég", "estrateg"]):
         plano.append({"nome": "impacto_geral", "kwargs": {"ano_inicio": ano_inicio, "ano_fim": ano_fim}})
-    if "relatório" in msg or "relatorio" in msg:
+    if _mensagem_pede_listar_parceiros(mensagem):
+        kwargs_par: dict[str, Any] = {}
+        if "inativ" in msg:
+            kwargs_par["ativo"] = False
+        elif "ativ" in msg and "inativ" not in msg:
+            kwargs_par["ativo"] = True
+        plano.append({"nome": "listar_parceiros", "kwargs": kwargs_par})
+    if _mensagem_pede_listar_empresas_prospeccao(mensagem):
+        plano.append({"nome": "listar_empresas_prospeccao", "kwargs": {}})
+    if (
+        ("relatório" in msg or "relatorio" in msg)
+        and not _mensagem_pede_listar_parceiros(mensagem)
+        and not _mensagem_pede_gerar_relatorio_coletas(mensagem)
+    ):
         plano.append({"nome": "resumo_periodo", "kwargs": {}})
     coletor_id = _extrair_coletor_id(mensagem)
     if coletor_id is not None:
         plano.append({"nome": "info_coletor", "kwargs": {"coletor_id": coletor_id}})
-    if _mensagem_pede_exportar_csv(mensagem):
+    if _mensagem_pede_gerar_relatorio_coletas(mensagem):
+        plano.append({"nome": "gerar_relatorio_coletas", "kwargs": {}})
+    elif _mensagem_pede_exportar_csv(mensagem):
         plano.append({"nome": "exportar_coletas_csv", "kwargs": {}})
     if _mensagem_pede_coleta_hoje(mensagem):
         hoje = date.today().isoformat()
@@ -1593,6 +1657,9 @@ def _executar_plano_ferramentas(
         "criar_tarefa_comercial": nik_tools.ferramenta_criar_tarefa_comercial,
         "info_coletor": nik_tools.ferramenta_info_coletor,
         "exportar_coletas_csv": nik_tools.ferramenta_exportar_coletas_csv,
+        "gerar_relatorio_coletas": nik_tools.ferramenta_gerar_relatorio_coletas,
+        "listar_parceiros": nik_tools.ferramenta_listar_parceiros,
+        "listar_empresas_prospeccao": nik_tools.ferramenta_listar_empresas_prospeccao,
         "listar_coletores": nik_tools.ferramenta_listar_coletores,
         "status_sensores": nik_tools.ferramenta_status_sensores,
         "historico_coletas": nik_tools.ferramenta_historico_coletas,
@@ -1611,6 +1678,8 @@ def _executar_plano_ferramentas(
         if nome == "criar_tarefa_comercial" and usuario_id is not None:
             kwargs["usuario_id"] = usuario_id
         if nome == "exportar_coletas_csv" and usuario_id is not None:
+            kwargs["usuario_id"] = usuario_id
+        if nome == "gerar_relatorio_coletas" and usuario_id is not None:
             kwargs["usuario_id"] = usuario_id
         fn = mapa.get(nome)
         if not fn:
@@ -2166,17 +2235,35 @@ def _formatar_resposta_status_modelo(payload: dict[str, Any]) -> str:
 
 
 def _anexos_resposta_from_contexto(contexto: dict[str, Any]) -> dict[str, Any]:
+    anexos: dict[str, Any] = {}
     exp = contexto.get("exportar_coletas_csv")
     if isinstance(exp, dict) and exp.get("status") == "ok" and exp.get("download_url"):
-        return {
-            "arquivo_export": {
-                "url": exp["download_url"],
-                "filename": exp.get("filename", "coletas.csv"),
-                "total_linhas": exp.get("total_linhas", 0),
-                "periodo": exp.get("periodo"),
-            }
+        anexos["arquivo_export"] = {
+            "url": exp["download_url"],
+            "filename": exp.get("filename", "coletas.csv"),
+            "total_linhas": exp.get("total_linhas", 0),
+            "periodo": exp.get("periodo"),
         }
-    return {}
+
+    rel = contexto.get("gerar_relatorio_coletas")
+    if isinstance(rel, dict) and rel.get("status") == "ok":
+        csv_part = rel.get("csv")
+        if isinstance(csv_part, dict) and csv_part.get("download_url"):
+            anexos["arquivo_export"] = {
+                "url": csv_part["download_url"],
+                "filename": csv_part.get("filename", "coletas.csv"),
+                "total_linhas": rel.get("total_linhas", 0),
+                "periodo": rel.get("periodo"),
+            }
+        pdf_part = rel.get("pdf")
+        if isinstance(pdf_part, dict) and pdf_part.get("download_url"):
+            anexos["documento"] = {
+                "url": pdf_part["download_url"],
+                "filename": pdf_part.get("filename", "relatorio.pdf"),
+                "tipo": "pdf",
+                "total_linhas": rel.get("total_linhas", 0),
+            }
+    return anexos
 
 
 def _payload_resposta_ops(base: dict[str, Any], contexto: dict[str, Any] | None = None) -> dict[str, Any]:
@@ -2686,6 +2773,28 @@ def _montar_contexto_conversa_integrada(
             if not item["kwargs"].get("inicio") or not item["kwargs"].get("fim"):
                 item["kwargs"]["inicio"] = date(data_max.year, 1, 1).isoformat()
                 item["kwargs"]["fim"] = data_max.isoformat()
+        if nome == "gerar_relatorio_coletas":
+            if consulta.get("inicio"):
+                item["kwargs"]["inicio"] = consulta["inicio"]
+            if consulta.get("fim"):
+                item["kwargs"]["fim"] = consulta["fim"]
+            if consulta.get("parceiro_id"):
+                item["kwargs"]["parceiro_ids"] = [consulta["parceiro_id"]]
+            if consulta.get("parceiro_nomes"):
+                item["kwargs"]["parceiro_nomes"] = consulta["parceiro_nomes"]
+            if not item["kwargs"].get("inicio") or not item["kwargs"].get("fim"):
+                item["kwargs"]["inicio"] = date(data_max.year, 1, 1).isoformat()
+                item["kwargs"]["fim"] = data_max.isoformat()
+        if nome == "listar_parceiros":
+            msg_l = (mensagem or "").lower()
+            if "inativ" in msg_l:
+                item["kwargs"]["ativo"] = False
+            elif "ativ" in msg_l:
+                item["kwargs"]["ativo"] = True
+        if nome == "listar_empresas_prospeccao":
+            m_lim = re.search(r"\b(?:top|primeiros?|listar)\s+(\d{1,2})\b", (mensagem or "").lower())
+            if m_lim:
+                item["kwargs"]["limite"] = int(m_lim.group(1))
         if nome == "listar_coletores":
             if consulta.get("parceiro_id"):
                 item["kwargs"]["parceiro_id"] = consulta["parceiro_id"]

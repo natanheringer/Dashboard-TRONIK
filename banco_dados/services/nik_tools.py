@@ -487,19 +487,17 @@ def _resolver_parceiro_ids(
     return sorted(ids)
 
 
-def ferramenta_exportar_coletas_csv(
+def _coletas_para_relatorio(
     db: Session,
     *,
     inicio: str | None = None,
     fim: str | None = None,
     parceiro_ids: list[int] | None = None,
     parceiro_nomes: list[str] | None = None,
-    usuario_id: int | None = None,
-) -> dict[str, Any]:
-    """Exporta coletas filtradas para CSV (sem limite de linhas) e retorna link de download."""
+) -> tuple[list[Coleta], Any, list[int]]:
+    """Consulta coletas para exportação/relatório (período + parceiros resolvidos)."""
     periodo = pv.resolver_periodo(inicio, fim)
     ids_parceiro = _resolver_parceiro_ids(db, parceiro_ids, parceiro_nomes)
-
     t0 = datetime.combine(periodo.inicio, datetime.min.time())
     t1 = datetime.combine(periodo.fim, datetime.max.time())
     q = (
@@ -514,7 +512,10 @@ def ferramenta_exportar_coletas_csv(
     if ids_parceiro:
         q = q.filter(Coleta.parceiro_id.in_(ids_parceiro))
     coletas = q.order_by(Coleta.data_hora.desc()).all()
+    return coletas, periodo, ids_parceiro
 
+
+def _csv_texto_coletas(coletas: list[Coleta]) -> str:
     buf = io.StringIO()
     writer = csv.writer(buf)
     writer.writerow(
@@ -549,13 +550,127 @@ def ferramenta_exportar_coletas_csv(
                 c.tipo_operacao,
             ]
         )
+    return buf.getvalue()
+
+
+def _pdf_relatorio_coletas(
+    coletas: list[Coleta],
+    *,
+    periodo_inicio: date,
+    periodo_fim: date,
+    max_linhas: int = 60,
+) -> bytes | None:
+    """Gera PDF do relatório de coletas. Retorna None se reportlab não estiver disponível."""
+    try:
+        from reportlab.lib import colors
+        from reportlab.lib.pagesizes import A4, landscape
+        from reportlab.lib.styles import getSampleStyleSheet
+        from reportlab.lib.units import cm
+        from reportlab.platypus import Paragraph, SimpleDocTemplate, Spacer, Table, TableStyle
+    except ImportError:
+        return None
+
+    total_coletas = len(coletas)
+    volume_total = sum(c.volume_estimado or 0 for c in coletas)
+    km_total = sum(c.km_percorrido or 0 for c in coletas)
+    lucro_total = sum(
+        lucro_liquido_total_coleta(c.volume_estimado or 0, c.km_percorrido or 0, c.preco_combustivel or 0)
+        for c in coletas
+    )
+
+    buf = io.BytesIO()
+    doc = SimpleDocTemplate(buf, pagesize=landscape(A4), rightMargin=1.5 * cm, leftMargin=1.5 * cm)
+    styles = getSampleStyleSheet()
+    story: list[Any] = []
+
+    story.append(Paragraph("Relatório de Coletas — Tronik Recicla", styles["Title"]))
+    story.append(Spacer(1, 0.3 * cm))
+    story.append(
+        Paragraph(
+            f"Período: {periodo_inicio.isoformat()} a {periodo_fim.isoformat()}",
+            styles["Normal"],
+        )
+    )
+    story.append(Spacer(1, 0.4 * cm))
+    story.append(
+        Paragraph(
+            f"<b>KPIs:</b> {total_coletas} coleta(s) | "
+            f"Volume total: {volume_total:,.1f} kg | "
+            f"Km total: {km_total:,.1f} km | "
+            f"Lucro líquido total: R$ {lucro_total:,.2f}",
+            styles["Normal"],
+        )
+    )
+    story.append(Spacer(1, 0.5 * cm))
+
+    cabecalho = ["Data", "Coletor", "Parceiro", "Volume (kg)", "Km", "Lucro (R$)"]
+    linhas = [cabecalho]
+    for c in coletas[:max_linhas]:
+        vol = c.volume_estimado or 0
+        km = c.km_percorrido or 0
+        lucro = lucro_liquido_total_coleta(vol, km, c.preco_combustivel or 0)
+        data_txt = c.data_hora.strftime("%d/%m/%Y %H:%M") if c.data_hora else "—"
+        coletor_txt = c.coletor.localizacao if c.coletor else str(c.coletor_id or "—")
+        parceiro_txt = c.parceiro.nome if c.parceiro else "—"
+        linhas.append(
+            [
+                data_txt,
+                coletor_txt[:40],
+                parceiro_txt[:40],
+                f"{vol:,.1f}",
+                f"{km:,.1f}",
+                f"{lucro:,.2f}",
+            ]
+        )
+
+    tabela = Table(linhas, repeatRows=1)
+    tabela.setStyle(
+        TableStyle(
+            [
+                ("BACKGROUND", (0, 0), (-1, 0), colors.HexColor("#1a5276")),
+                ("TEXTCOLOR", (0, 0), (-1, 0), colors.whitesmoke),
+                ("FONTNAME", (0, 0), (-1, 0), "Helvetica-Bold"),
+                ("FONTSIZE", (0, 0), (-1, -1), 8),
+                ("GRID", (0, 0), (-1, -1), 0.5, colors.grey),
+                ("ROWBACKGROUNDS", (0, 1), (-1, -1), [colors.white, colors.HexColor("#f4f6f7")]),
+            ]
+        )
+    )
+    story.append(tabela)
+    if total_coletas > max_linhas:
+        story.append(Spacer(1, 0.3 * cm))
+        story.append(
+            Paragraph(
+                f"(Exibindo {max_linhas} de {total_coletas} coletas — CSV completo disponível para download.)",
+                styles["Italic"],
+            )
+        )
+
+    doc.build(story)
+    return buf.getvalue()
+
+
+def ferramenta_exportar_coletas_csv(
+    db: Session,
+    *,
+    inicio: str | None = None,
+    fim: str | None = None,
+    parceiro_ids: list[int] | None = None,
+    parceiro_nomes: list[str] | None = None,
+    usuario_id: int | None = None,
+) -> dict[str, Any]:
+    """Exporta coletas filtradas para CSV (sem limite de linhas) e retorna link de download."""
+    coletas, periodo, ids_parceiro = _coletas_para_relatorio(
+        db, inicio=inicio, fim=fim, parceiro_ids=parceiro_ids, parceiro_nomes=parceiro_nomes
+    )
+    csv_text = _csv_texto_coletas(coletas)
 
     token = secrets.token_urlsafe(24)
     nome_arquivo = f"coletas_{periodo.inicio.isoformat()}_{periodo.fim.isoformat()}.csv"
     obter_cache().definir(
         f"nik:export:{token}",
         {
-            "csv": buf.getvalue(),
+            "csv": csv_text,
             "filename": nome_arquivo,
             "usuario_id": usuario_id,
             "total_linhas": len(coletas),
@@ -574,6 +689,181 @@ def ferramenta_exportar_coletas_csv(
             f"Exportação pronta: {len(coletas)} coleta(s) de "
             f"{periodo.inicio.isoformat()} a {periodo.fim.isoformat()}."
         ),
+    }
+
+
+def ferramenta_gerar_relatorio_coletas(
+    db: Session,
+    *,
+    inicio: str | None = None,
+    fim: str | None = None,
+    parceiro_ids: list[int] | None = None,
+    parceiro_nomes: list[str] | None = None,
+    usuario_id: int | None = None,
+) -> dict[str, Any]:
+    """Gera relatório de coletas em PDF e CSV para download."""
+    coletas, periodo, ids_parceiro = _coletas_para_relatorio(
+        db, inicio=inicio, fim=fim, parceiro_ids=parceiro_ids, parceiro_nomes=parceiro_nomes
+    )
+    csv_text = _csv_texto_coletas(coletas)
+    periodo_dict = {"inicio": periodo.inicio.isoformat(), "fim": periodo.fim.isoformat()}
+    n = len(coletas)
+
+    token_csv = secrets.token_urlsafe(24)
+    nome_csv = f"coletas_{periodo.inicio.isoformat()}_{periodo.fim.isoformat()}.csv"
+    obter_cache().definir(
+        f"nik:export:{token_csv}",
+        {
+            "csv": csv_text,
+            "filename": nome_csv,
+            "usuario_id": usuario_id,
+            "total_linhas": n,
+            "periodo": periodo_dict,
+            "parceiro_ids": ids_parceiro,
+        },
+    )
+
+    volume_total = sum(c.volume_estimado or 0 for c in coletas)
+    km_total = sum(c.km_percorrido or 0 for c in coletas)
+    lucro_total = sum(
+        lucro_liquido_total_coleta(c.volume_estimado or 0, c.km_percorrido or 0, c.preco_combustivel or 0)
+        for c in coletas
+    )
+
+    pdf_bytes = _pdf_relatorio_coletas(coletas, periodo_inicio=periodo.inicio, periodo_fim=periodo.fim)
+    pdf_indisponivel = pdf_bytes is None
+    pdf_info: dict[str, Any] | None = None
+    if pdf_bytes is not None:
+        token_pdf = secrets.token_urlsafe(24)
+        nome_pdf = f"relatorio_coletas_{periodo.inicio.isoformat()}_{periodo.fim.isoformat()}.pdf"
+        obter_cache().definir(
+            f"nik:export:{token_pdf}",
+            {
+                "conteudo_bytes": pdf_bytes,
+                "mime": "application/pdf",
+                "filename": nome_pdf,
+                "usuario_id": usuario_id,
+                "total_linhas": n,
+                "periodo": periodo_dict,
+                "parceiro_ids": ids_parceiro,
+            },
+        )
+        pdf_info = {
+            "download_url": f"/api/nik/ops/export/{token_pdf}",
+            "filename": nome_pdf,
+        }
+
+    resumo_kpis = (
+        f"{n} coleta(s), {volume_total:,.0f} kg, {km_total:,.1f} km, "
+        f"lucro líquido R$ {lucro_total:,.2f}"
+    )
+    return {
+        "status": "ok",
+        "total_linhas": n,
+        "periodo": periodo_dict,
+        "parceiro_ids": ids_parceiro,
+        "csv": {
+            "download_url": f"/api/nik/ops/export/{token_csv}",
+            "filename": nome_csv,
+        },
+        "pdf": pdf_info,
+        "pdf_indisponivel": pdf_indisponivel,
+        "resumo": (
+            f"Relatório gerado: {resumo_kpis} "
+            f"({periodo.inicio.isoformat()} a {periodo.fim.isoformat()})."
+        ),
+    }
+
+
+def ferramenta_listar_parceiros(
+    db: Session,
+    *,
+    ativo: bool | None = None,
+    limite: int = 50,
+) -> dict[str, Any]:
+    """Lista parceiros/empresas clientes cadastrados no sistema."""
+    limite_efetivo = max(1, min(int(limite or 50), 100))
+    q = db.query(Parceiro).order_by(Parceiro.nome.asc())
+    if ativo is not None:
+        q = q.filter(Parceiro.ativo.is_(ativo))
+    parceiros = q.limit(limite_efetivo).all()
+
+    n_ativos_total = db.query(func.count(Parceiro.id)).filter(Parceiro.ativo.is_(True)).scalar() or 0
+    n_total = db.query(func.count(Parceiro.id)).scalar() or 0
+
+    itens: list[dict[str, Any]] = []
+    for p in parceiros:
+        n_coletas = (
+            db.query(func.count(Coleta.id)).filter(Coleta.parceiro_id == p.id).scalar() or 0
+        )
+        itens.append(
+            {
+                "id": p.id,
+                "nome": p.nome,
+                "cnpj": p.cnpj,
+                "ativo": bool(p.ativo),
+                "criado_em": p.criado_em.isoformat() if p.criado_em else None,
+                "n_coletores": len(p.coletores or []),
+                "n_coletas": int(n_coletas),
+            }
+        )
+
+    if ativo is True:
+        resumo = f"{len(itens)} parceiro(s) ativo(s) listado(s)."
+    elif ativo is False:
+        resumo = f"{len(itens)} parceiro(s) inativo(s) listado(s)."
+    else:
+        resumo = f"{n_total} parceiro(s) cadastrado(s) ({n_ativos_total} ativo(s))."
+
+    return {
+        "total": len(itens),
+        "limite": limite_efetivo,
+        "filtros": {"ativo": ativo},
+        "parceiros": itens,
+        "resumo": resumo,
+    }
+
+
+def ferramenta_listar_empresas_prospeccao(
+    db: Session,
+    *,
+    limite: int = 20,
+) -> dict[str, Any]:
+    """Lista empresas candidatas da prospecção/CRM (campos comerciais, sem PII)."""
+    limite_efetivo = max(1, min(int(limite or 20), 50))
+    empresas = (
+        db.query(EmpresaCandidata)
+        .order_by(EmpresaCandidata.razao_social.asc())
+        .limit(limite_efetivo)
+        .all()
+    )
+    itens: list[dict[str, Any]] = []
+    for e in empresas:
+        itens.append(
+            {
+                "id": e.id,
+                "razao_social": e.razao_social,
+                "nome_fantasia": e.nome_fantasia,
+                "cnpj": e.cnpj,
+                "cnae_principal": e.cnae_principal,
+                "bairro": e.bairro,
+                "municipio": e.municipio,
+                "uf": e.uf,
+                "porte": e.porte,
+                "status": e.situacao_cadastral,
+                "origem": e.origem,
+            }
+        )
+    n_total = db.query(func.count(EmpresaCandidata.id)).scalar() or 0
+    if n_total == 0:
+        resumo = "Nenhuma empresa candidata cadastrada na prospecção."
+    else:
+        resumo = f"{n_total} empresa(s) candidata(s) na prospecção ({len(itens)} listada(s))."
+    return {
+        "total": len(itens),
+        "limite": limite_efetivo,
+        "empresas": itens,
+        "resumo": resumo,
     }
 
 
@@ -1841,6 +2131,23 @@ def catalogo_ferramentas() -> list[dict[str, Any]]:
             "descricao": "Exporta coletas filtradas por período/parceiro para CSV (download).",
         },
         {
+            "nome": "gerar_relatorio_coletas",
+            "descricao": (
+                "Gera um relatório de coletas em PDF e CSV para download "
+                "(use quando o usuário pedir relatório/documento/exportar)."
+            ),
+        },
+        {
+            "nome": "listar_parceiros",
+            "descricao": (
+                "Lista as empresas/parceiros cadastrados no sistema (clientes operacionais da Tronik)."
+            ),
+        },
+        {
+            "nome": "listar_empresas_prospeccao",
+            "descricao": "Lista empresas candidatas da prospecção/CRM.",
+        },
+        {
             "nome": "comparar_candidatos",
             "descricao": "Compara candidatos REE lado a lado (score, CNAE, local, motivos).",
         },
@@ -1985,6 +2292,19 @@ _PARAMETROS_OPENAI: dict[str, dict[str, Any]] = {
         fim={"type": "string", "description": "Data fim ISO (YYYY-MM-DD)."},
         parceiro_ids={"type": "array", "items": {"type": "integer"}, "description": "IDs de parceiros."},
         parceiro_nomes={"type": "array", "items": {"type": "string"}, "description": "Nomes de parceiros."},
+    ),
+    "gerar_relatorio_coletas": _schema_props(
+        inicio={"type": "string", "description": "Data início ISO (YYYY-MM-DD)."},
+        fim={"type": "string", "description": "Data fim ISO (YYYY-MM-DD)."},
+        parceiro_ids={"type": "array", "items": {"type": "integer"}, "description": "IDs de parceiros."},
+        parceiro_nomes={"type": "array", "items": {"type": "string"}, "description": "Nomes de parceiros."},
+    ),
+    "listar_parceiros": _schema_props(
+        ativo={"type": "boolean", "description": "True=só ativos; False=só inativos; omitir=todos."},
+        limite={"type": "integer", "description": "Máximo de parceiros (1-100)."},
+    ),
+    "listar_empresas_prospeccao": _schema_props(
+        limite={"type": "integer", "description": "Máximo de empresas (1-50)."},
     ),
     "comparar_candidatos": _schema_props(
         score_ids={

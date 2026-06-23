@@ -760,7 +760,7 @@
 }
 
 .nik-message-text {
-  font-size: 15px;
+  font-size: 16px;
   line-height: 1.6;
   color: var(--ink-primary);
   white-space: pre-wrap;
@@ -768,12 +768,15 @@
 
 .nik-message-text--rich {
   white-space: normal;
+  max-width: 100%;
+  overflow-wrap: break-word;
+  word-break: break-word;
 }
 
 .nik-message-text--rich .nik-msg-p {
   margin: 0 0 0.95em;
-  font-size: 15px;
-  line-height: 1.7;
+  font-size: inherit;
+  line-height: 1.6;
   color: var(--ink-primary);
 }
 
@@ -783,7 +786,7 @@
 
 .nik-message-text--rich .nik-msg-topic {
   margin: 1em 0 0.5em;
-  font-size: 15px;
+  font-size: inherit;
   font-weight: 600;
   line-height: 1.45;
   color: var(--ink-primary);
@@ -802,8 +805,8 @@
 .nik-message-text--rich .nik-msg-li {
   margin: 0.45em 0;
   padding-left: 0.5rem;
-  font-size: 15px;
-  line-height: 1.65;
+  font-size: inherit;
+  line-height: 1.6;
   color: var(--ink-primary);
 }
 
@@ -816,117 +819,123 @@
   color: var(--ink-primary);
 }
 
-/* ---- Markdown real (marked + DOMPurify) ---- */
-.nik-message-text--rich h1,
-.nik-message-text--rich h2,
-.nik-message-text--rich h3,
-.nik-message-text--rich h4 {
-  margin: 1em 0 0.5em;
+/* ---- Markdown real (marked + DOMPurify) — respostas da Nik ---- */
+.nik-message.assistant .nik-message-text--rich {
+  overflow-x: auto;
+}
+
+.nik-message.assistant .nik-message-text--rich h1,
+.nik-message.assistant .nik-message-text--rich h2,
+.nik-message.assistant .nik-message-text--rich h3,
+.nik-message.assistant .nik-message-text--rich h4 {
+  margin: 1.1em 0 0.55em;
   line-height: 1.35;
   font-weight: 600;
   color: var(--ink-primary);
 }
 
-.nik-message-text--rich h1:first-child,
-.nik-message-text--rich h2:first-child,
-.nik-message-text--rich h3:first-child,
-.nik-message-text--rich h4:first-child {
+.nik-message.assistant .nik-message-text--rich h1:first-child,
+.nik-message.assistant .nik-message-text--rich h2:first-child,
+.nik-message.assistant .nik-message-text--rich h3:first-child,
+.nik-message.assistant .nik-message-text--rich h4:first-child {
   margin-top: 0;
 }
 
-.nik-message-text--rich h1 { font-size: 19px; }
-.nik-message-text--rich h2 { font-size: 17px; }
-.nik-message-text--rich h3 { font-size: 16px; }
-.nik-message-text--rich h4 { font-size: 15px; }
+.nik-message.assistant .nik-message-text--rich h1 { font-size: 1.35em; }
+.nik-message.assistant .nik-message-text--rich h2 { font-size: 1.2em; }
+.nik-message.assistant .nik-message-text--rich h3 { font-size: 1.1em; }
+.nik-message.assistant .nik-message-text--rich h4 { font-size: 1.05em; }
 
-.nik-message-text--rich p {
+.nik-message.assistant .nik-message-text--rich p {
   margin: 0 0 0.95em;
-  line-height: 1.7;
-}
-
-.nik-message-text--rich p:last-child {
-  margin-bottom: 0;
-}
-
-.nik-message-text--rich ul,
-.nik-message-text--rich ol {
-  margin: 0.5em 0 1em;
-  padding-left: 1.5rem;
-}
-
-.nik-message-text--rich li {
-  margin: 0.35em 0;
   line-height: 1.6;
 }
 
-.nik-message-text--rich li > ul,
-.nik-message-text--rich li > ol {
-  margin: 0.35em 0 0.35em;
+.nik-message.assistant .nik-message-text--rich p:last-child {
+  margin-bottom: 0;
 }
 
-.nik-message-text--rich a {
+.nik-message.assistant .nik-message-text--rich ul,
+.nik-message.assistant .nik-message-text--rich ol {
+  margin: 0.55em 0 1em;
+  padding-left: 1.6rem;
+}
+
+.nik-message.assistant .nik-message-text--rich li {
+  margin: 0.4em 0;
+  line-height: 1.6;
+}
+
+.nik-message.assistant .nik-message-text--rich li > ul,
+.nik-message.assistant .nik-message-text--rich li > ol {
+  margin: 0.4em 0 0.4em;
+}
+
+.nik-message.assistant .nik-message-text--rich a {
   color: var(--tronik);
   text-decoration: underline;
   text-underline-offset: 2px;
   word-break: break-word;
 }
 
-.nik-message-text--rich a:hover {
+.nik-message.assistant .nik-message-text--rich a:hover {
   text-decoration: none;
 }
 
-.nik-message-text--rich code {
+.nik-message.assistant .nik-message-text--rich code {
   font-family: var(--font-mono, monospace);
-  font-size: 0.88em;
+  font-size: 0.9em;
   background: var(--paper-sunk);
   border: 1px solid var(--line-subtle);
   border-radius: 4px;
-  padding: 0.12em 0.4em;
+  padding: 0.14em 0.42em;
 }
 
-.nik-message-text--rich pre {
-  margin: 0.6em 0 1em;
+.nik-message.assistant .nik-message-text--rich pre {
+  margin: 0.65em 0 1em;
   padding: 12px 14px;
   background: var(--paper-sunk);
   border: 1px solid var(--line-subtle);
   border-radius: var(--radius-md);
   overflow-x: auto;
+  max-width: 100%;
 }
 
-.nik-message-text--rich pre code {
+.nik-message.assistant .nik-message-text--rich pre code {
   background: none;
   border: none;
   padding: 0;
-  font-size: 12.5px;
+  font-size: 0.88em;
   line-height: 1.55;
   color: var(--ink-primary);
 }
 
-.nik-message-text--rich blockquote {
-  margin: 0.6em 0 1em;
+.nik-message.assistant .nik-message-text--rich blockquote {
+  margin: 0.65em 0 1em;
   padding: 0.2em 0 0.2em 0.9rem;
   border-left: 3px solid var(--tronik-soft);
   color: var(--ink-secondary);
 }
 
-.nik-message-text--rich table {
+.nik-message.assistant .nik-message-text--rich table {
   border-collapse: collapse;
   width: 100%;
-  margin: 0.6em 0 1em;
-  font-size: 13.5px;
-  display: block;
-  overflow-x: auto;
+  max-width: 100%;
+  margin: 0.75em 0 1.1em;
+  font-size: 0.92em;
+  line-height: 1.5;
 }
 
-.nik-message-text--rich th,
-.nik-message-text--rich td {
+.nik-message.assistant .nik-message-text--rich th,
+.nik-message.assistant .nik-message-text--rich td {
   border: 1px solid var(--line-default);
-  padding: 7px 10px;
+  padding: 7px 8px;
   text-align: left;
   vertical-align: top;
+  word-break: break-word;
 }
 
-.nik-message-text--rich th {
+.nik-message.assistant .nik-message-text--rich th {
   background: var(--paper-sunk);
   font-weight: 600;
   color: var(--ink-primary);
@@ -1698,8 +1707,8 @@
   }
 
   .nik-message-text {
-    font-size: 14px;
-    line-height: 1.5;
+    font-size: 15px;
+    line-height: 1.55;
   }
 
   .nik-message-author {

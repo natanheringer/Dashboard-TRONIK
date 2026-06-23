@@ -79,7 +79,7 @@ def test_planejador_aciona_export_csv():
         "me envie o arquivo do Instituto Arapoti de janeiro a maio de 2026"
     )
     nomes = [p["nome"] for p in plano]
-    assert "exportar_coletas_csv" in nomes
+    assert "gerar_relatorio_coletas" in nomes
 
 
 def test_grounding_bloqueia_numero_inventado():
