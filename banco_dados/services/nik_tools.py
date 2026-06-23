@@ -1852,6 +1852,15 @@ def catalogo_ferramentas() -> list[dict[str, Any]]:
             "nome": "criar_tarefa_comercial",
             "descricao": "Cria tarefa ou lembrete no CRM comercial (título, pipeline, prazo).",
         },
+        {
+            "nome": "cadastrar_coleta",
+            "descricao": (
+                "Inicia o cadastro de uma NOVA coleta operacional (pesagem/transporte) com confirmação. "
+                "Use SOMENTE quando o usuário pedir explicitamente para cadastrar/registrar/lançar uma coleta "
+                "com dados (parceiro, volume em kg, km). "
+                "NUNCA use para relatórios, consultas, listagens ou buscas."
+            ),
+        },
         {"nome": "busca_web", "descricao": "Busca na internet com guardrails e fontes externas auditáveis."},
         {"nome": "catalogo_fontes_web", "descricao": "Catálogo curado de domínios de alta confiança para busca web."},
     ]
@@ -2001,6 +2010,15 @@ _PARAMETROS_OPENAI: dict[str, dict[str, Any]] = {
         empresa_id={"type": "integer", "description": "ID da empresa candidata."},
         data_limite={"type": "string", "description": "Prazo ISO ou DD/MM/YYYY."},
         descricao={"type": "string", "description": "Descrição opcional."},
+    ),
+    "cadastrar_coleta": _schema_props(
+        parceiro_nome={"type": "string", "description": "Nome do parceiro/cliente reconhecido no sistema."},
+        volume_kg={"type": "number", "description": "Peso coletado em kg."},
+        km_percorrido_km={"type": "number", "description": "Distância percorrida em km."},
+        coletor_ref={"type": "string", "description": "Referência do coletor, ex.: L037."},
+        data_coleta={"type": "string", "description": "Data: 'hoje', ISO YYYY-MM-DD ou DD/MM/YYYY."},
+        tipo_operacao={"type": "string", "description": "Avulsa ou Campanha."},
+        preco_combustivel={"type": "number", "description": "Preço do combustível por litro (opcional)."},
     ),
 }
 

@@ -21,13 +21,30 @@ from banco_dados.services.nik_provider import NikResposta, NikToolCall
 
 logger = logging.getLogger(__name__)
 
+_FERRAMENTAS_TRANSACIONAIS = {"cadastrar_coleta"}
+
+_PARAMNAMES_CADASTRAR_COLETA = frozenset(
+    {
+        "parceiro_nome",
+        "volume_kg",
+        "km_percorrido_km",
+        "coletor_ref",
+        "data_coleta",
+        "tipo_operacao",
+        "preco_combustivel",
+    }
+)
+
 _SYSTEM_AGENT_LOOP = (
     prompts.SYSTEM_OPS_CONVERSA
     + """
 
 Você pode chamar ferramentas internas da Tronik para obter dados antes de responder.
 Use as ferramentas quando precisar de números, filas de prospecção, buscas ou histórico.
-Quando tiver dados suficientes, responda em texto claro ao usuário (sem JSON de plano).\
+Quando tiver dados suficientes, responda em texto claro ao usuário (sem JSON de plano).
+Para cadastrar uma coleta operacional, chame cadastrar_coleta SOMENTE quando o usuário pedir
+explicitamente registrar/cadastrar/lançar uma coleta com dados (parceiro, kg, km).
+Para relatórios, consultas e listagens use ferramentas de leitura ou responda em texto — nunca cadastrar_coleta.\
 """
 )
 
@@ -125,6 +142,49 @@ def executar_loop_agente(
 
         if not ultima_resposta.tool_calls:
             break
+
+        for tc in ultima_resposta.tool_calls:
+            if tc.name in _FERRAMENTAS_TRANSACIONAIS:
+                try:
+                    kwargs = json.loads(tc.arguments or "{}")
+                except json.JSONDecodeError:
+                    kwargs = {}
+                if not isinstance(kwargs, dict):
+                    kwargs = {}
+                filtered_kwargs = {k: v for k, v in kwargs.items() if k in _PARAMNAMES_CADASTRAR_COLETA}
+                from banco_dados.services import nik_coleta_chat
+
+                fluxo = nik_coleta_chat.preparar_cadastro_coleta_args(
+                    db,
+                    usuario_id=usuario_id,
+                    thread_id=thread,
+                    **filtered_kwargs,
+                )
+                return {
+                    "texto": fluxo["texto"],
+                    "fonte": "transacional",
+                    "modelo": None,
+                    "routing_mode": "cadastro_coleta",
+                    "routing_model": None,
+                    "modo_contexto": "real",
+                    "used_tools": ["cadastro_coleta"],
+                    "data_sources": ["cadastro_coleta"],
+                    "tool_trace": [
+                        {
+                            "tool": "cadastrar_coleta",
+                            "status": fluxo.get("status"),
+                            "kwargs": filtered_kwargs,
+                        }
+                    ],
+                    "citacoes": [],
+                    "fontes_web": [],
+                    "thread_id": thread,
+                    "web_status": "n/a",
+                    "coleta_pendente": bool(fluxo.get("pendente")),
+                    "coleta_id": fluxo.get("coleta_id"),
+                    "planner_mode": "coleta_transacional",
+                    "agent_loop": True,
+                }
 
         messages.append(_mensagem_assistente_com_tools(ultima_resposta))
         plano = _tool_calls_para_plano(ultima_resposta.tool_calls)

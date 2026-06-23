@@ -71,6 +71,7 @@ def test_cancelar_coleta_pendente(db_session):
 def test_conversar_ops_cadastro_coleta(db_session, monkeypatch):
     from banco_dados.services import nik_service
 
+    monkeypatch.setenv("NIK_AGENT_LOOP", "false")
     parceiro, coletor = _seed_coletor(db_session, "Parceiro Ops Flow")
     msg = f"Cadastrar coleta {parceiro.nome} hoje 55 kg 8 km L{coletor.id:03d}"
 

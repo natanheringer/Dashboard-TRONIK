@@ -73,30 +73,32 @@ def mensagem_e_cancelamento_coleta(mensagem: str) -> bool:
 
 def mensagem_pede_cadastrar_coleta(mensagem: str) -> bool:
     msg = (mensagem or "").lower()
-    verbos = [
+    if not re.search(r"\bcoletas?\b", msg):
+        return False
+    frases_acao = ("lançar coleta", "lancar coleta", "lança coleta", "lanca coleta", "nova coleta")
+    if any(f in msg for f in frases_acao):
+        return True
+    verbos = (
         "cadastra",
         "cadastrar",
-        "cadastro",
+        "cadastre",
         "adiciona",
         "adicionar",
         "registra",
         "registrar",
+        "registre",
         "insere",
         "inserir",
-        "nova coleta",
-        "novo registro de coleta",
-        "lança coleta",
-        "lancar coleta",
-        "lançar coleta",
-        "inclui coleta",
-        "incluir coleta",
-        "cria coleta",
-        "criar coleta",
-        "registrar coleta",
-    ]
-    if any(v in msg for v in verbos):
-        return True
-    return bool("coleta" in msg and any(v in msg for v in ["cadastra", "adiciona", "registra", "insere", "lança", "lancar", "lançar"]))
+        "lança",
+        "lanca",
+        "lancar",
+        "lançar",
+        "inclui",
+        "incluir",
+        "cria",
+        "criar",
+    )
+    return any(re.search(rf"\b{re.escape(v)}\b", msg) for v in verbos)
 
 
 def _extrair_volume_kg(texto: str) -> float | None:
@@ -364,6 +366,99 @@ def formatar_confirmacao_coleta(dados: dict[str, Any]) -> str:
     )
 
 
+def _parse_data_coleta_arg(data_coleta: str | None) -> str:
+    if not data_coleta or str(data_coleta).strip().lower() in {"hoje", ""}:
+        return date.today().isoformat()
+    raw = str(data_coleta).strip()
+    if raw.lower() == "hoje":
+        return date.today().isoformat()
+    with contextlib.suppress(ValueError):
+        return date.fromisoformat(raw[:10]).isoformat()
+    m = re.match(r"^(\d{2})/(\d{2})/(\d{4})$", raw)
+    if m:
+        with contextlib.suppress(ValueError):
+            return date(int(m.group(3)), int(m.group(2)), int(m.group(1))).isoformat()
+    return date.today().isoformat()
+
+
+def preparar_cadastro_coleta_args(
+    db: Session,
+    *,
+    usuario_id: int | None,
+    thread_id: str,
+    parceiro_nome: str | None = None,
+    volume_kg: float | None = None,
+    km_percorrido_km: float | None = None,
+    coletor_ref: str | None = None,
+    data_coleta: str | None = None,
+    tipo_operacao: str | None = None,
+    preco_combustivel: float | None = None,
+) -> dict[str, Any]:
+    escopo_pid = _escopo_parceiro_usuario(db, usuario_id)
+    parceiro_id, parceiro_resolvido = _resolver_parceiro_id(
+        db, parceiro_nome, forcar_parceiro_id=escopo_pid
+    )
+
+    coletor_ref_int: int | None = None
+    if coletor_ref:
+        m = re.search(r"(\d+)", str(coletor_ref))
+        if m:
+            with contextlib.suppress(ValueError):
+                coletor_ref_int = int(m.group(1))
+
+    coletor_id, coletor_nome = _resolver_coletor_id(
+        db, coletor_ref=coletor_ref_int, parceiro_id=parceiro_id
+    )
+
+    vol = volume_kg
+    if vol is not None:
+        with contextlib.suppress(TypeError, ValueError):
+            vol = float(vol)
+
+    km = km_percorrido_km
+    if km is not None:
+        with contextlib.suppress(TypeError, ValueError):
+            km = float(km)
+
+    preco = _PRECO_COMBUSTIVEL_PADRAO if preco_combustivel is None else preco_combustivel
+    with contextlib.suppress(TypeError, ValueError):
+        preco = float(preco)
+
+    dados: dict[str, Any] = {
+        "parceiro_id": parceiro_id,
+        "parceiro_nome": parceiro_resolvido or parceiro_nome,
+        "coletor_id": coletor_id,
+        "coletor_nome": coletor_nome,
+        "volume_kg": vol,
+        "km_percorrido_km": km,
+        "data_coleta": _parse_data_coleta_arg(data_coleta),
+        "preco_combustivel": preco,
+        "tipo_operacao": (tipo_operacao or "Avulsa")[:50],
+        "fonte_extracao": "tool_args",
+    }
+
+    if dados.get("coletor_id") is None and dados.get("parceiro_id"):
+        cid, cnome = _resolver_coletor_id(db, coletor_ref=None, parceiro_id=dados["parceiro_id"])
+        if cid:
+            dados["coletor_id"] = cid
+            dados["coletor_nome"] = cnome
+
+    erros = _validar_extracao(dados)
+    if erros:
+        return {
+            "status": "erro_extracao",
+            "texto": "Não consegui montar a coleta. " + " ".join(erros),
+            "pendente": False,
+        }
+    _armazenar_pending(usuario_id, thread_id, dados)
+    return {
+        "status": "aguardando_confirmacao",
+        "texto": formatar_confirmacao_coleta(dados),
+        "pendente": True,
+        "dados": dados,
+    }
+
+
 def preparar_cadastro_coleta(
     db: Session,
     mensagem: str,
@@ -497,6 +592,11 @@ def processar_mensagem_coleta(
         }
 
     if not mensagem_pede_cadastrar_coleta(mensagem):
+        return None
+
+    from banco_dados.services.nik_service import _nik_agent_loop_habilitado
+
+    if _nik_agent_loop_habilitado():
         return None
 
     return preparar_cadastro_coleta(db, mensagem, usuario_id, thread_id)
