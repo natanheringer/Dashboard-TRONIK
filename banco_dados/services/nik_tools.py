@@ -30,18 +30,30 @@ from banco_dados.modelos import (
     Coletor,
     ContratoRecorrente,
     EmpresaCandidata,
+    Interacao,
+    MetaComercial,
+    Notificacao,
     Parceiro,
     Pipeline,
     ScoreProspeccao,
+    Sensor,
+    SolicitacaoColetor,
+    Tarefa,
+    TronikScore,
 )
+from banco_dados.serializers import notificacao_para_dict, sensor_para_dict
 from banco_dados.services import (
+    coleta_service,
     nik_contexto as ctx,
     preview_service as pv,
     prospeccao_crm_bridge as crm_bridge,
     prospeccao_xgb_service as prospeccao_svc,
 )
 from banco_dados.services.crm_service import CRMService
+from banco_dados.services.ml_predicao import predizer_enchimento_coletor
+from banco_dados.services.ml_score import obter_ranking
 from banco_dados.services.relatorio_service import lucro_liquido_total_coleta
+from banco_dados.utils import utc_now_naive
 from banco_dados.utils.cache import obter_cache
 from jobs.prospeccao.publish_scores import resolve_model
 
@@ -1229,6 +1241,529 @@ def ferramenta_busca_web(
         }
 
 
+def _dias_sem_coleta(ultima_coleta: datetime | None) -> int | None:
+    if ultima_coleta is None:
+        return None
+    agora = utc_now_naive()
+    return max(0, (agora - ultima_coleta).days)
+
+
+def ferramenta_listar_coletores(
+    db: Session,
+    *,
+    status: str | None = None,
+    parceiro_id: int | None = None,
+    sem_coleta_dias: int | None = None,
+    limite: int = 50,
+) -> dict[str, Any]:
+    """Lista coletores operacionais (monitoramento) com filtros opcionais."""
+    limite_efetivo = max(1, min(int(limite or 50), 50))
+    status_norm = (status or "").strip().upper() or None
+    coletores = pv.coletores_monitoramento(db)
+    itens: list[dict[str, Any]] = []
+
+    for c in coletores:
+        if status_norm and (c.status or "OK").upper() != status_norm:
+            continue
+        if parceiro_id is not None and c.parceiro_id != parceiro_id:
+            continue
+        dias = _dias_sem_coleta(c.ultima_coleta)
+        if (
+            sem_coleta_dias is not None
+            and c.ultima_coleta is not None
+            and (dias is None or dias < sem_coleta_dias)
+        ):
+            continue
+        itens.append(
+            {
+                "id": c.id,
+                "id_fmt": f"#L{c.id:03d}",
+                "localizacao": c.localizacao,
+                "status": c.status or "OK",
+                "nivel_preenchimento": round(float(c.nivel_preenchimento or 0), 1),
+                "parceiro_nome": c.parceiro.nome if c.parceiro else None,
+                "ultima_coleta": c.ultima_coleta.isoformat() if c.ultima_coleta else None,
+                "dias_sem_coleta": dias,
+            }
+        )
+        if len(itens) >= limite_efetivo:
+            break
+
+    filtro_txt = ""
+    if sem_coleta_dias is not None:
+        filtro_txt = f" sem coleta há ≥{sem_coleta_dias} dia(s)"
+    elif status_norm:
+        filtro_txt = f" status={status_norm}"
+    elif parceiro_id is not None:
+        filtro_txt = f" parceiro_id={parceiro_id}"
+
+    return {
+        "total": len(itens),
+        "limite": limite_efetivo,
+        "filtros": {
+            "status": status_norm,
+            "parceiro_id": parceiro_id,
+            "sem_coleta_dias": sem_coleta_dias,
+        },
+        "coletores": itens,
+        "resumo": f"{len(itens)} coletor(es) listado(s){filtro_txt}.",
+    }
+
+
+def ferramenta_status_sensores(
+    db: Session,
+    *,
+    coletor_id: int | None = None,
+    bateria_max: float | None = None,
+    limite: int = 50,
+) -> dict[str, Any]:
+    """Lista sensores com bateria e último ping (sem expor api_token)."""
+    limite_efetivo = max(1, min(int(limite or 50), 50))
+    query = db.query(Sensor).options(
+        joinedload(Sensor.coletor),
+        joinedload(Sensor.tipo_sensor),
+    )
+    if coletor_id is not None:
+        query = query.filter(Sensor.coletor_id == coletor_id)
+    if bateria_max is not None:
+        query = query.filter(Sensor.bateria <= float(bateria_max))
+    sensores = query.order_by(Sensor.bateria.asc().nullslast(), Sensor.id).limit(limite_efetivo).all()
+    itens = [sensor_para_dict(s) for s in sensores]
+
+    filtro_txt = ""
+    if coletor_id is not None:
+        filtro_txt = f" do coletor #{coletor_id}"
+    if bateria_max is not None:
+        filtro_txt += f" com bateria ≤{bateria_max}%"
+
+    return {
+        "total": len(itens),
+        "limite": limite_efetivo,
+        "filtros": {"coletor_id": coletor_id, "bateria_max": bateria_max},
+        "sensores": itens,
+        "resumo": f"{len(itens)} sensor(es){filtro_txt}.",
+    }
+
+
+def ferramenta_historico_coletas(
+    db: Session,
+    *,
+    coletor_id: int | None = None,
+    parceiro_id: int | None = None,
+    inicio: str | None = None,
+    fim: str | None = None,
+    tipo_operacao: str | None = None,
+    pagina: int = 1,
+    por_pagina: int = 20,
+) -> dict[str, Any]:
+    """Histórico row-level de coletas com paginação."""
+    pagina_efetiva = max(1, int(pagina or 1))
+    por_pagina_efetiva = max(1, min(int(por_pagina or 20), 50))
+    coletas, total = coleta_service.obter_coletas_com_filtros(
+        db,
+        coletor_id=coletor_id,
+        parceiro_id=parceiro_id,
+        tipo_operacao=(tipo_operacao or "").strip() or None,
+        data_inicio=inicio,
+        data_fim=fim,
+        pagina=pagina_efetiva,
+        por_pagina=por_pagina_efetiva,
+    )
+    linhas = [
+        {
+            "data_hora": c.data_hora.isoformat() if c.data_hora else None,
+            "coletor_localizacao": c.coletor.localizacao if c.coletor else None,
+            "parceiro_nome": c.parceiro.nome if c.parceiro else None,
+            "volume_kg": round(float(c.volume_estimado or 0), 2),
+            "km": round(float(c.km_percorrido or 0), 2),
+            "tipo_operacao": c.tipo_operacao,
+        }
+        for c in coletas
+    ]
+    total_paginas = (total + por_pagina_efetiva - 1) // por_pagina_efetiva if total else 0
+    return {
+        "total": total,
+        "pagina": pagina_efetiva,
+        "por_pagina": por_pagina_efetiva,
+        "total_paginas": total_paginas,
+        "coletas": linhas,
+        "filtros": {
+            "coletor_id": coletor_id,
+            "parceiro_id": parceiro_id,
+            "inicio": inicio,
+            "fim": fim,
+            "tipo_operacao": tipo_operacao,
+        },
+        "resumo": (
+            f"Página {pagina_efetiva}/{max(1, total_paginas)}: "
+            f"{len(linhas)} coleta(s) de {total} no total."
+        ),
+    }
+
+
+def ferramenta_ml_coletor(db: Session, *, coletor_id: int) -> dict[str, Any]:
+    """Predição de enchimento e TRONIK Score para um coletor."""
+    coletor = db.query(Coletor).filter(Coletor.id == int(coletor_id)).first()
+    if not coletor:
+        return {
+            "status": "nao_encontrado",
+            "coletor_id": coletor_id,
+            "resumo": f"Coletor #{coletor_id} não encontrado.",
+        }
+
+    predicao: dict[str, Any] | None = None
+    try:
+        predicao = predizer_enchimento_coletor(db, int(coletor_id))
+    except Exception as exc:
+        predicao = {"erro": str(exc)[:180]}
+
+    ts = db.query(TronikScore).filter(TronikScore.coletor_id == int(coletor_id)).first()
+    score: dict[str, Any] | None = None
+    if ts:
+        score = {
+            "score": round(float(ts.score), 2),
+            "modelo_usado": ts.modelo_usado,
+            "calculado_em": ts.calculado_em.isoformat() if ts.calculado_em else None,
+        }
+
+    pred_ok = bool(
+        predicao
+        and not predicao.get("erro")
+        and predicao.get("dados_suficientes", True)
+    )
+    score_ok = score is not None
+    if not pred_ok and not score_ok:
+        return {
+            "status": "indisponivel",
+            "coletor_id": coletor_id,
+            "localizacao": coletor.localizacao,
+            "predicao": predicao,
+            "tronik_score": score,
+            "resumo": (
+                f"ML indisponível para coletor #{coletor_id} "
+                f"({coletor.localizacao or '—'}): sem predição nem score calculados."
+            ),
+        }
+
+    partes: list[str] = []
+    if score_ok and score:
+        partes.append(f"TRONIK Score {score['score']}")
+    if pred_ok and predicao:
+        horas = predicao.get("horas_restantes")
+        if horas is not None:
+            partes.append(f"enchimento em ~{round(float(horas), 1)}h")
+        elif predicao.get("predicted_full_at"):
+            partes.append("predição de enchimento disponível")
+
+    return {
+        "status": "ok",
+        "coletor_id": coletor_id,
+        "localizacao": coletor.localizacao,
+        "nivel_atual": round(float(coletor.nivel_preenchimento or 0), 1),
+        "predicao": predicao,
+        "tronik_score": score,
+        "resumo": (
+            f"Coletor #{coletor_id} ({coletor.localizacao or '—'}): "
+            + (", ".join(partes) if partes else "dados parciais de ML.")
+            + "."
+        ),
+    }
+
+
+def _resolver_mes_comercial(mes: str | None) -> tuple[int, int]:
+    """Resolve mês/ano a partir de 'YYYY-MM' ou mês corrente."""
+    bruto = (mes or "").strip()
+    if bruto:
+        partes = bruto.split("-", 1)
+        if len(partes) == 2 and partes[0].isdigit() and partes[1].isdigit():
+            ano = int(partes[0])
+            mes_num = int(partes[1])
+            if 1 <= mes_num <= 12:
+                return mes_num, ano
+    hoje = date.today()
+    return hoje.month, hoje.year
+
+
+def _pipeline_item_resumo(pipe: Pipeline) -> dict[str, Any]:
+    empresa = None
+    if pipe.coletor:
+        empresa = pipe.coletor.localizacao
+    elif pipe.observacoes:
+        empresa = (pipe.observacoes or "")[:120]
+    return {
+        "id": pipe.id,
+        "empresa": empresa,
+        "status": pipe.status,
+        "valor_estimado": round(float(pipe.valor_estimado or 0), 2),
+        "probabilidade": int(pipe.probabilidade or 0),
+        "proxima_acao": pipe.proxima_acao,
+        "responsavel": pipe.responsavel.nome_completo if pipe.responsavel else None,
+        "responsavel_id": pipe.responsavel_id,
+    }
+
+
+def ferramenta_listar_pipeline(
+    db: Session,
+    *,
+    status: str | None = None,
+    responsavel_id: int | None = None,
+    limite: int = 20,
+) -> dict[str, Any]:
+    """Lista deals do pipeline CRM (mesmo read-model de GET /api/crm/pipeline)."""
+    limite_efetivo = max(1, min(int(limite or 20), 50))
+    status_norm = (status or "").strip().lower() or None
+    query = db.query(Pipeline).options(
+        joinedload(Pipeline.coletor),
+        joinedload(Pipeline.responsavel),
+    )
+    if status_norm:
+        query = query.filter(Pipeline.status == status_norm)
+    if responsavel_id is not None:
+        query = query.filter(Pipeline.responsavel_id == int(responsavel_id))
+    pipelines = query.order_by(Pipeline.atualizado_em.desc()).limit(limite_efetivo).all()
+    itens = [_pipeline_item_resumo(p) for p in pipelines]
+    filtro_txt = ""
+    if status_norm:
+        filtro_txt = f" status={status_norm}"
+    elif responsavel_id is not None:
+        filtro_txt = f" responsavel_id={responsavel_id}"
+    return {
+        "total": len(itens),
+        "limite": limite_efetivo,
+        "filtros": {"status": status_norm, "responsavel_id": responsavel_id},
+        "deals": itens,
+        "resumo": f"{len(itens)} deal(s) no pipeline{filtro_txt}.",
+    }
+
+
+def ferramenta_listar_tarefas_comerciais(
+    db: Session,
+    *,
+    status: str | None = None,
+    limite: int = 20,
+) -> dict[str, Any]:
+    """Lista tarefas CRM (padrão: abertas/pendentes)."""
+    limite_efetivo = max(1, min(int(limite or 20), 50))
+    status_norm = (status or "").strip().lower() or None
+    if status_norm in {None, "aberta", "abertas", "pendente", "pendentes", "aberto", "abertos"}:
+        status_efetivo = "pendente"
+    else:
+        status_efetivo = status_norm
+
+    tarefas = (
+        db.query(Tarefa)
+        .options(
+            joinedload(Tarefa.pipeline).joinedload(Pipeline.coletor),
+            joinedload(Tarefa.usuario),
+        )
+        .filter(Tarefa.status == status_efetivo)
+        .order_by(Tarefa.data_vencimento.asc().nullslast(), Tarefa.id.asc())
+        .limit(limite_efetivo)
+        .all()
+    )
+    itens: list[dict[str, Any]] = []
+    for tarefa in tarefas:
+        bruto = tarefa.to_dict()
+        itens.append(
+            {
+                "id": bruto.get("id"),
+                "titulo": bruto.get("titulo"),
+                "status": bruto.get("status"),
+                "data_vencimento": bruto.get("data_vencimento"),
+                "pipeline_id": bruto.get("pipeline_id"),
+                "empresa": bruto.get("cliente"),
+                "prioridade": bruto.get("prioridade"),
+            }
+        )
+    return {
+        "total": len(itens),
+        "limite": limite_efetivo,
+        "filtros": {"status": status_efetivo},
+        "tarefas": itens,
+        "resumo": f"{len(itens)} tarefa(s) comercial(is) ({status_efetivo}).",
+    }
+
+
+def ferramenta_interacoes_pipeline(
+    db: Session,
+    *,
+    pipeline_id: int | None = None,
+    limite: int = 20,
+) -> dict[str, Any]:
+    """Timeline de interações de um pipeline CRM."""
+    if pipeline_id is None:
+        return {
+            "encontrado": False,
+            "resumo": "Informe pipeline_id para listar interações do negócio.",
+        }
+    limite_efetivo = max(1, min(int(limite or 20), 50))
+    pipe = db.query(Pipeline).filter_by(id=int(pipeline_id)).first()
+    if not pipe:
+        return {
+            "encontrado": False,
+            "pipeline_id": int(pipeline_id),
+            "resumo": f"Pipeline #{pipeline_id} não encontrado.",
+        }
+    interacoes = (
+        db.query(Interacao)
+        .options(joinedload(Interacao.usuario))
+        .filter_by(pipeline_id=int(pipeline_id))
+        .order_by(Interacao.data.desc(), Interacao.id.desc())
+        .limit(limite_efetivo)
+        .all()
+    )
+    itens = [
+        {
+            "id": i.id,
+            "tipo": i.tipo,
+            "descricao": i.descricao,
+            "data": i.data.isoformat() if i.data else None,
+            "autor": i.usuario.nome_completo if i.usuario else None,
+        }
+        for i in interacoes
+    ]
+    return {
+        "encontrado": True,
+        "pipeline_id": int(pipeline_id),
+        "total": len(itens),
+        "limite": limite_efetivo,
+        "interacoes": itens,
+        "resumo": f"{len(itens)} interação(ões) no pipeline #{pipeline_id}.",
+    }
+
+
+def ferramenta_listar_notificacoes(
+    db: Session,
+    *,
+    lida: bool | None = None,
+    limite: int = 20,
+) -> dict[str, Any]:
+    """Lista notificações operacionais (mesmo serializer do dashboard)."""
+    limite_efetivo = max(1, min(int(limite or 20), 50))
+    query = db.query(Notificacao).options(
+        joinedload(Notificacao.coletor),
+        joinedload(Notificacao.sensor),
+    )
+    if lida is not None:
+        query = query.filter(Notificacao.lida.is_(bool(lida)))
+    rows = query.order_by(Notificacao.criada_em.desc()).limit(limite_efetivo).all()
+    itens = [notificacao_para_dict(n) for n in rows]
+    filtro_txt = ""
+    if lida is False:
+        filtro_txt = " não lidas"
+    elif lida is True:
+        filtro_txt = " lidas"
+    return {
+        "total": len(itens),
+        "limite": limite_efetivo,
+        "filtros": {"lida": lida},
+        "notificacoes": itens,
+        "resumo": f"{len(itens)} notificação(ões){filtro_txt}.",
+    }
+
+
+def ferramenta_listar_solicitacoes(
+    db: Session,
+    *,
+    status: str | None = None,
+    limite: int = 20,
+) -> dict[str, Any]:
+    """Lista solicitações de coletor da landing (GET /api/solicitacoes)."""
+    limite_efetivo = max(1, min(int(limite or 20), 50))
+    status_norm = (status or "").strip().lower() or None
+    query = db.query(SolicitacaoColetor)
+    if status_norm:
+        query = query.filter(SolicitacaoColetor.status == status_norm)
+    rows = query.order_by(SolicitacaoColetor.criado_em.desc()).limit(limite_efetivo).all()
+    itens = [
+        {
+            "id": s.id,
+            "nome": s.nome,
+            "email": s.email,
+            "status": s.status,
+            "criado_em": s.criado_em.isoformat() if s.criado_em else None,
+        }
+        for s in rows
+    ]
+    filtro_txt = f" status={status_norm}" if status_norm else ""
+    return {
+        "total": len(itens),
+        "limite": limite_efetivo,
+        "filtros": {"status": status_norm},
+        "solicitacoes": itens,
+        "resumo": f"{len(itens)} solicitação(ões) de coletor{filtro_txt}.",
+    }
+
+
+def ferramenta_meta_comercial(
+    db: Session,
+    *,
+    mes: str | None = None,
+) -> dict[str, Any]:
+    """Meta comercial do mês (valor_meta, realizado, % atingido)."""
+    mes_num, ano = _resolver_mes_comercial(mes)
+    mes_iso = f"{ano}-{mes_num:02d}"
+    meta = db.query(MetaComercial).filter_by(mes=mes_num, ano=ano).first()
+    if not meta:
+        return {
+            "status": "indisponivel",
+            "mes": mes_iso,
+            "resumo": f"Nenhuma meta comercial configurada para {mes_num:02d}/{ano}.",
+        }
+    valor_meta = float(meta.valor_meta or 0)
+    valor_realizado = float(meta.valor_realizado or 0)
+    pct = round(float(meta.percentual_atingido or 0), 1)
+    falta = round(max(0.0, valor_meta - valor_realizado), 2)
+    return {
+        "status": "ok",
+        "mes": mes_iso,
+        "valor_meta": round(valor_meta, 2),
+        "valor_realizado": round(valor_realizado, 2),
+        "percentual_atingido": pct,
+        "falta_para_meta": falta,
+        "meta_status": meta.status,
+        "resumo": (
+            f"Meta {mes_num:02d}/{ano}: R${valor_realizado:.0f} de R${valor_meta:.0f} "
+            f"({pct}% atingido, faltam R${falta:.0f})."
+        ),
+    }
+
+
+def ferramenta_ranking_ml(db: Session, *, limite: int = 10) -> dict[str, Any]:
+    """Top coletores por TRONIK Score / prioridade operacional."""
+    limite_efetivo = max(1, min(int(limite or 10), 50))
+    try:
+        ranking = obter_ranking(db, limite=limite_efetivo)
+    except Exception as exc:
+        return {
+            "status": "indisponivel",
+            "total": 0,
+            "ranking": [],
+            "resumo": f"Ranking ML indisponível: {str(exc)[:120]}.",
+        }
+
+    if not ranking:
+        return {
+            "status": "indisponivel",
+            "total": 0,
+            "limite": limite_efetivo,
+            "ranking": [],
+            "resumo": "Nenhum TRONIK Score calculado na base.",
+        }
+
+    top = ranking[0]
+    return {
+        "status": "ok",
+        "total": len(ranking),
+        "limite": limite_efetivo,
+        "ranking": ranking,
+        "resumo": (
+            f"Top {len(ranking)} coletor(es) por TRONIK Score; "
+            f"líder: {top.get('nome', '—')} (score {top.get('score', '—')})."
+        ),
+    }
+
+
 def catalogo_ferramentas() -> list[dict[str, Any]]:
     return [
         {"nome": "snapshot_operacional", "descricao": "Estado operacional atual (alertas e indicadores)."},
@@ -1256,6 +1791,50 @@ def catalogo_ferramentas() -> list[dict[str, Any]]:
         {
             "nome": "info_coletor",
             "descricao": "Detalhes e totais (volume_kg, km) de um coletor por ID.",
+        },
+        {
+            "nome": "listar_coletores",
+            "descricao": "Lista coletores com status, nível, parceiro, última coleta e dias sem coleta.",
+        },
+        {
+            "nome": "status_sensores",
+            "descricao": "Lista sensores com bateria, último ping e coletor (sem token de API).",
+        },
+        {
+            "nome": "historico_coletas",
+            "descricao": "Histórico detalhado de coletas (linha a linha) com paginação.",
+        },
+        {
+            "nome": "ml_coletor",
+            "descricao": "Predição de enchimento e TRONIK Score de um coletor específico.",
+        },
+        {
+            "nome": "ranking_ml",
+            "descricao": "Ranking de coletores por TRONIK Score / prioridade operacional.",
+        },
+        {
+            "nome": "listar_pipeline",
+            "descricao": "Lista deals do funil CRM (status, valor, probabilidade, responsável).",
+        },
+        {
+            "nome": "listar_tarefas_comerciais",
+            "descricao": "Tarefas comerciais abertas ou filtradas por status (título, prazo, pipeline).",
+        },
+        {
+            "nome": "interacoes_pipeline",
+            "descricao": "Histórico de interações de um pipeline CRM (parâmetro pipeline_id).",
+        },
+        {
+            "nome": "listar_notificacoes",
+            "descricao": "Notificações do sistema (tipo, título, lida, coletor).",
+        },
+        {
+            "nome": "listar_solicitacoes",
+            "descricao": "Solicitações de coletor vindas da landing page.",
+        },
+        {
+            "nome": "meta_comercial",
+            "descricao": "Meta de faturamento do mês (meta, realizado, % atingido).",
         },
         {
             "nome": "exportar_coletas_csv",
@@ -1341,6 +1920,56 @@ _PARAMETROS_OPENAI: dict[str, dict[str, Any]] = {
     "info_coletor": _schema_props(
         coletor_id={"type": "integer", "description": "ID numérico do coletor.", "required": True},
         dias={"type": "integer", "description": "Janela de dias para totais (padrão 90)."},
+    ),
+    "listar_coletores": _schema_props(
+        status={"type": "string", "description": "Filtrar por status (ex.: OK, QUEBRADA)."},
+        parceiro_id={"type": "integer", "description": "Filtrar por parceiro comercial."},
+        sem_coleta_dias={"type": "integer", "description": "Apenas coletores sem coleta há N dias ou mais."},
+        limite={"type": "integer", "description": "Máximo de coletores (1-50)."},
+    ),
+    "status_sensores": _schema_props(
+        coletor_id={"type": "integer", "description": "Filtrar sensores de um coletor."},
+        bateria_max={"type": "number", "description": "Apenas sensores com bateria ≤ valor."},
+        limite={"type": "integer", "description": "Máximo de sensores (1-50)."},
+    ),
+    "historico_coletas": _schema_props(
+        coletor_id={"type": "integer", "description": "Filtrar por coletor."},
+        parceiro_id={"type": "integer", "description": "Filtrar por parceiro."},
+        inicio={"type": "string", "description": "Data início ISO (YYYY-MM-DD)."},
+        fim={"type": "string", "description": "Data fim ISO (YYYY-MM-DD)."},
+        tipo_operacao={"type": "string", "description": "Tipo de operação da coleta."},
+        pagina={"type": "integer", "description": "Página (1-indexed)."},
+        por_pagina={"type": "integer", "description": "Itens por página (1-50)."},
+    ),
+    "ml_coletor": _schema_props(
+        coletor_id={"type": "integer", "description": "ID do coletor.", "required": True},
+    ),
+    "ranking_ml": _schema_props(
+        limite={"type": "integer", "description": "Quantidade no ranking (1-50)."},
+    ),
+    "listar_pipeline": _schema_props(
+        status={"type": "string", "description": "Filtrar por status do deal (ex.: negociacao)."},
+        responsavel_id={"type": "integer", "description": "Filtrar por responsável comercial."},
+        limite={"type": "integer", "description": "Máximo de deals (1-50)."},
+    ),
+    "listar_tarefas_comerciais": _schema_props(
+        status={"type": "string", "description": "Status da tarefa (padrão: aberta/pendente)."},
+        limite={"type": "integer", "description": "Máximo de tarefas (1-50)."},
+    ),
+    "interacoes_pipeline": _schema_props(
+        pipeline_id={"type": "integer", "description": "ID do pipeline CRM.", "required": True},
+        limite={"type": "integer", "description": "Máximo de interações (1-50)."},
+    ),
+    "listar_notificacoes": _schema_props(
+        lida={"type": "boolean", "description": "True=só lidas; False=só não lidas."},
+        limite={"type": "integer", "description": "Máximo de notificações (1-50)."},
+    ),
+    "listar_solicitacoes": _schema_props(
+        status={"type": "string", "description": "Filtrar por status (pendente, aprovado, recusado)."},
+        limite={"type": "integer", "description": "Máximo de solicitações (1-50)."},
+    ),
+    "meta_comercial": _schema_props(
+        mes={"type": "string", "description": "Mês no formato YYYY-MM (padrão: mês atual)."},
     ),
     "exportar_coletas_csv": _schema_props(
         inicio={"type": "string", "description": "Data início ISO (YYYY-MM-DD)."},

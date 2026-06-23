@@ -781,6 +781,182 @@ def _extrair_coletor_id(mensagem: str) -> int | None:
     return None
 
 
+def _extrair_sem_coleta_dias(mensagem: str) -> int | None:
+    msg = (mensagem or "").lower()
+    for pattern in (
+        r"(?:sem coleta|parado[s]?)[^\d]{0,20}(?:h[aá]|ha)\s+(\d{1,3})\s+dias",
+        r"(\d{1,3})\s+dias\s+sem\s+coleta",
+        r"sem coleta[^\d]{0,12}(\d{1,3})\s+dias",
+    ):
+        m = re.search(pattern, msg)
+        if m:
+            return int(m.group(1))
+    return None
+
+
+def _extrair_bateria_max(mensagem: str) -> float | None:
+    msg = (mensagem or "").lower()
+    m = re.search(r"bateria\s*(?:<=|≤|<|abaixo de|menor que|at[eé])\s*(\d{1,3})", msg)
+    if m:
+        return float(m.group(1))
+    m = re.search(r"(\d{1,3})\s*%\s*(?:de\s+)?bateria", msg)
+    if m:
+        return float(m.group(1))
+    return None
+
+
+def _mensagem_pede_listar_coletores(mensagem: str) -> bool:
+    msg = (mensagem or "").lower()
+    if any(
+        k in msg
+        for k in [
+            "sem coleta",
+            "parado",
+            "parados",
+            "lista de coletores",
+            "listar coletores",
+            "liste os coletores",
+            "liste coletores",
+            "status dos coletores",
+        ]
+    ):
+        return True
+    if _extrair_sem_coleta_dias(mensagem) is not None:
+        return True
+    return any(k in msg for k in ["coletor", "coletores"]) and any(
+        k in msg for k in ["list", "liste", "status"]
+    )
+
+
+def _mensagem_pede_status_sensores(mensagem: str) -> bool:
+    msg = (mensagem or "").lower()
+    return any(
+        k in msg
+        for k in ["sensor", "sensores", "bateria", "ping", "ultima leitura", "última leitura"]
+    )
+
+
+def _mensagem_pede_historico_coletas(mensagem: str) -> bool:
+    msg = (mensagem or "").lower()
+    if any(
+        k in msg
+        for k in [
+            "liste as coletas",
+            "detalhe das coletas",
+            "historico de coletas",
+            "histórico de coletas",
+            "registro de coletas",
+        ]
+    ):
+        return True
+    if "coletas do" in msg or "coletas de" in msg:
+        return True
+    return ("historico" in msg or "histórico" in msg) and "coleta" in msg
+
+
+def _mensagem_pede_ml_coletor(mensagem: str) -> bool:
+    msg = (mensagem or "").lower()
+    return any(
+        k in msg
+        for k in ["predição", "predicao", "enchimento", "tronik score", "score do coletor"]
+    )
+
+
+def _mensagem_pede_ranking_ml(mensagem: str) -> bool:
+    if _mensagem_pede_prospeccao(mensagem):
+        return False
+    msg = (mensagem or "").lower()
+    if "quais coletores priorizar" in msg:
+        return True
+    if "tronik score" in msg and _extrair_coletor_id(mensagem) is None:
+        return True
+    if "ranking" in msg and any(k in msg for k in ["coletor", "coletores", "tronik", "operac", "operacao", "operacional"]):
+        return True
+    return "prioridade" in msg and any(k in msg for k in ["coletor", "coletores", "priorizar", "tronik"])
+
+
+def _mensagem_pede_listar_pipeline(mensagem: str) -> bool:
+    msg = (mensagem or "").lower()
+    return any(
+        k in msg
+        for k in ["pipeline", "negociação", "negociacao", "funil", "deals", "oportunidades"]
+    )
+
+
+def _mensagem_pede_listar_tarefas_comerciais(mensagem: str) -> bool:
+    if _mensagem_pede_criar_tarefa_comercial(mensagem):
+        return False
+    msg = (mensagem or "").lower()
+    return any(
+        k in msg
+        for k in ["tarefa", "tarefas", "a fazer", "pendência comercial", "pendencia comercial"]
+    )
+
+
+def _mensagem_pede_interacoes_pipeline(mensagem: str) -> bool:
+    msg = (mensagem or "").lower()
+    if any(k in msg for k in ["interação", "interacao", "interações", "interacoes"]):
+        return True
+    if "histórico do pipeline" in msg or "historico do pipeline" in msg:
+        return True
+    return ("histórico" in msg or "historico" in msg) and any(
+        k in msg for k in ["pipeline", "negociação", "negociacao"]
+    )
+
+
+def _mensagem_pede_listar_notificacoes(mensagem: str) -> bool:
+    msg = (mensagem or "").lower()
+    return any(
+        k in msg
+        for k in [
+            "notificação",
+            "notificacao",
+            "notificações",
+            "notificacoes",
+            "alertas não lidos",
+            "alertas nao lidos",
+            "avisos",
+        ]
+    )
+
+
+def _mensagem_pede_listar_solicitacoes(mensagem: str) -> bool:
+    msg = (mensagem or "").lower()
+    return any(
+        k in msg
+        for k in [
+            "solicitação",
+            "solicitacao",
+            "solicitações",
+            "solicitacoes",
+            "pedidos de coletor",
+            "leads do site",
+        ]
+    )
+
+
+def _mensagem_pede_meta_comercial(mensagem: str) -> bool:
+    msg = (mensagem or "").lower()
+    if any(
+        k in msg
+        for k in ["meta comercial", "quanto falta pra meta", "objetivo do mês", "objetivo do mes"]
+    ):
+        return True
+    return "meta" in msg and any(
+        k in msg for k in ["comercial", "mês", "mes", "faturamento", "atingido", "falta"]
+    )
+
+
+def _extrair_mes_yyyy_mm(mensagem: str) -> str | None:
+    m = re.search(r"\b(20\d{2})-(\d{2})\b", mensagem or "")
+    if not m:
+        return None
+    mes_num = int(m.group(2))
+    if 1 <= mes_num <= 12:
+        return f"{m.group(1)}-{m.group(2)}"
+    return None
+
+
 def _extrair_nomes_parceiros(db: Session, mensagem: str) -> list[str]:
     msg = (mensagem or "").lower()
     nomes: list[str] = []
@@ -1117,6 +1293,58 @@ def _planejar_ferramentas(mensagem: str) -> list[dict[str, Any]]:
     if _mensagem_pede_coleta_hoje(mensagem):
         hoje = date.today().isoformat()
         plano.append({"nome": "resumo_periodo", "kwargs": {"inicio": hoje, "fim": hoje}})
+    if _mensagem_pede_listar_coletores(mensagem):
+        kwargs_col: dict[str, Any] = {}
+        dias_sem = _extrair_sem_coleta_dias(mensagem)
+        if dias_sem is not None:
+            kwargs_col["sem_coleta_dias"] = dias_sem
+        plano.append({"nome": "listar_coletores", "kwargs": kwargs_col})
+    if _mensagem_pede_status_sensores(mensagem):
+        kwargs_sens: dict[str, Any] = {}
+        cid = _extrair_coletor_id(mensagem)
+        if cid is not None:
+            kwargs_sens["coletor_id"] = cid
+        bat_max = _extrair_bateria_max(mensagem)
+        if bat_max is not None:
+            kwargs_sens["bateria_max"] = bat_max
+        plano.append({"nome": "status_sensores", "kwargs": kwargs_sens})
+    if _mensagem_pede_historico_coletas(mensagem):
+        plano.append({"nome": "historico_coletas", "kwargs": {}})
+    coletor_id_ml = _extrair_coletor_id(mensagem)
+    if coletor_id_ml is not None and _mensagem_pede_ml_coletor(mensagem):
+        plano.append({"nome": "ml_coletor", "kwargs": {"coletor_id": coletor_id_ml}})
+    if _mensagem_pede_ranking_ml(mensagem):
+        kwargs_rank: dict[str, Any] = {}
+        m_lim = re.search(r"\b(?:top|primeiros?)\s+(\d{1,2})\b", msg)
+        if m_lim:
+            kwargs_rank["limite"] = int(m_lim.group(1))
+        plano.append({"nome": "ranking_ml", "kwargs": kwargs_rank})
+    if _mensagem_pede_listar_pipeline(mensagem):
+        kwargs_pipe: dict[str, Any] = {}
+        if "negoci" in msg:
+            kwargs_pipe["status"] = "negociacao"
+        plano.append({"nome": "listar_pipeline", "kwargs": kwargs_pipe})
+    if _mensagem_pede_listar_tarefas_comerciais(mensagem):
+        plano.append({"nome": "listar_tarefas_comerciais", "kwargs": {}})
+    if _mensagem_pede_interacoes_pipeline(mensagem):
+        kwargs_int: dict[str, Any] = {}
+        pipeline_id_int = _extrair_pipeline_id(mensagem)
+        if pipeline_id_int is not None:
+            kwargs_int["pipeline_id"] = pipeline_id_int
+        plano.append({"nome": "interacoes_pipeline", "kwargs": kwargs_int})
+    if _mensagem_pede_listar_notificacoes(mensagem):
+        kwargs_not: dict[str, Any] = {}
+        if any(k in msg for k in ["não lid", "nao lid", "não lida", "nao lida"]):
+            kwargs_not["lida"] = False
+        plano.append({"nome": "listar_notificacoes", "kwargs": kwargs_not})
+    if _mensagem_pede_listar_solicitacoes(mensagem):
+        plano.append({"nome": "listar_solicitacoes", "kwargs": {}})
+    if _mensagem_pede_meta_comercial(mensagem):
+        kwargs_meta: dict[str, Any] = {}
+        mes_iso = _extrair_mes_yyyy_mm(mensagem)
+        if mes_iso:
+            kwargs_meta["mes"] = mes_iso
+        plano.append({"nome": "meta_comercial", "kwargs": kwargs_meta})
     # Dedupe mantendo ordem (evita chamadas repetidas)
     vistos: set[str] = set()
     final: list[dict[str, Any]] = []
@@ -1365,6 +1593,17 @@ def _executar_plano_ferramentas(
         "criar_tarefa_comercial": nik_tools.ferramenta_criar_tarefa_comercial,
         "info_coletor": nik_tools.ferramenta_info_coletor,
         "exportar_coletas_csv": nik_tools.ferramenta_exportar_coletas_csv,
+        "listar_coletores": nik_tools.ferramenta_listar_coletores,
+        "status_sensores": nik_tools.ferramenta_status_sensores,
+        "historico_coletas": nik_tools.ferramenta_historico_coletas,
+        "ml_coletor": nik_tools.ferramenta_ml_coletor,
+        "ranking_ml": nik_tools.ferramenta_ranking_ml,
+        "listar_pipeline": nik_tools.ferramenta_listar_pipeline,
+        "listar_tarefas_comerciais": nik_tools.ferramenta_listar_tarefas_comerciais,
+        "interacoes_pipeline": nik_tools.ferramenta_interacoes_pipeline,
+        "listar_notificacoes": nik_tools.ferramenta_listar_notificacoes,
+        "listar_solicitacoes": nik_tools.ferramenta_listar_solicitacoes,
+        "meta_comercial": nik_tools.ferramenta_meta_comercial,
     }
     for item in plano:
         nome = item.get("nome")
@@ -2447,6 +2686,45 @@ def _montar_contexto_conversa_integrada(
             if not item["kwargs"].get("inicio") or not item["kwargs"].get("fim"):
                 item["kwargs"]["inicio"] = date(data_max.year, 1, 1).isoformat()
                 item["kwargs"]["fim"] = data_max.isoformat()
+        if nome == "listar_coletores":
+            if consulta.get("parceiro_id"):
+                item["kwargs"]["parceiro_id"] = consulta["parceiro_id"]
+            if _extrair_sem_coleta_dias(mensagem) is not None:
+                item["kwargs"]["sem_coleta_dias"] = _extrair_sem_coleta_dias(mensagem)
+        if nome == "status_sensores":
+            cid = _extrair_coletor_id(mensagem)
+            if cid is not None:
+                item["kwargs"]["coletor_id"] = cid
+            bat = _extrair_bateria_max(mensagem)
+            if bat is not None:
+                item["kwargs"]["bateria_max"] = bat
+        if nome == "historico_coletas":
+            if consulta.get("inicio"):
+                item["kwargs"]["inicio"] = consulta["inicio"]
+            if consulta.get("fim"):
+                item["kwargs"]["fim"] = consulta["fim"]
+            if consulta.get("parceiro_id"):
+                item["kwargs"]["parceiro_id"] = consulta["parceiro_id"]
+            cid = _extrair_coletor_id(mensagem)
+            if cid is not None:
+                item["kwargs"]["coletor_id"] = cid
+        if nome == "ml_coletor":
+            cid = _extrair_coletor_id(mensagem)
+            if cid is not None:
+                item["kwargs"]["coletor_id"] = cid
+        if nome == "interacoes_pipeline":
+            pid = _extrair_pipeline_id(mensagem)
+            if pid is not None:
+                item["kwargs"]["pipeline_id"] = pid
+        if nome == "meta_comercial":
+            mes_iso = _extrair_mes_yyyy_mm(mensagem)
+            if mes_iso:
+                item["kwargs"]["mes"] = mes_iso
+        if nome == "listar_notificacoes" and any(
+            k in (mensagem or "").lower()
+            for k in ["não lid", "nao lid", "não lida", "nao lida"]
+        ):
+            item["kwargs"]["lida"] = False
         if nome == "cruzar_crm_prospeccao" and not item.get("kwargs"):
             item["kwargs"] = {"modo_global": True}
 

@@ -66,6 +66,7 @@ def db_session(test_db):
         NarrativaGerada,
         NikConversa,
         NikRelatorioGerado,
+        Notificacao,
         Parceiro,
         PredicaoEnchimento,
         # 14 Tabelas ML
@@ -106,6 +107,7 @@ def db_session(test_db):
         session.query(LeituraSensor).delete()
         session.query(PredicaoEnchimento).delete()
         session.query(TronikScore).delete()
+        session.query(Notificacao).delete()
 
         # Tier 8: Narrativas, Nik Reports, Nik Conversas (dependem de Parceiro/Usuario)
         session.query(NarrativaGerada).delete()

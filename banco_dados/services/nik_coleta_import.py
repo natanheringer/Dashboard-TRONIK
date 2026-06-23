@@ -17,7 +17,11 @@ from typing import Any
 from sqlalchemy.orm import Session
 
 from banco_dados.modelos import Coleta, Coletor
-from banco_dados.services import coleta_service, nik_coleta_chat as coleta_chat
+from banco_dados.services import (
+    coleta_service,
+    nik_coleta_chat as coleta_chat,
+    nik_csv_mapping as csv_map,
+)
 from banco_dados.services.relatorio_service import lucro_liquido_total_coleta
 from banco_dados.utils.cache import obter_cache
 
@@ -144,6 +148,34 @@ def _normalizar_linha(
     return payload, []
 
 
+def _correcoes_linha(row: dict[str, str], payload: dict[str, Any]) -> list[str]:
+    """Compara valores brutos mapeados com o payload normalizado (somente exibição)."""
+    correcoes: list[str] = []
+
+    raw_data = (row.get("data_hora") or "").strip()
+    data_iso = payload.get("data_hora") or ""
+    if raw_data and data_iso and raw_data != data_iso:
+        correcoes.append(f"data_hora: '{raw_data}' → {data_iso[:19]}")
+
+    for campo_raw, campo_payload in (
+        ("volume_kg", "volume_estimado"),
+        ("km_percorrido_km", "km_percorrido"),
+        ("preco_combustivel", "preco_combustivel"),
+    ):
+        raw = (row.get(campo_raw) or "").strip()
+        val = payload.get(campo_payload)
+        if raw:
+            parsed = _to_float(raw)
+            if (parsed is not None and (parsed != val or "," in raw)) or (
+                parsed is None and val is not None
+            ):
+                correcoes.append(f"{campo_raw}: '{raw}' → {val}")
+        elif campo_raw == "preco_combustivel" and val == _PRECO_PADRAO:
+            correcoes.append(f"preco_combustivel: (vazio) → {_PRECO_PADRAO} (padrão)")
+
+    return correcoes
+
+
 def preparar_import_coletas(
     db: Session,
     linhas: list[dict[str, str]],
@@ -170,6 +202,27 @@ def preparar_import_coletas(
             "pendente": False,
         }
 
+    mapeamento: dict[str, Any] | None = None
+    correcoes_exemplo: list[str] = []
+    headers = list(linhas[0].keys()) if linhas else []
+
+    if linhas and not csv_map.ja_canonico(headers):
+        mapeamento = csv_map.resolver_mapeamento(headers, linhas[:3])
+        if mapeamento["faltando_obrigatorios"]:
+            faltando = ", ".join(mapeamento["faltando_obrigatorios"])
+            detectados = ", ".join(headers) or "(nenhum)"
+            return {
+                "status": "mapeamento_incompleto",
+                "texto": (
+                    f"Não foi possível identificar colunas obrigatórias: {faltando}.\n"
+                    f"Cabeçalhos detectados: {detectados}\n"
+                    "Renomeie as colunas ou envie um CSV com coletor_id e data_hora."
+                ),
+                "pendente": False,
+                "mapeamento": mapeamento,
+            }
+        linhas = csv_map.aplicar_mapeamento(linhas, mapeamento["mapa"])
+
     escopo = coleta_chat._escopo_parceiro_usuario(db, usuario_id)
     rows: list[dict[str, Any]] = []
     validas = invalidas = duplicadas = 0
@@ -194,6 +247,11 @@ def preparar_import_coletas(
             continue
         validas += 1
         rows.append({"linha": idx, "status": "ok", "payload": payload})
+        if len(correcoes_exemplo) < 5:
+            for corr in _correcoes_linha(row, payload):
+                if len(correcoes_exemplo) >= 5:
+                    break
+                correcoes_exemplo.append(f"Linha {idx}: {corr}")
         if len(preview) < 5:
             preview.append(
                 {
@@ -217,6 +275,10 @@ def preparar_import_coletas(
         "escopo_parceiro_id": escopo,
         "usuario_id": usuario_id,
     }
+    if mapeamento:
+        pending["mapeamento"] = mapeamento
+    if correcoes_exemplo:
+        pending["correcoes"] = correcoes_exemplo
 
     if validas == 0:
         limpar_pending_import(usuario_id, thread_id)
@@ -233,16 +295,21 @@ def preparar_import_coletas(
         }
 
     _armazenar_pending_import(usuario_id, thread_id, pending)
+    stats: dict[str, Any] = {
+        "total": len(linhas),
+        "validas": validas,
+        "invalidas": invalidas,
+        "duplicadas": duplicadas,
+    }
+    if mapeamento:
+        stats["mapeamento"] = mapeamento
+    if correcoes_exemplo:
+        stats["correcoes"] = correcoes_exemplo
     return {
         "status": "aguardando_confirmacao",
         "texto": formatar_preview_import(pending),
         "pendente": True,
-        "stats": {
-            "total": len(linhas),
-            "validas": validas,
-            "invalidas": invalidas,
-            "duplicadas": duplicadas,
-        },
+        "stats": stats,
         "preview": preview,
     }
 
@@ -250,8 +317,23 @@ def preparar_import_coletas(
 def formatar_preview_import(pending: dict[str, Any]) -> str:
     linhas = [
         f"IMPORTAR {pending['validas']} COLETA(S) — {pending.get('filename', 'arquivo.csv')}",
-        f"Válidas: {pending['validas']} | Inválidas: {pending['invalidas']} | Duplicadas: {pending['duplicadas']}",
     ]
+    mapeamento = pending.get("mapeamento")
+    if mapeamento:
+        linhas.append("")
+        linhas.append("Mapeamento de colunas:")
+        for item in csv_map.resumo_mapeamento(mapeamento):
+            linhas.append(f"  • {item}")
+    correcoes = pending.get("correcoes") or []
+    if correcoes:
+        linhas.append("")
+        linhas.append("Correções aplicadas:")
+        for c in correcoes[:5]:
+            linhas.append(f"  • {c}")
+    linhas.append("")
+    linhas.append(
+        f"Válidas: {pending['validas']} | Inválidas: {pending['invalidas']} | Duplicadas: {pending['duplicadas']}"
+    )
     for p in pending.get("preview_rows", [])[:5]:
         if p.get("status") == "ok":
             linhas.append(
